@@ -1,0 +1,34 @@
+PokerStars Hand #250000000010: Tournament #3500000001, $10+$1 USD Hold'em No Limit - Level IV (50/100) - 2024/01/15 21:00:00 CET [2024/01/15 15:00:00 ET]
+Table '3500000001 12' 9-max Seat #2 is the button
+Seat 1: Hero (3000 in chips)
+Seat 2: Fish (1,500 in chips)
+Seat 3: Reg (4000 in chips) 
+Seat 7: Away (2000 in chips) is sitting out
+Hero: posts the ante 10
+Fish: posts the ante 10
+Reg: posts the ante 10
+Away: posts the ante 10
+Reg: posts small blind 50
+Hero: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [Qs Qh]
+Fish: raises 1,390 to 1,490 and is all-in
+Reg: folds
+Hero: calls 1,390
+*** FLOP *** [2d 8c Th]
+*** TURN *** [2d 8c Th] [3s]
+*** RIVER *** [2d 8c Th 3s] [Ac]
+*** SHOW DOWN ***
+Hero: shows [Qs Qh] (a pair of Queens)
+Fish: shows [Ad 5h] (a pair of Aces)
+Fish collected 3,070 from pot
+*** SUMMARY ***
+Total pot 3,070 | Rake 0
+Board [2d 8c Th 3s Ac]
+Seat 1: Hero (big blind) showed [Qs Qh] and lost with a pair of Queens
+Seat 2: Fish (button) showed [Ad 5h] and won (3,070) with a pair of Aces
+Seat 3: Reg (small blind) folded before Flop
+Seat 7: Away is sitting out
+
+
+

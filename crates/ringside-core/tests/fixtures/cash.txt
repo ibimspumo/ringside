@@ -1,0 +1,85 @@
+﻿PokerStars Hand #250000000001:  Hold'em No Limit ($0.05/$0.10 USD) - 2024/01/15 20:30:00 CET [2024/01/15 14:30:00 ET]
+Table 'Aquila II' 6-max Seat #3 is the button
+Seat 1: Alice ($10 in chips)
+Seat 2: Bob ($12.50 in chips)
+Seat 3: Carol ($8 in chips)
+Seat 4: Dave ($10 in chips)
+Seat 5: Hero ($10 in chips)
+Seat 6: Eve: The Great ($10 in chips)
+Dave: posts small blind $0.05
+Hero: posts big blind $0.10
+*** HOLE CARDS ***
+Dealt to Hero [Ah Kc]
+Eve: The Great: folds
+Alice: folds
+Bob: raises $0.20 to $0.30
+Carol: folds
+Dave: folds
+Hero: raises $0.80 to $1.10
+Bob: calls $0.80
+*** FLOP *** [2c 7d Jh]
+Hero: bets $1.20
+Bob: folds
+Uncalled bet ($1.20) returned to Hero
+Hero collected $2.17 from pot
+Hero: doesn't show hand
+*** SUMMARY ***
+Total pot $2.25 | Rake $0.08
+Board [2c 7d Jh]
+Seat 1: Alice folded before Flop (didn't bet)
+Seat 2: Bob folded on the Flop
+Seat 3: Carol (button) folded before Flop (didn't bet)
+Seat 4: Dave (small blind) folded before Flop
+Seat 5: Hero (big blind) collected ($2.17)
+Seat 6: Eve: The Great folded before Flop (didn't bet)
+
+
+
+PokerStars Hand #250000000002:  Hold'em No Limit ($0.05/$0.10 USD) - 2024/01/15 20:31:10 CET [2024/01/15 14:31:10 ET]
+Table 'Aquila II' 6-max Seat #4 is the button
+Seat 1: Alice ($10 in chips)
+Seat 2: Bob ($11.40 in chips)
+Seat 3: Carol ($8 in chips)
+Seat 4: Dave ($9.95 in chips)
+Seat 5: Hero ($11.07 in chips)
+Seat 6: Eve: The Great ($10 in chips)
+Hero: posts small blind $0.05
+Eve: The Great: posts big blind $0.10
+*** HOLE CARDS ***
+Dealt to Hero [9s 9d]
+Alice: calls $0.10
+Bob: folds
+Carol: folds
+Dave: folds
+Hero: calls $0.05
+Eve: The Great: checks
+*** FLOP *** [9c 4h 2s]
+Hero: checks
+Eve: The Great: bets $0.20
+Alice: calls $0.20
+Hero: raises $0.60 to $0.80
+Eve: The Great: folds
+Alice: calls $0.60
+*** TURN *** [9c 4h 2s] [Kd]
+Hero: bets $1.50
+Alice: calls $1.50
+*** RIVER *** [9c 4h 2s Kd] [3c]
+Hero: bets $3
+Alice: raises $4.60 to $7.60 and is all-in
+Hero: calls $4.60
+*** SHOW DOWN ***
+Alice: shows [Ah 5c] (a straight, Ace to Five)
+Hero: shows [9s 9d] (three of a kind, Nines)
+Alice collected $19.30 from pot
+*** SUMMARY ***
+Total pot $20.30 | Rake $1
+Board [9c 4h 2s Kd 3c]
+Seat 1: Alice showed [Ah 5c] and won ($19.30) with a straight, Ace to Five
+Seat 2: Bob folded before Flop (didn't bet)
+Seat 3: Carol folded before Flop (didn't bet)
+Seat 4: Dave (button) folded before Flop (didn't bet)
+Seat 5: Hero (small blind) showed [9s 9d] and lost with three of a kind, Nines
+Seat 6: Eve: The Great (big blind) folded on the Flop
+
+
+
