@@ -24,6 +24,16 @@
     return { x: p.x * width, y: p.y * height };
   }
 
+  /**
+   * The client draws the name plate beside the avatar, on the outer side for side seats and
+   * on opposite sides for the two seats near the vertical centre line. The card goes on the
+   * free side.
+   */
+  function cardLeft(x: number) {
+    const rel = x / width;
+    return rel > 0.5 !== Math.abs(rel - 0.5) < 0.1;
+  }
+
   function drag(visual: number, x: number, y: number, done: boolean) {
     draft[visual] = { x, y };
     onDragging?.(!done);
@@ -44,7 +54,7 @@
     x={p.x}
     y={p.y}
     {scale}
-    cardLeft={p.x > width * 0.62}
+    cardLeft={cardLeft(p.x)}
     game={view.game}
     currency={view.currency}
     open={openSeat === seat.seat}

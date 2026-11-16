@@ -35,14 +35,30 @@ pub struct SeatPos {
     pub y: f64,
 }
 
-/// Default avatar positions on an oval, starting at the bottom centre and going clockwise
-/// like seat numbers do.
+/// Avatar centres of the PokerStars desktop client at an 8-seat table, measured from
+/// screenshots of the client area (identical across table themes). Hero first, then clockwise.
+const STARS_8_SEATS: [(f64, f64); 8] = [
+    (0.432, 0.723),
+    (0.278, 0.629),
+    (0.189, 0.406),
+    (0.278, 0.198),
+    (0.570, 0.129),
+    (0.722, 0.198),
+    (0.812, 0.406),
+    (0.722, 0.629),
+];
+
+/// Default avatar positions, hero first and then clockwise like seat numbers. Sizes without a
+/// measured layout use the oval the measured seats lie on.
 pub fn default_layout(max_seats: u8) -> Vec<SeatPos> {
+    if max_seats == 8 {
+        return STARS_8_SEATS.iter().map(|&(x, y)| SeatPos { x, y }).collect();
+    }
     let n = max_seats.max(2) as f64;
     (0..max_seats.max(2))
         .map(|i| {
             let angle = std::f64::consts::FRAC_PI_2 + i as f64 * std::f64::consts::TAU / n;
-            SeatPos { x: 0.5 + 0.41 * angle.cos(), y: 0.46 + 0.34 * angle.sin() }
+            SeatPos { x: 0.5 + 0.311 * angle.cos(), y: 0.426 + 0.297 * angle.sin() }
         })
         .collect()
 }
@@ -96,5 +112,8 @@ mod tests {
         assert!((l[0].x - 0.5).abs() < 1e-9 && l[0].y > 0.7);
         assert!(l[1].x < 0.5, "next seat clockwise is on the left");
         assert!(l[3].y < 0.2, "opposite seat is at the top");
+        let eight = default_layout(8);
+        assert_eq!(eight.len(), 8);
+        assert!(eight[0].y > 0.7 && eight[2].x < 0.2 && eight[6].x > 0.8);
     }
 }

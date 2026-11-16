@@ -4,7 +4,7 @@ import type { Dashboard, Hand, HandSummary, PlayerView, Settings, StatId, StatVa
 const ovalLayout = (n: number) =>
   Array.from({ length: n }, (_, i) => {
     const a = Math.PI / 2 + (i * 2 * Math.PI) / n;
-    return { x: 0.5 + 0.41 * Math.cos(a), y: 0.46 + 0.34 * Math.sin(a) };
+    return { x: 0.5 + 0.311 * Math.cos(a), y: 0.426 + 0.297 * Math.sin(a) };
   });
 
 export const demoSettings: Settings = {
