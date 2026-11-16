@@ -15,7 +15,7 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.100.0
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2

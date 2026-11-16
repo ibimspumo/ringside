@@ -357,13 +357,12 @@ fn parse_action(
     } else if let Some(r) = rest.strip_prefix("bets ") {
         let a = first_amount(r)?;
         (ActionKind::Bet, a, None, a)
-    } else if let Some(r) = rest.strip_prefix("raises ") {
+    } else {
+        let r = rest.strip_prefix("raises ")?;
         let (_, after) = r.split_once(" to ")?;
         let to = first_amount(after)?;
         let added = to - put_before;
         (ActionKind::Raise, added, Some(to), added)
-    } else {
-        return None;
     };
 
     *street_put.entry(player.to_string()).or_default() += live;
