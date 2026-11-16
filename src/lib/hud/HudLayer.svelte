@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from "../api";
-  import type { TableView } from "../types";
+  import type { Point, SeatPos, TableView } from "../types";
   import SeatHud from "./SeatHud.svelte";
 
   interface Props {
@@ -12,16 +12,25 @@
 
   let { view, width, height, onDragging }: Props = $props();
 
-  let draft = $state<Record<number, { x: number; y: number }>>({});
+  /** Positions in px while something is being dragged. */
+  let draftRing = $state<Record<number, Point>>({});
+  let draftCard = $state<Record<number, Point>>({});
   let openSeat = $state<number | null>(null);
 
   const scale = $derived(view.hud.scale * Math.min(Math.max(width / 960, 0.5), 1.7));
 
-  function pos(visual: number) {
-    const d = draft[visual];
-    if (d) return d;
-    const p = view.layout[visual] ?? { x: 0.5, y: 0.5 };
-    return { x: p.x * width, y: p.y * height };
+  function seatPos(visual: number): SeatPos {
+    return view.layout[visual] ?? { x: 0.5, y: 0.5 };
+  }
+
+  function ring(visual: number): Point {
+    const p = seatPos(visual);
+    return draftRing[visual] ?? { x: p.x * width, y: p.y * height };
+  }
+
+  function card(visual: number): Point | null {
+    const c = seatPos(visual).card;
+    return draftCard[visual] ?? (c ? { x: c.x * width, y: c.y * height } : null);
   }
 
   /**
@@ -34,31 +43,48 @@
     return rel > 0.5 !== Math.abs(rel - 0.5) < 0.1;
   }
 
-  function drag(visual: number, x: number, y: number, done: boolean) {
-    draft[visual] = { x, y };
+  function save(visual: number, pos: SeatPos) {
+    view.layout[visual] = pos;
+    api.saveSeat(view.max_seats, visual, $state.snapshot(pos));
+  }
+
+  function dragRing(visual: number, p: Point, done: boolean) {
+    draftRing[visual] = p;
     onDragging?.(!done);
-    if (done) {
-      const normalised = { x: x / width, y: y / height };
-      view.layout[visual] = normalised;
-      delete draft[visual];
-      api.saveSeat(view.max_seats, visual, normalised);
-    }
+    if (!done) return;
+    delete draftRing[visual];
+    save(visual, { ...seatPos(visual), x: p.x / width, y: p.y / height });
+  }
+
+  function dragCard(visual: number, p: Point, done: boolean) {
+    draftCard[visual] = p;
+    onDragging?.(!done);
+    if (!done) return;
+    delete draftCard[visual];
+    save(visual, { ...seatPos(visual), card: { x: p.x / width, y: p.y / height } });
+  }
+
+  function resetCard(visual: number) {
+    save(visual, { ...seatPos(visual), card: null });
   }
 </script>
 
 {#each view.seats as seat (seat.seat)}
-  {@const p = pos(seat.visual)}
+  {@const p = ring(seat.visual)}
   <SeatHud
     {seat}
     hud={view.hud}
     x={p.x}
     y={p.y}
+    card={card(seat.visual)}
     {scale}
     cardLeft={cardLeft(p.x)}
     game={view.game}
     currency={view.currency}
     open={openSeat === seat.seat}
     onToggle={() => (openSeat = openSeat === seat.seat ? null : seat.seat)}
-    onDrag={(x, y, done) => drag(seat.visual, x, y, done)}
+    onRingDrag={(p, done) => dragRing(seat.visual, p, done)}
+    onCardDrag={(p, done) => dragCard(seat.visual, p, done)}
+    onCardReset={() => resetCard(seat.visual)}
   />
 {/each}

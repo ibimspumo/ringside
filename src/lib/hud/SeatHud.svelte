@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { STAT_META, fill, fmt, stat, tone } from "../stats";
-  import type { GameKind, HudConfig, SeatView } from "../types";
-  import { money } from "../stats";
+  import { STAT_META, fill, fmt, money, stat, tone } from "../stats";
+  import type { GameKind, HudConfig, Point, SeatView } from "../types";
 
   interface Props {
     seat: SeatView;
@@ -9,17 +8,36 @@
     /** Ring centre in px inside the parent. */
     x: number;
     y: number;
+    /** Card top-left in px once moved on its own; otherwise it sits beside the ring. */
+    card: Point | null;
     scale: number;
-    /** Card sits on the side facing the table centre. */
+    /** Side of the ring the card sits on while it has no own position. */
     cardLeft: boolean;
     game: GameKind;
     currency: string | null;
     open: boolean;
     onToggle: () => void;
-    onDrag: (x: number, y: number, done: boolean) => void;
+    onRingDrag: (p: Point, done: boolean) => void;
+    onCardDrag: (p: Point, done: boolean) => void;
+    onCardReset: () => void;
   }
 
-  let { seat, hud, x, y, scale, cardLeft, game, currency, open, onToggle, onDrag }: Props = $props();
+  let {
+    seat,
+    hud,
+    x,
+    y,
+    card,
+    scale,
+    cardLeft,
+    game,
+    currency,
+    open,
+    onToggle,
+    onRingDrag,
+    onCardDrag,
+    onCardReset,
+  }: Props = $props();
 
   const outer = $derived(stat(seat.stats, hud.ring_outer));
   const inner = $derived(stat(seat.stats, hud.ring_inner));
@@ -27,128 +45,161 @@
   const rows = $derived(hud.rows.map((id) => stat(seat.stats, id)));
   const details = $derived(seat.stats.filter((s) => s.id !== "hands"));
 
-  let drag: { px: number; py: number; ox: number; oy: number; moved: boolean } | null = null;
+  let anchor: HTMLDivElement;
+  let drag: { px: number; py: number; origin: Point; moved: boolean; move: (p: Point, done: boolean) => void } | null =
+    null;
 
-  function down(e: PointerEvent) {
+  /** Pointer handlers shared by ring and card; a press without movement toggles the details. */
+  function down(e: PointerEvent, origin: Point, move: (p: Point, done: boolean) => void) {
     if (e.button !== 0) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    drag = { px: e.clientX, py: e.clientY, ox: x, oy: y, moved: false };
+    drag = { px: e.clientX, py: e.clientY, origin, moved: false, move };
   }
 
-  function move(e: PointerEvent) {
+  function moveTo(e: PointerEvent, done: boolean) {
     if (!drag) return;
     const dx = e.clientX - drag.px;
     const dy = e.clientY - drag.py;
     if (!drag.moved && Math.hypot(dx, dy) < 4) return;
     drag.moved = true;
-    onDrag(drag.ox + dx, drag.oy + dy, false);
+    drag.move({ x: drag.origin.x + dx, y: drag.origin.y + dy }, done);
   }
 
   function up(e: PointerEvent) {
     if (!drag) return;
-    const d = drag;
+    const moved = drag.moved;
+    moveTo(e, true);
     drag = null;
-    if (d.moved) onDrag(d.ox + e.clientX - d.px, d.oy + e.clientY - d.py, true);
-    else onToggle();
+    if (!moved) onToggle();
+  }
+
+  function cardOrigin(el: HTMLElement): Point {
+    if (card) return card;
+    const r = el.getBoundingClientRect();
+    const a = anchor.getBoundingClientRect();
+    return { x: x + r.left - a.left, y: y + r.top - a.top };
   }
 </script>
 
-<div
-  class="seat"
-  class:left={cardLeft}
-  class:hero={seat.is_hero}
-  style="left:{x}px; top:{y}px; --s:{scale}; opacity:{hud.opacity}"
->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
-  <div class="grab hit" onpointerdown={down} onpointermove={move} onpointerup={up}>
-    <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
-      <circle class="track" cx="50" cy="50" r="45" stroke-width="7" />
-      <circle class="track" cx="50" cy="50" r="35.5" stroke-width="5" />
-      <circle
-        class="arc tone-{tone(hud, outer)}"
-        cx="50"
-        cy="50"
-        r="45"
-        stroke-width="7"
-        pathLength="100"
-        stroke-dasharray="{fill(outer) * 100} 100"
-      />
-      <circle
-        class="arc tone-{tone(hud, inner)}"
-        cx="50"
-        cy="50"
-        r="35.5"
-        stroke-width="5"
-        pathLength="100"
-        stroke-dasharray="{fill(inner) * 100} 100"
-      />
-    </svg>
-    <div class="badge num">{fmt(hands)}</div>
+<div class="seat" class:left={cardLeft} class:hero={seat.is_hero} class:open style="--s:{scale}; opacity:{hud.opacity}">
+  <div class="anchor" bind:this={anchor} style="left:{x}px; top:{y}px">
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="grab ring-box hit"
+      title="Ziehen zum Verschieben, Klick für alle Werte"
+      onpointerdown={(e) => down(e, { x, y }, onRingDrag)}
+      onpointermove={(e) => moveTo(e, false)}
+      onpointerup={up}
+    >
+      <svg class="ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="track" cx="50" cy="50" r="45" stroke-width="7" />
+        <circle class="track" cx="50" cy="50" r="35.5" stroke-width="5" />
+        <circle
+          class="arc tone-{tone(hud, outer)}"
+          cx="50"
+          cy="50"
+          r="45"
+          stroke-width="7"
+          pathLength="100"
+          stroke-dasharray="{fill(outer) * 100} 100"
+        />
+        <circle
+          class="arc tone-{tone(hud, inner)}"
+          cx="50"
+          cy="50"
+          r="35.5"
+          stroke-width="5"
+          pathLength="100"
+          stroke-dasharray="{fill(inner) * 100} 100"
+        />
+      </svg>
+      <div class="badge num">{fmt(hands)}</div>
+    </div>
 
-    <div class="card">
-      <div class="main num">
-        <span class="tone-{tone(hud, outer)}">{fmt(outer)}</span><span class="sep">/</span><span
-          class="tone-{tone(hud, inner)}">{fmt(inner)}</span
-        >
-        {#if hud.show_stack}
-          <span class="stack">
-            {#if game === "tournament"}
-              {Math.round(seat.stack_bb)}<small>BB</small>
-            {:else}
-              {money(seat.stack, currency, game)}
-            {/if}
-          </span>
-        {/if}
-      </div>
-      {#if rows.length}
-        <div class="rows num">
-          {#each rows as s, i (hud.rows[i])}
-            <span class="cell"><b class="tone-{tone(hud, s)}">{fmt(s)}</b><i>{STAT_META[hud.rows[i]].short}</i></span>
+    {#if open}
+      <div class="pop hit">
+        <header>
+          <strong>{seat.name}</strong>
+          <span class="num">{fmt(hands)} Hände</span>
+        </header>
+        <div class="grid">
+          {#each details as s (s.id)}
+            <div class="line" title={STAT_META[s.id].help}>
+              <span class="label">{STAT_META[s.id].name}</span>
+              <span class="num val tone-{tone(hud, s)}">{fmt(s)}{STAT_META[s.id].ratio || s.value === null ? "" : "%"}</span>
+              <span class="num sample">{s.made}/{s.opp}</span>
+            </div>
           {/each}
         </div>
-      {/if}
-    </div>
+      </div>
+    {/if}
   </div>
 
-  {#if open}
-    <div class="pop hit">
-      <header>
-        <strong>{seat.name}</strong>
-        <span class="num">{fmt(hands)} Hände</span>
-      </header>
-      <div class="grid">
-        {#each details as s (s.id)}
-          <div class="line" title={STAT_META[s.id].help}>
-            <span class="label">{STAT_META[s.id].name}</span>
-            <span class="num val tone-{tone(hud, s)}">{fmt(s)}{STAT_META[s.id].ratio || s.value === null ? "" : "%"}</span>
-            <span class="num sample">{s.made}/{s.opp}</span>
-          </div>
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="grab card hit"
+    class:free={card}
+    style={card ? `left:${card.x}px; top:${card.y}px` : `left:${x}px; top:${y}px`}
+    title="Ziehen zum Verschieben, Doppelklick legt die Karte wieder an den Ring"
+    onpointerdown={(e) => down(e, cardOrigin(e.currentTarget as HTMLElement), onCardDrag)}
+    onpointermove={(e) => moveTo(e, false)}
+    onpointerup={up}
+    ondblclick={onCardReset}
+  >
+    <div class="main num">
+      <span class="tone-{tone(hud, outer)}">{fmt(outer)}</span><span class="sep">/</span><span
+        class="tone-{tone(hud, inner)}">{fmt(inner)}</span
+      >
+      {#if hud.show_stack}
+        <span class="stack">
+          {#if game === "tournament"}
+            {Math.round(seat.stack_bb)}<small>BB</small>
+          {:else}
+            {money(seat.stack, currency, game)}
+          {/if}
+        </span>
+      {/if}
+    </div>
+    {#if rows.length}
+      <div class="rows num">
+        {#each rows as s, i (hud.rows[i])}
+          <span class="cell"><b class="tone-{tone(hud, s)}">{fmt(s)}</b><i>{STAT_META[hud.rows[i]].short}</i></span>
         {/each}
       </div>
-    </div>
-  {/if}
+    {/if}
+  </div>
 </div>
 
 <style>
   .seat {
     position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .seat.open {
+    z-index: 5;
+  }
+  .anchor {
+    position: absolute;
     width: 0;
     height: 0;
-    pointer-events: none;
   }
 
   .grab {
-    position: absolute;
-    left: calc(-38px * var(--s));
-    top: calc(-38px * var(--s));
-    width: calc(76px * var(--s));
-    height: calc(76px * var(--s));
     pointer-events: auto;
     cursor: grab;
     touch-action: none;
   }
   .grab:active {
     cursor: grabbing;
+  }
+
+  .ring-box {
+    position: absolute;
+    left: calc(-38px * var(--s));
+    top: calc(-38px * var(--s));
+    width: calc(76px * var(--s));
+    height: calc(76px * var(--s));
   }
 
   .ring {
@@ -194,9 +245,7 @@
 
   .card {
     position: absolute;
-    top: 50%;
-    left: calc(100% + 4px * var(--s));
-    transform: translateY(-50%);
+    transform: translate(calc(42px * var(--s)), -50%);
     padding: calc(4px * var(--s)) calc(8px * var(--s)) calc(5px * var(--s));
     border-radius: calc(8px * var(--s));
     background: linear-gradient(180deg, rgba(22, 26, 36, 0.94), rgba(11, 13, 19, 0.94));
@@ -207,8 +256,11 @@
     white-space: nowrap;
   }
   .left .card {
-    left: auto;
-    right: calc(100% + 4px * var(--s));
+    transform: translate(calc(-100% - 42px * var(--s)), -50%);
+  }
+  .card.free,
+  .left .card.free {
+    transform: none;
   }
   .hero .card {
     border-color: rgba(255, 138, 61, 0.35);

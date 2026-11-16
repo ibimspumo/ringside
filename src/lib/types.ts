@@ -22,9 +22,16 @@ export interface StatValue {
   opp: number;
 }
 
+export interface Point {
+  x: number;
+  y: number;
+}
+
+/** Ring centre, plus the card's top-left corner once the card was moved on its own. */
 export interface SeatPos {
   x: number;
   y: number;
+  card?: Point | null;
 }
 
 export interface Threshold {

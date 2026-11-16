@@ -140,7 +140,7 @@ fn save_seat(max_seats: u8, visual: usize, pos: SeatPos, app: AppHandle, state: 
     let mut settings = state.settings.lock().unwrap().clone();
     let mut layout = settings.layout(max_seats);
     if let Some(slot) = layout.get_mut(visual) {
-        *slot = SeatPos { x: pos.x.clamp(0.0, 1.0), y: pos.y.clamp(0.0, 1.0) };
+        *slot = pos.clamped();
     }
     settings.layouts.insert(max_seats.to_string(), layout);
     store_settings(&app, &state, settings)

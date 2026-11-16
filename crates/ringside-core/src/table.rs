@@ -28,11 +28,35 @@ pub fn key_from_title(title: &str) -> Option<String> {
     (!name.is_empty() && title.contains(" - ")).then(|| table_key(GameKind::Cash, None, name))
 }
 
-/// Normalised (0..1) position of a seat's avatar centre inside the table's client area.
+/// Normalised (0..1) point inside the table's client area.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Point {
+    pub fn clamped(self) -> Self {
+        Point { x: self.x.clamp(0.0, 1.0), y: self.y.clamp(0.0, 1.0) }
+    }
+}
+
+/// Where a seat's HUD sits: the ring around the avatar (`x`, `y` = avatar centre) and,
+/// once the user has moved it, the top-left corner of the stat card. Without `card` the
+/// card stays next to the ring.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct SeatPos {
     pub x: f64,
     pub y: f64,
+    #[serde(default)]
+    pub card: Option<Point>,
+}
+
+impl SeatPos {
+    pub fn clamped(self) -> Self {
+        let ring = Point { x: self.x, y: self.y }.clamped();
+        SeatPos { x: ring.x, y: ring.y, card: self.card.map(Point::clamped) }
+    }
 }
 
 /// Avatar centres of the PokerStars desktop client at an 8-seat table, measured from
@@ -52,13 +76,13 @@ const STARS_8_SEATS: [(f64, f64); 8] = [
 /// measured layout use the oval the measured seats lie on.
 pub fn default_layout(max_seats: u8) -> Vec<SeatPos> {
     if max_seats == 8 {
-        return STARS_8_SEATS.iter().map(|&(x, y)| SeatPos { x, y }).collect();
+        return STARS_8_SEATS.iter().map(|&(x, y)| SeatPos { x, y, card: None }).collect();
     }
     let n = max_seats.max(2) as f64;
     (0..max_seats.max(2))
         .map(|i| {
             let angle = std::f64::consts::FRAC_PI_2 + i as f64 * std::f64::consts::TAU / n;
-            SeatPos { x: 0.5 + 0.311 * angle.cos(), y: 0.426 + 0.297 * angle.sin() }
+            SeatPos { x: 0.5 + 0.311 * angle.cos(), y: 0.426 + 0.297 * angle.sin(), card: None }
         })
         .collect()
 }
@@ -115,5 +139,13 @@ mod tests {
         let eight = default_layout(8);
         assert_eq!(eight.len(), 8);
         assert!(eight[0].y > 0.7 && eight[2].x < 0.2 && eight[6].x > 0.8);
+    }
+
+    #[test]
+    fn layouts_saved_before_movable_cards_still_load() {
+        let old: SeatPos = serde_json::from_str(r#"{"x":0.4,"y":0.7}"#).unwrap();
+        assert_eq!(old, SeatPos { x: 0.4, y: 0.7, card: None });
+        let moved = SeatPos { x: 1.4, y: 0.7, card: Some(Point { x: -0.1, y: 0.5 }) }.clamped();
+        assert_eq!(moved, SeatPos { x: 1.0, y: 0.7, card: Some(Point { x: 0.0, y: 0.5 }) });
     }
 }
