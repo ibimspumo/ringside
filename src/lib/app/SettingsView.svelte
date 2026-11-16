@@ -114,7 +114,9 @@
           </div>
           {#if status}
             <p class="stat num">
-              {status.hands_imported.toLocaleString("de-DE")} Hände importiert · {status.files_read} Dateien gelesen
+              {status.total_hands.toLocaleString("de-DE")} Hände gespeichert · {status.hands_imported.toLocaleString(
+                "de-DE",
+              )} neu seit dem Start
               {#if status.malformed}· {status.malformed} nicht lesbar{/if}
             </p>
             {#if status.last_error}<p class="error">{status.last_error}</p>{/if}

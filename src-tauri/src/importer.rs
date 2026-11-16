@@ -14,7 +14,10 @@ use crate::AppState;
 pub struct ImportStatus {
     pub dirs: Vec<String>,
     pub files_read: usize,
+    /// Hands added since the app started.
     pub hands_imported: usize,
+    /// All hands in the database.
+    pub total_hands: i64,
     pub malformed: usize,
     pub last_error: Option<String>,
 }
@@ -30,6 +33,7 @@ pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
         let mut scanner = Scanner::default();
         let mut last_dirs = Vec::new();
+        let mut first = true;
         loop {
             let state = app.state::<AppState>();
             let dirs = effective_dirs(&state.settings.lock().unwrap().hand_history_dirs);
@@ -57,8 +61,13 @@ pub fn spawn(app: AppHandle) {
                     Err(e) => status.last_error = Some(format!("{}: {e}", path.display())),
                 }
             }
+            let refresh = first || !changed.is_empty();
+            if refresh && let Ok(total) = state.db.lock().unwrap().hand_count() {
+                status.total_hands = total;
+            }
             *state.import.lock().unwrap() = status.clone();
-            if !changed.is_empty() {
+            if refresh {
+                first = false;
                 let _ = app.emit("import-status", &status);
             }
             for key in tables {

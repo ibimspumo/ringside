@@ -195,3 +195,20 @@ fn preferred_seating_puts_hero_at_bottom() {
     assert_eq!(visual_index(h, 4, true), 5);
     assert_eq!(visual_index(h, 1, false), 0);
 }
+
+/// An app restart (or update) reopens the same database file: nothing is lost or re-read.
+#[test]
+fn reopened_database_keeps_hands_and_file_offsets() {
+    let dir = tempfile::tempdir().unwrap();
+    let hh = dir.path().join("HH.txt");
+    fs::write(&hh, format!("{CASH}\n\n\n")).unwrap();
+    let db_path = dir.path().join("ringside.sqlite");
+
+    {
+        let mut db = Db::open(&db_path).unwrap();
+        assert_eq!(import_file(&mut db, &hh).unwrap().new_hands.len(), 2);
+    }
+    let mut db = Db::open(&db_path).unwrap();
+    assert_eq!(db.hand_count().unwrap(), 2);
+    assert_eq!(import_file(&mut db, &hh).unwrap().new_hands.len(), 0);
+}

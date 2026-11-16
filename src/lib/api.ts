@@ -35,7 +35,8 @@ export const api = {
     call<ImportStatus>("import_status", {}, () => ({
       dirs: ["C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\HandHistory"],
       files_read: 12,
-      hands_imported: 1840,
+      hands_imported: 12,
+      total_hands: 1840,
       malformed: 0,
       last_error: null,
     })),

@@ -66,7 +66,7 @@
         <span class="dot"></span>
         {tables === 0 ? "Kein Tisch offen" : tables === 1 ? "1 Tisch im Blick" : `${tables} Tische im Blick`}
       </div>
-      <div class="dim num">{(status?.hands_imported ?? 0).toLocaleString("de-DE")} Hände importiert</div>
+      <div class="dim num">{(status?.total_hands ?? 0).toLocaleString("de-DE")} Hände gespeichert</div>
       {#if status && status.dirs.length === 0}
         <button class="warn" onclick={() => (tab = "settings")}>Kein Hand-History-Ordner gefunden</button>
       {/if}

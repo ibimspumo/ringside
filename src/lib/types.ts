@@ -84,6 +84,7 @@ export interface ImportStatus {
   dirs: string[];
   files_read: number;
   hands_imported: number;
+  total_hands: number;
   malformed: number;
   last_error: string | null;
 }
