@@ -203,7 +203,7 @@ mod win {
             let mut tick = 0u32;
             loop {
                 let state = app.state::<AppState>();
-                if tick % SCAN_EVERY == 0 {
+                if tick.is_multiple_of(SCAN_EVERY) {
                     let (found, seen) = scan();
                     table_hwnds = found;
                     *state.overlays.client_windows.lock().unwrap() = seen;
