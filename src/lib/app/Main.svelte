@@ -32,6 +32,7 @@
   onMount(() => {
     document.body.className = "app";
     api.importStatus().then((s) => (status = s));
+    api.clientWindows().then((w) => (tables = w.filter((x) => x.table_key).length));
     const subs = [
       on<ImportStatus>("import-status", (s) => {
         status = s;

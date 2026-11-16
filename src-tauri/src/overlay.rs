@@ -27,8 +27,19 @@ pub struct OverlayInfo {
     pub hit_regions: Vec<Rect>,
 }
 
+/// A visible window of the poker client, as seen by the last scan.
+#[derive(Debug, Clone, Serialize)]
+pub struct ClientWindow {
+    pub title: String,
+    pub class: String,
+    pub table_key: Option<String>,
+}
+
 #[derive(Default)]
-pub struct Overlays(pub Mutex<HashMap<String, OverlayInfo>>);
+pub struct Overlays {
+    pub by_label: Mutex<HashMap<String, OverlayInfo>>,
+    pub client_windows: Mutex<Vec<ClientWindow>>,
+}
 
 #[cfg(windows)]
 pub use win::spawn;
@@ -43,16 +54,19 @@ mod win {
 
     use ringside_core::table::key_from_title;
     use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
-    use windows::Win32::Foundation::{HWND, POINT, RECT};
+    use windows::Win32::Foundation::{CloseHandle, HWND, POINT, RECT};
     use windows::Win32::Graphics::Gdi::ClientToScreen;
-    use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowExW, GWL_EXSTYLE, GWLP_HWNDPARENT, GetClientRect, GetCursorPos, GetWindowLongPtrW, GetWindowTextW,
-        IsIconic, IsWindowVisible, SWP_NOACTIVATE, SWP_NOZORDER, SetWindowLongPtrW, SetWindowPos, WS_EX_NOACTIVATE,
-        WS_EX_TOOLWINDOW,
+    use windows::Win32::System::Threading::{
+        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
     };
-    use windows::core::{HSTRING, PCWSTR};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        FindWindowExW, GWL_EXSTYLE, GWLP_HWNDPARENT, GetClassNameW, GetClientRect, GetCursorPos, GetWindowLongPtrW,
+        GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SWP_NOACTIVATE, SWP_NOZORDER,
+        SetWindowLongPtrW, SetWindowPos, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+    };
+    use windows::core::{PCWSTR, PWSTR};
 
-    use super::OverlayInfo;
+    use super::{ClientWindow, OverlayInfo};
     use crate::AppState;
 
     struct Table {
@@ -74,23 +88,58 @@ mod win {
         HWND(v as *mut _)
     }
 
-    fn find_tables(classes: &[String]) -> Vec<Table> {
-        let mut out = Vec::new();
-        for class in classes {
-            let class = HSTRING::from(class.as_str());
-            let mut after: Option<HWND> = None;
-            loop {
-                let Ok(found) = (unsafe { FindWindowExW(None, after, &class, PCWSTR::null()) }) else { break };
-                if found.0.is_null() {
-                    break;
-                }
-                after = Some(found);
-                if let Some(t) = describe(found) {
-                    out.push(t);
-                }
-            }
+    /// Re-scanning all top-level windows is slower than following known tables, so it runs
+    /// less often than the position updates.
+    const SCAN_EVERY: u32 = 16;
+
+    fn is_poker_client(pid: u32) -> bool {
+        unsafe {
+            let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else { return false };
+            let mut buf = [0u16; 1024];
+            let mut len = buf.len() as u32;
+            let ok = QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len).is_ok();
+            let _ = CloseHandle(process);
+            let path = String::from_utf16_lossy(&buf[..len as usize]);
+            let exe = path.rsplit('\\').next().unwrap_or_default().to_lowercase();
+            ok && exe.starts_with("pokerstars")
         }
-        out
+    }
+
+    fn text(buf: &[u16], len: i32) -> String {
+        String::from_utf16_lossy(&buf[..len.clamp(0, buf.len() as i32) as usize])
+    }
+
+    /// Visible windows of the poker client, and the ones among them that are tables.
+    fn scan() -> (Vec<isize>, Vec<ClientWindow>) {
+        let mut clients: HashMap<u32, bool> = HashMap::new();
+        let mut tables = Vec::new();
+        let mut seen = Vec::new();
+        let mut after: Option<HWND> = None;
+        loop {
+            let Ok(h) = (unsafe { FindWindowExW(None, after, PCWSTR::null(), PCWSTR::null()) }) else { break };
+            if h.0.is_null() {
+                break;
+            }
+            after = Some(h);
+            if !unsafe { IsWindowVisible(h) }.as_bool() {
+                continue;
+            }
+            let mut pid = 0u32;
+            unsafe { GetWindowThreadProcessId(h, Some(&mut pid)) };
+            if !*clients.entry(pid).or_insert_with(|| is_poker_client(pid)) {
+                continue;
+            }
+            let mut buf = [0u16; 512];
+            let title = text(&buf, unsafe { GetWindowTextW(h, &mut buf) });
+            let mut cbuf = [0u16; 256];
+            let class = text(&cbuf, unsafe { GetClassNameW(h, &mut cbuf) });
+            let table_key = key_from_title(&title);
+            if table_key.is_some() {
+                tables.push(h.0 as isize);
+            }
+            seen.push(ClientWindow { title, class, table_key });
+        }
+        (tables, seen)
     }
 
     fn describe(h: HWND) -> Option<Table> {
@@ -99,8 +148,7 @@ mod win {
                 return None;
             }
             let mut buf = [0u16; 512];
-            let len = GetWindowTextW(h, &mut buf);
-            let title = String::from_utf16_lossy(&buf[..len.max(0) as usize]);
+            let title = text(&buf, GetWindowTextW(h, &mut buf));
             let mut rect = RECT::default();
             GetClientRect(h, &mut rect).ok()?;
             let mut origin = POINT { x: 0, y: 0 };
@@ -142,10 +190,17 @@ mod win {
         std::thread::spawn(move || {
             let mut tracked: HashMap<String, Tracked> = HashMap::new();
             let mut last_count = usize::MAX;
+            let mut table_hwnds: Vec<isize> = Vec::new();
+            let mut tick = 0u32;
             loop {
                 let state = app.state::<AppState>();
-                let classes = state.settings.lock().unwrap().table_window_classes.clone();
-                let tables = find_tables(&classes);
+                if tick % SCAN_EVERY == 0 {
+                    let (found, seen) = scan();
+                    table_hwnds = found;
+                    *state.overlays.client_windows.lock().unwrap() = seen;
+                }
+                tick = tick.wrapping_add(1);
+                let tables: Vec<Table> = table_hwnds.iter().filter_map(|&h| describe(hwnd(h))).collect();
                 let mut cursor = POINT::default();
                 let cursor_ok = unsafe { GetCursorPos(&mut cursor) }.is_ok();
 
@@ -167,7 +222,7 @@ mod win {
                         t.title = table.title.clone();
                         let key = key_from_title(&table.title);
                         {
-                            let mut overlays = state.overlays.0.lock().unwrap();
+                            let mut overlays = state.overlays.by_label.lock().unwrap();
                             let info = overlays.entry(label.clone()).or_insert_with(OverlayInfo::default);
                             info.title = table.title.clone();
                             info.table_key = key.clone();
@@ -187,7 +242,7 @@ mod win {
                         let (x, y, w, h) = t.rect;
                         let (cx, cy) = (cursor.x - x, cursor.y - y);
                         cx >= 0 && cy >= 0 && cx < w && cy < h && {
-                            let overlays = state.overlays.0.lock().unwrap();
+                            let overlays = state.overlays.by_label.lock().unwrap();
                             overlays
                                 .get(&label)
                                 .is_some_and(|o| o.hit_regions.iter().any(|r| r.contains(cx as f64, cy as f64)))
@@ -203,7 +258,7 @@ mod win {
                     let keep = alive.contains(label);
                     if !keep {
                         let _ = t.window.destroy();
-                        state.overlays.0.lock().unwrap().remove(label);
+                        state.overlays.by_label.lock().unwrap().remove(label);
                     }
                     keep
                 });

@@ -46,7 +46,6 @@ export interface HudConfig {
 export interface Settings {
   hand_history_dirs: string[];
   preferred_seating: boolean;
-  table_window_classes: string[];
   hud: HudConfig;
   layouts: Record<string, SeatPos[]>;
 }
@@ -72,6 +71,13 @@ export interface TableView {
   seats: SeatView[];
   layout: SeatPos[];
   hud: HudConfig;
+}
+
+export interface ClientWindow {
+  title: string;
+  class: string;
+  table_key: string | null;
+  has_hands: boolean;
 }
 
 export interface ImportStatus {

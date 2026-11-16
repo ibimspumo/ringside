@@ -65,7 +65,6 @@ pub fn stat_key(id: StatId) -> String {
 pub struct Settings {
     pub hand_history_dirs: Vec<String>,
     pub preferred_seating: bool,
-    pub table_window_classes: Vec<String>,
     pub hud: HudConfig,
     /// Seat positions per table size ("6", "9", ...), indexed by visual seat.
     pub layouts: BTreeMap<String, Vec<SeatPos>>,
@@ -76,7 +75,6 @@ impl Default for Settings {
         Settings {
             hand_history_dirs: Vec::new(),
             preferred_seating: true,
-            table_window_classes: vec!["PokerStarsTableFrameClass".into()],
             hud: HudConfig::default(),
             layouts: BTreeMap::new(),
         }

@@ -12,7 +12,7 @@ use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use importer::ImportStatus;
-use overlay::{Overlays, Rect};
+use overlay::{ClientWindow, Overlays, Rect};
 use settings::{HudConfig, Settings};
 
 pub struct AppState {
@@ -93,7 +93,7 @@ fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String) -> CmdRe
 
 #[tauri::command]
 fn overlay_view(label: String, state: State<AppState>) -> CmdResult<Option<TableView>> {
-    let Some(info) = state.overlays.0.lock().unwrap().get(&label).cloned() else { return Ok(None) };
+    let Some(info) = state.overlays.by_label.lock().unwrap().get(&label).cloned() else { return Ok(None) };
     let Some(key) = info.table_key else { return Ok(None) };
     let db = state.db.lock().unwrap();
     let Some(hand) = db.latest_hand_for_table(&key).map_err(err)? else { return Ok(None) };
@@ -113,7 +113,7 @@ fn preview_view(state: State<AppState>) -> CmdResult<Option<TableView>> {
 
 #[tauri::command]
 fn set_hit_regions(label: String, regions: Vec<Rect>, state: State<AppState>) {
-    if let Some(info) = state.overlays.0.lock().unwrap().get_mut(&label) {
+    if let Some(info) = state.overlays.by_label.lock().unwrap().get_mut(&label) {
         info.hit_regions = regions;
     }
 }
@@ -151,6 +151,30 @@ fn reset_layout(max_seats: u8, app: AppHandle, state: State<AppState>) -> CmdRes
     let mut settings = state.settings.lock().unwrap().clone();
     settings.layouts.remove(&max_seats.to_string());
     store_settings(&app, &state, settings)
+}
+
+#[derive(Serialize)]
+struct ClientWindowView {
+    #[serde(flatten)]
+    window: ClientWindow,
+    has_hands: bool,
+}
+
+/// What the tracker currently sees of the poker client, for troubleshooting.
+#[tauri::command]
+fn client_windows(state: State<AppState>) -> CmdResult<Vec<ClientWindowView>> {
+    let windows = state.overlays.client_windows.lock().unwrap().clone();
+    let db = state.db.lock().unwrap();
+    windows
+        .into_iter()
+        .map(|window| {
+            let has_hands = match &window.table_key {
+                Some(key) => db.latest_hand_for_table(key).map_err(err)?.is_some(),
+                None => false,
+            };
+            Ok(ClientWindowView { window, has_hands })
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -256,6 +280,7 @@ pub fn run() {
             save_seat,
             reset_layout,
             import_status,
+            client_windows,
             detected_dirs,
             dashboard,
             players,

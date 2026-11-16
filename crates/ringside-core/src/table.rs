@@ -7,13 +7,19 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::{GameKind, Hand, table_key};
 
+/// "Tournament 123 Table 4", "Turnier 123 Tisch 4", "Tournoi 123 Table 4", ...: the client
+/// language only changes the words, so match a long tournament id, a word, a table number.
 static TOURNAMENT_TITLE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"Tournament (\d+) Table (\d+)").unwrap());
+    LazyLock::new(|| Regex::new(r"\b(\d{6,})\s+\p{L}+\s+(\d{1,4})\b").unwrap());
 
-/// Table key for a table window title, e.g.
+/// Table key for a table window title in any client language, e.g.
 /// `"Aquila II - $0.05/$0.10 USD - No Limit Hold'em - Logged In as Hero"` or
-/// `"$10+$1 NLHE ... - Tournament 3500000001 Table 12 - Logged In as Hero"`.
+/// `"... - 30/60 Ante 8 - Turnier 4046789300 Tisch 10 - Eingeloggt als Hero"`.
 pub fn key_from_title(title: &str) -> Option<String> {
+    // Lobby and other client windows.
+    if title.starts_with("PokerStars") {
+        return None;
+    }
     if let Some(c) = TOURNAMENT_TITLE.captures(title) {
         let id: u64 = c[1].parse().ok()?;
         return Some(table_key(GameKind::Tournament, Some(id), &format!("{id} {}", &c[2])));
@@ -68,7 +74,20 @@ mod tests {
                 .as_deref(),
             Some("t:3500000001:12")
         );
+        assert_eq!(
+            key_from_title(
+                "$5.50 Mini Early Battle [Progressive KO], $1.5K Gtd - 30/60 Ante 8 - Turnier 4046789300 Tisch 10 - Eingeloggt als thoralf69"
+            )
+            .as_deref(),
+            Some("t:4046789300:10")
+        );
+        assert_eq!(
+            key_from_title("Bounty Builder $11, $2.5K Gtd - 45/90 Ante 14 - Turnier 4046791618 Tisch 12 - Eingeloggt als x")
+                .as_deref(),
+            Some("t:4046791618:12")
+        );
         assert_eq!(key_from_title("PokerStars Lobby"), None);
+        assert_eq!(key_from_title("PokerStars.EU Lobby - Eingeloggt als x"), None);
     }
 
     #[test]

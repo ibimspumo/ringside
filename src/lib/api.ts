@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as demo from "./demo";
 import type {
+  ClientWindow,
   Dashboard,
   GameKind,
   Hand,
@@ -38,6 +39,11 @@ export const api = {
       malformed: 0,
       last_error: null,
     })),
+  clientWindows: () =>
+    call<ClientWindow[]>("client_windows", {}, () => [
+      { title: "Bounty Builder $11 - 45/90 Ante 14 - Turnier 4046791618 Tisch 12 - Eingeloggt als Hero", class: "PokerStarsTableFrameClass", table_key: "t:4046791618:12", has_hands: true },
+      { title: "PokerStars Lobby", class: "PokerStarsLobbyClass", table_key: null, has_hands: false },
+    ]),
   detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
   dashboard: (game: GameKind | null) => call<Dashboard>("dashboard", { game }, demo.demoDashboard),
   players: (game: GameKind | null, search: string, limit = 200) =>

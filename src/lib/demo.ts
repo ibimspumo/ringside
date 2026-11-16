@@ -10,7 +10,6 @@ const ovalLayout = (n: number) =>
 export const demoSettings: Settings = {
   hand_history_dirs: [],
   preferred_seating: true,
-  table_window_classes: ["PokerStarsTableFrameClass"],
   hud: {
     ring_outer: "vpip",
     ring_inner: "pfr",

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri } from "../api";
-  import type { ImportStatus, Settings } from "../types";
+  import type { ClientWindow, ImportStatus, Settings } from "../types";
 
   let { status }: { status: ImportStatus | null } = $props();
 
@@ -9,6 +9,11 @@
 
   let settings = $state<Settings | null>(null);
   let detected = $state<string[]>([]);
+  let windows = $state<ClientWindow[]>([]);
+
+  async function loadWindows() {
+    windows = await api.clientWindows();
+  }
   let version = $state("dev");
   let update = $state<{ state: "idle" | "checking" | "none" | "available" | "installing" | "error"; text?: string }>({
     state: "idle",
@@ -18,6 +23,7 @@
   onMount(async () => {
     settings = await api.getSettings();
     detected = await api.detectedDirs();
+    loadWindows();
     if (inTauri) version = await (await import("@tauri-apps/api/app")).getVersion();
   });
 
@@ -126,20 +132,27 @@
               <small>Dann sitzt du immer unten in der Mitte und das HUD dreht sich mit.</small>
             </span>
           </label>
-          <label class="stack">
-            <span>Fensterklasse der Tische <small>(nur ändern, wenn keine Tische erkannt werden)</small></span>
-            <input
-              class="field"
-              value={settings.table_window_classes.join(", ")}
-              onchange={(e) => {
-                settings!.table_window_classes = e.currentTarget.value
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-                save();
-              }}
-            />
-          </label>
+          <div class="windows">
+            <div class="row between">
+              <span class="sub">Erkannte PokerStars-Fenster</span>
+              <button class="btn small" onclick={loadWindows}>Aktualisieren</button>
+            </div>
+            {#each windows as w, i (i)}
+              <div class="win" class:table={w.table_key}>
+                <span class="wt">{w.title || "(ohne Titel)"}</span>
+                <span class="wm">
+                  {#if w.table_key}
+                    Tisch erkannt · {w.has_hands ? "Hände vorhanden" : "noch keine Hand zu diesem Tisch importiert"}
+                  {:else}
+                    kein Tisch
+                  {/if}
+                  · {w.class}
+                </span>
+              </div>
+            {:else}
+              <p class="hint">Kein PokerStars-Fenster gefunden. Läuft der Client?</p>
+            {/each}
+          </div>
         </div>
       </section>
 
@@ -260,11 +273,42 @@
     font-size: 12px;
     margin-top: 2px;
   }
-  .stack {
+  .between {
+    justify-content: space-between;
+  }
+  .sub {
+    color: var(--text-dim);
+  }
+  .btn.small {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+  .windows {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    color: var(--text-dim);
+  }
+  .win {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: var(--bg-raised);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--text-faint);
+  }
+  .win.table {
+    border-left-color: var(--win);
+  }
+  .wt {
+    font-size: 12.5px;
+    overflow-wrap: anywhere;
+  }
+  .wm {
+    font-size: 11.5px;
+    color: var(--text-faint);
   }
   .version {
     margin: 0;
