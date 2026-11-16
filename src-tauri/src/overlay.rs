@@ -105,8 +105,20 @@ mod win {
         }
     }
 
-    fn text(buf: &[u16], len: i32) -> String {
+    fn utf16(buf: &[u16], len: i32) -> String {
         String::from_utf16_lossy(&buf[..len.clamp(0, buf.len() as i32) as usize])
+    }
+
+    fn window_title(h: HWND) -> String {
+        let mut buf = [0u16; 512];
+        let len = unsafe { GetWindowTextW(h, &mut buf) };
+        utf16(&buf, len)
+    }
+
+    fn class_name(h: HWND) -> String {
+        let mut buf = [0u16; 256];
+        let len = unsafe { GetClassNameW(h, &mut buf) };
+        utf16(&buf, len)
     }
 
     /// Visible windows of the poker client, and the ones among them that are tables.
@@ -129,10 +141,8 @@ mod win {
             if !*clients.entry(pid).or_insert_with(|| is_poker_client(pid)) {
                 continue;
             }
-            let mut buf = [0u16; 512];
-            let title = text(&buf, unsafe { GetWindowTextW(h, &mut buf) });
-            let mut cbuf = [0u16; 256];
-            let class = text(&cbuf, unsafe { GetClassNameW(h, &mut cbuf) });
+            let title = window_title(h);
+            let class = class_name(h);
             let table_key = key_from_title(&title);
             if table_key.is_some() {
                 tables.push(h.0 as isize);
@@ -147,8 +157,7 @@ mod win {
             if !IsWindowVisible(h).as_bool() {
                 return None;
             }
-            let mut buf = [0u16; 512];
-            let title = text(&buf, GetWindowTextW(h, &mut buf));
+            let title = window_title(h);
             let mut rect = RECT::default();
             GetClientRect(h, &mut rect).ok()?;
             let mut origin = POINT { x: 0, y: 0 };
