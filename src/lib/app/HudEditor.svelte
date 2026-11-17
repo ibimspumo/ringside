@@ -300,7 +300,7 @@
           </label>
         </div>
 
-        <div class="stage-wrap" class:small={smallStage}>
+        <div class="stage-wrap" class:compact={smallStage}>
           <div class="stage" style="aspect-ratio:{aspect}; --aspect:{aspect}; width:min(100%, calc((100vh - 250px) * {aspect}))" bind:clientWidth={stageW} bind:clientHeight={stageH}>
             {#if shot && shape === "screenshot"}
               <img class="shot" src={shot.url} alt="Tisch-Screenshot" style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%" />
@@ -946,7 +946,7 @@
   .preset .p-text span {
     font-size: 12px;
     line-height: 1.4;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .mode.on span,
   .cover.on span,
@@ -963,7 +963,7 @@
   .danger-quiet:hover {
     color: #ff9d93;
   }
-  .small {
+  .btn.small {
     height: 28px;
     padding: 0 9px;
     font-size: 12.5px;
@@ -1009,7 +1009,7 @@
     flex-shrink: 0;
     font-style: normal;
     font-size: 11.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .stat:hover {
     border-color: var(--line-2);
@@ -1230,7 +1230,7 @@
     .size-toggle {
       display: flex;
     }
-    .stage-wrap.small .stage {
+    .stage-wrap.compact .stage {
       width: min(100%, calc((100vh - 460px) * var(--aspect))) !important;
     }
     /* Table, then the settings, then the how-to: the settings start in the first screen. */
