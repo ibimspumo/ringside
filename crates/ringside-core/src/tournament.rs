@@ -95,6 +95,8 @@ pub struct Summary {
     /// Re-entries, rebuys and add-ons on top of the first buy-in.
     pub extra_cost: Amount,
     pub currency: Option<String>,
+    /// Prize per place from first, when the summary lists every paid place; else empty.
+    pub payouts: Vec<Amount>,
 }
 
 static HEADER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^PokerStars Tournament #(\d+),\s*(.*)$").unwrap());
@@ -120,6 +122,27 @@ fn money(text: &str) -> Option<Amount> {
     parse_amount(text[start..].split_whitespace().next()?)
 }
 
+/// The prizes of places 1, 2, … when the ranks show all of them: paid places from first
+/// without a gap, followed by a listed place without a prize (or the whole field paid).
+/// Summaries written while the tournament still runs leave out places or say
+/// "still playing", and give nothing.
+fn payouts(ranks: &[(i64, String)], entrants: Option<i64>) -> Vec<Amount> {
+    let mut sorted: Vec<&(i64, String)> = ranks.iter().collect();
+    sorted.sort_by_key(|(p, _)| *p);
+    let mut out = Vec::new();
+    for (place, text) in sorted {
+        if *place != out.len() as i64 + 1 {
+            return Vec::new();
+        }
+        match money(text) {
+            Some(a) if a > 0 => out.push(a),
+            _ if text.trim().is_empty() && !out.is_empty() => return out,
+            _ => return Vec::new(),
+        }
+    }
+    if entrants == Some(out.len() as i64) { out } else { Vec::new() }
+}
+
 /// Parses every tournament in a summary file (normally one; e-mailed histories hold several).
 pub fn parse_summaries(text: &str) -> Vec<Summary> {
     let mut out: Vec<Summary> = Vec::new();
@@ -134,6 +157,7 @@ pub fn parse_summaries(text: &str) -> Vec<Summary> {
                 s.currency = currency_code(&symbol, None);
             }
         }
+        s.payouts = payouts(ranks, s.entrants);
         ranks.clear();
     };
     for line in text.lines().map(|l| l.trim_start_matches('\u{feff}').trim_end()) {
@@ -155,6 +179,7 @@ pub fn parse_summaries(text: &str) -> Vec<Summary> {
                 bounties: None,
                 extra_cost: 0,
                 currency: None,
+                payouts: Vec::new(),
             });
             continue;
         }
@@ -216,6 +241,9 @@ pub struct TournamentRow {
     /// The hero's chip change over the imported hands.
     pub chips: Amount,
     pub has_summary: bool,
+    /// Prize per place from first, from a summary that lists every paid place.
+    #[serde(skip)]
+    pub payouts: Vec<Amount>,
     /// As shown in the table window title ("$5.50 Mini Early Battle [Progressive KO], $1.5K Gtd").
     pub name: Option<String>,
 }
@@ -319,6 +347,7 @@ mod tests {
             hands: 0,
             chips: 0,
             has_summary: true,
+            payouts: Vec::new(),
             name: None,
         }
     }

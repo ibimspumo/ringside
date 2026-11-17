@@ -1,0 +1,189 @@
+use ringside_analysis::{PostflopJob, Rating, Source, SpotType, Status, analyze_hand, postflop::JobError, solve_job};
+use ringside_core::db::{Db, DecisionFilter, HandQuery};
+use ringside_core::model::{Hand, Street};
+use ringside_core::parse_hand;
+
+/// A tournament hand at `bb` with antes of `ante`; `seats` as (name, chips), the
+/// button on seat `button`, small and big blind on the next two seats.
+fn hand(id: u64, seats: &[(&str, i64)], button: usize, bb: i64, ante: i64, cards: &str, body: &str) -> String {
+    let n = seats.len();
+    let sb = &seats[button % n].0;
+    let big = &seats[(button + 1) % n].0;
+    let mut out = format!(
+        "PokerStars Hand #{id}: Tournament #3500000001, $10+$1 USD Hold'em No Limit - Level IV ({}/{bb}) - 2024/01/15 21:00:00 CET [2024/01/15 15:00:00 ET]\nTable '3500000001 12' 9-max Seat #{button} is the button\n",
+        bb / 2
+    );
+    for (i, (name, chips)) in seats.iter().enumerate() {
+        out.push_str(&format!("Seat {}: {name} ({chips} in chips)\n", i + 1));
+    }
+    if ante > 0 {
+        for (name, _) in seats {
+            out.push_str(&format!("{name}: posts the ante {ante}\n"));
+        }
+    }
+    out.push_str(&format!("{sb}: posts small blind {}\n{big}: posts big blind {bb}\n*** HOLE CARDS ***\nDealt to Hero [{cards}]\n", bb / 2));
+    out.push_str(body);
+    out
+}
+
+fn parsed(raw: &str) -> Hand {
+    parse_hand(raw).unwrap_or_else(|e| panic!("{e:?}\n{raw}"))
+}
+
+const SIX: [(&str, i64); 6] = [("P1", 1600), ("P2", 1600), ("P3", 1600), ("P4", 1600), ("Hero", 1600), ("P6", 1600)];
+
+fn k6o_fold() -> String {
+    hand(
+        1,
+        &SIX,
+        4,
+        200,
+        25,
+        "Kh 6c",
+        "P1: folds\nP2: folds\nP3: folds\nP4: folds\nHero: folds\nUncalled bet (100) returned to P6\nP6 collected 350 from pot\n*** SUMMARY ***\nTotal pot 350 | Rake 0\n",
+    )
+}
+
+#[test]
+fn push_fold_mistake_is_found() {
+    let a = analyze_hand(&parsed(&k6o_fold()));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!(d.source, Some(Source::Equilibrium));
+    assert_eq!(d.spot, SpotType::Shove);
+    assert_eq!(d.best.as_deref(), Some("All-in"));
+    assert!(d.rating >= Some(Rating::Inaccuracy), "{d:?}");
+    assert!(d.ev_loss_bb.unwrap() > 0.2, "{d:?}");
+    assert!(d.why.contains("All-in"), "{}", d.why);
+    assert!(a.job.is_none());
+}
+
+#[test]
+fn model_comparison_names_the_nearest_configuration() {
+    // 37 BB, eight players with an ante: the model's nearest depth is 40 BB.
+    let seats: Vec<(&str, i64)> = vec![("Hero", 7400), ("P2", 7400), ("P3", 7400), ("P4", 7400), ("P5", 7400), ("P6", 7400), ("P7", 7400), ("P8", 7400)];
+    let raw = hand(
+        2,
+        &seats,
+        5,
+        200,
+        25,
+        "7c 2d",
+        "Hero: raises 300 to 500\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: folds\nP8: folds\nUncalled bet (300) returned to Hero\nHero collected 700 from pot\n*** SUMMARY ***\nTotal pot 700 | Rake 0\n",
+    );
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!(d.source, Some(Source::Model));
+    assert_eq!(d.spot, SpotType::Open);
+    assert_eq!(d.best.as_deref(), Some("Fold"));
+    assert!(d.rating >= Some(Rating::Inaccuracy), "{d:?}");
+    assert!(d.note.contains("nächste vorgerechnete Tiefe: 40 BB statt 37 BB"), "{}", d.note);
+    assert!(d.played_freq.unwrap() < 0.05);
+}
+
+#[test]
+fn limps_and_multiway_pots_are_not_rated_with_a_reason() {
+    let limp = hand(
+        3,
+        &SIX,
+        4,
+        200,
+        25,
+        "9s 9d",
+        "P1: calls 200\nP2: folds\nP3: folds\nP4: folds\nHero: raises 800 to 1000\nP6: folds\nP1: folds\nUncalled bet (800) returned to Hero\nHero collected 850 from pot\n*** SUMMARY ***\nTotal pot 850 | Rake 0\n",
+    );
+    let a = analyze_hand(&parsed(&limp));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!(d.status, Status::Unrated);
+    assert!(d.reason.as_deref().unwrap().contains("Limp"), "{d:?}");
+}
+
+/// Button opens, big blind calls, the button c-bets and the big blind folds.
+fn c_bet_hand(id: u64) -> String {
+    // Short stacks keep the tree small: few bets fit behind.
+    let seats: Vec<(&str, i64)> = vec![("P1", 3000), ("P2", 3000), ("P3", 3000), ("Hero", 3000), ("P5", 3000), ("P6", 3000)];
+    hand(
+        id,
+        &seats,
+        4,
+        200,
+        25,
+        "Ah Kh",
+        "P1: folds\nP2: folds\nP3: folds\nHero: raises 200 to 400\nP5: folds\nP6: calls 200\n*** FLOP *** [Kd 7s 2c]\nP6: checks\nHero: bets 300\nP6: folds\nUncalled bet (300) returned to Hero\nHero collected 1150 from pot\n*** SUMMARY ***\nTotal pot 1150 | Rake 0\nBoard [Kd 7s 2c]\n",
+    )
+}
+
+#[test]
+fn postflop_spot_is_queued_and_rated() {
+    let raw = c_bet_hand(4);
+    let h = parsed(&raw);
+    let mut db = Db::open_in_memory().unwrap();
+    db.insert_hands(&[(h.clone(), raw)]).unwrap();
+    db.save_analysis(&[analyze_hand(&h)]).unwrap();
+
+    let counts = db.analysis_counts(ringside_analysis::ENGINE).unwrap();
+    assert_eq!((counts.analyzed, counts.queued, counts.pending), (1, 1, 1));
+    let pending = db.hand_decisions(4).unwrap();
+    let flop = pending.iter().find(|d| d.street == Street::Flop).unwrap();
+    assert_eq!((flop.status, flop.spot), (Status::Pending, SpotType::CBet));
+
+    let (id, json) = db.next_postflop_job().unwrap().unwrap();
+    assert_eq!(id, 4);
+    let mut job: PostflopJob = serde_json::from_str(&json).unwrap();
+    assert!(job.note.contains("Ranges aus dem Preflop-Modell"), "{}", job.note);
+    // The model's ranges take minutes to solve; narrow ones keep the test quick and still
+    // run the whole path from the queue to stored ratings.
+    job.spot.oop_range = "QQ,JJ,77,AQs,KQs".into();
+    job.spot.ip_range = "AA,AKs,KQs,99".into();
+    let cancelled = solve_job(&job, 2, 1 << 30, |_| {}, || true);
+    assert!(matches!(cancelled, Err(JobError::Cancelled)));
+    let Ok(solved) = solve_job(&job, 2, 1 << 30, |_| {}, || false) else { panic!("solve failed") };
+    let [d] = solved.as_slice() else { panic!("{solved:?}") };
+    assert_eq!((d.status, d.source, d.spot), (Status::Rated, Some(Source::Solver), SpotType::CBet));
+    assert!(d.solver.as_deref().unwrap().contains("\"path\""));
+    db.finish_postflop(id, &solved).unwrap();
+    let counts = db.analysis_counts(ringside_analysis::ENGINE).unwrap();
+    assert_eq!((counts.queued, counts.pending, counts.rated), (0, 0, 2));
+}
+
+#[test]
+fn hand_list_filters_and_sorts_by_loss() {
+    let mut db = Db::open_in_memory().unwrap();
+    let raws = [k6o_fold(), c_bet_hand(5)];
+    let hands: Vec<(Hand, String)> = raws.iter().map(|r| (parsed(r), r.clone())).collect();
+    db.insert_hands(&hands).unwrap();
+    let analyses: Vec<_> = hands.iter().map(|(h, _)| analyze_hand(h)).collect();
+    db.save_analysis(&analyses).unwrap();
+    let rows = |decisions: Option<DecisionFilter>, sort_by_loss: bool| {
+        db.hands(&HandQuery { decisions, sort_by_loss, limit: 10, ..Default::default() }).unwrap()
+    };
+    let query = |decisions: Option<DecisionFilter>, sort_by_loss: bool| -> Vec<u64> {
+        rows(decisions, sort_by_loss).into_iter().map(|h| h.id).collect()
+    };
+    let mistakes = DecisionFilter { min_rating: Some(Rating::Inaccuracy), ..Default::default() };
+    let found = rows(Some(mistakes), true);
+    assert!(found.iter().any(|h| h.id == 1));
+    assert!(found.iter().all(|h| h.worst.as_ref().unwrap().rating >= Some(Rating::Inaccuracy)));
+    let losses: Vec<f64> = found.iter().map(|h| h.worst.as_ref().unwrap().ev_loss_bb.unwrap()).collect();
+    assert!(losses.windows(2).all(|w| w[0] >= w[1]), "{losses:?}");
+    let shoves = DecisionFilter { spots: vec![SpotType::Shove], ..Default::default() };
+    assert_eq!(query(Some(shoves), false), [1]);
+    let pending = DecisionFilter { unrated: true, ..Default::default() };
+    assert_eq!(query(Some(pending), false), [5]);
+    let solver = DecisionFilter { source: Some(Source::Solver), street: Some(Street::Flop), ..Default::default() };
+    assert_eq!(query(Some(solver), false), [5]);
+    let all = rows(None, true);
+    let worst = |h: &ringside_core::db::HandSummary| h.worst.as_ref().and_then(|w| w.ev_loss_bb).unwrap_or(0.0);
+    assert_eq!(all.len(), 2);
+    assert!(worst(&all[0]) >= worst(&all[1]));
+    let list = db.hands(&HandQuery { limit: 10, ..Default::default() }).unwrap();
+    let worst = list.iter().find(|h| h.id == 1).unwrap().worst.as_ref().unwrap();
+    assert_eq!(worst.spot, SpotType::Shove);
+
+    let summary = db.analysis_summary(&Default::default(), ringside_analysis::ENGINE, 5).unwrap();
+    assert_eq!((summary.hands, summary.analyzed), (2, 2));
+    assert_eq!(summary.costliest[0].hand_id, all[0].id);
+    let total: f64 = summary.by_spot.iter().map(|s| s.loss_bb).sum();
+    assert!((total - summary.loss_bb).abs() < 1e-9);
+    assert!(summary.by_spot.windows(2).all(|w| w[0].loss_bb >= w[1].loss_bb));
+    assert!(summary.by_spot.iter().any(|s| s.spot == Some(SpotType::Shove)));
+}

@@ -45,6 +45,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         hands: hands.len() as i64,
         chips: 0,
         has_summary: false,
+        payouts: Vec::new(),
         name: None,
     };
     let models = Client::new(BASE_URL, None).models()?;

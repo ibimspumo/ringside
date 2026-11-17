@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 
 use crate::concepts::CONCEPTS;
 use crate::openrouter::{ApiError, Client, Doing, Live, ModelInfo};
+use crate::prizes::{Prizes, Source, prizes};
 use crate::render::{Names, num, render_hand};
 use crate::report::{self, HandRef, Meta, Report, numbers_in, numbers_in_json};
 use crate::select::select;
@@ -178,7 +179,7 @@ Regeln:
 - Annahmen über Gegner-Ranges, Tendenzen oder Bet-Größen machst du ausdrücklich und markierst sie als „einschätzung“.
 - Bewerte Entscheidungen, nicht Ergebnisse. Glück oder Pech nennst du nur mit den Zahlen dazu.
 - push_fold_nash gilt für reines Push/Fold an jeder Position: Bis zum ersten Shove folden alle, danach wird nur gecallt oder gefoldet, höchstens 3 Spieler all-in. Nach Limps oder Raises unter All-in ist es höchstens ein Anhaltspunkt; sag das dann. Mit 3 und mehr Spielern sind die Zahlen ein Modell mit geschätzter 3-Wege-Equity.
-- Auszahlungen kennst du nicht. ICM-Aussagen sind deshalb Einschätzungen, außer du rechnest ein ausdrücklich angenommenes Beispiel mit dem Werkzeug.
+- ICM: Die Fakten nennen je Hand die Turnierphase und, wo ICM zählt, die Auszahlungen für die Plätze an deinem Tisch. Am Finaltisch und nahe der Bubble oder im Geld rechnet Ringside Push/Fold zusätzlich mit ICM; diese Zahlen haben Vorrang vor Chip-EV. Für eigene Rechnungen gibst du push_fold_nash genau diese Tisch-Auszahlungen als payouts mit. Heißen die Auszahlungen „angenommene Standard-Struktur“, sag, dass es eine Annahme ist. Vor dem Finaltisch ist ICM am Tisch eine Näherung, weil die Stacks an anderen Tischen unbekannt sind. In frühen Phasen oder ohne Auszahlungen gilt Chip-EV; ICM-Aussagen sind dort höchstens Einschätzungen.
 - Wähle 3 bis 10 Spots mit echten Entscheidungen, die lehrreichsten zuerst. Gute Entscheidungen dürfen dabei sein.
 - Jeder Spot bekommt genau ein Konzept aus der Liste im Werkzeug `report`.
 - Fakten, die schon da sind, musst du nicht nachrechnen. Du kannst mehrere Werkzeuge in einem Schritt aufrufen.
@@ -196,7 +197,7 @@ fn money(amount: i64, currency: Option<&str>) -> String {
     format!("{}{unit}", num(amount as f64 / 100.0, 2))
 }
 
-fn header(row: &TournamentRow) -> String {
+fn header(row: &TournamentRow, prizes: Option<&Prizes>) -> String {
     let mut parts = vec!["No Limit Hold'em".to_string()];
     if let Some(b) = &row.buy_in {
         let cur = b.currency.as_deref();
@@ -222,6 +223,18 @@ fn header(row: &TournamentRow) -> String {
         (None, Some(0)) => parts.push("ohne Preisgeld ausgeschieden".into()),
         _ => {}
     }
+    parts.push(match prizes {
+        Some(p) => {
+            let top: Vec<String> = p.pct.iter().take(9).map(|x| format!("{} %", num(*x, 2))).collect();
+            let more = if p.pct.len() > 9 { ", …" } else { "" };
+            let source = match p.source {
+                Source::Summary => "aus der Turnier-Zusammenfassung",
+                Source::Standard => "angenommene Standard-Struktur (15 % bezahlt), nicht die echten Auszahlungen",
+            };
+            format!("Auszahlungen {source}: {} Plätze bezahlt, ab Platz 1 in % des Preispools {}{more}", p.pct.len(), top.join(", "))
+        }
+        None => "Auszahlungen unbekannt, Chip-EV".into(),
+    });
     parts.join(", ")
 }
 
@@ -242,7 +255,8 @@ pub fn prepare(
     if holdem.is_empty() {
         return Err(CoachError::NotHoldem);
     }
-    let selection = select(holdem, max_hands);
+    let prizes = prizes(row, &holdem);
+    let selection = select(holdem, max_hands, prizes.as_ref());
     if selection.hands.is_empty() {
         return Err(CoachError::NoHands);
     }
@@ -268,7 +282,7 @@ pub fn prepare(
     }
     let user = format!(
         "Turnier: {}.\nHände insgesamt: {}. Hier stehen {} Hände mit einer echten Entscheidung von dir. Weggelassen: {} Hände, in denen du vor dem Flop nur gefoldet hast{}.\nBeträge in Big Blinds (bb), Stacks zu Beginn der Hand.\n\n{body}Analysiere diese Hände.",
-        header(row),
+        header(row, prizes.as_ref()),
         selection.total,
         kept.len(),
         selection.without_decision,

@@ -178,6 +178,7 @@ fn row() -> TournamentRow {
         hands: 3,
         chips: 0,
         has_summary: true,
+        payouts: Vec::new(),
         name: Some("Geheimer Turniername".into()),
     }
 }

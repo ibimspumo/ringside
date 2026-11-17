@@ -1,0 +1,16 @@
+[package]
+name = "ringside-play"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Endless practice with whole random hands: preflop by Ringside's model or push/fold equilibrium, heads-up postflop by solves prepared in the background"
+
+[dependencies]
+rand = { version = "0.9", default-features = false }
+rand_chacha = "0.9"
+ringside-engine = { path = "../ringside-engine" }
+ringside-solver = { path = "../ringside-solver" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"

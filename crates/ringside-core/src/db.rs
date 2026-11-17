@@ -15,8 +15,16 @@ use crate::tournament::{BuyIn, Summary, TournamentRow};
 
 pub use rusqlite::Error;
 
+mod analysis;
+mod solutions;
+pub use solutions::{NewSolution, SavedSolution, SolutionSource};
+pub use analysis::{
+    AnalysisCounts, AnalysisSummary, Choice, CostlyDecision, Decision, DecisionBrief, DecisionFilter, HandAnalysis, Rating,
+    Source, SpotLoss, SpotType, Status,
+};
+
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 5;
+const SCHEMA_VERSION: i32 = 6;
 
 pub struct Db {
     conn: Connection,
@@ -52,6 +60,12 @@ pub struct HandQuery {
     /// Hands of one leak-finder spot.
     #[serde(default)]
     pub spot: Option<SpotFilter>,
+    /// Hands with a matching analysed decision.
+    #[serde(default)]
+    pub decisions: Option<DecisionFilter>,
+    /// Costliest decision first instead of newest first.
+    #[serde(default)]
+    pub sort_by_loss: bool,
     pub limit: usize,
     pub offset: usize,
 }
@@ -98,6 +112,8 @@ pub struct HandSummary {
     pub hero_showdown: bool,
     pub pot: i64,
     pub board: String,
+    /// The worst analysed decision (among those the query's decision filter matches).
+    pub worst: Option<DecisionBrief>,
 }
 
 /// Cumulative hero results. Totals are exact; `points` is thinned to at most `max_points`.
@@ -303,6 +319,8 @@ impl Db {
                  report TEXT NOT NULL
              );"
         ))?;
+        conn.execute_batch(analysis::SCHEMA)?;
+        conn.execute_batch(solutions::SCHEMA)?;
         let added: &[(&str, &str, &str)] = &[
             ("hands", "hero_position", "TEXT"),
             ("hands", "hero_class", "TEXT"),
@@ -317,6 +335,7 @@ impl Db {
             ("player_hands", "shown", "TEXT NOT NULL DEFAULT ''"),
             ("player_hands", "bounty", "INTEGER NOT NULL DEFAULT 0"),
             ("tournaments", "name", "TEXT"),
+            ("tournaments", "payouts", "TEXT NOT NULL DEFAULT ''"),
         ];
         for (table, column, decl) in added {
             let exists: bool = conn.query_row(
@@ -326,6 +345,10 @@ impl Db {
             )?;
             if !exists {
                 conn.execute_batch(&format!("ALTER TABLE {table} ADD COLUMN {column} {decl}"))?;
+                if (*table, *column) == ("tournaments", "payouts") {
+                    // Summaries imported before carry no payouts; read them again.
+                    conn.execute("DELETE FROM files WHERE path LIKE '%TournSummary%'", [])?;
+                }
             }
         }
         let db = Db { conn };
@@ -704,6 +727,16 @@ impl Db {
             },
             None => String::new(),
         };
+        let decisions = q.decisions.clone().unwrap_or_default();
+        let decision_sql = if decisions.is_empty() { String::new() } else { decisions.hands_sql() };
+        let order = match (q.sort_by_loss, decisions.is_empty()) {
+            (false, _) => "h.played_at DESC, h.id DESC".to_string(),
+            (true, true) => "(SELECT a.worst_loss_bb FROM hand_analysis a WHERE a.hand_id = h.id) DESC NULLS LAST, h.id DESC".into(),
+            (true, false) => format!(
+                "(SELECT MAX(d.ev_loss_bb) FROM hero_decisions d WHERE d.hand_id = h.id AND {}) DESC NULLS LAST, h.id DESC",
+                decisions.predicate()
+            ),
+        };
         let positions = q.spot.as_ref().filter(|f| !f.positions.is_empty()).map(|f| format!(",{},", f.positions.join(",")));
         let sql = format!(
             "SELECT h.id, h.game, h.played_at, h.table_name, h.small_blind, h.big_blind, h.currency, h.hero_cards,
@@ -715,7 +748,8 @@ impl Db {
                AND (?6 IS NULL OR (?6 = 'won' AND h.hero_net > 0) OR (?6 = 'lost' AND h.hero_net < 0))
                AND (?7 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?7)
                {spot}
-             ORDER BY h.played_at DESC, h.id DESC LIMIT ?8 OFFSET ?9"
+               {decision_sql}
+             ORDER BY {order} LIMIT ?8 OFFSET ?9"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let positions = positions.unwrap_or_default();
@@ -747,10 +781,15 @@ impl Db {
                     hero_showdown: r.get::<_, i64>(10)? != 0,
                     pot: r.get(11)?,
                     board: r.get(12)?,
+                    worst: None,
                 })
             },
         )?;
-        rows.collect()
+        let mut list: Vec<HandSummary> = rows.collect::<Result<_, _>>()?;
+        for h in &mut list {
+            h.worst = self.worst_decision(h.id, &decisions)?;
+        }
+        Ok(list)
     }
 
     /// Stores a parsed summary file. The client rewrites the file while the tournament runs, so
@@ -759,8 +798,8 @@ impl Db {
         let b = s.buy_in.as_ref();
         self.conn.execute(
             "INSERT INTO tournaments (id, game, currency, buy_in_prize, buy_in_bounty, buy_in_fee, summary,
-                 entrants, started_at, place, prize, bounties, extra_cost)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9, ?10, ?11, ?12)
+                 entrants, started_at, place, prize, bounties, extra_cost, payouts)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
              ON CONFLICT(id) DO UPDATE SET
                  game = excluded.game, currency = COALESCE(excluded.currency, currency),
                  buy_in_prize = COALESCE(excluded.buy_in_prize, buy_in_prize),
@@ -768,7 +807,7 @@ impl Db {
                  buy_in_fee = COALESCE(excluded.buy_in_fee, buy_in_fee),
                  summary = 1, entrants = excluded.entrants, started_at = excluded.started_at,
                  place = excluded.place, prize = excluded.prize, bounties = excluded.bounties,
-                 extra_cost = excluded.extra_cost",
+                 extra_cost = excluded.extra_cost, payouts = excluded.payouts",
             params![
                 s.id as i64,
                 s.game,
@@ -782,6 +821,7 @@ impl Db {
                 s.prize,
                 s.bounties,
                 s.extra_cost,
+                s.payouts.iter().map(i64::to_string).collect::<Vec<_>>().join(","),
             ],
         )?;
         Ok(())
@@ -794,7 +834,7 @@ impl Db {
             "SELECT t.id, t.game, t.currency, t.buy_in_prize, t.buy_in_bounty, t.buy_in_fee, t.hand_place,
                     t.hand_prize, t.summary, t.entrants, t.place, t.prize, t.bounties, t.extra_cost,
                     COALESCE(t.started_at, h.first, ''), COALESCE(h.hands, 0), COALESCE(h.chips, 0),
-                    COALESCE(h.bounty, 0), t.name, t.hand_finish_id
+                    COALESCE(h.bounty, 0), t.name, t.hand_finish_id, t.payouts
              FROM tournaments t
              LEFT JOIN (SELECT tournament_id, MIN(played_at) AS first, COUNT(*) AS hands,
                                SUM(hero_net) AS chips, SUM(hero_bounty) AS bounty
@@ -844,6 +884,7 @@ impl Db {
                 hands: r.get(15)?,
                 chips: r.get(16)?,
                 has_summary,
+                payouts: r.get::<_, String>(20)?.split(',').filter_map(|a| a.parse().ok()).collect(),
                 name: r.get(18)?,
             })
         })?;

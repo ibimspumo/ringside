@@ -33,7 +33,7 @@ pub fn definitions() -> Value {
         ),
         f(
             "push_fold_nash",
-            "Push/Fold-Gleichgewicht für einen Tisch mit 2 bis 9 Spielern, in Chip-EV oder mit Auszahlungen in ICM. Gilt nur für reines Push/Fold: Bis zum ersten Shove folden alle, danach wird nur gecallt oder gefoldet, ein Call setzt den ganzen Stack. Keine Limps, keine Raises unter All-in, höchstens 3 Spieler all-in (danach folden alle übrigen). Das ist ein Modell: Ab 3 Spielern sind Kartenentfernung und 3-Wege-Equity genähert, eine Lösung kann leicht ungenau sein (siehe 'konvergiert'). Liefert für eine Hand an einer Position die Frequenz von Shove bzw. Call und den EV beider Optionen. Positionen in Aktionsreihenfolge: 2 Spieler SB, BB; 3 BTN, SB, BB; 6 LJ, HJ, CO, BTN, SB, BB; 9 UTG, UTG+1, UTG+2, LJ, HJ, CO, BTN, SB, BB (dazwischen von hinten aufgefüllt).",
+            "Push/Fold-Gleichgewicht für einen Tisch mit 2 bis 9 Spielern, in Chip-EV oder mit Auszahlungen in ICM. Gilt nur für reines Push/Fold: Bis zum ersten Shove folden alle, danach wird nur gecallt oder gefoldet, ein Call setzt den ganzen Stack. Keine Limps, keine Raises unter All-in, höchstens 3 Spieler all-in (danach folden alle übrigen). Das ist ein Modell: Ab 3 Spielern sind Kartenentfernung und 3-Wege-Equity genähert, eine Lösung kann leicht ungenau sein (siehe 'konvergiert'). Liefert für eine Hand an einer Position die Frequenz von Shove bzw. Call und den EV beider Optionen. Positionen in Aktionsreihenfolge: 2 Spieler SB, BB; 3 BTN, SB, BB; 6 LJ, HJ, CO, BTN, SB, BB; 9 UTG, UTG+1, UTG+2, LJ, HJ, CO, BTN, SB, BB (dazwischen von hinten aufgefüllt). Wann ICM gilt: am Finaltisch (alle verbleibenden Spieler an diesem Tisch) exakt mit den verbleibenden Auszahlungen; nahe der Bubble und im Geld vor dem Finaltisch nur als Näherung, weil die Stacks an anderen Tischen fehlen; nimm dann die Tisch-Auszahlungen aus den Fakten von Ringside. In frühen Phasen, fern vom Geld, payouts weglassen: Chip-EV.",
             json!({"type": "object", "properties": {
                 "hand": {"type": "string", "description": "Handklasse wie 'K6o', 'A5s', '77' oder Karten wie 'Kh6d'"},
                 "stacks_bb": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 9, "description": "Stack jedes Spielers in bb vor dem Posten, in Aktionsreihenfolge: erster Spieler nach dem Big Blind zuerst, Small Blind vorletzter, Big Blind letzter"},
@@ -44,7 +44,7 @@ pub fn definitions() -> Value {
                 "bb_ante_bb": {"type": "number", "description": "Big-Blind-Ante in bb (zahlt nur der Big Blind)"},
                 "dead_bb": {"type": "number", "description": "Sonstiges totes Geld im Pot in bb"},
                 "small_blind_bb": {"type": "number", "description": "Small Blind in bb, Standard 0,5"},
-                "payouts": {"type": "array", "items": {"type": "number"}, "description": "Optional: Auszahlungen ab Platz 1 für die Spieler am Tisch; dann rechnet das Werkzeug in ICM statt in Chips"}
+                "payouts": {"type": "array", "items": {"type": "number"}, "description": "Optional: Auszahlungen ab Platz 1 für die Spieler am Tisch, höchstens eine je Spieler (z. B. die Tisch-Auszahlungen in % des Preispools aus den Fakten); dann rechnet das Werkzeug in ICM statt in Chips"}
             }, "required": ["hand", "stacks_bb", "position"]})
         ),
         f(

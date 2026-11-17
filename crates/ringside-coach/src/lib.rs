@@ -8,6 +8,7 @@
 
 pub mod concepts;
 pub mod openrouter;
+pub mod prizes;
 pub mod render;
 pub mod report;
 pub mod select;

@@ -44,10 +44,12 @@ pub enum Kind {
     /// Call or fold against a shove, also after a caller, 2–9 players.
     PushFoldCall,
     AllIn,
+    /// Whole random hands in the practice mode (`ringside-play`), one attempt per hand.
+    FullHands,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 13] = [
+    pub const ALL: [Kind; 14] = [
         Kind::Outs,
         Kind::PotOdds,
         Kind::Probability,
@@ -61,6 +63,7 @@ impl Kind {
         Kind::PushFoldOpen,
         Kind::PushFoldCall,
         Kind::AllIn,
+        Kind::FullHands,
     ];
 
     /// The snake_case id used in JSON and in the database.
@@ -79,6 +82,7 @@ impl Kind {
             Kind::PushFoldOpen => "push_fold_open",
             Kind::PushFoldCall => "push_fold_call",
             Kind::AllIn => "all_in",
+            Kind::FullHands => "full_hands",
         }
     }
 
@@ -101,12 +105,13 @@ impl Kind {
             Kind::PushFoldOpen => "Shove oder Fold, wenn alle zu dir gefoldet haben",
             Kind::PushFoldCall => "Call gegen einen Shove",
             Kind::AllIn => "All-ins eigener Hände",
+            Kind::FullHands => "Ganze Hände",
         }
     }
 
     /// Whether [`generate`] can make exercises of this kind.
     pub fn generated(self) -> bool {
-        self != Kind::AllIn
+        !matches!(self, Kind::AllIn | Kind::FullHands)
     }
 }
 
@@ -409,6 +414,7 @@ pub fn generate(kind: Kind, level: u8, seed: u64) -> Result<Exercise, String> {
         Kind::PushFoldSb | Kind::PushFoldBb => pushfold::generate(kind, level, &mut rng)?,
         Kind::PushFoldOpen | Kind::PushFoldCall => multiway::generate(kind, level, &mut rng)?,
         Kind::AllIn => return Err("All-in-Übungen gibt es nur aus eigenen Händen".into()),
+        Kind::FullHands => return Err("Ganze Hände gibt es im Übungsmodus „Hände spielen“".into()),
     };
     Ok(Exercise {
         kind,

@@ -36,6 +36,19 @@ fn regular_summary_in_the_money() {
     assert_eq!(s.finished_at.as_deref(), Some("2026/11/14 21:12:40"));
     assert_eq!((s.place, s.prize, s.bounties, s.extra_cost), (Some(3), 1530, None, 0));
     assert_eq!(s.currency.as_deref(), Some("USD"));
+    assert_eq!(s.payouts, vec![3600, 2250, 1530, 990, 630]);
+}
+
+/// Payouts only count when every paid place is listed; a gap or a player still in the
+/// money leaves them unknown.
+#[test]
+fn payouts_need_every_paid_place() {
+    assert_eq!(one(WON).payouts, vec![702, 378]);
+    for (what, text) in [("gap", PKO.to_string()), ("gap", BUSTED.to_string()), ("top 3 of 500", FREEROLL.to_string())] {
+        assert_eq!(one(&text).payouts, Vec::<i64>::new(), "{what}");
+    }
+    let running = REGULAR.replace("$36.00 (40%)", "still playing");
+    assert_eq!(one(&running).payouts, Vec::<i64>::new());
 }
 
 #[test]
@@ -91,6 +104,7 @@ fn windows_1252_summary_is_decoded() {
     assert_eq!(import_summary(&mut db, &path).unwrap(), 1);
     let row = &db.tournaments(&Filter::default()).unwrap()[0];
     assert_eq!((row.currency.as_deref(), row.prize), (Some("EUR"), Some(702)));
+    assert_eq!(row.payouts, vec![702, 378]);
 }
 
 fn insert(db: &mut Db, text: &str) {
