@@ -88,7 +88,7 @@
             <SkillBadge kind={k} skill={byKind.get(k)} size={32} />
             <span class="txt">
               <b>{SKILLS[k].short}</b>
-              <span class="faint">{LEVEL_TEXT[byKind.get(k)?.level ?? 0]}</span>
+              <span class="dim">{LEVEL_TEXT[byKind.get(k)?.level ?? 0]}</span>
             </span>
           </button>
         {/each}

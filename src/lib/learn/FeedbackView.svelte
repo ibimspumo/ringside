@@ -85,7 +85,7 @@
 
   <footer class="grading" title={g.text}>
     <span class="badge {feedback.grading}">{g.label}</span>
-    <span class="faint">{feedback.model_note ?? g.text}</span>
+    <span class="dim">{feedback.model_note ?? g.text}</span>
   </footer>
 </section>
 

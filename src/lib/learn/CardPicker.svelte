@@ -167,7 +167,9 @@
     animation-name: shake;
   }
   .slot.dirty {
-    box-shadow: 0 0 0 2px var(--neg);
+    box-shadow: none;
+    outline: 2px dashed var(--neg);
+    outline-offset: 1px;
     filter: saturate(0.4) brightness(0.8);
   }
   .slot.sel.out,
@@ -232,5 +234,8 @@
   .key.wrong,
   .key.dirty {
     --c: var(--neg);
+  }
+  .key.dirty i {
+    border-style: dashed;
   }
 </style>

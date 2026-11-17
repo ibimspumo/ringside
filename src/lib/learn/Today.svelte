@@ -732,7 +732,7 @@
   }
   .changes {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(max(200px, calc((100% - 16px) / 3)), 1fr));
     gap: 8px;
     margin: 0;
     padding: 0;
