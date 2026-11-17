@@ -3,16 +3,45 @@
   import { api, inTauri, on } from "../api";
   import { demoTable } from "../demo";
   import Felt from "../Felt.svelte";
+  import ClassicBox from "../hud/ClassicBox.svelte";
   import HudLayer from "../hud/HudLayer.svelte";
+  import SeatAnatomy, { type Slot } from "../hud/SeatAnatomy.svelte";
+  import ThresholdScale from "../hud/ThresholdScale.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
-  import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META } from "../stats";
-  import type { ClassicPreset, HudConfig, Palette, Preset, Settings, StatId, TableView } from "../types";
+  import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META, stat } from "../stats";
+  import type { ClassicPreset, HudConfig, Palette, Preset, SeatView, Settings, StatId, TableView } from "../types";
 
   const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
   const SHAPES = [
     { id: "standard", label: "Standard", aspect: REFERENCE_ASPECT },
     { id: "wide", label: "Breit 16:9", aspect: 16 / 9 },
   ];
+  const PANES = [
+    { id: "look", label: "Aussehen" },
+    { id: "colors", label: "Farben" },
+    { id: "saved", label: "Vorlagen" },
+  ] as const;
+  type Pane = (typeof PANES)[number]["id"];
+
+  /** What a low and a high value says about a player, for the colour scales. */
+  const MEANING: Partial<Record<StatId, [string, string]>> = {
+    vpip: ["spielt wenige Hände", "spielt sehr viele Hände"],
+    pfr: ["erhöht selten", "erhöht sehr oft"],
+    three_bet: ["re-raist kaum", "re-raist oft"],
+    fold_to_three_bet: ["hält Re-Raises stand", "gibt auf Re-Raises auf"],
+    steal: ["klaut selten", "klaut oft die Blinds"],
+    fold_to_steal: ["verteidigt die Blinds", "gibt die Blinds leicht her"],
+    cbet: ["setzt selten nach", "setzt fast immer nach"],
+    fold_to_cbet: ["bleibt am Flop dabei", "gibt am Flop schnell auf"],
+    wtsd: ["steigt früh aus", "geht oft bis zum Showdown"],
+    wsd: ["verliert am Showdown", "gewinnt am Showdown"],
+    af: ["callt lieber", "setzt und erhöht viel"],
+    afq: ["passiv nach dem Flop", "aggressiv nach dem Flop"],
+  };
+  const QUARTER = ["oben links", "oben rechts", "unten rechts", "unten links"];
+
+  const params = new URLSearchParams(window.location.search);
+  let pane = $state<Pane>((!inTauri && (params.get("pane") as Pane)) || "look");
 
   let settings = $state<Settings | null>(null);
   let base = $state<TableView | null>(null);
@@ -25,6 +54,11 @@
   let message = $state<{ ok: boolean; text: string } | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
+  /** Ring segment or plate number that the stat tiles below fill. */
+  let slot = $state<Slot>({ kind: "ring", i: 0 });
+  let platePage = $state(0);
+  let exact = $state(false);
+
   /** A table screenshot to calibrate against; `crop` removes the window title bar. */
   let shot = $state<{ url: string; w: number; h: number; crop: number } | null>(null);
 
@@ -32,6 +66,14 @@
     shape === "screenshot" && shot ? shot.w / Math.max(shot.h - shot.crop, 1) : (SHAPES.find((x) => x.id === shape)?.aspect ?? REFERENCE_ASPECT),
   );
   const customised = $derived(!!view && !!settings?.layouts[view.layout_key]);
+
+  /** A typical opponent for the close-up and the preset previews. */
+  const sample = $derived.by(() => {
+    if (!view) return null;
+    const hands = (s: SeatView) => stat(s.stats, "hands")?.value ?? 0;
+    const pick = view.seats.filter((s) => !s.is_hero && !s.note?.label).sort((a, b) => hands(b) - hands(a));
+    return pick[0] ?? view.seats[0] ?? null;
+  });
 
   let presetName = $state("");
 
@@ -41,7 +83,11 @@
       if (!saveTimer) settings = s;
     });
     (async () => {
-      settings = await api.getSettings();
+      const s = await api.getSettings();
+      // Browser preview: ?tab=hud&mode=classic
+      const mode = inTauri ? null : params.get("mode");
+      if (mode === "classic" || mode === "graphic") s.hud.mode = mode;
+      settings = s;
       base = await api.previewView(REFERENCE_ASPECT);
       if (base) maxSeats = base.max_seats;
     })();
@@ -73,7 +119,7 @@
 
   async function savePreset() {
     if (!settings) return;
-    const name = presetName.trim() || `Preset ${settings.presets.length + 1}`;
+    const name = presetName.trim() || `Vorlage ${settings.presets.length + 1}`;
     const preset: Preset = $state.snapshot({
       name,
       preferred_seating: settings.preferred_seating,
@@ -83,7 +129,7 @@
     settings.presets = [...settings.presets.filter((p) => p.name !== name), preset];
     presetName = "";
     await api.saveSettings($state.snapshot(settings) as Settings);
-    message = { ok: true, text: `Preset „${name}“ gespeichert.` };
+    message = { ok: true, text: `Vorlage „${name}“ gespeichert.` };
   }
 
   async function applyPreset(p: Preset) {
@@ -92,7 +138,7 @@
     settings.layouts = structuredClone(p.layouts);
     settings.preferred_seating = p.preferred_seating;
     await api.saveSettings($state.snapshot(settings) as Settings);
-    message = { ok: true, text: `Preset „${p.name}“ gilt jetzt an allen Tischen.` };
+    message = { ok: true, text: `Vorlage „${p.name}“ gilt jetzt an allen Tischen.` };
   }
 
   async function deletePreset(p: Preset) {
@@ -114,6 +160,36 @@
   function toggleCustom(id: StatId) {
     const list = settings!.hud.classic.custom;
     settings!.hud.classic.custom = list.includes(id) ? list.filter((x) => x !== id) : list.length < 8 ? [...list, id] : list;
+    changed();
+  }
+
+  /** The stat in the selected ring segment or plate slot. */
+  const slotStat = $derived.by((): StatId | null => {
+    if (!settings) return null;
+    const g = settings.hud.graphic;
+    return slot.kind === "ring" ? (g.segments[slot.i] ?? null) : (g.plate_pages[platePage]?.[slot.i] ?? null);
+  });
+  const slotName = $derived(slot.kind === "ring" ? `Ring, Segment ${QUARTER[slot.i]}` : `Zahlenfeld, Seite ${platePage + 1}, Wert ${slot.i + 1}`);
+
+  function assign(id: StatId) {
+    const g = settings!.hud.graphic;
+    if (slot.kind === "ring") g.segments[slot.i] = id;
+    else g.plate_pages[platePage][slot.i] = id;
+    changed();
+  }
+
+  function addPage() {
+    const g = settings!.hud.graphic;
+    g.plate_pages = [...g.plate_pages, ["vpip", "pfr", "three_bet"]];
+    platePage = g.plate_pages.length - 1;
+    slot = { kind: "plate", i: 0 };
+    changed();
+  }
+
+  function removePage() {
+    const g = settings!.hud.graphic;
+    g.plate_pages = g.plate_pages.filter((_, j) => j !== platePage);
+    platePage = Math.min(platePage, g.plate_pages.length - 1);
     changed();
   }
 
@@ -172,22 +248,28 @@
     settings = await api.getSettings();
     message = { ok: true, text: "Darstellung und Positionen auf Standard zurückgesetzt." };
   }
+
+  const marks = (id: StatId) =>
+    (view?.seats ?? []).map((s) => stat(s.stats, id)?.value).filter((v): v is number => typeof v === "number");
 </script>
 
 <div class="page wide">
-
   {#if settings && view}
+    {@const hud = settings.hud}
+    {@const pal = PALETTES[hud.palette]}
     <div class="layout">
       <section class="stage-col">
         <div class="toolbar">
-          <label class="group">
-            <span>Tisch</span>
-            <select class="field" bind:value={maxSeats}>
-              {#each SIZES as n (n)}<option value={n}>{n} Plätze</option>{/each}
-            </select>
-          </label>
           <div class="group">
-            <span>Fenster</span>
+            <span class="lbl">Plätze</span>
+            <div class="seg seats" role="radiogroup" aria-label="Plätze am Tisch">
+              {#each SIZES as n (n)}
+                <button class="num" class:on={maxSeats === n} role="radio" aria-checked={maxSeats === n} onclick={() => (maxSeats = n)}>{n}</button>
+              {/each}
+            </div>
+          </div>
+          <div class="group">
+            <span class="lbl">Fenster</span>
             <div class="seg">
               {#each SHAPES as sh (sh.id)}
                 <button class:on={shape === sh.id} onclick={() => (shape = sh.id)}>{sh.label}</button>
@@ -197,247 +279,359 @@
               {/if}
             </div>
           </div>
-          <label class="check toggle">
+          <label class="check toggle" title="Nach jeder Hand zeigt das HUD kurz die Karten aller Spieler und das Board.">
             <input type="checkbox" bind:checked={showRecap} />
             <span>Rückblick zeigen</span>
           </label>
         </div>
 
-        <div class="stage" style="aspect-ratio:{aspect}" bind:clientWidth={stageW} bind:clientHeight={stageH}>
-          {#if shot && shape === "screenshot"}
-            <img
-              class="shot"
-              src={shot.url}
-              alt="Tisch-Screenshot"
-              style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%"
-            />
-          {:else}
-            <Felt />
-          {/if}
-          {#if stageW > 0}
-            <HudLayer
-              {view}
-              width={stageW}
-              height={stageH}
-              {showRecap}
-              editRecap
-              preview={!(shot && shape === "screenshot")}
-              onLayoutChange={() => api.getSettings().then((s) => (settings = s))}
-            />
-          {/if}
+        <div class="stage-wrap">
+          <div class="stage" style="aspect-ratio:{aspect}; width:min(100%, calc((100vh - 250px) * {aspect}))" bind:clientWidth={stageW} bind:clientHeight={stageH}>
+            {#if shot && shape === "screenshot"}
+              <img class="shot" src={shot.url} alt="Tisch-Screenshot" style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%" />
+            {:else}
+              <Felt />
+            {/if}
+            {#if stageW > 0}
+              <HudLayer
+                {view}
+                width={stageW}
+                height={stageH}
+                {showRecap}
+                editRecap
+                preview={!(shot && shape === "screenshot")}
+                onLayoutChange={() => api.getSettings().then((s) => (settings = s))}
+              />
+            {/if}
+          </div>
         </div>
 
         <div class="stage-foot">
-          <span class="faint">
-            {maxSeats} Plätze · {shape === "wide" ? "Breitbild" : shape === "screenshot" ? "Fenster wie Screenshot" : "Standardfenster"} ·
-            {customised ? "eigene Positionen" : "Standard-Positionen"}
-          </span>
-          <div class="row">
+          <ul class="legend">
+            <li><kbd>Ziehen</kbd>{hud.mode === "graphic" ? "verschiebt Ring und Zahlenfeld" : "verschiebt die Box"}</li>
+            {#if hud.mode === "graphic"}
+              <li><kbd>Klick aufs Zahlenfeld</kbd>blättert zur nächsten Seite</li>
+            {:else}
+              <li><kbd>Doppelklick</kbd>legt die Box zurück an den Avatar</li>
+            {/if}
+            <li><kbd>Klick auf den Spieler</kbd>zeigt alle seine Werte</li>
+          </ul>
+          <div class="row actions">
+            <span class="state faint">{customised ? "Eigene Positionen" : "Standard-Positionen"}</span>
+            <button class="btn ghost" onclick={resetLayout} disabled={!customised}>Zurücksetzen</button>
             <label class="btn">
-              Tisch-Screenshot laden
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.5-2h7L17 7.5h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6" /></svg>
+              {shot ? "Anderen Screenshot" : "Tisch-Screenshot laden"}
               <input type="file" accept="image/*" onchange={loadShot} hidden />
             </label>
-            {#if shot}
-              <label class="crop">
-                <span>Titelleiste weg</span>
-                <input type="range" min="0" max={Math.round(shot.h * 0.12)} bind:value={shot.crop} />
-                <em class="num">{shot.crop} px</em>
-              </label>
-              <button class="btn ghost" onclick={dropShot}>Screenshot entfernen</button>
-            {/if}
-            <button class="btn ghost" onclick={resetLayout} disabled={!customised}>Positionen zurücksetzen</button>
           </div>
         </div>
-        <p class="hint">
-          Tipp: Screenshot eines PokerStars-Tischs laden, die Titelleiste wegschneiden und Ring, Platte oder Box auf die
-          Avatare ziehen. Gespeichert wird einmal je Tischgröße und gilt für jede Fenstergröße, am Tisch wie hier. Mit „Rückblick zeigen“ lassen sich auch die Karten jedes Spielers und das Board verschieben. Im grafischen Modus bewegen sich Ring und Platte gemeinsam; im klassischen Modus legt ein Doppelklick die Box wieder an
-          den Avatar.
-        </p>
+        {#if shot}
+          <div class="shot-bar">
+            <label class="crop">
+              <span>Titelleiste abschneiden</span>
+              <input type="range" min="0" max={Math.round(shot.h * 0.12)} bind:value={shot.crop} />
+              <em class="num">{shot.crop} px</em>
+            </label>
+            <button class="btn ghost" onclick={dropShot}>Screenshot entfernen</button>
+          </div>
+        {:else}
+          <p class="hint">
+            Für genaue Positionen: Screenshot eines PokerStars-Tischs laden und Ring, Zahlenfeld oder Box auf die Avatare ziehen.
+            Gespeichert wird je Tischgröße; das gilt für jede Fenstergröße, am Tisch wie hier.
+          </p>
+        {/if}
       </section>
 
-      <aside class="inspector">
-        <section class="panel">
-          <div class="panel-head"><h2 class="panel-title">Darstellung</h2></div>
-          <div class="body">
+      <aside class="inspector panel">
+        <div class="tabs" role="tablist">
+          {#each PANES as p (p.id)}
+            <button role="tab" aria-selected={pane === p.id} class:on={pane === p.id} onclick={() => (pane = p.id)}>{p.label}</button>
+          {/each}
+        </div>
+
+        {#if pane === "look"}
+          <section class="sec">
             <div class="modes">
-              <button class="mode" class:on={settings.hud.mode === "graphic"} onclick={() => setMode("graphic")}>
-                <b>Grafisch</b><span>Ring um den Avatar, Platte über dem Namensschild</span>
+              <button class="mode" class:on={hud.mode === "graphic"} onclick={() => setMode("graphic")}>
+                <svg viewBox="0 0 120 44" aria-hidden="true">
+                  <rect x="6" y="8" width="88" height="28" rx="6" class="m-plate" />
+                  <rect x="14" y="24" width="12" height="5" rx="1.5" fill={pal.high} /><rect x="32" y="24" width="12" height="5" rx="1.5" fill={pal.mid} /><rect
+                    x="50"
+                    y="24"
+                    width="12"
+                    height="5"
+                    rx="1.5"
+                    fill={pal.low}
+                  />
+                  <rect x="14" y="14" width="34" height="4" rx="1.5" class="m-line" />
+                  <circle cx="96" cy="22" r="16" class="m-ring" />
+                  <path d="M80 22a16 16 0 0 1 16-16" stroke={pal.high} class="m-seg" /><path d="M96 6a16 16 0 0 1 16 16" stroke={pal.mid} class="m-seg" />
+                  <path d="M112 22a16 16 0 0 1-16 16" stroke={pal.low} class="m-seg" />
+                </svg>
+                <b>Grafisch</b>
+                <span>Farbring um den Avatar, Zahlen daneben</span>
               </button>
-              <button class="mode" class:on={settings.hud.mode === "classic"} onclick={() => setMode("classic")}>
-                <b>Klassisch</b><span>Eine Textbox pro Spieler</span>
+              <button class="mode" class:on={hud.mode === "classic"} onclick={() => setMode("classic")}>
+                <svg viewBox="0 0 120 44" aria-hidden="true">
+                  <rect x="22" y="5" width="76" height="34" rx="5" class="m-plate" />
+                  <rect x="29" y="11" width="22" height="4" rx="1.5" class="m-line" />
+                  <rect x="29" y="20" width="14" height="5" rx="1.5" fill={pal.high} /><rect x="47" y="20" width="14" height="5" rx="1.5" fill={pal.mid} /><rect
+                    x="65"
+                    y="20"
+                    width="14"
+                    height="5"
+                    rx="1.5"
+                    fill={pal.low}
+                  />
+                  <rect x="29" y="29" width="40" height="4" rx="1.5" class="m-line" />
+                </svg>
+                <b>Klassisch</b>
+                <span>Eine Textbox je Spieler</span>
               </button>
             </div>
+          </section>
 
-            {#if settings.hud.mode === "graphic"}
-              <div class="sub">Ring – vier Segmente im Uhrzeigersinn</div>
-              <div class="grid2">
-                {#each settings.hud.graphic.segments as _, i (i)}
-                  <select class="field" bind:value={settings.hud.graphic.segments[i]} onchange={changed}>
-                    {#each RATED_STATS as id (id)}<option value={id}>{STAT_META[id].name}</option>{/each}
-                  </select>
-                {/each}
-              </div>
-              <div class="sub">Platte – drei Zahlen je Seite, ein Klick auf die Platte blättert</div>
-              {#each settings.hud.graphic.plate_pages as page, p (p)}
-                <div class="page-row">
-                  <span class="num faint">{p + 1}</span>
-                  {#each page as _, i (i)}
-                    <select class="field" bind:value={settings.hud.graphic.plate_pages[p][i]} onchange={changed}>
-                      {#each RATED_STATS as id (id)}<option value={id}>{STAT_META[id].short}</option>{/each}
-                    </select>
+          {#if hud.mode === "graphic" && sample}
+            <section class="sec">
+              <header class="sec-head">
+                <h3>Was der Ring und das Zahlenfeld zeigen</h3>
+                <p>Tippe ein Segment oder eine Zahl an und wähle darunter den Wert.</p>
+              </header>
+              <div class="pages">
+                <span class="lbl">Seiten</span>
+                <div class="seg">
+                  {#each hud.graphic.plate_pages as _, p (p)}
+                    <button class="num" class:on={platePage === p} onclick={() => ((platePage = p), slot.kind === "plate" || (slot = { kind: "plate", i: 0 }))}>{p + 1}</button>
                   {/each}
-                  <button
-                    class="btn ghost"
-                    disabled={settings.hud.graphic.plate_pages.length < 2}
-                    onclick={() => ((settings!.hud.graphic.plate_pages = settings!.hud.graphic.plate_pages.filter((_, j) => j !== p)), changed())}
-                    aria-label="Seite {p + 1} entfernen">✕</button
-                  >
                 </div>
-              {/each}
-              {#if settings.hud.graphic.plate_pages.length < 5}
-                <button
-                  class="btn ghost add"
-                  onclick={() => ((settings!.hud.graphic.plate_pages = [...settings!.hud.graphic.plate_pages, ["vpip", "pfr", "three_bet"]]), changed())}
-                  >Seite hinzufügen</button
-                >
-              {/if}
-              <label class="slider">
-                <span>Breite</span>
-                <input type="range" min="0.8" max="1.5" step="0.02" bind:value={settings.hud.graphic.plate_width} oninput={changed} />
-                <em class="num">{Math.round(settings.hud.graphic.plate_width * 100)} %</em>
-              </label>
-              <label class="check">
-                <input type="checkbox" bind:checked={settings.hud.graphic.cover_plate} onchange={changed} />
-                <span>
-                  Namensschild von PokerStars überdecken
-                  <small>Sieht aus wie früher Jivaro. Verdeckt aber auch „Check“, „Fold“ und den Zeitbalken.</small>
-                </span>
-              </label>
-            {:else}
-              <div class="presets">
-                {#each Object.entries(CLASSIC_PRESETS) as [id, p] (id)}
-                  <button class="preset" class:on={settings.hud.classic.preset === id} onclick={() => setPreset(id as ClassicPreset)}>
-                    <b>{p.name}</b><span>{p.description}</span>
+                {#if hud.graphic.plate_pages.length < 5}
+                  <button class="icon-btn" onclick={addPage} title="Seite hinzufügen" aria-label="Seite hinzufügen">
+                    <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+                  </button>
+                {/if}
+                {#if hud.graphic.plate_pages.length > 1}
+                  <button class="btn ghost small" onclick={removePage}>Seite {platePage + 1} entfernen</button>
+                {/if}
+              </div>
+              <div class="closeup">
+                <SeatAnatomy
+                  seat={sample}
+                  {hud}
+                  game={view.game}
+                  currency={view.currency}
+                  bountyCurrency={view.bounty_currency}
+                  page={platePage}
+                  selected={slot}
+                  onSelect={(s) => (slot = s)}
+                />
+              </div>
+              <div class="picker-head">
+                <span>{slotName}</span>
+              </div>
+              <div class="picker">
+                {#each RATED_STATS as id (id)}
+                  <button class="stat" class:on={slotStat === id} title={STAT_META[id].help} onclick={() => assign(id)}>
+                    <b>{STAT_META[id].name}</b>
+                    {#if STAT_META[id].short !== STAT_META[id].name}<i class="num">{STAT_META[id].short}</i>{/if}
                   </button>
                 {/each}
-                <button class="preset" class:on={settings.hud.classic.preset === "custom"} onclick={() => setPreset("custom")}>
-                  <b>Eigene</b><span>Werte selbst wählen, vier pro Zeile</span>
+              </div>
+              {#if slotStat}
+                <p class="explain"><b>{STAT_META[slotStat].name}:</b> {STAT_META[slotStat].help}</p>
+              {/if}
+            </section>
+
+            <section class="sec">
+              <header class="sec-head"><h3>Namensschild von PokerStars</h3></header>
+              <div class="covers">
+                <button class="cover" class:on={hud.graphic.cover_plate} onclick={() => ((settings!.hud.graphic.cover_plate = true), changed())}>
+                  <b>Überdecken</b>
+                  <span>Name, Stack und Zahlen in einem Feld. Verdeckt aber „Check“, „Fold“ und den Zeitbalken.</span>
+                </button>
+                <button class="cover" class:on={!hud.graphic.cover_plate} onclick={() => ((settings!.hud.graphic.cover_plate = false), changed())}>
+                  <b>Frei lassen</b>
+                  <span>Schmale Zahlenleiste darunter; alles von PokerStars bleibt sichtbar.</span>
                 </button>
               </div>
-              {#if settings.hud.classic.preset === "custom"}
-                <div class="chips">
+              {#if hud.graphic.cover_plate}
+                <label class="slider">
+                  <span>Breite</span>
+                  <input type="range" min="0.8" max="1.5" step="0.02" bind:value={settings.hud.graphic.plate_width} oninput={changed} />
+                  <em class="num">{Math.round(hud.graphic.plate_width * 100)} %</em>
+                </label>
+              {/if}
+            </section>
+          {:else if sample}
+            <section class="sec">
+              <header class="sec-head">
+                <h3>Was in der Box steht</h3>
+                <p>Für den Anfang ist „Klartext“ am leichtesten: Es schreibt jeden Wert als Satz aus.</p>
+              </header>
+              <div class="presets">
+                {#each Object.entries(CLASSIC_PRESETS) as [id, p] (id)}
+                  <button class="preset" class:on={hud.classic.preset === id} onclick={() => setPreset(id as ClassicPreset)}>
+                    <span class="p-text"><b>{p.name}</b><span>{p.description}</span></span>
+                    <span class="mini" aria-hidden="true">
+                      <ClassicBox
+                        seat={sample}
+                        hud={{ ...hud, scale: 1, opacity: 1, classic: { ...hud.classic, preset: id as ClassicPreset } }}
+                        ring={{ x: 0, y: 0 }}
+                        box={{ x: 0, y: 0 }}
+                        scale={0.92}
+                        width={400}
+                        height={300}
+                        game={view.game}
+                        currency={view.currency}
+                        bountyCurrency={view.bounty_currency}
+                        onMove={() => {}}
+                        onReset={() => {}}
+                        onTap={() => {}}
+                      />
+                    </span>
+                  </button>
+                {/each}
+                <button class="preset" class:on={hud.classic.preset === "custom"} onclick={() => setPreset("custom")}>
+                  <span class="p-text"><b>Eigene</b><span>Werte selbst wählen, vier pro Zeile</span></span>
+                </button>
+              </div>
+              {#if hud.classic.preset === "custom"}
+                <div class="picker">
                   {#each [...RATED_STATS, "hands" as StatId] as id (id)}
-                    {@const n = settings.hud.classic.custom.indexOf(id)}
-                    <button class="chip" class:on={n >= 0} title={STAT_META[id].help} onclick={() => toggleCustom(id)}>
-                      {STAT_META[id].short}{#if n >= 0}<i>{n + 1}</i>{/if}
+                    {@const n = hud.classic.custom.indexOf(id)}
+                    <button class="stat" class:on={n >= 0} title={STAT_META[id].help} onclick={() => toggleCustom(id)}>
+                      <b>{STAT_META[id].name}</b>
+                      {#if n >= 0}<i class="num order">{n + 1}</i>{:else if STAT_META[id].short !== STAT_META[id].name}<i class="num">{STAT_META[id].short}</i>{/if}
                     </button>
                   {/each}
                 </div>
+                <p class="explain">Reihenfolge wie angeklickt, höchstens acht Werte.</p>
               {/if}
-            {/if}
-          </div>
-        </section>
+            </section>
+          {/if}
 
-        <section class="panel">
-          <div class="panel-head"><h2 class="panel-title">Anzeige</h2></div>
-          <div class="body">
+          <section class="sec">
+            <header class="sec-head"><h3>Größe und Zusatzangaben</h3></header>
             <label class="slider">
               <span>Größe</span>
               <input type="range" min="0.6" max="1.6" step="0.05" bind:value={settings.hud.scale} oninput={changed} />
-              <em class="num">{Math.round(settings.hud.scale * 100)} %</em>
+              <em class="num">{Math.round(hud.scale * 100)} %</em>
             </label>
-            {#if settings.hud.mode === "classic"}
+            {#if hud.mode === "classic"}
               <label class="slider">
                 <span>Deckkraft</span>
                 <input type="range" min="0.5" max="1" step="0.01" bind:value={settings.hud.opacity} oninput={changed} />
-                <em class="num">{Math.round(settings.hud.opacity * 100)} %</em>
+                <em class="num">{Math.round(hud.opacity * 100)} %</em>
               </label>
             {/if}
-            <label class="slider">
+            <label class="slider" title="Nach jeder Hand kurz die Karten aller Spieler und das Board zeigen.">
               <span>Rückblick</span>
               <input type="range" min="0" max="10" step="1" bind:value={settings.hud.recap_seconds} oninput={changed} />
-              <em class="num">{settings.hud.recap_seconds ? `${settings.hud.recap_seconds} s` : "aus"}</em>
+              <em class="num">{hud.recap_seconds ? `${hud.recap_seconds} s` : "aus"}</em>
             </label>
-            <label class="check">
-              <input type="checkbox" bind:checked={settings.hud.show_stack} onchange={changed} />
-              <span>Stack zeigen <small>Stand zu Beginn der letzten Hand</small></span>
-            </label>
-            <label class="check">
-              <input type="checkbox" bind:checked={settings.hud.show_bounty} onchange={changed} />
-              <span>Bounty zeigen <small>bei Knockout-Turnieren</small></span>
-            </label>
-            <label class="check">
-              <input type="checkbox" bind:checked={settings.hud.hero_session_only} onchange={changed} />
-              <span>Eigene Werte nur aus diesem Turnier <small>bei Cash Games: dieser Tisch heute</small></span>
-            </label>
-            <label class="check">
-              <input type="checkbox" bind:checked={settings.hud.split_by_game} onchange={changed} />
-              <span>Cash Games und Turniere getrennt zählen</span>
-            </label>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head"><h2 class="panel-title">Farben</h2></div>
-          <div class="body">
-            <div class="seg palettes">
+            <div class="toggles">
+              <label class="check">
+                <input type="checkbox" bind:checked={settings.hud.show_stack} onchange={changed} />
+                <span>Stack <small>Chips zu Beginn der letzten Hand</small></span>
+              </label>
+              <label class="check">
+                <input type="checkbox" bind:checked={settings.hud.show_bounty} onchange={changed} />
+                <span>Bounty <small>Kopfgeld bei Knockout-Turnieren</small></span>
+              </label>
+            </div>
+            <details class="more">
+              <summary>Zählweise</summary>
+              <div class="toggles">
+                <label class="check">
+                  <input type="checkbox" bind:checked={settings.hud.hero_session_only} onchange={changed} />
+                  <span>Eigene Werte nur aus diesem Turnier <small>Bei Cash Games: dieser Tisch heute</small></span>
+                </label>
+                <label class="check">
+                  <input type="checkbox" bind:checked={settings.hud.split_by_game} onchange={changed} />
+                  <span>Cash Games und Turniere getrennt zählen <small>Gegner spielen dort oft anders</small></span>
+                </label>
+              </div>
+            </details>
+          </section>
+        {:else if pane === "colors"}
+          <section class="sec">
+            <header class="sec-head">
+              <h3>Farben</h3>
+              <p>Die Farbe zeigt auf einen Blick, ob ein Wert niedrig, normal oder hoch ist.</p>
+            </header>
+            <div class="palettes">
               {#each Object.entries(PALETTES) as [id, p] (id)}
-                <button class:on={settings.hud.palette === id} onclick={() => ((settings!.hud.palette = id as Palette), changed())}>
-                  <i style="background:{p.low}"></i><i style="background:{p.mid}"></i><i style="background:{p.high}"></i>
-                  {p.name}
+                <button class="palette" class:on={hud.palette === id} onclick={() => ((settings!.hud.palette = id as Palette), changed())}>
+                  <span class="bar"><i style="background:{p.low}"></i><i style="background:{p.mid}"></i><i style="background:{p.high}"></i></span>
+                  <b>{p.name}</b>
+                  <span class="faint">niedrig · normal · hoch</span>
                 </button>
               {/each}
             </div>
-            <div class="thresholds">
-              <div class="trow head"><span>Wert</span><span>unter</span><span>über</span></div>
+          </section>
+          <section class="sec">
+            <header class="sec-head">
+              <h3>Ab wann die Farbe wechselt</h3>
+              <p>Griffe ziehen. Die dunklen Striche sind die Spieler am Vorschautisch.</p>
+            </header>
+            <div class="scales">
               {#each RATED_STATS as id (id)}
                 {@const t = settings.hud.thresholds[id]}
                 {#if t}
-                  <div class="trow" title={STAT_META[id].help}>
-                    <span>{STAT_META[id].name}</span>
-                    <input class="field num" type="number" step="0.5" bind:value={t.low} onchange={changed} style="--c:{PALETTES[settings.hud.palette].low}" />
-                    <input class="field num" type="number" step="0.5" bind:value={t.high} onchange={changed} style="--c:{PALETTES[settings.hud.palette].high}" />
-                  </div>
+                  <ThresholdScale {id} {t} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
                 {/if}
               {/each}
             </div>
+            <label class="check exact">
+              <input type="checkbox" bind:checked={exact} />
+              <span>Genaue Zahlen eintippen</span>
+            </label>
             <p class="note">Je Wert höchstens drei Farben – so verlangt es PokerStars für HUDs.</p>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head"><h2 class="panel-title">Presets</h2></div>
-          <div class="body">
-            <p class="note">
-              Ein Preset merkt sich Darstellung, Farben und alle Positionen. Was du am Tisch oder hier verschiebst, gilt sofort
-              für alle Tische gleicher Größe.
-            </p>
-            {#each settings.presets as p (p.name)}
-              <div class="preset-row">
-                <span>{p.name}</span>
-                <button class="btn" onclick={() => applyPreset(p)}>Anwenden</button>
-                <button class="btn ghost" onclick={() => deletePreset(p)} aria-label="Preset {p.name} löschen">Löschen</button>
+          </section>
+        {:else}
+          <section class="sec">
+            <header class="sec-head">
+              <h3>Eigene Vorlagen</h3>
+              <p>Eine Vorlage merkt sich Darstellung, Farben und alle Positionen – etwa eine für Turniere und eine für Cash Games.</p>
+            </header>
+            {#if settings.presets.length}
+              <div class="saved">
+                {#each settings.presets as p (p.name)}
+                  {@const pp = PALETTES[p.hud.palette] ?? PALETTES.traffic}
+                  <div class="saved-row">
+                    <span class="swatch"><i style="background:{pp.low}"></i><i style="background:{pp.mid}"></i><i style="background:{pp.high}"></i></span>
+                    <span class="saved-name">
+                      <b>{p.name}</b>
+                      <small>{p.hud.mode === "graphic" ? "Grafisch" : "Klassisch"} · {Math.round(p.hud.scale * 100)} %</small>
+                    </span>
+                    <button class="btn" onclick={() => applyPreset(p)}>Anwenden</button>
+                    <button class="icon-btn danger" onclick={() => deletePreset(p)} title="Vorlage löschen" aria-label="Vorlage {p.name} löschen">
+                      <svg width="15" height="15" viewBox="0 0 24 24"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg>
+                    </button>
+                  </div>
+                {/each}
               </div>
-            {/each}
-            <div class="row">
+            {:else}
+              <p class="empty-note">Noch keine Vorlage gespeichert.</p>
+            {/if}
+            <div class="save-row">
               <input class="field grow" placeholder="Name, z. B. Turniere" bind:value={presetName} />
-              <button class="btn primary" onclick={savePreset}>Als Preset speichern</button>
+              <button class="btn primary" onclick={savePreset}>Aktuelles HUD speichern</button>
             </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head"><h2 class="panel-title">Datei</h2></div>
-          <div class="body">
-            <p class="note">Als Datei sichern oder weitergeben, etwa um sie als Standard in eine neue Version zu übernehmen.</p>
+          </section>
+          <section class="sec">
+            <header class="sec-head">
+              <h3>Als Datei</h3>
+              <p>Sichern oder auf einen anderen Rechner mitnehmen.</p>
+            </header>
             <div class="row">
               <button class="btn" onclick={exportProfile} disabled={!inTauri}>Exportieren</button>
               <button class="btn" onclick={importProfile} disabled={!inTauri}>Importieren</button>
-              <button class="btn ghost" onclick={resetProfile}>Auf Standard</button>
+              <button class="btn ghost danger push" onclick={resetProfile}>Alles auf Standard</button>
             </div>
-            {#if message}<p class="msg" class:bad={!message.ok}>{message.text}</p>{/if}
-          </div>
-        </section>
+          </section>
+        {/if}
+        {#if message}<p class="msg" class:bad={!message.ok}>{message.text}</p>{/if}
       </aside>
     </div>
   {/if}
@@ -448,12 +642,12 @@
     padding-top: 20px;
   }
   .wide {
-    max-width: 1560px;
+    max-width: 1600px;
   }
   .layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) 384px;
+    gap: 20px;
     align-items: start;
   }
   .stage-col {
@@ -461,20 +655,28 @@
     top: 16px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
+    min-width: 0;
   }
   .toolbar {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 16px;
+    gap: 10px 20px;
   }
-  .group {
+  .group,
+  .pages {
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--text-2);
-    font-size: 13px;
+  }
+  .lbl {
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .seats button {
+    min-width: 28px;
+    padding: 0 6px;
   }
   .toggle {
     margin-left: auto;
@@ -485,10 +687,12 @@
   .toggle input {
     margin: 0;
   }
+  .stage-wrap {
+    display: flex;
+    justify-content: center;
+  }
   .stage {
     position: relative;
-    width: 100%;
-    max-height: calc(100vh - 230px);
     border-radius: var(--r);
     overflow: hidden;
     border: 1px solid var(--line-2);
@@ -505,7 +709,31 @@
     flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 10px 16px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  kbd {
+    padding: 1px 6px;
+    border-radius: 4px;
+    border: 1px solid var(--line-2);
+    background: var(--surface-2);
+    font: inherit;
+    font-size: 11.5px;
+    color: var(--text);
   }
   .row {
     display: flex;
@@ -513,10 +741,18 @@
     align-items: center;
     gap: 8px;
   }
+  .state {
+    font-size: 12.5px;
+  }
+  .shot-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
   .crop {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-size: 12.5px;
     color: var(--text-2);
   }
@@ -529,85 +765,277 @@
     font-size: 12.5px;
     line-height: 1.55;
     color: var(--text-3);
-    max-width: 760px;
+    max-width: 720px;
   }
 
   .inspector {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    min-width: 0;
   }
-  .body {
+  .tabs {
+    display: flex;
+    gap: 2px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tabs button {
+    position: relative;
+    height: 44px;
+    padding: 0 12px;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .tabs button:hover {
+    color: var(--text);
+  }
+  .tabs button.on {
+    color: var(--text);
+  }
+  .tabs button.on::after {
+    content: "";
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--text);
+  }
+  .sec {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 12px 16px 16px;
+    gap: 12px;
+    padding: 16px 18px;
   }
-  .sub {
-    margin-top: 4px;
-    font-size: 12px;
-    color: var(--text-2);
+  .sec + .sec {
+    border-top: 1px solid var(--line);
   }
+  .sec-head h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .sec-head p {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-3);
+  }
+
   .modes,
-  .presets {
+  .covers,
+  .palettes {
     display: grid;
-    gap: 6px;
-  }
-  .modes {
     grid-template-columns: 1fr 1fr;
+    gap: 8px;
   }
   .mode,
+  .cover,
+  .palette,
   .preset {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 9px 11px;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 10px 12px;
     border-radius: var(--r-sm);
     border: 1px solid var(--line-2);
     background: var(--bg);
     text-align: left;
     cursor: pointer;
+    transition:
+      border-color 0.12s,
+      background 0.12s;
   }
-  .mode span,
-  .preset span {
-    font-size: 12px;
-    line-height: 1.35;
-    color: var(--text-3);
+  .mode:hover,
+  .cover:hover,
+  .palette:hover,
+  .preset:hover {
+    border-color: var(--text-3);
   }
   .mode.on,
+  .cover.on,
+  .palette.on,
   .preset.on {
     border-color: var(--text);
     background: var(--surface-2);
   }
+  .mode svg {
+    width: 100%;
+    height: 44px;
+    margin-bottom: 6px;
+  }
+  .m-plate {
+    fill: var(--plate);
+    stroke: rgba(255, 255, 255, 0.08);
+  }
+  .m-line {
+    fill: #4a4f57;
+  }
+  .m-ring {
+    fill: #1a1d22;
+    stroke: #33373e;
+    stroke-width: 4;
+  }
+  .m-seg {
+    fill: none;
+    stroke-width: 4;
+  }
+  .mode b,
+  .cover b,
+  .palette b,
+  .preset b {
+    font-size: 13px;
+    font-weight: 600;
+  }
+  .mode span,
+  .cover span,
+  .preset .p-text span {
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-3);
+  }
   .mode.on span,
-  .preset.on span {
+  .cover.on span,
+  .preset.on .p-text span {
     color: var(--text-2);
   }
-  .grid2 {
-    display: grid;
-    gap: 6px;
+
+  .pages {
+    flex-wrap: wrap;
   }
-  .grid2 {
+  .pages .seg button {
+    min-width: 30px;
+  }
+  .small {
+    height: 28px;
+    padding: 0 9px;
+    font-size: 12.5px;
+  }
+  .closeup {
+    padding: 4px 0 2px;
+    border-radius: var(--r-sm);
+    background: radial-gradient(120% 140% at 70% 50%, rgba(46, 77, 58, 0.35), transparent 70%), var(--bg);
+    border: 1px solid var(--line);
+  }
+  .picker-head {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .picker {
+    display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
   }
-  .page-row {
-    display: grid;
-    grid-template-columns: 14px repeat(3, minmax(0, 1fr)) 30px;
+  .stat {
+    display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-height: 34px;
+    padding: 5px 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--text-2);
+    text-align: left;
+    cursor: pointer;
+  }
+  .stat b {
+    font-size: 12.5px;
+    line-height: 1.25;
+    font-weight: 500;
+  }
+  .stat i {
+    flex-shrink: 0;
+    font-style: normal;
+    font-size: 11px;
+    color: var(--text-3);
+  }
+  .stat:hover {
+    border-color: var(--line-2);
+    color: var(--text);
+  }
+  .stat.on {
+    border-color: var(--text);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .stat .order {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text);
+    color: var(--bg);
+    font-weight: 700;
+  }
+  .explain {
+    margin: 0;
+    padding: 9px 11px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .explain b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .presets {
+    display: flex;
+    flex-direction: column;
     gap: 6px;
   }
-  .page-row select {
-    min-width: 0;
+  .preset {
+    gap: 8px;
   }
-  .page-row .btn {
-    padding: 0;
+  .p-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
   }
-  .add {
-    align-self: flex-start;
+  .mini {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    pointer-events: none;
   }
-  .grid2 select {
-    min-width: 0;
-    width: 100%;
+  .mini :global(.box) {
+    position: relative !important;
+    display: inline-block;
+    transform: none !important;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset !important;
+  }
+
+  .slider {
+    display: grid;
+    grid-template-columns: 74px 1fr 46px;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .slider em {
+    font-style: normal;
+    text-align: right;
+    color: var(--text);
+  }
+  .toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .check {
     font-size: 13px;
@@ -618,87 +1046,36 @@
     font-size: 12px;
     color: var(--text-3);
   }
-  .chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-  }
-  .chip {
-    padding: 4px 9px;
-    border-radius: 99px;
-    border: 1px solid var(--line-2);
-    background: transparent;
-    color: var(--text-2);
-    font-family: var(--font-num);
-    font-size: 12.5px;
+  .more summary {
     cursor: pointer;
-  }
-  .chip.on {
-    border-color: var(--text);
-    color: var(--text);
-  }
-  .chip i {
-    margin-left: 4px;
-    font-style: normal;
-    font-size: 10px;
-    color: var(--text-3);
-  }
-  .slider {
-    display: grid;
-    grid-template-columns: 74px 1fr 46px;
-    align-items: center;
-    gap: 8px;
-    font-size: 13px;
+    font-size: 12.5px;
     color: var(--text-2);
   }
-  .slider em {
-    font-style: normal;
-    text-align: right;
+  .more summary:hover {
     color: var(--text);
   }
-  .palettes {
-    align-self: flex-start;
+  .more[open] summary {
+    margin-bottom: 10px;
   }
-  .palettes button {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-  }
-  .palettes i {
-    width: 8px;
+
+  .palette .bar {
+    display: flex;
+    width: 100%;
     height: 8px;
-    border-radius: 50%;
+    margin-bottom: 6px;
+    border-radius: 4px;
+    overflow: hidden;
   }
-  .palettes i:last-of-type {
-    margin-right: 5px;
+  .palette .bar i {
+    flex: 1;
   }
-  .thresholds {
+  .palette .faint {
+    font-size: 12px;
+  }
+  .scales {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-  }
-  .trow {
-    display: grid;
-    grid-template-columns: 1fr 62px 62px;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    color: var(--text-2);
-  }
-  .trow.head {
-    font-size: 11px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-3);
-  }
-  .trow.head span:not(:first-child) {
-    text-align: right;
-    padding-right: 4px;
-  }
-  .trow input {
-    height: 28px;
-    text-align: right;
-    border-left: 3px solid var(--c);
+    gap: 14px;
   }
   .note {
     margin: 0;
@@ -706,24 +1083,75 @@
     line-height: 1.5;
     color: var(--text-3);
   }
-  .preset-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
+
+  .saved {
+    display: flex;
+    flex-direction: column;
     gap: 6px;
+  }
+  .saved-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 8px 8px 12px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .swatch {
+    display: flex;
+    gap: 2px;
+  }
+  .swatch i {
+    width: 6px;
+    height: 18px;
+    border-radius: 2px;
+  }
+  .saved-name {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
     font-size: 13px;
   }
-  .preset-row span {
+  .saved-name b {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-weight: 600;
+  }
+  .empty-note {
+    margin: 0;
+    padding: 14px;
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-sm);
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-3);
+  }
+  .save-row {
+    display: flex;
+    gap: 8px;
   }
   .grow {
     flex: 1;
     min-width: 0;
   }
+  .push {
+    margin-left: auto;
+  }
+  .danger {
+    color: #ff9d93;
+  }
+  .icon-btn.danger {
+    color: var(--text-3);
+  }
+  .icon-btn.danger:hover {
+    color: #ff9d93;
+  }
   .msg {
     margin: 0;
+    padding: 0 18px 16px;
     font-size: 12.5px;
     color: var(--pos);
     overflow-wrap: anywhere;
@@ -731,12 +1159,15 @@
   .msg.bad {
     color: #ff9d93;
   }
-  @media (max-width: 1180px) {
+  @media (max-width: 1240px) {
     .layout {
       grid-template-columns: 1fr;
     }
     .stage-col {
       position: static;
+    }
+    .stage {
+      width: 100% !important;
     }
   }
 </style>
