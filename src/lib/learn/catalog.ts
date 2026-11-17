@@ -29,7 +29,7 @@ export type SkillMeta = {
 export const SKILLS: Record<LearnKind, SkillMeta> = {
   position: {
     short: "Positionen",
-    levels: ["Volle Tische", "Kleinere Tische", "Toter Button, fehlender SB"],
+    levels: ["Volle Tische", "Kleinere Tische", "Toter Button, fehlender Small Blind"],
     icon: "M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5zM12 17.5v2.5",
     articles: ["position"],
   },
@@ -76,25 +76,25 @@ export const SKILLS: Record<LearnKind, SkillMeta> = {
     articles: ["range", "equity"],
   },
   push_fold_sb: {
-    short: "Shove aus dem SB",
+    short: "All-in aus dem Small Blind",
     levels: ["Ohne Ante", "Mit Ante", "Volle Tische, totes Geld"],
     icon: "M5 18h14M8 18V9l4-4 4 4v9",
     articles: ["push-fold", "effektiver-stack", "m-ratio"],
   },
   push_fold_bb: {
-    short: "Call im BB",
+    short: "Call im Big Blind",
     levels: ["Ohne Ante", "Mit Ante", "Volle Tische, totes Geld"],
     icon: "M12 4v12M7 11l5 5 5-5M5 20h14",
     articles: ["push-fold", "pot-odds", "effektiver-stack"],
   },
   push_fold_open: {
-    short: "Shove nach Folds",
+    short: "All-in nach Folds",
     levels: ["2–6 Spieler, ohne Ante", "6–9 Spieler mit Ante", "Ungleiche Stacks, knappe Spots"],
     icon: "M4 18h16M6 18v-5M10 18V9M14 18V6l4 4v8",
     articles: ["push-fold", "fold-equity", "effektiver-stack"],
   },
   push_fold_call: {
-    short: "Call gegen Shove",
+    short: "Call gegen All-in",
     levels: ["2–6 Spieler, ohne Ante", "6–9 Spieler mit Ante", "Overcalls, ungleiche Stacks"],
     icon: "M5 5l7 7M12 12l7-7M12 12v8M7 20h10",
     articles: ["push-fold", "pot-odds", "effektiver-stack"],
@@ -288,4 +288,33 @@ export function errorText(e: unknown): string {
   const msg = typeof e === "string" ? e : e instanceof Error ? e.message : "";
   if (msg === "gesperrt") return "Gesperrt, solange PokerStars läuft.";
   return msg ? `Das hat nicht geklappt: ${msg}` : "Das hat nicht geklappt. Versuch es noch einmal.";
+}
+
+/** The first unit with a skill below "mit Hilfe": where the path continues. */
+export function currentUnit(byKind: Map<LearnKind, SkillProgress>): Unit | null {
+  return UNITS.find((u) => u.skills.some((k) => (byKind.get(k)?.level ?? 0) < 2)) ?? null;
+}
+
+/** One plain sentence per poker term that feedback and exercises show, matched by the start of the label. */
+const TERMS: [RegExp, string][] = [
+  [/^Nash/, "Die Entscheidung, die ein perfekt spielender Gegner nicht ausnutzen kann."],
+  [/^EV-Verlust|^EV /, "EV heißt Erwartungswert: was eine Entscheidung im Schnitt bringt, gemessen in Big Blinds (bb)."],
+  [/^Erwartet \(EV\)/, "Was dein All-in im Schnitt wert war, unabhängig davon, wie die Karten fielen."],
+  [/^(Shove|Call)-Range/, "Anteil aller Starthände, mit denen man hier all-in geht bzw. callt."],
+  [/^Effektiver Stack/, "Der kleinere der beteiligten Stacks. Mehr kann in dieser Hand nicht gewonnen oder verloren werden."],
+  [/^Benötigte Equity/, "So oft musst du mindestens gewinnen, damit sich der Call lohnt."],
+  [/^(Deine )?Equity/, "Dein Anteil am Pot, wenn alle Karten ausgeteilt werden."],
+  [/^Pot Odds/, "Verhältnis zwischen dem Pot und dem, was du zahlen musst."],
+  [/^Totes Geld/, "Chips im Pot von Spielern, die schon gefoldet haben."],
+  [/^Schmutzige Outs/, "Karten, die dir helfen, dem Gegner aber eine noch bessere Hand geben können."],
+  [/^Halbe Outs/, "Karten, die dir nur manchmal helfen. Sie zählen halb."],
+  [/^Outs/, "Karten, die deine Hand nach vorn bringen."],
+  [/^Regel von 2 und 4|^Korrigierte Regel/, "Outs mal 2 für eine Karte, Outs mal 4 für zwei Karten ergibt grob die Trefferchance in Prozent."],
+  [/^Glück/, "Ergebnis minus Erwartungswert. Über viele Hände gleicht es sich aus."],
+  [/^Blockiert/, "Kombinationen, die es wegen deiner eigenen Karten nicht geben kann."],
+  [/^Mögliche Kombos/, "Wie viele Kartenpaare der Gegner halten kann."],
+];
+
+export function explain(label: string): string | null {
+  return TERMS.find(([re]) => re.test(label))?.[1] ?? null;
 }

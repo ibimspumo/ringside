@@ -2,9 +2,9 @@
   import { api } from "../api";
   import type { ConceptCount } from "../coach/types";
   import type { Exercise, LearnKind, LearnProgress, SkillProgress } from "../types";
-  import { LEVEL_TEXT, SKILLS, TRAINABLE, errorText, isDue, nextLevel, trainableKind, weakConcepts } from "./catalog";
-  import Mastery from "./Mastery.svelte";
-  import Ring from "./Ring.svelte";
+  import { LEVEL_TEXT, SKILLS, TRAINABLE, currentUnit, errorText, isDue, nextLevel, trainableKind, weakConcepts } from "./catalog";
+    import Ring from "./Ring.svelte";
+  import SkillBadge from "./SkillBadge.svelte";
   import Task from "./Task.svelte";
   import Weaknesses from "./Weaknesses.svelte";
   import { preview } from "./preview";
@@ -176,6 +176,16 @@
     phase = "done";
   });
 
+  const LANES: { why: Why; label: string }[] = [
+    { why: "Schwachstelle", label: "Zuerst: deine Schwachstellen" },
+    { why: "Wiederholen", label: "Wiederholen, damit es sitzt" },
+    { why: "Festigen", label: "Festigen" },
+    { why: "Neu", label: "Neu für dich" },
+  ];
+  const lanes = $derived(LANES.map((l) => ({ ...l, groups: planGroups.filter((g) => g.why === l.why) })).filter((l) => l.groups.length));
+  const unit = $derived(currentUnit(byKind));
+  const left = $derived(Math.max(0, goal - xpWeek));
+
   function tone(s: number | null) {
     if (s === null) return "";
     return s >= 0.999 ? "ok" : s >= 0.5 ? "close" : "miss";
@@ -186,56 +196,84 @@
   <div class="start">
     <section class="hero panel">
       <div class="intro">
-        <span class="eyebrow">Heute lernen · etwa 5 Minuten</span>
-        <h1>{LENGTH} Aufgaben, gemischt</h1>
-        <p class="dim">
-          {#if planGroups.some((g) => g.why === "Schwachstelle")}Deine Schwachstellen aus den Coach-Berichten zuerst, dann
-            fällige Wiederholungen und etwas Neues.{:else}Fällige Wiederholungen zuerst, dazu etwas Neues.{/if} Nach jeder Antwort siehst du sofort, warum. Fehler kosten nichts, sie
-          kommen nur bald wieder.
+        <span class="eyebrow">Deine Runde für heute · etwa 5 Minuten</span>
+        <h1>{LENGTH} kurze Aufgaben</h1>
+        <p class="dim lead">
+          {#if lanes.some((l) => l.why === "Schwachstelle")}Zusammengestellt aus deinen Coach-Berichten und deinem Stand.{:else}Zusammengestellt aus
+            deinem Stand.{/if} Nach jeder Antwort siehst du sofort, warum.
         </p>
-        <ul class="plan" aria-label="Plan für heute">
-          {#each planGroups as g (g.kind)}
-            <li>
-              <span class="why {g.why === 'Neu' ? 'new' : g.why === 'Wiederholen' ? 'due' : g.why === 'Schwachstelle' ? 'weak' : ''}">{g.why}</span>
-              <span class="name">{SKILLS[g.kind].short}</span>
-              {#if g.n > 1}<span class="faint num">×{g.n}</span>{/if}
-            </li>
-          {/each}
-        </ul>
-        <button class="btn primary go" onclick={start} disabled={!progress}>
-          Los geht’s
-          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </button>
-      </div>
-      <div class="week">
-        <Ring value={xpWeek / goal} size={132} stroke={10} label="{xpWeek} von {goal} Antworten diese Woche">
-          <b class="num big">{xpWeek}</b>
-          <span class="faint small">von {goal} XP</span>
-        </Ring>
-        <span class="dim small">Wochenziel</span>
-        <div class="seg" role="group" aria-label="Wochenziel">
-          {#each GOALS as g (g)}
-            <button class:on={goal === g} onclick={() => setGoal(g)}>{g}</button>
+        <div class="plan" aria-label="Plan für heute">
+          {#each lanes as l (l.why)}
+            <div class="lane">
+              <span class="lane-label" class:weak={l.why === "Schwachstelle"}>{l.label}</span>
+              <ul>
+                {#each l.groups as g (g.kind)}
+                  <li>
+                    <SkillBadge kind={g.kind} skill={byKind.get(g.kind)} size={34} />
+                    <span class="pname">
+                      <b>{SKILLS[g.kind].short}</b>
+                      <span class="faint">{g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}</span>
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            </div>
           {/each}
         </div>
-        <span class="faint tiny">1 XP pro Antwort, richtig oder falsch.</span>
+        <div class="cta">
+          <button class="btn primary go" onclick={start} disabled={!progress}>
+            Runde starten
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </button>
+          <span class="faint small">Fehler kosten nichts. Was danebengeht, kommt bald zur Übung wieder.</span>
+        </div>
       </div>
+      <aside class="week" aria-label="Wochenziel">
+        <Ring value={xpWeek / goal} size={128} stroke={10} tone={xpWeek >= goal ? "var(--pos)" : "var(--text)"} label="{xpWeek} von {goal} Antworten diese Woche">
+          <b class="num big">{xpWeek}</b>
+          <span class="faint small">von {goal}</span>
+        </Ring>
+        <div class="week-text">
+          <b>Antworten diese Woche</b>
+          <span class="dim small">
+            {#if left === 0}Wochenziel geschafft. Stark!{:else}Noch {left} bis zum Ziel, etwa {Math.ceil(left / LENGTH)}
+              {Math.ceil(left / LENGTH) === 1 ? "Runde" : "Runden"}.{/if}
+          </span>
+        </div>
+        <div class="goal">
+          <span class="faint small">Ziel</span>
+          <div class="seg" role="group" aria-label="Wochenziel in Antworten">
+            {#each GOALS as g (g)}
+              <button class:on={goal === g} onclick={() => setGoal(g)}>{g}</button>
+            {/each}
+          </div>
+        </div>
+      </aside>
     </section>
 
     <Weaknesses {concepts} {progress} limit={3} {onTrain} {onRead} />
 
     <div class="doors">
       <button class="door" onclick={onOwn}>
-        <b>Aus deinen Händen</b>
-        <span>Deine All-ins und Push/Fold-Spots noch einmal entscheiden.</span>
+        <span class="door-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" /></svg></span>
+        <span class="door-txt">
+          <b>Deine Hände</b>
+          <span>Deine All-ins und Push/Fold-Spots noch einmal entscheiden.</span>
+        </span>
       </button>
       <button class="door" onclick={onPath}>
-        <b>Lernpfad</b>
-        <span>Elf Einheiten von den Grundlagen bis ICM, mit deinem Stand.</span>
+        <span class="door-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 17h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h6" /></svg></span>
+        <span class="door-txt">
+          <b>Lernpfad</b>
+          <span>{#if unit}Weiter bei Einheit {unit.n}: {unit.title}.{:else}Elf Einheiten von den Grundlagen bis ICM.{/if}</span>
+        </span>
       </button>
       <button class="door" onclick={onTrainer}>
-        <b>Trainer</b>
-        <span>Eine Fertigkeit gezielt üben, so lange du willst.</span>
+        <span class="door-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 12h3l2-6 4 12 2-6h5" /></svg></span>
+        <span class="door-txt">
+          <b>Trainer</b>
+          <span>Eine Fertigkeit gezielt üben, so lange du willst.</span>
+        </span>
       </button>
     </div>
   </div>
@@ -243,12 +281,12 @@
   <div class="run">
     <div class="bar">
       <span class="count num">{index + 1} / {items.length}</span>
-      <ol class="steps" aria-label="Fortschritt der Sitzung">
+      <ol class="steps" aria-label="Fortschritt der Runde">
         {#each items as it, i (i)}
           <li class={tone(scores[i])} class:now={i === index} title="{SKILLS[it.kind].short} · {it.why}"></li>
         {/each}
       </ol>
-      <button class="btn ghost" onclick={finish}>Beenden</button>
+      <button class="btn ghost" onclick={finish}>Runde beenden</button>
     </div>
     <div class="panel body">
       {#if error}
@@ -275,40 +313,56 @@
 {:else}
   <section class="done panel">
     <div class="result">
-      <Ring value={mean} size={150} stroke={12} tone={mean >= 0.8 ? "var(--pos)" : mean >= 0.5 ? "var(--amber)" : "var(--neg)"} label="Punktzahl {Math.round(mean * 100)} %">
+      <Ring value={mean} size={150} stroke={12} tone={mean >= 0.8 ? "var(--pos)" : mean >= 0.5 ? "var(--amber)" : "var(--neg)"} label="Punktzahl {Math.round(mean * 100)} von 100">
         <b class="num huge">{Math.round(mean * 100)}</b>
-        <span class="faint small">Punkte</span>
+        <span class="faint small">von 100 Punkten</span>
       </Ring>
       <div class="numbers">
-        <h1>{answered === 0 ? "Sitzung beendet" : mean >= 0.8 ? "Starke Runde" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h1>
+        <h1>{answered === 0 ? "Runde beendet" : mean >= 0.8 ? "Starke Runde!" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h1>
+        {#if answered}
+          <ol class="trail" aria-label="Deine Antworten">
+            {#each items.slice(0, answered) as it, i (i)}
+              <li class={tone(scores[i])} style="--n:{i}" title="{SKILLS[it.kind].short}: {Math.round((scores[i] ?? 0) * 100)} Punkte">
+                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={SKILLS[it.kind].icon} /></svg>
+              </li>
+            {/each}
+          </ol>
+        {/if}
         <div class="stats">
-          <div><b class="num">{rights}</b><span>von {answered} richtig</span></div>
-          <div><b class="num">+{answered}</b><span>XP</span></div>
-          <div><b class="num">{xpWeek}</b><span>XP diese Woche</span></div>
+          <div><b class="num">{rights}<span class="of">/{answered}</span></b><span>richtig</span></div>
+          <div><b class="num">+{answered}</b><span>Antworten fürs Wochenziel</span></div>
+          <div><b class="num">{xpWeek}<span class="of">/{goal}</span></b><span>diese Woche</span></div>
         </div>
         <p class="dim small">Was danebenging, kommt in den nächsten Tagen wieder. So bleibt es hängen.</p>
       </div>
     </div>
     {#if answered}
-      <ul class="changes">
-        {#each practiced as k (k)}
-          {@const b = before.get(k)}
-          {@const a = byKind.get(k)}
-          <li>
-            <span class="name">{SKILLS[k].short}</span>
-            <Mastery skill={a} />
-            {#if a && b && a.level > b.level}
-              <span class="up">Neue Stufe: {LEVEL_TEXT[a.level]}</span>
-            {:else if a && b && a.level < b.level}
-              <span class="faint">zurück auf {LEVEL_TEXT[a.level]}</span>
-            {/if}
-          </li>
-        {/each}
-      </ul>
+      <div class="grown">
+        <h2>Deine Fertigkeiten nach dieser Runde</h2>
+        <ul class="changes">
+          {#each practiced as k (k)}
+            {@const b = before.get(k)}
+            {@const a = byKind.get(k)}
+            <li class:up={!!(a && b && a.level > b.level)}>
+              <SkillBadge kind={k} skill={a} size={44} />
+              <span class="cname">
+                <b>{SKILLS[k].short}</b>
+                {#if a && b && a.level > b.level}
+                  <span class="lvl-up">Neue Stufe: {LEVEL_TEXT[a.level]}</span>
+                {:else if a && b && a.level < b.level}
+                  <span class="faint">Zurück auf {LEVEL_TEXT[a.level]}</span>
+                {:else}
+                  <span class="dim">{LEVEL_TEXT[a?.level ?? 0]}</span>
+                {/if}
+              </span>
+            </li>
+          {/each}
+        </ul>
+      </div>
     {/if}
     <div class="actions">
-      <button class="btn primary" onclick={() => (phase = "start")}>Noch eine Runde</button>
-      <button class="btn" onclick={onPath}>Zum Lernpfad</button>
+      <button class="btn primary big-btn" onclick={() => (phase = "start")}>Noch eine Runde</button>
+      <button class="btn big-btn" onclick={onPath}>Zum Lernpfad</button>
     </div>
   </section>
 {/if}
@@ -320,103 +374,135 @@
   }
   .hero {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 28px;
-    padding: 24px 26px;
+    grid-template-columns: minmax(0, 1fr) 260px;
     overflow: hidden;
-    background:
-      radial-gradient(circle at 92% 30%, rgba(236, 235, 231, 0.05), transparent 45%),
-      var(--surface);
+    padding: 0;
+  }
+  .intro {
+    display: grid;
+    align-content: start;
+    gap: 0;
+    padding: 26px 28px 24px;
+    min-width: 0;
   }
   .eyebrow {
     font-size: 12.5px;
     color: var(--text-2);
   }
   h1 {
-    margin: 4px 0 8px;
+    margin: 4px 0 6px;
     font-family: var(--font-num);
-    font-size: 28px;
+    font-size: 30px;
     font-weight: 600;
+    letter-spacing: -0.01em;
   }
-  .intro p {
+  .lead {
     margin: 0;
-    max-width: 58ch;
+    max-width: 62ch;
   }
   .plan {
     display: flex;
     flex-wrap: wrap;
+    gap: 14px 28px;
+    margin: 22px 0 24px;
+  }
+  .lane {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+  }
+  .lane-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .lane-label.weak {
+    color: var(--neg);
+  }
+  .lane ul {
+    display: flex;
+    flex-wrap: wrap;
     gap: 6px;
-    margin: 18px 0 20px;
+    margin: 0;
     padding: 0;
     list-style: none;
   }
-  .plan li {
-    display: inline-flex;
+  .lane li {
+    display: flex;
     align-items: center;
-    gap: 7px;
-    height: 30px;
-    padding: 0 11px 0 4px;
+    gap: 9px;
+    padding: 5px 14px 5px 5px;
     border-radius: 99px;
     background: var(--surface-2);
     border: 1px solid var(--line);
-    font-size: 13px;
   }
-  .why {
-    padding: 2px 8px;
-    border-radius: 99px;
-    background: var(--surface-3);
-    color: var(--text-2);
-    font-size: 11.5px;
+  .pname {
+    display: grid;
+    line-height: 1.25;
+  }
+  .pname b {
+    font-size: 13.5px;
     font-weight: 600;
   }
-  .why.new {
-    background: var(--text);
-    color: var(--bg);
+  .pname .faint {
+    font-size: 11.5px;
   }
-  .why.due {
-    color: var(--text);
-  }
-  .why.weak {
-    background: rgba(229, 72, 59, 0.16);
-    color: var(--neg);
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
   }
   .go {
-    height: 42px;
-    padding: 0 22px;
-    font-size: 14.5px;
+    height: 44px;
+    padding: 0 24px;
+    font-size: 15px;
+    border-radius: var(--r);
   }
   .week {
     display: grid;
     justify-items: center;
     align-content: center;
+    gap: 14px;
+    padding: 24px 20px;
+    border-left: 1px solid var(--line);
+    background: var(--surface-2);
+    text-align: center;
+  }
+  .week-text {
+    display: grid;
+    gap: 2px;
+  }
+  .week-text b {
+    font-size: 13.5px;
+    font-weight: 600;
+  }
+  .goal {
+    display: flex;
+    align-items: center;
     gap: 8px;
-    min-width: 170px;
   }
   .big {
     font-size: 34px;
     font-weight: 600;
   }
   .huge {
-    font-size: 44px;
+    font-size: 46px;
     font-weight: 600;
   }
   .small {
     font-size: 12.5px;
   }
-  .tiny {
-    font-size: 11.5px;
-    text-align: center;
-  }
   .doors {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
     gap: 10px;
   }
   .door {
-    display: grid;
-    align-content: start;
-    gap: 4px;
-    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 18px;
     border-radius: var(--r);
     border: 1px solid var(--line);
     background: var(--surface);
@@ -432,12 +518,33 @@
     border-color: var(--line-2);
     transform: translateY(-1px);
   }
+  .door-ico {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border-radius: 10px;
+    background: var(--surface-3);
+  }
+  .door-txt {
+    display: grid;
+    gap: 3px;
+  }
   .door b {
     font-size: 14.5px;
   }
-  .door span {
+  .door-txt span {
     color: var(--text-2);
     font-size: 13px;
+    line-height: 1.4;
+  }
+  svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .run {
@@ -500,8 +607,8 @@
 
   .done {
     display: grid;
-    gap: 20px;
-    padding: 26px;
+    gap: 24px;
+    padding: 28px;
     animation: rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
   @keyframes rise {
@@ -514,23 +621,56 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 26px;
+    gap: 22px 32px;
   }
   .numbers {
     display: grid;
-    gap: 10px;
+    gap: 14px;
     min-width: 0;
   }
-  .numbers h1 {
-    margin: 0;
-  }
+  .numbers h1,
   .numbers p {
     margin: 0;
+  }
+  .trail {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .trail li {
+    --t: var(--text-3);
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    color: var(--t);
+    background: color-mix(in srgb, var(--t) 14%, var(--surface-2));
+    border: 1px solid color-mix(in srgb, var(--t) 40%, transparent);
+    animation: pop 0.35s calc(var(--n) * 50ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .trail li.ok {
+    --t: var(--pos);
+  }
+  .trail li.close {
+    --t: var(--amber);
+  }
+  .trail li.miss {
+    --t: var(--neg);
+  }
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
   }
   .stats {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px 28px;
+    gap: 10px 32px;
   }
   .stats div {
     display: grid;
@@ -539,34 +679,59 @@
     font-size: 26px;
     font-weight: 600;
   }
-  .stats span {
+  .of {
+    font-size: 16px;
+    color: var(--text-3);
+    font-weight: 500;
+  }
+  .stats div > span {
     color: var(--text-2);
     font-size: 12.5px;
   }
+  .grown {
+    display: grid;
+    gap: 10px;
+    padding-top: 20px;
+    border-top: 1px solid var(--line);
+  }
+  .grown h2 {
+    margin: 0;
+    font-size: 14.5px;
+    font-weight: 600;
+  }
   .changes {
     display: grid;
-    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 8px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
   .changes li {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 6px 16px;
-    padding: 8px 12px;
-    border-radius: var(--r-sm);
+    gap: 12px;
+    padding: 10px 14px 10px 10px;
+    border-radius: var(--r);
     background: var(--surface-2);
+    border: 1px solid var(--line);
   }
-  .changes .name {
-    min-width: 150px;
-    font-weight: 600;
+  .changes li.up {
+    border-color: color-mix(in srgb, var(--pos) 45%, transparent);
+    background: color-mix(in srgb, var(--pos) 8%, var(--surface-2));
   }
-  .up {
+  .cname {
+    display: grid;
+    gap: 1px;
+    min-width: 0;
+    font-size: 12.5px;
+  }
+  .cname b {
+    font-size: 14px;
+  }
+  .lvl-up {
     color: var(--pos);
     font-weight: 600;
-    font-size: 13px;
     animation: rise 0.4s 0.3s both;
   }
   .actions {
@@ -574,9 +739,26 @@
     flex-wrap: wrap;
     gap: 8px;
   }
-  @container (max-width: 640px) {
+  .big-btn {
+    height: 40px;
+    padding: 0 20px;
+    font-size: 14px;
+  }
+  @container (max-width: 760px) {
     .hero {
       grid-template-columns: 1fr;
+    }
+    .week {
+      grid-template-columns: auto minmax(0, 1fr);
+      justify-items: start;
+      text-align: left;
+      border-left: 0;
+      border-top: 1px solid var(--line);
+    }
+    .goal {
+      grid-column: 1 / -1;
+    }
+    .intro {
       padding: 20px;
     }
     .body {

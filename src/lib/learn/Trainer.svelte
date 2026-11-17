@@ -2,8 +2,8 @@
   import { untrack } from "svelte";
   import { api } from "../api";
   import type { Exercise, LearnKind, LearnProgress } from "../types";
-  import { SKILLS, TRAINABLE, errorText, fmtPct, nextLevel } from "./catalog";
-  import Mastery from "./Mastery.svelte";
+  import { LEVEL_TEXT, SKILLS, TRAINABLE, UNITS, errorText, fmtPct, nextLevel } from "./catalog";
+  import SkillBadge from "./SkillBadge.svelte";
   import Task from "./Task.svelte";
   import { ARTICLE_BY_ID } from "./wissen/articles";
 
@@ -74,41 +74,53 @@
   }
 
   const meta = $derived(SKILLS[kind]);
+  /** Trainable skills grouped by their unit on the path. */
+  const GROUPS = UNITS.map((u) => ({ title: u.title, kinds: TRAINABLE.filter((k) => u.skills.includes(k)) })).filter((g) => g.kinds.length);
 </script>
 
 <div class="trainer">
-  <aside class="skills" aria-label="Fertigkeit wählen">
-    {#each TRAINABLE as k (k)}
-      <button class="skill" class:on={kind === k} aria-pressed={kind === k} onclick={() => choose(k)}>
-        <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="17" height="17"><path d={SKILLS[k].icon} /></svg></span>
-        <span class="txt">
-          <b>{SKILLS[k].short}</b>
-          <Mastery skill={byKind.get(k)} label={false} />
-        </span>
-      </button>
+  <nav class="skills" aria-label="Fertigkeit wählen">
+    {#each GROUPS as g (g.title)}
+      <div class="group">
+        <span class="gtitle">{g.title}</span>
+        {#each g.kinds as k (k)}
+          <button class="skill" class:on={kind === k} aria-pressed={kind === k} onclick={() => choose(k)}>
+            <SkillBadge kind={k} skill={byKind.get(k)} size={32} />
+            <span class="txt">
+              <b>{SKILLS[k].short}</b>
+              <span class="faint">{LEVEL_TEXT[byKind.get(k)?.level ?? 0]}</span>
+            </span>
+          </button>
+        {/each}
+      </div>
     {/each}
-  </aside>
+  </nav>
 
   <div class="main">
     <div class="bar panel">
       <div class="title">
-        <h1>{byKind.get(kind)?.name_de ?? meta.short}</h1>
-        <Mastery skill={byKind.get(kind)} />
+        <SkillBadge {kind} skill={byKind.get(kind)} size={46} />
+        <div class="tt">
+          <h1>{byKind.get(kind)?.name_de ?? meta.short}</h1>
+          <span class="session">
+            {#if count}
+              Diese Sitzung: <b class="num">{count}</b> {count === 1 ? "Aufgabe" : "Aufgaben"} · <b class="num">{right}</b> richtig · <b class="num"
+                >{fmtPct((sum / count) * 100)}</b
+              > im Schnitt
+            {:else}
+              Endlos üben. Wechsle Fertigkeit oder Stufe, wann du willst.
+            {/if}
+          </span>
+        </div>
       </div>
-      <div class="seg levels" role="group" aria-label="Stufe">
+      <div class="levels" role="group" aria-label="Stufe">
         {#each [1, 2, 3] as l (l)}
-          <button class:on={level === l} onclick={() => setLevel(l)} title={meta.levels[l - 1]}>Stufe {l}</button>
+          <button class="level" class:on={level === l} aria-pressed={level === l} onclick={() => setLevel(l)}>
+            <span class="pips" aria-hidden="true">{#each [1, 2, 3] as n (n)}<i class:on={n <= l}></i>{/each}</span>
+            <b>Stufe {l}</b>
+            <span>{meta.levels[l - 1]}</span>
+          </button>
         {/each}
-      </div>
-      <p class="faint lvl-text">{meta.levels[level - 1]}</p>
-      <div class="session">
-        {#if count}
-          <span><b class="num">{count}</b> Aufgaben</span>
-          <span><b class="num">{right}</b> richtig</span>
-          <span>Ø <b class="num">{fmtPct((sum / count) * 100)}</b></span>
-        {:else}
-          <span class="faint">Endlos üben. Wechsel Fertigkeit oder Stufe, wann du willst.</span>
-        {/if}
       </div>
       {#if meta.articles.length}
         <div class="reads">
@@ -149,27 +161,37 @@
 <style>
   .trainer {
     display: grid;
-    grid-template-columns: 210px minmax(0, 1fr);
-    gap: 16px;
+    grid-template-columns: 236px minmax(0, 1fr);
+    gap: 18px;
     align-items: start;
   }
   .skills {
     position: sticky;
     top: 0;
     display: grid;
-    gap: 3px;
+    gap: 14px;
+  }
+  .group {
+    display: grid;
+    gap: 2px;
+  }
+  .gtitle {
+    padding: 0 10px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-3);
   }
   .skill {
-    display: grid;
-    grid-template-columns: 30px minmax(0, 1fr);
+    display: flex;
     align-items: center;
     gap: 10px;
-    padding: 7px 9px;
+    padding: 5px 10px 5px 6px;
     border: 1px solid transparent;
-    border-radius: var(--r-sm);
+    border-radius: var(--r);
     background: transparent;
     text-align: left;
     cursor: pointer;
+    transition: background 0.12s;
   }
   .skill:hover {
     background: var(--surface);
@@ -178,25 +200,10 @@
     background: var(--surface-2);
     border-color: var(--line-2);
   }
-  .ico {
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    border-radius: 8px;
-    background: var(--surface-3);
-  }
-  svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
   .txt {
     display: grid;
-    gap: 3px;
     min-width: 0;
+    line-height: 1.25;
   }
   .txt b {
     font-size: 13px;
@@ -205,6 +212,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  .txt span {
+    font-size: 11.5px;
+  }
   .main {
     display: grid;
     gap: 12px;
@@ -212,46 +222,86 @@
   }
   .bar {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 8px 16px;
-    padding: 14px 18px;
+    gap: 14px;
+    padding: 16px 18px;
   }
   .title {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 6px 14px;
+    gap: 14px;
+    min-width: 0;
+  }
+  .tt {
+    display: grid;
+    gap: 2px;
     min-width: 0;
   }
   h1 {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 21px;
+    font-size: 22px;
     font-weight: 600;
   }
-  .levels {
-    align-self: start;
-  }
-  .lvl-text {
-    grid-column: 2;
-    margin: -2px 0 0;
-    font-size: 12px;
-    text-align: right;
-  }
   .session {
-    grid-column: 1;
-    grid-row: 2 / span 2;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 16px;
     font-size: 13px;
     color: var(--text-2);
   }
   .session b {
     color: var(--text);
   }
+  .levels {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .level {
+    display: grid;
+    justify-items: start;
+    align-content: start;
+    gap: 3px;
+    padding: 10px 12px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    text-align: left;
+    cursor: pointer;
+    transition:
+      border-color 0.12s,
+      background 0.12s;
+  }
+  .level:hover {
+    border-color: var(--line-2);
+  }
+  .level.on {
+    border-color: var(--text-2);
+    background: var(--surface-3);
+  }
+  .level b {
+    font-size: 13px;
+  }
+  .level > span:last-child {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .pips {
+    display: flex;
+    gap: 3px;
+    margin-bottom: 2px;
+  }
+  .pips i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--surface-3);
+  }
+  .level.on .pips i {
+    background: var(--line-2);
+  }
+  .pips i.on,
+  .level.on .pips i.on {
+    background: var(--text);
+  }
   .reads {
-    grid-column: 1 / -1;
     display: flex;
     flex-wrap: wrap;
     gap: 4px 12px;
@@ -289,26 +339,26 @@
       position: static;
       display: flex;
       flex-wrap: wrap;
+      gap: 6px;
+    }
+    .group {
+      display: contents;
+    }
+    .gtitle {
+      display: none;
     }
     .skill {
-      grid-template-columns: 26px auto;
-      padding: 5px 9px 5px 5px;
+      padding: 3px 12px 3px 3px;
       border-color: var(--line);
+      border-radius: 99px;
     }
-    .ico {
-      width: 26px;
-      height: 26px;
+    .txt span {
+      display: none;
     }
   }
   @container (max-width: 560px) {
-    .bar {
+    .levels {
       grid-template-columns: 1fr;
-    }
-    .lvl-text,
-    .session {
-      grid-column: 1;
-      grid-row: auto;
-      text-align: left;
     }
     .body {
       padding: 16px;

@@ -11,6 +11,13 @@ export function preview(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name);
 }
 
+// Screenshots should show settled states, not frames of an entry animation.
+if (preview("learn") !== null && typeof document !== "undefined") {
+  const style = document.createElement("style");
+  style.textContent = "*, *::before, *::after { animation: none !important; transition: none !important; }";
+  document.head.append(style);
+}
+
 /** A plausible answer for `answer=1`, so the feedback state can be shown. */
 export function previewAnswer(spec: AnswerSpec): LearnAnswer {
   switch (spec.type) {

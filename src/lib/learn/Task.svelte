@@ -136,7 +136,7 @@
   </header>
 
   <h2 class="q">{exercise.question}</h2>
-  {#if exercise.model_note && (prompt.type === "push_fold" || prompt.type === "push_fold_table")}
+  {#if !feedback && exercise.model_note && (prompt.type === "push_fold" || prompt.type === "push_fold_table")}
     <p class="model-note"><span class="badge modell">Modell</span> {exercise.model_note}</p>
   {/if}
 

@@ -12,13 +12,13 @@
   const KINDS: { id: LearnKind | null; label: string }[] = [
     { id: null, label: "Alle" },
     { id: "all_in", label: "All-ins" },
-    { id: "push_fold_open", label: "Shove nach Folds" },
-    { id: "push_fold_call", label: "Call gegen Shove" },
+    { id: "push_fold_open", label: "All-in nach Folds" },
+    { id: "push_fold_call", label: "Call gegen All-in" },
   ];
   const KIND_LABEL: Partial<Record<LearnKind, string>> = {
     all_in: "All-in",
-    push_fold_open: "Shove nach Folds",
-    push_fold_call: "Call gegen Shove",
+    push_fold_open: "All-in nach Folds",
+    push_fold_call: "Call gegen All-in",
   };
 
   let kind = $state<LearnKind | null>(null);

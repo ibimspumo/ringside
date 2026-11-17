@@ -1,7 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { Feedback } from "../types";
-  import { GRADING, fmtBB } from "./catalog";
+  import { GRADING, explain, fmtBB } from "./catalog";
+  import { preview } from "./preview";
   import Ring from "./Ring.svelte";
 
   let {
@@ -20,7 +21,7 @@
 
   // The explanation comes into view and the next step is one key press away.
   $effect(() => {
-    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches || preview("answer") !== null;
     root?.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
     nextBtn?.focus({ preventScroll: true });
   });
@@ -43,17 +44,20 @@
       <h3>{TITLE[verdict]}</h3>
       <p>Lösung: <b class="num">{feedback.truth_text}</b></p>
     </div>
-    <Ring value={feedback.score} size={54} stroke={5} {tone} label="Punktzahl {Math.round(feedback.score * 100)} %">
+    <Ring value={feedback.score} size={54} stroke={5} {tone} label="{Math.round(feedback.score * 100)} von 100 Punkten">
       <b class="num score">{Math.round(feedback.score * 100)}</b>
     </Ring>
+    {#if onNext}
+      <button class="btn primary next" bind:this={nextBtn} onclick={onNext}>{nextLabel} <kbd>Enter</kbd></button>
+    {/if}
   </header>
 
   {#if feedback.ev_loss_bb !== null}
-    <div class="ev" class:none={feedback.ev_loss_bb <= 0.005}>
+    <div class="ev" class:none={feedback.ev_loss_bb <= 0.005} title={explain("EV-Verlust")}>
       {#if feedback.ev_loss_bb <= 0.005}
-        Kein EV-Verlust
+        Beste Entscheidung: Sie kostet dich auf Dauer nichts.
       {:else}
-        EV-Verlust deiner Wahl <b class="num">{fmtBB(feedback.ev_loss_bb)}</b>
+        Deine Wahl kostet im Schnitt <b class="num">{fmtBB(feedback.ev_loss_bb)}</b> pro Hand gegenüber der besten.
       {/if}
     </div>
   {/if}
@@ -62,7 +66,7 @@
     <dl class="facts">
       {#each feedback.facts as f, i (i)}
         <div class="fact" style="--i:{i}">
-          <dt>{f.label}</dt>
+          <dt>{#if explain(f.label)}<span class="term" title={explain(f.label)}>{f.label}</span>{:else}{f.label}{/if}</dt>
           <dd class="num">{f.value}</dd>
           {#if f.formula}<dd class="formula num">{f.formula}</dd>{/if}
         </div>
@@ -72,14 +76,9 @@
 
   {@render children?.()}
 
-  <footer>
-    <span class="grading" title={g.text}>
-      <span class="badge {feedback.grading}">{g.label}</span>
-      <span class="faint">{feedback.model_note ?? g.text}</span>
-    </span>
-    {#if onNext}
-      <button class="btn primary" bind:this={nextBtn} onclick={onNext}>{nextLabel} <kbd>Enter</kbd></button>
-    {/if}
+  <footer class="grading" title={g.text}>
+    <span class="badge {feedback.grading}">{g.label}</span>
+    <span class="faint">{feedback.model_note ?? g.text}</span>
   </footer>
 </section>
 
@@ -101,7 +100,7 @@
   }
   header {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
   }
@@ -197,19 +196,22 @@
     color: var(--text-2);
     overflow-wrap: anywhere;
   }
-  footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px 16px;
+  .next {
+    height: 40px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--text-3);
+    text-underline-offset: 3px;
+    cursor: help;
   }
   .grading {
     display: flex;
     align-items: baseline;
     gap: 8px;
     min-width: 0;
-    flex: 1 1 260px;
     font-size: 12.5px;
   }
   .badge {
@@ -236,5 +238,13 @@
     font-size: 11px;
     font-weight: 500;
     opacity: 0.7;
+  }
+  @container (max-width: 640px) {
+    header {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+    .next {
+      grid-column: 1 / -1;
+    }
   }
 </style>
