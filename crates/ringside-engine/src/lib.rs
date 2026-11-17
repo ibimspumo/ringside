@@ -1,12 +1,15 @@
 //! Calculation core for Ringside's training and analysis tools: hand evaluation,
 //! ranges, equity, the 169×169 preflop matrix, ICM and heads-up push/fold Nash.
 
+pub mod allin;
 pub mod cards;
 pub mod equity;
 pub mod eval;
 pub mod icm;
 pub mod multiway;
 pub mod outs;
+pub mod preflop;
+pub mod preflop_table;
 pub mod preflop_matrix;
 pub mod pushfold;
 pub mod pushfold_table;

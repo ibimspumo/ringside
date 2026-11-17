@@ -560,7 +560,7 @@ impl Tree {
 // Class tables and Monte Carlo showdowns.
 
 /// `cond[c * C + x]`: probability that another player holds class x given class c.
-fn conditional(card_removal: bool) -> Vec<f64> {
+pub(crate) fn conditional(card_removal: bool) -> Vec<f64> {
     let prior: Vec<f64> = HandClass::all().map(|c| c.combo_count() as f64 / 1326.0).collect();
     let mut m = vec![0.0; C * C];
     for c in HandClass::all() {
@@ -754,17 +754,17 @@ fn simulate_outcome(sorted: &[u8], samples: u32) -> Outcome {
 }
 
 /// Number of sorted class triples (multisets of size 3 out of 169).
-const TRIPLES: usize = C * (C + 1) * (C + 2) / 6;
+pub(crate) const TRIPLES: usize = C * (C + 1) * (C + 2) / 6;
 /// Weak orders of three players.
-const WEAK3: usize = 13;
+pub(crate) const WEAK3: usize = 13;
 /// Count row of a triple that can't be dealt (feasible rows sum to the sample count).
-const INFEASIBLE: [u16; WEAK3] = [u16::MAX; WEAK3];
+pub(crate) const INFEASIBLE: [u16; WEAK3] = [u16::MAX; WEAK3];
 
-type TripleRow = [u16; WEAK3];
+pub(crate) type TripleRow = [u16; WEAK3];
 
 /// Level vectors of the 13 weak orders of three players, and their index by
 /// `l0 * 9 + l1 * 3 + l2`.
-static WEAK3_ORDERS: LazyLock<(Vec<[u8; 3]>, [u8; 27])> = LazyLock::new(|| {
+pub(crate) static WEAK3_ORDERS: LazyLock<(Vec<[u8; 3]>, [u8; 27])> = LazyLock::new(|| {
     let mut orders = Vec::new();
     let mut index = [u8::MAX; 27];
     for (i, slot) in index.iter_mut().enumerate() {
@@ -780,7 +780,7 @@ static WEAK3_ORDERS: LazyLock<(Vec<[u8; 3]>, [u8; 27])> = LazyLock::new(|| {
 });
 
 /// Inverse of [`triple_index`].
-fn triple_classes(index: usize) -> [u8; 3] {
+pub(crate) fn triple_classes(index: usize) -> [u8; 3] {
     let tet = |c: usize| c * (c + 1) * (c + 2) / 6;
     let c = (0..C).rev().find(|&c| tet(c) <= index).expect("index below TRIPLES");
     let rest = index - tet(c);
@@ -788,12 +788,12 @@ fn triple_classes(index: usize) -> [u8; 3] {
     [(rest - b * (b + 1) / 2) as u8, b as u8, c as u8]
 }
 
-fn triple_index(sorted: &[u8]) -> usize {
+pub(crate) fn triple_index(sorted: &[u8]) -> usize {
     let (a, b, c) = (sorted[0] as usize, sorted[1] as usize, sorted[2] as usize);
     c * (c + 1) * (c + 2) / 6 + b * (b + 1) / 2 + a
 }
 
-fn simulate_triple(sorted: &[u8], samples: u32) -> TripleRow {
+pub(crate) fn simulate_triple(sorted: &[u8], samples: u32) -> TripleRow {
     let mut row = [0u16; WEAK3];
     let index = &WEAK3_ORDERS.1;
     let feasible = simulate(sorted, samples, |code| {
