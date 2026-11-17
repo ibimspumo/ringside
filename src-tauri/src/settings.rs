@@ -259,6 +259,8 @@ mod tests {
     #[test]
     fn shipped_profile_parses_and_old_settings_still_load() {
         assert_eq!(BUILTIN.format, PROFILE_FORMAT);
+        let shipped = Profile::parse(include_str!("../defaults/profile.json")).expect("shipped profile is valid");
+        assert_eq!(shipped.layouts.get("8").map(Vec::len), Some(8), "calibrated 8-seat layout ships");
         // Settings saved by v0.1.x: different HUD fields and layouts without a window shape.
         let old = r#"{"hand_history_dirs":["C:/HH"],"preferred_seating":true,
             "hud":{"ring_outer":"vpip","rows":["af"],"scale":1.2},
