@@ -12,8 +12,32 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{AppState, CmdResult, blocking, err};
 
-/// The solver allocates its whole tree up front; bigger spots use 16-bit storage or are refused.
-const MEMORY_LIMIT: u64 = 4 << 30;
+/// The solver allocates its whole tree up front; bigger spots use 16-bit storage or are
+/// refused. The limit is half the installed memory, so Windows and the app keep room;
+/// between 2 and 32 GB, 4 GB when the size cannot be read.
+fn memory_limit() -> u64 {
+    const GB: u64 = 1 << 30;
+    installed_memory().map_or(4 * GB, |total| (total / 2).clamp(2 * GB, 32 * GB))
+}
+
+#[cfg(windows)]
+fn installed_memory() -> Option<u64> {
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut status = MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
+    unsafe { GlobalMemoryStatusEx(&mut status) }.ok()?;
+    Some(status.ullTotalPhys)
+}
+
+#[cfg(target_os = "macos")]
+fn installed_memory() -> Option<u64> {
+    let out = std::process::Command::new("sysctl").args(["-n", "hw.memsize"]).output().ok()?;
+    String::from_utf8(out.stdout).ok()?.trim().parse().ok()
+}
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn installed_memory() -> Option<u64> {
+    None
+}
 const PROGRESS_EVERY: Duration = Duration::from_millis(150);
 
 #[derive(Default)]
@@ -47,7 +71,7 @@ fn client_running(app: &AppHandle) -> bool {
 /// Memory and rough time for `spot`, before anything is allocated.
 #[tauri::command]
 pub async fn solver_estimate(spot: Spot, threads: usize, app: AppHandle) -> CmdResult<Estimate> {
-    blocking(app, move |_| estimate(&spot, MEMORY_LIMIT, threads).map_err(err)).await
+    blocking(app, move |_| estimate(&spot, memory_limit(), threads).map_err(err)).await
 }
 
 /// Starts a solve; progress and the result arrive as `solver-progress` and `solver-done` events
@@ -87,7 +111,7 @@ pub async fn solver_start(spot: Spot, settings: Settings, run: u64, app: AppHand
             };
             let _ = done_app.emit("solver-done", event);
         };
-        *job = Some(spawn(spot, settings, MEMORY_LIMIT, on_progress, stop, on_finish));
+        *job = Some(spawn(spot, settings, memory_limit(), on_progress, stop, on_finish));
         Ok(())
     })
     .await
