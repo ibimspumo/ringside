@@ -2,13 +2,13 @@
   import { api } from "../api";
   import { bountyText, fmt, stat } from "../stats";
   import type { Filter, GroupView, Reports } from "../types";
-  import { dayShort, duration, int, sign, signed, time } from "./format";
+  import { dayShort, duration, floating, int, sign, signed, time, type Anchor } from "./format";
 
   let { filter, refresh }: { filter: Filter; refresh: number } = $props();
 
   let data = $state<Reports | null>(null);
   let mode = $state<"bb100" | "played">("bb100");
-  let hover = $state<{ g: Cell; x: number; y: number; below: boolean } | null>(null);
+  let hover = $state<{ g: Cell; anchor: Anchor } | null>(null);
 
   $effect(() => {
     void refresh;
@@ -81,11 +81,8 @@
   }
 
   function show(e: MouseEvent, g: Cell) {
-    const box = (e.currentTarget as HTMLElement).offsetParent as HTMLElement;
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const b = box.getBoundingClientRect();
-    const below = r.top - b.top < 90;
-    hover = { g, x: r.left - b.left + r.width / 2, y: below ? r.bottom - b.top : r.top - b.top, below };
+    hover = { g, anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } };
   }
 
   const totals = $derived.by(() => {
@@ -123,7 +120,7 @@
               {/each}
               {#if hover}
                 {@const g = hover.g}
-                <div class="tip" class:below={hover.below} style="left:{hover.x}px; top:{hover.y}px">
+                <div class="tip" use:floating={{ anchor: hover.anchor }}>
                   <header><b>{g.key}</b> · <span class="num">{int(g.hands)}</span> Hände</header>
                   {#if g.hands}
                     <div class="row"><span>Ergebnis</span><b class={sign(g.net_bb)}>{signed(g.net_bb)} BB</b></div>
@@ -353,12 +350,6 @@
     align-self: center;
     font-size: 13px;
     font-weight: 600;
-  }
-  .matrix .tip {
-    transform: translate(-50%, calc(-100% - 6px));
-  }
-  .matrix .tip.below {
-    transform: translate(-50%, 6px);
   }
   .key {
     display: flex;

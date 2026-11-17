@@ -1,4 +1,4 @@
-// Date and number helpers for the app views. Hand history timestamps look like "2026/11/16 21:04:10".
+// Date, number and hover-card helpers for the app views. Hand history timestamps look like "2026/11/16 21:04:10".
 
 const WEEKDAY = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
@@ -74,4 +74,53 @@ export function since(period: Period, now = new Date()): string | null {
   if (period === "30d") d.setDate(d.getDate() - 29);
   if (period === "year") d.setMonth(0, 1);
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
+}
+
+export type Anchor = { left: number; top: number; right: number; bottom: number };
+export type FloatOptions = { anchor: Anchor; side?: "top" | "right" };
+
+const EDGE = 8;
+const GAP = 6;
+
+/**
+ * Svelte action for hover cards: moves the node to <body> so no scrolling or contained ancestor
+ * can clip it, places it above (or right of) the anchor in viewport coordinates, flips to the
+ * other side when there is no room and clamps it 8 px inside the window.
+ */
+export function floating(node: HTMLElement, options: FloatOptions) {
+  document.body.appendChild(node);
+  node.classList.add("float");
+
+  function place({ anchor: a, side = "top" }: FloatOptions) {
+    const w = node.offsetWidth;
+    const h = node.offsetHeight;
+    const vw = document.documentElement.clientWidth;
+    const vh = document.documentElement.clientHeight;
+    let x: number;
+    let y: number;
+    if (side === "top") {
+      x = (a.left + a.right) / 2 - w / 2;
+      y = a.top - GAP - h;
+      if (y < EDGE && vh - a.bottom > a.top) y = a.bottom + GAP;
+    } else {
+      x = a.right + GAP;
+      if (x + w > vw - EDGE && a.left > vw - a.right) x = a.left - GAP - w;
+      y = a.top;
+    }
+    node.style.left = `${Math.max(EDGE, Math.min(x, vw - EDGE - w))}px`;
+    node.style.top = `${Math.max(EDGE, Math.min(y, vh - EDGE - h))}px`;
+    node.style.visibility = "";
+  }
+
+  // The anchor moves with the page, the card does not; hide it until the next hover.
+  const hide = () => (node.style.visibility = "hidden");
+  window.addEventListener("scroll", hide, { capture: true, passive: true });
+  place(options);
+  return {
+    update: place,
+    destroy() {
+      window.removeEventListener("scroll", hide, { capture: true });
+      node.remove();
+    },
+  };
 }

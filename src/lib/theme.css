@@ -423,3 +423,9 @@ input[type="range"] {
   letter-spacing: 0.01em;
   text-transform: none;
 }
+
+/* Hover cards placed by the `floating` action live on <body> in viewport coordinates. */
+.tip.float {
+  position: fixed;
+  z-index: 40;
+}

@@ -1,10 +1,13 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import Felt from "../Felt.svelte";
+  import { REFERENCE_ASPECT } from "../hud/geometry";
   import PlayingCard from "../PlayingCard.svelte";
   import { money, moneyShort } from "../stats";
   import type { Action, Hand, Street } from "../types";
 
-  let { hand }: { hand: Hand } = $props();
+  /** `children` is the hand's title line, laid out flush with the table. */
+  let { hand, children }: { hand: Hand; children?: Snippet } = $props();
 
   type Event =
     | { type: "action"; action: Action }
@@ -38,10 +41,9 @@
   let playing = $state(false);
   let inBB = $state(false);
   let stageWidth = $state(860);
-  let stageHeight = $state(420);
   let logEl = $state<HTMLElement>();
-  /** Seats, board and bets shrink with the stage so small windows keep the table readable. */
-  const k = $derived(Math.min(1, Math.max(0.8, Math.min(stageWidth / 860, stageHeight / 400))));
+  /** The stage keeps its shape, so seats, board and bets simply scale with its width. */
+  const k = $derived(Math.min(1.15, Math.max(0.8, stageWidth / 880)));
 
   $effect(() => {
     void hand.id;
@@ -180,14 +182,15 @@
     return out;
   });
 
-  const CENTER = { x: 0.5, y: 0.46 };
+  /** Middle of the rail drawn by Felt; seats sit on an ellipse just outside it. */
+  const CENTER = { x: 0.5, y: 0.44 };
 
   function place(seat: number) {
     const n = Math.max(hand.max_seats, 2);
     const visual = (((seat - heroSeat) % n) + n) % n;
     const a = Math.PI / 2 + (visual * 2 * Math.PI) / n;
-    const x = 0.5 + 0.41 * Math.cos(a);
-    const y = 0.47 + 0.36 * Math.sin(a);
+    const x = CENTER.x + 0.41 * Math.cos(a);
+    const y = CENTER.y + 0.335 * Math.sin(a);
     // Bets sit on the cloth between the seat and the pot.
     return { x, y, bx: x + (CENTER.x - x) * 0.46, by: y + (CENTER.y - y) * 0.5 };
   }
@@ -233,152 +236,178 @@
 <svelte:window onkeydown={key} />
 
 <div class="replayer">
-  <div class="stage" bind:clientWidth={stageWidth} bind:clientHeight={stageHeight} style="--k:{k}">
-    <Felt>
-      <div class="center">
-        <div class="board">
-          {#each hand.board.slice(0, table.board) as c (c)}
-            <PlayingCard card={c} size={44} />
+  <div class="layout" style="--ar:{REFERENCE_ASPECT}">
+    <div class="main">
+      {@render children?.()}
+      <div class="stage" bind:clientWidth={stageWidth} style="--k:{k}">
+        <Felt>
+          <div class="center">
+            <div class="board">
+              {#each hand.board.slice(0, table.board) as c (c)}
+                <PlayingCard card={c} size={44} />
+              {/each}
+            </div>
+            <div class="pot" class:hidden={table.total <= 0}>
+              <span>Pot</span>
+              <b class="num">{amount(Math.max(table.total, 0))}</b>
+            </div>
+            <div class="street">{STREET_NAME[table.street]}</div>
+          </div>
+
+          {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
+            {@const p = place(s.seat)}
+            {@const bet = table.put.get(s.name) ?? 0}
+            {#if bet > 0}
+              <div class="bet num" style="left:{p.bx * 100}%; top:{p.by * 100}%">
+                <i></i>{amount(bet)}
+              </div>
+            {/if}
           {/each}
-        </div>
-        <div class="pot" class:hidden={table.total <= 0}>
-          <span>Pot</span>
-          <b class="num">{amount(Math.max(table.total, 0))}</b>
-        </div>
-        <div class="street">{STREET_NAME[table.street]}</div>
+
+          {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
+            {@const p = place(s.seat)}
+            {@const cards = cardsOf(s.name)}
+            {@const won = table.winners.get(s.name)}
+            {@const stack = table.stacks.get(s.name) ?? 0}
+            {@const pos = positions.get(s.name)}
+            <div
+              class="seat"
+              class:folded={table.folded.has(s.name)}
+              class:acting={table.last === s.name}
+              class:winner={won !== undefined}
+              class:hero={s.name === hand.hero}
+              style="left:{p.x * 100}%; top:{p.y * 100}%"
+            >
+              <div class="cards">
+                {#if cards}
+                  {#each cards as c (c)}<PlayingCard card={c} size={30} />{/each}
+                {:else if !table.folded.has(s.name)}
+                  <PlayingCard hidden size={30} /><PlayingCard hidden size={30} />
+                {/if}
+              </div>
+              <div class="pod">
+                <div class="who">
+                  {#if pos}<span class="tag">{pos}</span>{/if}
+                  <span class="name" title={s.name}>{s.name}</span>
+                </div>
+                <div class="num stack">
+                  {#if inBB}
+                    <b>{bbs(stack)}</b> <span class="bbs">BB</span>
+                  {:else}
+                    <b>{amount(stack)}</b>{#if hand.big_blind > 0}<span class="sep">·</span><span class="bbs">{bbs(stack)} BB</span>{/if}
+                  {/if}
+                </div>
+                {#if won !== undefined}
+                  <span class="act win num">+{amount(won)}</span>
+                {:else if table.label.get(s.name)}
+                  <span class="act" class:allin={table.label.get(s.name) === "All-in"}>{table.label.get(s.name)}</span>
+                {/if}
+              </div>
+              {#if s.seat === hand.button_seat}<span class="dealer" title="Dealer-Button">D</span>{/if}
+            </div>
+          {/each}
+        </Felt>
       </div>
 
-      {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
-        {@const p = place(s.seat)}
-        {@const bet = table.put.get(s.name) ?? 0}
-        {#if bet > 0}
-          <div class="bet num" style="left:{p.bx * 100}%; top:{p.by * 100}%">
-            <i></i>{amount(bet)}
-          </div>
-        {/if}
-      {/each}
-
-      {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
-        {@const p = place(s.seat)}
-        {@const cards = cardsOf(s.name)}
-        {@const won = table.winners.get(s.name)}
-        {@const stack = table.stacks.get(s.name) ?? 0}
-        {@const pos = positions.get(s.name)}
-        <div
-          class="seat"
-          class:folded={table.folded.has(s.name)}
-          class:acting={table.last === s.name}
-          class:winner={won !== undefined}
-          class:hero={s.name === hand.hero}
-          style="left:{p.x * 100}%; top:{p.y * 100}%"
-        >
-          <div class="cards">
-            {#if cards}
-              {#each cards as c (c)}<PlayingCard card={c} size={30} />{/each}
-            {:else if !table.folded.has(s.name)}
-              <PlayingCard hidden size={30} /><PlayingCard hidden size={30} />
-            {/if}
-          </div>
-          <div class="pod">
-            <div class="who">
-              {#if pos}<span class="tag">{pos}</span>{/if}
-              <span class="name">{s.name}</span>
-            </div>
-            <div class="num stack">
-              {#if inBB}
-                <b>{bbs(stack)}</b> <span class="bbs">BB</span>
-              {:else}
-                <b>{amount(stack)}</b>{#if hand.big_blind > 0}<span class="sep">·</span><span class="bbs">{bbs(stack)} BB</span>{/if}
-              {/if}
-            </div>
-            {#if won !== undefined}
-              <span class="act win num">+{amount(won)}</span>
-            {:else if table.label.get(s.name)}
-              <span class="act" class:allin={table.label.get(s.name) === "All-in"}>{table.label.get(s.name)}</span>
-            {/if}
-          </div>
-          {#if s.seat === hand.button_seat}<span class="dealer" title="Dealer-Button">D</span>{/if}
+      <div class="controls">
+        <div class="buttons">
+          <button class="icon-btn" onclick={() => (step = 0)} title="Zum Anfang" aria-label="Zum Anfang">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.first} /></svg>
+          </button>
+          <button class="icon-btn" onclick={() => (step = Math.max(step - 1, 0))} title="Zurück (←)" aria-label="Zurück">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.prev} /></svg>
+          </button>
+          <button
+            class="btn primary play"
+            onclick={() => {
+              if (done) step = 0;
+              playing = !playing;
+            }}
+            title="Abspielen oder anhalten (Leertaste)"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d={playing ? ICON.pause : ICON.play} /></svg>
+            {playing ? "Anhalten" : done ? "Nochmal" : "Abspielen"}
+          </button>
+          <button class="icon-btn" onclick={() => (step = Math.min(step + 1, events.length))} title="Weiter (→)" aria-label="Weiter">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.next} /></svg>
+          </button>
+          <button class="icon-btn" onclick={() => (step = events.length)} title="Zum Ende" aria-label="Zum Ende">
+            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.last} /></svg>
+          </button>
         </div>
-      {/each}
-    </Felt>
-  </div>
-
-  <div class="controls">
-    <div class="buttons">
-      <button class="icon-btn" onclick={() => (step = 0)} title="Zum Anfang" aria-label="Zum Anfang">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.first} /></svg>
-      </button>
-      <button class="icon-btn" onclick={() => (step = Math.max(step - 1, 0))} title="Zurück (←)" aria-label="Zurück">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.prev} /></svg>
-      </button>
-      <button
-        class="btn primary play"
-        onclick={() => {
-          if (done) step = 0;
-          playing = !playing;
-        }}
-        title="Abspielen oder anhalten (Leertaste)"
-      >
-        <svg viewBox="0 0 24 24" width="14" height="14"><path d={playing ? ICON.pause : ICON.play} /></svg>
-        {playing ? "Anhalten" : done ? "Nochmal" : "Abspielen"}
-      </button>
-      <button class="icon-btn" onclick={() => (step = Math.min(step + 1, events.length))} title="Weiter (→)" aria-label="Weiter">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.next} /></svg>
-      </button>
-      <button class="icon-btn" onclick={() => (step = events.length)} title="Zum Ende" aria-label="Zum Ende">
-        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.last} /></svg>
-      </button>
-    </div>
-    <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt" />
-    <span class="steps num">{step}/{events.length}</span>
-    <div class="seg" role="group" aria-label="Beträge anzeigen in">
-      <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
-      <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
-    </div>
-  </div>
-
-  {#if done && hand.bounties_won.length}
-    <div class="bounties">
-      <span class="dim">Bounty gewonnen</span>
-      {#each hand.bounties_won as [name, value] (name)}
-        <span><b>{name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
-      {/each}
-    </div>
-  {/if}
-
-  <div class="log" bind:this={logEl}>
-    {#each log as g (g.street)}
-      <div class="street-log">
-        <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
-        <ol>
-          {#each g.items as { i, a } (i)}
-            <li class:future={i >= step} class:now={i === step - 1}>
-              <button onclick={() => (step = i + 1)}>
-                <span class="actor">{a.player}</span>
-                <span class="what">{a.all_in ? "All-in" : LABEL[a.kind]}</span>
-                {#if a.amount > 0}<span class="num amt">{amount(a.to ?? a.amount)}</span>{/if}
-              </button>
-            </li>
-          {/each}
-        </ol>
+        <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt" />
+        <span class="steps num">{step}/{events.length}</span>
+        <div class="seg" role="group" aria-label="Beträge anzeigen in">
+          <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
+          <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
+        </div>
       </div>
-    {/each}
+
+    </div>
+
+    <div class="side">
+      {#if done && hand.bounties_won.length}
+        <div class="bounties">
+          <span class="dim">Bounty gewonnen</span>
+          {#each hand.bounties_won as [name, value] (name)}
+            <span><b>{name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
+          {/each}
+        </div>
+      {/if}
+      <div class="log" bind:this={logEl}>
+        {#each log as g (g.street)}
+          <div class="street-log">
+            <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
+            <ol>
+              {#each g.items as { i, a } (i)}
+                <li class:future={i >= step} class:now={i === step - 1}>
+                  <button onclick={() => (step = i + 1)}>
+                    <span class="actor" title={a.player}>{a.player}</span>
+                    <span class="what">{a.all_in ? "All-in" : LABEL[a.kind]}</span>
+                    {#if a.amount > 0}<span class="num amt">{amount(a.to ?? a.amount)}</span>{/if}
+                  </button>
+                </li>
+              {/each}
+            </ol>
+          </div>
+        {/each}
+      </div>
+    </div>
   </div>
 </div>
 
 <style>
+  /*
+   * The table keeps the client's window shape at any size: its width is the smallest of the free
+   * width, a cap, and what the free height allows. The action log sits below it, or beside it once
+   * there is room for both.
+   */
   .replayer {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    container: replayer / size;
+  }
+  .layout {
+    --chrome: 80px;
+    --log-min: clamp(120px, 20cqh, 200px);
+    --w: min(100cqw, 1100px, (100cqh - var(--chrome) - var(--log-min) - 14px) * var(--ar));
+    display: grid;
+    grid-template-columns: var(--w);
+    grid-template-rows: auto minmax(var(--log-min), 1fr);
+    justify-content: center;
+    gap: 14px;
+    height: 100%;
+  }
+  .main {
     display: flex;
     flex-direction: column;
     gap: 10px;
     min-width: 0;
-    min-height: 0;
-    height: 100%;
   }
   .stage {
     position: relative;
-    flex: 0 1 410px;
-    min-height: 250px;
+    aspect-ratio: var(--ar);
     border-radius: var(--r-lg);
     overflow: hidden;
     border: 1px solid var(--line);
@@ -386,7 +415,7 @@
   .center {
     position: absolute;
     left: 50%;
-    top: 46%;
+    top: 44%;
     transform: translate(-50%, -50%) scale(var(--k));
     display: flex;
     flex-direction: column;
@@ -614,6 +643,8 @@
 
   .bounties {
     flex-shrink: 0;
+    max-height: 40%;
+    overflow: auto;
     display: flex;
     flex-wrap: wrap;
     gap: 6px 16px;
@@ -627,20 +658,24 @@
     font-weight: 500;
   }
 
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+  }
   .log {
-    flex: 1 1 auto;
-    min-height: 130px;
+    flex: 1;
+    min-height: 0;
     overflow: auto;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: start;
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
     background: var(--surface);
   }
   .street-log {
     min-width: 0;
-    min-height: 100%;
     border-left: 1px solid var(--line);
   }
   .street-log:first-child {
@@ -698,5 +733,30 @@
   }
   .amt {
     font-size: 12.5px;
+  }
+  @container replayer (min-width: 1150px) {
+    .layout {
+      --log-w: clamp(280px, 24cqw, 360px);
+      --w: min(100cqw - var(--log-w) - 18px, 1100px, (100cqh - var(--chrome)) * var(--ar));
+      grid-template-columns: var(--w) var(--log-w);
+      grid-template-rows: auto;
+      align-content: start;
+      gap: 18px;
+      height: auto;
+    }
+    /* Beside the table the log only takes the table's height and scrolls within it. */
+    .side {
+      contain: size;
+    }
+    .log {
+      display: block;
+    }
+    .street-log {
+      border-left: 0;
+      border-top: 1px solid var(--line);
+    }
+    .street-log:first-child {
+      border-top: 0;
+    }
   }
 </style>

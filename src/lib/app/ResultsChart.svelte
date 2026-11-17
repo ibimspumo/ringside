@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { ResultPoint } from "../types";
-  import { date, int, signed } from "./format";
+  import { date, floating, int, signed } from "./format";
 
   let { points, height = 300 }: { points: ResultPoint[]; height?: number } = $props();
 
@@ -13,6 +13,8 @@
 
   let width = $state(0);
   let hover = $state<number | null>(null);
+  /** Viewport position of the plot, taken on each move so the hover card can sit beside the crosshair. */
+  let origin = $state({ left: 0, top: 0 });
 
   /** Cumulative curves start at zero before the first hand. */
   const data = $derived<ResultPoint[]>(
@@ -71,6 +73,7 @@
   function move(e: PointerEvent) {
     if (!chart || data.length === 0) return;
     const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
+    origin = { left: rect.left, top: rect.top };
     const px = e.clientX - rect.left;
     if (px < M.left - 8 || px > M.left + chart.w + 8) {
       hover = null;
@@ -137,8 +140,9 @@
     </svg>
 
     {#if hovered}
-      {@const left = chart.x(hovered.n)}
-      <div class="tip" style="top:{M.top + 6}px; {left > width - 200 ? `right:${width - left + 12}px` : `left:${left + 12}px`}">
+      {@const x = origin.left + chart.x(hovered.n)}
+      {@const y = origin.top + M.top + 6}
+      <div class="tip" use:floating={{ anchor: { left: x - 6, right: x + 6, top: y, bottom: y }, side: "right" }}>
         <header>Hand <span class="num">{int(hovered.n)}</span> · {date(hovered.played_at)}</header>
         {#each SERIES as s (s.key)}
           <div class="row">

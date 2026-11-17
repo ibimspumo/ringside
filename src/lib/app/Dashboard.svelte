@@ -113,7 +113,7 @@
           <div class="who">
             <Wheel stats={hero.stats} {hud} size={64} hands={compact(heroHands)} />
             <div>
-              <strong>{hero.name}</strong>
+              <strong title={hero.name}>{hero.name}</strong>
               <span class="num dim">{int(heroHands)} Hände</span>
             </div>
           </div>
@@ -238,11 +238,16 @@
     padding: 18px;
     border-right: 1px solid var(--line);
   }
+  .who > div {
+    min-width: 0;
+  }
   .who strong {
     display: block;
     font-size: 15px;
     font-weight: 600;
-    overflow-wrap: anywhere;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .who .dim {
     font-size: 13px;

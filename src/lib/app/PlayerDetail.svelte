@@ -45,7 +45,7 @@
   <header>
     <Wheel stats={player.stats} {hud} size={48} hands={compact(hands)} />
     <div class="who">
-      <h2>{player.name}</h2>
+      <h2 title={player.name}>{player.name}</h2>
       <span class="dim"><span class="num">{int(hands)}</span> gemeinsame Hände</span>
     </div>
     <button class="icon-btn" onclick={onClose} aria-label="Schließen" title="Schließen (Esc)">

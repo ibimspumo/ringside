@@ -137,13 +137,14 @@
 
     <div class="stage">
       {#if selected}
-        <div class="info">
-          <h2>{selected.table_name}</h2>
-          <span>{stakes(selected)}</span>
-          <span>{dateTime(selected.played_at)}</span>
-          <span class="faint num">#{selected.id}</span>
-        </div>
-        <Replayer hand={selected} />
+        <Replayer hand={selected}>
+          <div class="info">
+            <h2 title={selected.table_name}>{selected.table_name}</h2>
+            <span>{stakes(selected)}</span>
+            <span>{dateTime(selected.played_at)}</span>
+            <span class="faint num">#{selected.id}</span>
+          </div>
+        </Replayer>
       {:else if loaded && list.length}
         <div class="empty">Wähle links eine Hand zum Nachspielen.</div>
       {/if}
@@ -288,13 +289,16 @@
     align-items: baseline;
     flex-wrap: wrap;
     gap: 4px 14px;
-    flex-shrink: 0;
-    margin-bottom: 12px;
+    min-height: 26px;
     color: var(--text-2);
     font-size: 13px;
   }
   .info h2 {
+    max-width: 100%;
     margin: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-num);
     font-size: 17px;
     font-weight: 600;

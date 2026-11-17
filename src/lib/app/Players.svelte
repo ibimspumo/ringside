@@ -132,7 +132,7 @@
                 <td class="name">
                   <button onclick={(e) => { e.stopPropagation(); selected = p; }}>
                     <Wheel stats={p.stats} {hud} size={16} />
-                    <span>{p.name}</span>
+                    <span title={p.name}>{p.name}</span>
                   </button>
                 </td>
                 {#each COLS as id (id)}
