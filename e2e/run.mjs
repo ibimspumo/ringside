@@ -313,8 +313,9 @@ step("HUD", () => nav("HUD"));
 step("Training: Pot Odds, Stufe 1", async () => {
   await nav("Training");
   await click("main button", "Trainer");
-  await click("main button.skill", "Pot Odds");
-  await click("main button", "Stufe 1");
+  // Skill and level buttons also show the user's level and the level's name.
+  await click("main button.skill", "Pot Odds", { exact: false });
+  await click("main button.level", "Stufe 1", { exact: false });
   const answer = await find("main input[aria-label='Antwort in %']");
   await waitText("Equity");
   await s.type(answer, "30");
@@ -323,8 +324,8 @@ step("Training: Pot Odds, Stufe 1", async () => {
   await find("main button", "Nächste Aufgabe", { exact: false });
 });
 
-step("Training: Shove nach Folds", async () => {
-  await click("main button.skill", "Shove nach Folds");
+step("Training: All-in nach Folds", async () => {
+  await click("main button.skill", "All-in nach Folds", { exact: false });
   await waitText("gefoldet");
   await click("main button.choice.fold");
   await find("main button", "Nächste Aufgabe", { exact: false });
