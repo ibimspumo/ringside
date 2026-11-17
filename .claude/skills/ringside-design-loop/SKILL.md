@@ -25,7 +25,9 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
 `.claude/skills/ringside-design-loop/shots.sh <ordner> name='?query' …` macht je Ansicht 980×700, 1440×900 und 2400×1300 in doppelter Auflösung aus dem Browser-Demo (Fallback-Daten aus `src/lib/api.ts`).
 - Ansichten: `?tab=dashboard|reports|tournaments|leaks|hands|coach|players|live|training|charts|solver|hud|settings` (weitere Reiter in `src/lib/app/Main.svelte`), Overlay `?view=overlay`, klassisch `?view=overlay&mode=classic&preset=klartext`, Zustände `&locked=1` (PokerStars läuft), `&nohistory=1` (erster Start).
 - Ist ein Zustand nicht per URL erreichbar (Unterreiter, Dialog, Ergebnis), ergänze einen kleinen Vorschau-Parameter, der nur im Browser-Demo wirkt (wie `locked`), statt Zustände von Hand zu klicken.
-- Je Runde 2–6 Bilder deines Bereichs plus 1 Vergleichsbild eines schon guten Bereichs (z. B. Overlay grafisch oder Turniere). Ablage `/tmp/ringside-shots/<bereich>/r<n>/`. Selbst ansehen, bevor Prüfer sie bekommen.
+- Je Runde 2–8 Bilder deines Bereichs plus 1 Vergleichsbild eines schon guten Bereichs (z. B. Overlay grafisch oder Turniere). Ablage `/tmp/ringside-shots/<bereich>/r<n>/`. Selbst ansehen, bevor Prüfer sie bekommen.
+- **Zustände gehören dazu**, nicht nur die Ruhe-Ansicht: Hover und Tooltips (auch am rechten und unteren Fensterrand), Tastaturfokus, angeheftete Popups und Dialoge, leer (keine Daten), lädt, Fehler, gesperrt (`&locked=1`). Was per URL nicht erreichbar ist, bekommt einen Vorschau-Parameter (nur Browser-Demo). Für Hover-Zustände reicht ein kleines Skript mit dem lokalen ChromeDriver (`/tmp/chromedriver/chromedriver/unz/chromedriver-mac-arm64/chromedriver --port=<frei>`), das die Maus bewegt und ein Bild macht; Skripte bleiben in `/tmp`.
+- Prüfe bei jeder Runde selbst: kein horizontales Scrollen, nichts abgeschnitten, Popups bleiben im Fenster, bei 2400 px kein verlorener Leerraum.
 
 ## Ablauf je Runde
 1. **Bilder** wie oben.
@@ -47,7 +49,7 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
 > 6. Ordnung und Ausrichtung (Raster, Bündigkeit, Symmetrie)
 > 7. Dichte und Leerraum (nicht überladen, nicht leer; großer Bildschirm sinnvoll genutzt)
 > 8. Visuelle Bedienung statt Formular (Eingaben über Tisch, Karten, Charts und Auswahl statt Feldern; Werte abgeleitet statt abgefragt)
-> 9. Funktioniert auf allen gezeigten Fensterbreiten (nichts abgeschnitten, nichts überläuft)
+> 9. Funktioniert auf allen gezeigten Fensterbreiten und in allen gezeigten Zuständen (Hover, Fokus, leer, Fehler; nichts abgeschnitten, nichts überläuft)
 > 10. Gesamteindruck und Wertigkeit (wirkt es wie ein hochwertiges, eigenständiges Werkzeug oder austauschbar?)
 >
 > Du musst nichts finden. „Passt so“ ist eine gültige Antwort. Nur wenn dir etwas wirklich auffällt: sag kurz und konkret, was du ändern würdest (welches Element, wie). Antworte mit einer Tabelle der 10 Noten und danach höchstens 5 konkreten Punkten.
@@ -56,6 +58,7 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
 **Verboten im Prüfer-Auftrag:** jedes Ziel oder Zielnote, „wir haben gebaut/verbessert“, vorherige Noten, frühere Runden, Vorher-Bilder als „alt“, Hinweise auf gewünschte Ergebnisse, die festen Entscheide.
 
 ## Abschluss
+- Vor dem Abschluss den lokalen E2E-Durchlauf gegen die Browser-Demo laufen lassen (`E2E_URL=http://localhost:<port>/ E2E_WEBDRIVER=http://localhost:<port> node e2e/run.mjs`, Vite und ChromeDriver auf freien Ports, danach beenden). Wenn du Texte oder Selektoren änderst, die `e2e/run.mjs` benutzt, passe den Test im selben Branch an.
 - Grün vor jedem Push: `pnpm check` (0 Fehler, 0 Warnungen) und `pnpm build`; bei Rust-Änderungen zusätzlich `cargo clippy --workspace --all-targets -- -D warnings` und `cargo test --workspace`. Volle Logs in Dateien umleiten und die roten Stellen lesen, nie gekürzte Ausgaben als grün werten.
 - Bildskripte und Screenshots nicht einchecken (bleiben in `/tmp`).
 - Bericht an den Koordinator (Deutsch, knapp): Branch und letzter Commit, Noten je Runde und Prüfer als Tabelle, wichtigste Änderungen mit Vorher/Nachher-Bildpfaden, ENTSCHEID-Zeilen, was offen bleibt.
