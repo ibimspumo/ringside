@@ -175,7 +175,7 @@
                 <div class="hand-title">
                   <b>{KIND_LABEL[spot.kind]}{#if spot.exercise.prompt.type === "push_fold_table"} · {stack(spot)}{/if}</b>
                   <span class="faint">Hand {spot.hand_id} · {when(spot.played_at)}</span>
-                  {#if !reveal}<span class="stop">Stopp vor deiner Entscheidung</span>{/if}
+                  {#if results[spot.id]}<span class="stop done">Aufgelöst</span>{:else if !reveal}<span class="stop">Stopp vor deiner Entscheidung</span>{/if}
                 </div>
               </Replayer>
             {:else}
@@ -336,7 +336,7 @@
   /* Wide windows: replay and question side by side, so both stay in view. */
   @container (min-width: 1800px) {
     .detail {
-      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr) minmax(560px, 1fr);
       align-items: start;
     }
     .detail .replay {
@@ -364,6 +364,11 @@
     color: var(--bg);
     font-size: 11.5px;
     font-weight: 600;
+  }
+  .stop.done {
+    background: transparent;
+    border: 1px solid var(--line-2);
+    color: var(--text-2);
   }
   .body {
     padding: 18px 20px;

@@ -318,6 +318,7 @@
   }
   .skills {
     display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr));
     gap: 6px;
     margin: 0;
     padding: 0;
@@ -352,7 +353,7 @@
     font-weight: 600;
   }
   .small {
-    font-size: 12px;
+    font-size: 12.5px;
   }
   .reads {
     display: flex;

@@ -202,7 +202,7 @@
     const c = weakWhy.get(kind);
     if (!c) return null;
     if (c.mistakes) return `${c.mistakes} Fehler`;
-    if (c.questionable) return `${c.questionable} ${c.questionable === 1 ? "fragliche Entscheidung" : "fragliche Entscheidungen"}`;
+    if (c.questionable) return `${c.questionable} fraglich`;
     return null;
   }
   const left = $derived(Math.max(0, goal - xpWeek));
@@ -223,6 +223,13 @@
           {#if lanes.some((l) => l.why === "Schwachstelle")}Zusammengestellt aus deinen Coach-Berichten und deinem Stand.{:else}Zusammengestellt aus
             deinem Stand.{/if} Nach jeder Antwort siehst du sofort, warum.
         </p>
+        <div class="cta">
+          <button class="btn primary go" onclick={start} disabled={!progress}>
+            Runde starten
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </button>
+          <span class="dim small">Fehler kosten nichts. Was danebengeht, kommt bald zur Übung wieder.</span>
+        </div>
         <div class="plan" aria-label="Plan für heute">
           {#each lanes as l (l.why)}
             <div class="lane">
@@ -245,13 +252,6 @@
               </ul>
             </div>
           {/each}
-        </div>
-        <div class="cta">
-          <button class="btn primary go" onclick={start} disabled={!progress}>
-            Runde starten
-            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </button>
-          <span class="dim small">Fehler kosten nichts. Was danebengeht, kommt bald zur Übung wieder.</span>
         </div>
       </div>
       <aside class="week" aria-label="Wochenziel">
@@ -346,27 +346,6 @@
       </div>
       <div class="numbers">
         <h1>{answered === 0 ? "Runde beendet" : mean >= 0.8 ? "Starke Runde!" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h1>
-        {#if answered}
-          <ul class="trail" aria-label="Deine Antworten nach Fertigkeit">
-            {#each trail as t, n (t.kind)}
-              <li style="--n:{n}">
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d={SKILLS[t.kind].icon} /></svg>
-                <span>{SKILLS[t.kind].short}</span>
-                <span class="dots">
-                  {#each t.at as i (i)}<i class={tone(scores[i])} title="{Math.round((scores[i] ?? 0) * 100)} Punkte"
-                      >{tone(scores[i]) === "ok" ? "✓" : tone(scores[i]) === "close" ? "≈" : "×"}</i
-                    >{/each}
-                </span>
-              </li>
-            {/each}
-          </ul>
-          <div class="legend" aria-hidden="true">
-            <span>Ein Kästchen je Aufgabe:</span>
-            <span><i class="ok">✓</i> richtig</span>
-            <span><i class="close">≈</i> teilweise richtig</span>
-            <span><i class="miss">×</i> daneben</span>
-          </div>
-        {/if}
         <div class="stats">
           <div><b class="num">{rights}<span class="of">/{answered}</span></b><span>richtig</span></div>
           <div><b class="num">+{answered}</b><span>Antworten fürs Wochenziel</span></div>
@@ -379,7 +358,15 @@
     </div>
     {#if answered}
       <div class="grown">
-        <h2>Deine Fertigkeiten nach dieser Runde</h2>
+        <div class="grown-head">
+          <h2>Deine Antworten nach Fertigkeit</h2>
+          <div class="legend" aria-hidden="true">
+            <span>Ein Kästchen je Aufgabe:</span>
+            <span><i class="ok">✓</i> richtig</span>
+            <span><i class="close">≈</i> teilweise richtig</span>
+            <span><i class="miss">×</i> daneben</span>
+          </div>
+        </div>
         <ul class="changes">
           {#each practiced as k (k)}
             {@const b = before.get(k)}
@@ -395,7 +382,11 @@
                 {:else}
                   <span class="dim">{LEVEL_TEXT[a?.level ?? 0]}</span>
                 {/if}
-                <span class="dim">+{items.slice(0, answered).filter((x) => x.kind === k).length} geübt in dieser Runde</span>
+                <span class="dots" aria-label="Antworten in dieser Runde">
+                  {#each trail.find((t) => t.kind === k)?.at ?? [] as i (i)}<i class={tone(scores[i])} title="{Math.round((scores[i] ?? 0) * 100)} Punkte"
+                      >{tone(scores[i]) === "ok" ? "✓" : tone(scores[i]) === "close" ? "≈" : "×"}</i
+                    >{/each}
+                </span>
               </span>
             </li>
           {/each}
@@ -457,7 +448,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 14px 28px;
-    margin: 22px 0 24px;
+    margin: 24px 0 0;
   }
   .lane {
     display: grid;
@@ -517,6 +508,7 @@
     font-size: 11.5px;
   }
   .cta {
+    margin-top: 18px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -541,6 +533,7 @@
   .week-text {
     display: grid;
     gap: 2px;
+    text-wrap: balance;
   }
   .week-text b {
     font-size: 13.5px;
@@ -709,30 +702,10 @@
   .numbers p {
     margin: 0;
   }
-  .trail {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .trail li {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    height: 30px;
-    padding: 0 10px 0 9px;
-    border-radius: 8px;
-    font-size: 12.5px;
-    background: var(--surface-2);
-    border: 1px solid var(--line);
-    animation: pop 0.35s calc(var(--n) * 60ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
-  }
   .dots {
     display: inline-flex;
     gap: 3px;
-    margin-left: 2px;
+    margin-top: 3px;
   }
   .legend span {
     display: inline-flex;
@@ -772,11 +745,17 @@
       transform: scale(0.7);
     }
   }
+  .grown-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 6px 18px;
+  }
   .legend {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 14px;
-    margin-top: -6px;
     font-size: 12px;
     color: var(--text-2);
   }

@@ -80,10 +80,16 @@
         </li>
       {/each}
     </ul>
+    <p class="why">Nur Turn: eine Karte kommt noch. Bis River: zwei Karten – das gilt nur, wenn am Turn niemand mehr setzt.</p>
   {/if}
 </div>
 
 <style>
+  .why {
+    margin: -4px 0 0;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
   .po {
     display: grid;
     gap: 14px;
@@ -198,7 +204,7 @@
   }
   .draws li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 64px 92px;
+    grid-template-columns: 10px minmax(0, 1fr) 64px max-content;
     align-items: center;
     gap: 10px;
     color: var(--text-2);

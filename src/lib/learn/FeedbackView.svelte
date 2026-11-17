@@ -130,6 +130,10 @@
   <footer class="grading" title={g.text}>
     <span class="badge {feedback.grading}">{g.label}</span>
     <span class="dim"
+      >{#if feedback.grading === "modell"}<b class="plain-lead">Vereinfachtes Modell.</b>
+      {/if}</span
+    >
+    <span class="dim"
       >{#each withTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.tip}<span class="term" title={p.tip}>{p.text}</span
           >{:else}{p.text}{/if}{/each}</span
     >
@@ -312,6 +316,10 @@
     text-decoration-color: var(--text-3);
     text-underline-offset: 3px;
     cursor: help;
+  }
+  .plain-lead {
+    color: var(--text);
+    font-weight: 600;
   }
   .grading {
     display: flex;

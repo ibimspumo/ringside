@@ -247,6 +247,7 @@
 
 <style>
   .task {
+    container-type: inline-size;
     display: grid;
     gap: 16px;
     min-width: 0;
