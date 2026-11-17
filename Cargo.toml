@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/ringside-core", "src-tauri"]
+members = ["crates/ringside-core", "crates/ringside-engine", "src-tauri"]
 
 [workspace.package]
 version = "0.2.0"
