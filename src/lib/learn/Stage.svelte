@@ -471,7 +471,7 @@
   }
   dt {
     font-size: 12px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   dd {
     margin: 0;

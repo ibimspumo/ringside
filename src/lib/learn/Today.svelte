@@ -327,13 +327,19 @@
               </li>
             {/each}
           </ol>
+          <div class="legend" aria-hidden="true">
+            <span class="ok">richtig</span><span class="close">teilweise richtig</span><span class="miss">daneben</span>
+          </div>
         {/if}
         <div class="stats">
           <div><b class="num">{rights}<span class="of">/{answered}</span></b><span>richtig</span></div>
           <div><b class="num">+{answered}</b><span>Antworten fürs Wochenziel</span></div>
           <div><b class="num">{xpWeek}<span class="of">/{goal}</span></b><span>diese Woche</span></div>
         </div>
-        <p class="dim small">Was danebenging, kommt in den nächsten Tagen wieder. So bleibt es hängen.</p>
+        <p class="dim small">
+          Die Punkte sind der Schnitt deiner Antworten; knapp daneben gibt Teilpunkte. Was danebenging, kommt in den nächsten
+          Tagen wieder.
+        </p>
       </div>
     </div>
     {#if answered}
@@ -619,7 +625,6 @@
   }
   .result {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 22px 32px;
   }
@@ -666,6 +671,32 @@
       opacity: 0;
       transform: scale(0.7);
     }
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    margin-top: -6px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .legend span::before {
+    content: "";
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 6px;
+    border-radius: 3px;
+    background: var(--t);
+  }
+  .legend .ok {
+    --t: var(--pos);
+  }
+  .legend .close {
+    --t: var(--amber);
+  }
+  .legend .miss {
+    --t: var(--neg);
   }
   .stats {
     display: flex;
@@ -743,6 +774,11 @@
     height: 40px;
     padding: 0 20px;
     font-size: 14px;
+  }
+  @container (max-width: 560px) {
+    .result {
+      flex-wrap: wrap;
+    }
   }
   @container (max-width: 760px) {
     .hero {

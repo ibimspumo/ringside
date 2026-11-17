@@ -16,6 +16,12 @@
   const TITLE = { ok: "Richtig", close: "Knapp daneben", miss: "Daneben" };
   const tone = $derived(verdict === "ok" ? "var(--pos)" : verdict === "close" ? "var(--amber)" : "var(--neg)");
   const g = $derived(GRADING[feedback.grading]);
+  /** "EV All-in", "EV Fold": spelled out as one sentence instead of separate tiles. */
+  const evFacts = $derived(feedback.facts.filter((f) => /^EV [^-]/.test(f.label)));
+  const evSentence = $derived(
+    evFacts.length >= 2 ? evFacts.map((f) => `${f.label.slice(3)} bringt im Schnitt ${f.value}`).join(", ") + "." : "",
+  );
+  const facts = $derived(evSentence ? feedback.facts.filter((f) => !evFacts.includes(f)) : feedback.facts);
   let nextBtn = $state<HTMLButtonElement>();
   let root = $state<HTMLElement>();
 
@@ -55,16 +61,17 @@
   {#if feedback.ev_loss_bb !== null}
     <div class="ev" class:none={feedback.ev_loss_bb <= 0.005} title={explain("EV-Verlust")}>
       {#if feedback.ev_loss_bb <= 0.005}
-        Beste Entscheidung: Sie kostet dich auf Dauer nichts.
+        <b>Beste Entscheidung.</b>
       {:else}
-        Deine Wahl kostet im Schnitt <b class="num">{fmtBB(feedback.ev_loss_bb)}</b> pro Hand gegenüber der besten.
+        <b>Deine Wahl kostet im Schnitt <span class="num">{fmtBB(feedback.ev_loss_bb)}</span> pro Hand.</b>
       {/if}
+      {evSentence}
     </div>
   {/if}
 
-  {#if feedback.facts.length}
+  {#if facts.length}
     <dl class="facts">
-      {#each feedback.facts as f, i (i)}
+      {#each facts as f, i (i)}
         <div class="fact" style="--i:{i}">
           <dt>{#if explain(f.label)}<span class="term" title={explain(f.label)}>{f.label}</span>{:else}{f.label}{/if}</dt>
           <dd class="num">{f.value}</dd>
@@ -156,15 +163,22 @@
     font-size: 16px;
   }
   .ev {
-    justify-self: start;
-    padding: 4px 10px;
-    border-radius: 99px;
-    background: rgba(229, 72, 59, 0.12);
+    padding: 9px 12px;
+    border-radius: var(--r-sm);
+    border-left: 3px solid #ff9d93;
+    background: rgba(229, 72, 59, 0.1);
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .ev b {
     color: #ff9d93;
-    font-size: 13px;
   }
   .ev.none {
-    background: rgba(120, 193, 66, 0.12);
+    border-left-color: var(--pos);
+    background: rgba(120, 193, 66, 0.1);
+  }
+  .ev.none b {
     color: var(--pos);
   }
   .facts {
@@ -182,7 +196,7 @@
   }
   dt {
     font-size: 12px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   dd {
     margin: 0;

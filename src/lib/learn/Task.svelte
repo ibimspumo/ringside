@@ -305,7 +305,7 @@
     max-width: 80ch;
     font-size: 12.5px;
     line-height: 1.5;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .model-note .badge {
     margin-right: 4px;
