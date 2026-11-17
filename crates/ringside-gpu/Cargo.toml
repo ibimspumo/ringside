@@ -1,0 +1,20 @@
+[package]
+name = "ringside-gpu"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Prototype: Discounted CFR for heads-up river and turn spots on the GPU (wgpu), benchmarked against postflop-solver"
+
+[dependencies]
+bytemuck = { version = "1", features = ["derive"] }
+postflop-solver = { path = "../postflop-solver" }
+pollster = "1"
+rayon = "1"
+ringside-engine = { path = "../ringside-engine" }
+serde = { version = "1", features = ["derive"] }
+# GLES and WebGPU are left out: Windows gets DX12 and Vulkan, macOS Metal.
+wgpu = { version = "30", default-features = false, features = ["std", "parking_lot", "dx12", "metal", "vulkan", "wgsl"] }
+
+[dev-dependencies]
+postflop-solver = { path = "../postflop-solver" }
+rayon = "1"
