@@ -129,7 +129,7 @@ fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String, aspect: 
 
 /// `aspect` is the overlay's width / height, which selects the layout for that window shape.
 #[tauri::command]
-fn overlay_view(label: String, aspect: f64, state: State<AppState>) -> CmdResult<Option<TableView>> {
+async fn overlay_view(label: String, aspect: f64, state: State<'_, AppState>) -> CmdResult<Option<TableView>> {
     let Some(info) = state.overlays.by_label.lock().unwrap().get(&label).cloned() else { return Ok(None) };
     let Some(key) = info.table_key else { return Ok(None) };
     let db = state.db.lock().unwrap();
@@ -140,7 +140,7 @@ fn overlay_view(label: String, aspect: f64, state: State<AppState>) -> CmdResult
 
 /// The most recent real hand, for the HUD editor's preview.
 #[tauri::command]
-fn preview_view(aspect: f64, state: State<AppState>) -> CmdResult<Option<TableView>> {
+async fn preview_view(aspect: f64, state: State<'_, AppState>) -> CmdResult<Option<TableView>> {
     let db = state.db.lock().unwrap();
     let q = HandQuery { limit: 1, ..Default::default() };
     let Some(latest) = db.hands(&q).map_err(err)?.into_iter().next() else { return Ok(None) };
@@ -156,13 +156,13 @@ struct LayoutView {
 }
 
 #[tauri::command]
-fn layout_for(max_seats: u8, aspect: f64, state: State<AppState>) -> LayoutView {
+fn layout_for(max_seats: u8, aspect: f64, state: State<'_, AppState>) -> LayoutView {
     let settings = state.settings.lock().unwrap();
     LayoutView { key: layout_key(max_seats, aspect), layout: settings.layout(max_seats, aspect) }
 }
 
 #[tauri::command]
-fn set_hit_regions(label: String, regions: Vec<Rect>, state: State<AppState>) {
+fn set_hit_regions(label: String, regions: Vec<Rect>, state: State<'_, AppState>) {
     if let Some(info) = state.overlays.by_label.lock().unwrap().get_mut(&label) {
         info.hit_regions = regions;
     }
@@ -176,18 +176,18 @@ fn store_settings(app: &AppHandle, state: &AppState, settings: Settings) -> CmdR
 }
 
 #[tauri::command]
-fn get_settings(state: State<AppState>) -> Settings {
+fn get_settings(state: State<'_, AppState>) -> Settings {
     state.settings.lock().unwrap().clone()
 }
 
 #[tauri::command]
-fn save_settings(settings: Settings, app: AppHandle, state: State<AppState>) -> CmdResult<()> {
+async fn save_settings(settings: Settings, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     store_settings(&app, &state, settings)
 }
 
 /// Saves one seat of the layout stored under `key` (see [`layout_key`]).
 #[tauri::command]
-fn save_seat(key: String, visual: usize, pos: SeatPos, app: AppHandle, state: State<AppState>) -> CmdResult<()> {
+async fn save_seat(key: String, visual: usize, pos: SeatPos, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     let (max_seats, aspect) = parse_layout_key(&key)?;
     let mut settings = state.settings.lock().unwrap().clone();
     let mut layout = settings.layout(max_seats, aspect);
@@ -198,7 +198,7 @@ fn save_seat(key: String, visual: usize, pos: SeatPos, app: AppHandle, state: St
 }
 
 #[tauri::command]
-fn reset_layout(key: String, app: AppHandle, state: State<AppState>) -> CmdResult<()> {
+async fn reset_layout(key: String, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     let mut settings = state.settings.lock().unwrap().clone();
     settings.layouts.remove(&key);
     store_settings(&app, &state, settings)
@@ -210,14 +210,14 @@ fn parse_layout_key(key: &str) -> CmdResult<(u8, f64)> {
 }
 
 #[tauri::command]
-fn export_profile(path: String, state: State<AppState>) -> CmdResult<()> {
+async fn export_profile(path: String, state: State<'_, AppState>) -> CmdResult<()> {
     let profile = Profile::from_settings(&state.settings.lock().unwrap());
     let json = serde_json::to_string_pretty(&profile).map_err(err)?;
     std::fs::write(&path, json).map_err(err)
 }
 
 #[tauri::command]
-fn import_profile(path: String, app: AppHandle, state: State<AppState>) -> CmdResult<()> {
+async fn import_profile(path: String, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     let text = std::fs::read_to_string(&path).map_err(err)?;
     let profile = Profile::parse(&text)?;
     let mut settings = state.settings.lock().unwrap().clone();
@@ -227,7 +227,7 @@ fn import_profile(path: String, app: AppHandle, state: State<AppState>) -> CmdRe
 
 /// Back to the shipped profile; folders stay as they are.
 #[tauri::command]
-fn reset_profile(app: AppHandle, state: State<AppState>) -> CmdResult<()> {
+async fn reset_profile(app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     let mut settings = state.settings.lock().unwrap().clone();
     settings::BUILTIN.clone().apply_to(&mut settings);
     settings.layouts.clear();
@@ -243,7 +243,7 @@ struct ClientWindowView {
 
 /// What the tracker currently sees of the poker client, for troubleshooting.
 #[tauri::command]
-fn client_windows(state: State<AppState>) -> CmdResult<Vec<ClientWindowView>> {
+async fn client_windows(state: State<'_, AppState>) -> CmdResult<Vec<ClientWindowView>> {
     let windows = state.overlays.client_windows.lock().unwrap().clone();
     let db = state.db.lock().unwrap();
     windows
@@ -259,7 +259,7 @@ fn client_windows(state: State<AppState>) -> CmdResult<Vec<ClientWindowView>> {
 }
 
 #[tauri::command]
-fn import_status(state: State<AppState>) -> ImportStatus {
+fn import_status(state: State<'_, AppState>) -> ImportStatus {
     state.import.lock().unwrap().clone()
 }
 
@@ -277,7 +277,7 @@ struct Dashboard {
 }
 
 #[tauri::command]
-fn dashboard(filter: Filter, state: State<AppState>) -> CmdResult<Dashboard> {
+async fn dashboard(filter: Filter, state: State<'_, AppState>) -> CmdResult<Dashboard> {
     let db = state.db.lock().unwrap();
     let heroes = db.heroes().map_err(err)?;
     let hero = match heroes.first() {
@@ -313,7 +313,7 @@ struct Reports {
 }
 
 #[tauri::command]
-fn reports(filter: Filter, state: State<AppState>) -> CmdResult<Reports> {
+async fn reports(filter: Filter, state: State<'_, AppState>) -> CmdResult<Reports> {
     let db = state.db.lock().unwrap();
     let view = |rows: Vec<GroupRow>| -> Vec<GroupView> {
         rows.into_iter()
@@ -335,24 +335,24 @@ struct PlayerView {
 }
 
 #[tauri::command]
-fn players(filter: Filter, search: String, limit: usize, state: State<AppState>) -> CmdResult<Vec<PlayerView>> {
+async fn players(filter: Filter, search: String, limit: usize, state: State<'_, AppState>) -> CmdResult<Vec<PlayerView>> {
     let db = state.db.lock().unwrap();
     let rows = db.players(&filter, &search, limit).map_err(err)?;
     Ok(rows.into_iter().map(|r| PlayerView { stats: stat_values(&r.counters), name: r.name, net: r.net }).collect())
 }
 
 #[tauri::command]
-fn shown_hands(player: String, state: State<AppState>) -> CmdResult<Vec<ShownHand>> {
+async fn shown_hands(player: String, state: State<'_, AppState>) -> CmdResult<Vec<ShownHand>> {
     state.db.lock().unwrap().shown_hands(&player, 200).map_err(err)
 }
 
 #[tauri::command]
-fn hands(query: HandQuery, state: State<AppState>) -> CmdResult<Vec<HandSummary>> {
+async fn hands(query: HandQuery, state: State<'_, AppState>) -> CmdResult<Vec<HandSummary>> {
     state.db.lock().unwrap().hands(&query).map_err(err)
 }
 
 #[tauri::command]
-fn hand(id: u64, state: State<AppState>) -> CmdResult<Option<Hand>> {
+async fn hand(id: u64, state: State<'_, AppState>) -> CmdResult<Option<Hand>> {
     state.db.lock().unwrap().hand(id).map_err(err)
 }
 

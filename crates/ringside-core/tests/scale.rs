@@ -18,7 +18,11 @@ fn synthetic(n: usize, pool: usize, start: usize) -> Vec<(Hand, String)> {
             let mut raw = templates[i % 2]
                 .replace("#250000000001:", &format!("#{}:", 3_000_000_000u64 + i as u64))
                 .replace("#250000000002:", &format!("#{}:", 3_000_000_000u64 + i as u64))
-                .replace("2024/01/15", &format!("2025/{:02}/{:02}", 1 + (i / 28 / 24) % 12, 1 + (i / 24) % 28));
+                // Like real hand ids, dates only move forward: about 3,000 hands a day.
+                .replace("2024/01/15", &{
+                    let day = i / 3_000;
+                    format!("{}/{:02}/{:02}", 2025 + day / 336, 1 + (day / 28) % 12, 1 + day % 28)
+                });
             for (k, name) in NAMES.iter().enumerate() {
                 raw = raw.replace(name, &format!("P{}", (i * 7 + k * 13) % pool));
             }
