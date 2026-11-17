@@ -1214,7 +1214,7 @@
       margin: 0;
     }
     .stage {
-      width: min(100%, calc((100vh - 400px) * var(--aspect))) !important;
+      width: min(100%, calc((100vh - 300px) * var(--aspect))) !important;
     }
   }
 </style>
