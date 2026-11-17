@@ -6,6 +6,8 @@
   interface Props {
     id: StatId;
     t: Threshold;
+    /** Plain name when the stat's own name is only its abbreviation. */
+    name?: string;
     colors: { low: string; mid: string; high: string };
     /** Values of the players at the preview table, drawn as ticks. */
     marks: number[];
@@ -16,7 +18,8 @@
     onchange: () => void;
   }
 
-  let { id, t, colors, marks, exact, meaning, onchange }: Props = $props();
+  let { id, t, name, colors, marks, exact, meaning, onchange }: Props = $props();
+  const label = $derived(name ?? STAT_META[id].name);
 
   const ratio = $derived(!!STAT_META[id].ratio);
   const step = $derived(ratio ? 0.1 : 1);
@@ -38,8 +41,8 @@
 
 <div class="item" title={STAT_META[id].help}>
   <div class="top">
-    <span class="name">{STAT_META[id].name}</span>
-    {#if STAT_META[id].short !== STAT_META[id].name}<span class="abbr num">{STAT_META[id].short}</span>{/if}
+    <span class="name">{label}</span>
+    {#if STAT_META[id].short !== label}<span class="abbr num">{STAT_META[id].short}</span>{/if}
     {#if exact}
       <span class="fields">
         <input class="field num" type="number" step={ratio ? 0.1 : 0.5} bind:value={t.low} onchange={onchange} aria-label="{STAT_META[id].name} unter" />

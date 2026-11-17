@@ -60,8 +60,6 @@
   let slot = $state<Slot>({ kind: "ring", i: 0 });
   let platePage = $state(0);
   let exact = $state(false);
-  /** Narrow windows: a smaller table leaves more of the settings in view. */
-  let smallStage = $state(true);
 
   /** A table screenshot to calibrate against; `crop` removes the window title bar. */
   let shot = $state<{ url: string; w: number; h: number; crop: number } | null>(null);
@@ -287,20 +285,13 @@
               {/if}
             </div>
           </div>
-          <div class="group size-toggle">
-            <span class="lbl">Vorschau</span>
-            <div class="seg">
-              <button class:on={!smallStage} onclick={() => (smallStage = false)}>Groß</button>
-              <button class:on={smallStage} onclick={() => (smallStage = true)}>Klein</button>
-            </div>
-          </div>
           <label class="check toggle" title="Zeigt hier die Karten der letzten Hand und das Board, damit du sie verschieben kannst. Wie lange der Rückblick am Tisch steht, stellst du unter „Aussehen“ ein.">
             <input type="checkbox" bind:checked={showRecap} />
             <span>Rückblick in der Vorschau</span>
           </label>
         </div>
 
-        <div class="stage-wrap" class:compact={smallStage}>
+        <div class="stage-wrap">
           <div class="stage" style="aspect-ratio:{aspect}; --aspect:{aspect}; width:min(100%, calc((100vh - 250px) * {aspect}))" bind:clientWidth={stageW} bind:clientHeight={stageH}>
             {#if shot && shape === "screenshot"}
               <img class="shot" src={shot.url} alt="Tisch-Screenshot" style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%" />
@@ -339,7 +330,7 @@
           </ul>
           <div class="row actions">
             <span class="state" class:custom={customised} title="Positionen gelten je Tischgröße, für jede Fenstergröße – am Tisch wie hier.">
-              <i></i>{customised ? `Eigene Positionen für ${maxSeats} Plätze` : `Standard-Positionen für ${maxSeats} Plätze`}
+              {customised ? `Eigene Positionen für ${maxSeats} Plätze` : `Standard-Positionen für ${maxSeats} Plätze`}
             </span>
             {#if customised}<button class="btn ghost" onclick={resetLayout}>Zurücksetzen</button>{/if}
             <label class="btn" title="Screenshot eines PokerStars-Tischs als Hintergrund, um Ring, Zahlenfeld oder Box genau auf die Avatare zu ziehen.">
@@ -614,7 +605,7 @@
               {#each RATED_STATS as id (id)}
                 {@const t = settings.hud.thresholds[id]}
                 {#if t}
-                  <ThresholdScale {id} {t} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
+                  <ThresholdScale {id} {t} name={PICK_NAME[id]} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
                 {/if}
               {/each}
             </div>
@@ -714,9 +705,6 @@
     min-width: 28px;
     padding: 0 6px;
   }
-  .size-toggle {
-    display: none;
-  }
   .toggle {
     margin-left: auto;
     align-items: center;
@@ -764,17 +752,15 @@
     align-items: center;
     gap: 6px;
   }
-  kbd.frame {
-    border-color: var(--sd);
-  }
   kbd {
-    padding: 1px 6px;
-    border-radius: 4px;
-    border: 1px solid var(--line-2);
-    background: var(--surface-2);
     font: inherit;
-    font-size: 11.5px;
+    font-weight: 600;
     color: var(--text);
+  }
+  kbd.frame {
+    padding: 0 5px;
+    border: 1.5px solid var(--sd);
+    border-radius: 4px;
   }
   .row {
     display: flex;
@@ -783,21 +769,11 @@
     gap: 8px;
   }
   .state {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
     font-size: 12.5px;
     color: var(--text-2);
   }
-  .state i {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    border: 1.5px solid var(--text-3);
-  }
-  .state.custom i {
-    border-color: var(--text);
-    background: var(--text);
+  .state.custom {
+    color: var(--text);
   }
   .shot-bar {
     display: flex;
@@ -1227,13 +1203,7 @@
     .layout {
       grid-template-columns: 1fr;
     }
-    .size-toggle {
-      display: flex;
-    }
-    .stage-wrap.compact .stage {
-      width: min(100%, calc((100vh - 400px) * var(--aspect))) !important;
-    }
-    /* Table, then the settings, then the how-to: the settings start in the first screen. */
+    /* Table, then the settings, then the how-to: the settings follow the table directly. */
     .stage-col {
       display: contents;
     }
@@ -1255,7 +1225,7 @@
       margin: 0;
     }
     .stage {
-      width: min(100%, calc((100vh - 300px) * var(--aspect))) !important;
+      width: 100% !important;
     }
   }
 </style>
