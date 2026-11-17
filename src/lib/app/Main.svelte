@@ -17,9 +17,19 @@
   import TournamentPicker from "./TournamentPicker.svelte";
   import Tournaments from "./Tournaments.svelte";
   import Training from "./Training.svelte";
+  import PlayPage from "../play/PlayPage.svelte";
+  import { playNav } from "../play/nav.svelte";
   import PushFoldCharts from "../charts/PushFoldCharts.svelte";
   import Solver from "../solver/Solver.svelte";
+  import Library from "../library/Library.svelte";
   import { handoff } from "../solver/handoff.svelte";
+  import { analysis } from "../analysis/store.svelte";
+  import JobsDock from "../jobs/JobsDock.svelte";
+  import JobToasts from "../jobs/JobToasts.svelte";
+  import { jobs } from "../jobs/store.svelte";
+  import type { JobTarget } from "../jobs/types";
+  import { openSaved } from "../solver/solutions";
+  import { solver } from "../solver/store.svelte";
 
   type Tab =
     | "dashboard"
@@ -31,8 +41,10 @@
     | "players"
     | "live"
     | "training"
+    | "play"
     | "charts"
     | "solver"
+    | "library"
     | "hud"
     | "settings";
   type NavItem = { id: Tab; label: string; icon: string };
@@ -59,8 +71,10 @@
       label: "Lernen",
       items: [
         { id: "training", label: "Training", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
+        { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
         { id: "charts", label: "Charts", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
         { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
+        { id: "library", label: "Bibliothek", icon: "M5 4.5h3v15H5zM10 4.5h3v15h-3zM15.2 5.3l2.9-.8 3.6 14.4-2.9.8z" },
       ],
     },
     {
@@ -83,7 +97,9 @@
     leaks: "Deine Werte je Position und Stacktiefe gegen veröffentlichte Richtwerte.",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
     training: "Gesperrt, solange PokerStars läuft. Dein Fortschritt bleibt auf diesem Rechner.",
+    play: "Gesperrt, solange PokerStars läuft. Postflop-Spots rechnet Ringside im Hintergrund vor.",
     solver: "Gesperrt, solange PokerStars läuft. Gerechnet wird nur auf diesem Rechner.",
+    library: "Gesperrt, solange PokerStars läuft. Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
@@ -126,6 +142,18 @@
   $effect(() => {
     if (handoff.prefill) tab = "solver";
   });
+  // The practice asks to be opened (from the learning area) or hands its spot to the solver.
+  let playSeen = { requested: playNav.requested, solver: playNav.solver };
+  $effect(() => {
+    if (playNav.requested !== playSeen.requested) tab = "play";
+    if (playNav.solver !== playSeen.solver) tab = "solver";
+    playSeen = { requested: playNav.requested, solver: playNav.solver };
+  });
+  // "Diese Hand analysieren" on another page opens the hand here; the hands page analyses it.
+  $effect(() => {
+    const id = analysis.request;
+    if (id !== null) showHands(null, id);
+  });
   /** Hands tab: a leak-finder spot to list. */
   let handsSpot = $state<{ filter: SpotFilter; label: string } | null>(null);
   /** Training tab: an article or exercise to open, set from the leak finder. */
@@ -163,6 +191,22 @@
   });
 
   const tournamentNames = $derived(new Map(tournamentList.filter((t) => t.name).map((t) => [t.id, t.name as string])));
+
+  // A task that finishes while another page is open gets a note with "Ansehen".
+  $effect(() => {
+    jobs.page = tab;
+  });
+
+  /** "Ansehen" in the task center: the page of the task, and what it made. */
+  function viewTarget(t: JobTarget) {
+    const page = NAV.find((n) => n.id === t.page)?.id;
+    if (t.page === "hands") return showHands(null, t.id);
+    if (t.page === "solver") {
+      if (t.id !== null && t.id !== solver.savedId) openSaved(t.id).catch(() => {});
+      else if (solver.status === "solved") solver.view = "result";
+    }
+    if (page) tab = page;
+  }
 
   function showHands(player: string | null, handId: number | null = null) {
     handsPlayer = player;
@@ -250,6 +294,7 @@
     </nav>
 
     <footer>
+      <JobsDock onView={viewTarget} />
       {#if upgrade}
         <div class="upgrade">
           <div class="row">
@@ -305,7 +350,16 @@
 
     <div class="content" class:fill={tab === "hands"}>
       {#if tab === "dashboard"}
-        <Dashboard {filter} {hud} {refresh} />
+        <Dashboard
+          {filter}
+          {hud}
+          {refresh}
+          onHand={(id) => showHands(null, id >= 0 ? id : null)}
+          onLearn={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
+        />
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
       {:else if tab === "leaks"}
@@ -353,10 +407,14 @@
         <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
       {:else if tab === "training"}
         <Training {hud} open={learnOpen} onOpened={() => (learnOpen = null)} />
+      {:else if tab === "play"}
+        <PlayPage />
       {:else if tab === "charts"}
         <PushFoldCharts />
       {:else if tab === "solver"}
         <Solver />
+      {:else if tab === "library"}
+        <Library onOpen={() => (tab = "solver")} />
       {:else if tab === "hands"}
         <Hands
           {filter}
@@ -368,6 +426,10 @@
           onClearSpot={() => (handsSpot = null)}
           onClearPlayer={() => (handsPlayer = null)}
           onClearTournament={() => (tournament = null)}
+          onLearn={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
         />
       {:else if tab === "hud"}
         <HudEditor />
@@ -376,6 +438,7 @@
       {/if}
     </div>
   </main>
+  <JobToasts onView={viewTarget} />
 </div>
 
 <style>

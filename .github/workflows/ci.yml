@@ -34,3 +34,48 @@ jobs:
       - run: pnpm build
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+
+  # Clicks through the real app (debug build, own data folder, fixture hand histories).
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@v2
+      - name: msedgedriver for the installed WebView2
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+          $version = (Get-ItemProperty $key).pv
+          Write-Output "WebView2 $version"
+          Invoke-WebRequest "https://msedgedriver.microsoft.com/$version/edgedriver_win64.zip" -OutFile "$env:RUNNER_TEMP\edgedriver.zip"
+          Expand-Archive "$env:RUNNER_TEMP\edgedriver.zip" -DestinationPath "$env:RUNNER_TEMP\edgedriver"
+          "MSEDGEDRIVER=$env:RUNNER_TEMP\edgedriver\msedgedriver.exe" >> $env:GITHUB_ENV
+      - name: Point the app's network hosts at the test's trap
+        shell: pwsh
+        run: |
+          $hosts = "$env:windir\System32\drivers\etc\hosts"
+          Add-Content $hosts ""
+          node e2e/run.mjs --hosts | Add-Content $hosts
+          Resolve-DnsName ringside-api.bunny.run -Type A
+      - run: pnpm install --frozen-lockfile
+      - name: Debug build with the DevTools port open
+        shell: pwsh
+        run: |
+          node e2e/run.mjs --tauri-config > "$env:RUNNER_TEMP\e2e.conf.json"
+          pnpm tauri build --debug --no-bundle --config "$env:RUNNER_TEMP\e2e.conf.json"
+      - run: node e2e/run.mjs
+        env:
+          E2E_NET_TRAP: "1"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e
+          path: target/e2e
+          if-no-files-found: ignore

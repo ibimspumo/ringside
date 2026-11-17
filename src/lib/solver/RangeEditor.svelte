@@ -11,8 +11,9 @@
     position = $bindable(""),
     value = $bindable(""),
     note = "",
+    lockPosition = false,
     onEdit,
-  }: { title: string; position?: string; value: string; note?: string; onEdit?: () => void } = $props();
+  }: { title: string; position?: string; value: string; note?: string; lockPosition?: boolean; onEdit?: () => void } = $props();
 
   const BRUSHES = [1, 0.75, 0.5, 0.25, 0];
   let brush = $state(1);
@@ -76,7 +77,11 @@
   <header>
     <div class="who">
       <b>{title}</b>
-      <input class="field pos" bind:value={position} aria-label="Position von {title}" maxlength="6" />
+      {#if lockPosition}
+        <span class="dim">{position}</span>
+      {:else}
+        <input class="field pos" bind:value={position} aria-label="Position von {title}" maxlength="6" />
+      {/if}
     </div>
     <span class="dim num">{combos.toLocaleString("de-DE", { maximumFractionDigits: 1 })} Kombos · {((combos / 1326) * 100).toLocaleString("de-DE", { maximumFractionDigits: 1 })} %</span>
   </header>

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/postflop-solver", "crates/ringside-cloud", "crates/ringside-coach", "crates/ringside-core", "crates/ringside-engine", "crates/ringside-learn", "crates/ringside-solver", "src-tauri"]
+members = ["crates/postflop-solver", "crates/ringside-analysis", "crates/ringside-cloud", "crates/ringside-coach", "crates/ringside-core", "crates/ringside-engine", "crates/ringside-gpu", "crates/ringside-learn", "crates/ringside-play", "crates/ringside-solver", "src-tauri"]
 
 [workspace.package]
 version = "0.6.0"
@@ -25,4 +25,7 @@ opt-level = 3
 
 # The postflop solver's loops are generic and get compiled into this crate.
 [profile.dev.package.ringside-solver]
+opt-level = 3
+
+[profile.dev.package.ringside-gpu]
 opt-level = 3

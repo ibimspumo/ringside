@@ -25,10 +25,11 @@
       <label class="check">
         <input type="checkbox" bind:checked={cloud.fetch} onchange={save} />
         <span>
-          Fertige Push/Fold-Lösungen abrufen
+          Fertige Lösungen abrufen
           <small>
-            Statt selbst zu rechnen, lädt Ringside Lösungen, die schon jemand gerechnet hat. Jede wird vor der Nutzung hier mit
-            der eigenen Engine nachgeprüft; was nicht stimmt, wird verworfen.
+            Statt selbst zu rechnen, lädt Ringside Lösungen, die schon jemand gerechnet hat. Push/Fold-Lösungen werden vor der
+            Nutzung hier mit der eigenen Engine nachgeprüft. Spots der Bibliothek misst vor der Freigabe ein Prüfer mit dem
+            Solver; hier wird nur ihre Form geprüft, und Grundstock-Pakete müssen die Signatur von Ringside tragen.
           </small>
         </span>
       </label>
@@ -38,7 +39,8 @@
           Eigene Lösungen teilen
           <small>
             Selbst gerechnete Lösungen gehen im Hintergrund an die Cloud: die Rechen-Eingabe (Stacks, Blinds, Antes,
-            Auszahlungen) und das Ergebnis. Ein Prüfer misst jede, bevor andere sie bekommen.
+            Auszahlungen; bei Bibliothek-Spots Board, Ranges und Größen) und das Ergebnis. Ein Prüfer misst jede, bevor andere
+            sie bekommen.
           </small>
         </span>
       </label>

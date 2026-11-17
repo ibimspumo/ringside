@@ -1,5 +1,8 @@
 <script lang="ts">
+  import AnalyzeBar from "../analysis/AnalyzeBar.svelte";
+  import Summary from "../analysis/Summary.svelte";
   import { api } from "../api";
+  import type { LearnTarget } from "./Leaks.svelte";
   import { PALETTES, RATED_STATS, STAT_META, bountyText, compact, fmt, stat } from "../stats";
   import type { Dashboard, Filter, HudConfig, ResultPoint, StatId } from "../types";
   import { int, sign, signed } from "./format";
@@ -19,7 +22,20 @@
   const LUCK_HELP =
     "Glück: tatsächliches Ergebnis − EV in diesen All-ins. Positiv heißt, du hast öfter gewonnen, als die Karten erwarten ließen.";
 
-  let { filter, hud, refresh }: { filter: Filter; hud: HudConfig | null; refresh: number } = $props();
+  let {
+    filter,
+    hud,
+    refresh,
+    onHand = () => {},
+    onLearn,
+  }: {
+    filter: Filter;
+    hud: HudConfig | null;
+    refresh: number;
+    /** Opens a hand in the replayer at one of its decisions. */
+    onHand?: (handId: number, actionIndex: number | null) => void;
+    onLearn?: (target: LearnTarget) => void;
+  } = $props();
 
   let data = $state<Dashboard | null>(null);
   let failed = $state(false);
@@ -107,6 +123,11 @@
       </div>
     </section>
 
+    <div class="analysis">
+      <AnalyzeBar />
+      <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpot={() => onHand(-1, null)} {onLearn} />
+    </div>
+
     <section class="panel">
       <div class="panel-head">
         <h2 class="panel-title">Ergebnis-Verlauf</h2>
@@ -169,6 +190,11 @@
     flex-direction: column;
     gap: 16px;
     padding-top: 20px;
+  }
+  .analysis {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
   .kpis {
     display: grid;

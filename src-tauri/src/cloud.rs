@@ -61,7 +61,7 @@ impl CloudState {
         self.offline_until.lock().unwrap().is_none_or(|t| Instant::now() >= t)
     }
 
-    fn note(&self, e: &Error) {
+    pub(crate) fn note(&self, e: &Error) {
         if matches!(e, Error::Network(_) | Error::RateLimited { .. }) {
             *self.offline_until.lock().unwrap() = Some(Instant::now() + OFFLINE_FOR);
         }
@@ -73,7 +73,7 @@ fn cloud_settings_of(app: &AppHandle) -> CloudSettings {
 }
 
 /// Whether a request may go out now: not while PokerStars runs or the cloud is down.
-fn may_talk(app: &AppHandle) -> bool {
+pub(crate) fn may_talk(app: &AppHandle) -> bool {
     unlocked(&app.state::<AppState>()).is_ok() && app.state::<CloudState>().reachable()
 }
 
@@ -147,9 +147,7 @@ fn submit_later(app: AppHandle, input: PushFoldMwInput, solution: PushFoldMwSolu
 }
 
 fn cache_dir(app: &AppHandle) -> Option<PathBuf> {
-    let dir = app
-        .path()
-        .app_data_dir()
+    let dir = crate::data_dir(app)
         .ok()?
         .join("cloud")
         .join(format!("{}-{}", PushFoldMw::NAME, PushFoldMw::ENGINE_VERSION));

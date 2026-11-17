@@ -63,6 +63,12 @@ function stop() {
   timer = null;
 }
 
+/** Shows `s` as solved without a run, as a spot opened from the library. */
+export function demoShow(s: SolverSpot) {
+  stop();
+  spot = s;
+}
+
 export function demoStart(s: SolverSpot, settings: SolverSettings, id: number) {
   stop();
   spot = s;
@@ -91,6 +97,8 @@ export function demoStart(s: SolverSpot, settings: SolverSettings, id: number) {
       const done: SolverDone = {
         status: "solved",
         run: id,
+        saved: 1,
+        reused: false,
         summary: {
           iterations: iteration,
           exploitability: p.exploitability,
@@ -277,6 +285,7 @@ export function demoNode(path: SolverStep[]): SolverNode {
     board: st.board,
     pot: round(st.pot),
     bets: [round(st.bets[0]), round(st.bets[1])] as [number, number],
+    street_bets: [round(st.put[0]), round(st.put[1])] as [number, number],
     stacks: [round(s.stack - st.bets[0]), round(s.stack - st.bets[1])] as [number, number],
     players: [
       { combos: 180, equity: 0.47, ev: round(st.pot * 0.44) },
@@ -305,9 +314,13 @@ export function demoNode(path: SolverStep[]): SolverNode {
     if (!combos.length) return;
     const equity = Math.min(0.98, Math.max(0.03, x * 0.95 + 0.03));
     const ev = round(equity * st.pot * 0.9 - (1 - equity) * (st.put[1 - player] - st.put[player]) * 0.5);
+    const top = Math.max(...strategy);
     combos.forEach((combo, k) => {
       const jitter = ((k * 37) % 11) / 200 - 0.025;
-      hands.push({ combo, class: i, weight: reach, strategy, equity: Math.min(1, equity + jitter), ev: round(ev + jitter * st.pot) });
+      const own = round(ev + jitter * st.pot);
+      // Actions the hand rarely takes cost more, roughly as in a real solve.
+      const evs = kinds.map((kind, a) => (kind === "fold" ? 0 : round(own - (top - strategy[a]) * st.pot * 0.09)));
+      hands.push({ combo, class: i, weight: reach, strategy, equity: Math.min(1, equity + jitter), ev: own, evs });
     });
     classes.push({ class: i, label, combos: reach * combos.length, strategy, equity, ev });
   });

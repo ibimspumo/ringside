@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { requestAnalysis } from "../analysis/store.svelte";
   import Felt from "../Felt.svelte";
   import PlayingCard from "../PlayingCard.svelte";
   import { conceptName } from "./concepts";
@@ -77,6 +78,7 @@
         <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>
         Im Replayer ansehen
       </button>
+      <button class="btn" onclick={() => requestAnalysis(spot.hand_id)}>Diese Hand analysieren</button>
     </div>
   </div>
 </article>

@@ -105,6 +105,12 @@ export const SKILLS: Record<LearnKind, SkillMeta> = {
     icon: "M12 4l2.5 5.2 5.5.8-4 3.9 1 5.6-5-2.7-5 2.7 1-5.6-4-3.9 5.5-.8z",
     articles: ["entscheidung-ergebnis", "ev"],
   },
+  full_hands: {
+    short: "Ganze Hände",
+    levels: ["Ganze Hände", "Ganze Hände", "Ganze Hände"],
+    icon: "M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5zM9 10.5h2.5v3H9zM12.5 10.5H15v3h-2.5z",
+    articles: ["ev", "pot-odds"],
+  },
 };
 
 export const GRADING: Record<Grading, { label: string; text: string }> = {
@@ -254,7 +260,7 @@ export function daysSince(s: SkillProgress | undefined): number | null {
  * (sooner when the level is low). A simple stand-in until the backend schedules reviews.
  */
 export function isDue(s: SkillProgress): boolean {
-  if (s.attempts === 0 || s.id === "all_in") return false;
+  if (s.attempts === 0 || s.id === "all_in" || s.id === "full_hands") return false;
   const days = daysSince(s) ?? 0;
   const gap = [0, 0.5, 1, 3, 7][s.level];
   return days >= gap || (s.mean_score ?? 1) < 0.6;

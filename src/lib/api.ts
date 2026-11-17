@@ -1,11 +1,22 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import * as analysisDemo from "./analysis/demo";
+import type { AnalysisStatus, AnalysisSummary, Decision } from "./analysis/types";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
 import * as chartsDemo from "./charts/demo";
-import type { PreflopGrid, PreflopNode, PreflopSpots } from "./charts/preflop-types";
+import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots } from "./charts/preflop-types";
 import * as solverDemo from "./solver/demo";
-import type { SolverDone, SolverEstimate, SolverNode, SolverProgress, SolverSettings, SolverSpot, SolverStep } from "./solver/types";
+import type {
+  SolveInfo,
+  SolverDone,
+  SolverEstimate,
+  SolverNode,
+  SolverProgress,
+  SolverSettings,
+  SolverSpot,
+  SolverStep,
+} from "./solver/types";
 import type {
   Exercise,
   Feedback,
@@ -120,7 +131,19 @@ export const api = {
       demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
     ),
   shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
-  hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, () => demo.demoHands(query)),
+  hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, () => analysisDemo.withWorst(demo.demoHands(query), query)),
+  analysisStatus: () => call<AnalysisStatus>("analysis_status", {}, analysisDemo.demoStatus),
+  /** Starts (`true`) or pauses the analysis of the whole history. */
+  analysisRun: (on: boolean) => call<void>("analysis_run", { on }, () => analysisDemo.demoRun(on)),
+  /** Analyses hands now; their postflop spots go to the front of the queue. Returns the first hand's decisions. */
+  analysisHands: (handIds: number[]) =>
+    call<Decision[]>("analysis_hands", { handIds }, () => handIds.flatMap((id, i) => (i === 0 ? analysisDemo.demoAnalyze(id) : []))),
+  /** Stops the whole analysis; rated decisions stay. */
+  analysisCancel: () => call<void>("analysis_cancel", {}, analysisDemo.demoCancel),
+  /** Stops one hand: its postflop spot goes back in line. */
+  analysisCancelHand: (handId: number) => call<void>("analysis_cancel_hand", { handId }, () => analysisDemo.demoCancelHand(handId)),
+  analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, () => analysisDemo.demoDecisions(handId)),
+  analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
   hand: (id: number) => call<Hand | null>("hand", { id }, () => learnDemo.demoSpotHand(id) ?? demo.demoHandById(id)),
   learnExercise: (kind: LearnKind, level: number, seed: number | null = null) =>
     call<Exercise>("learn_exercise", { kind, level, seed }, () => learnDemo.demoExercise(kind, level, seed)),
@@ -139,19 +162,25 @@ export const api = {
   // The preview sample is large, so the browser loads it only when asked.
   preflopGrid: () =>
     inTauri ? invoke<PreflopGrid>("preflop_grid") : import("./charts/preflop-demo").then((d) => d.demoGrid()),
-  preflopSpots: (players: number, stackBb: number) =>
+  /** Off the grid this solves live; progress arrives as `preflop-progress`. */
+  preflopSpots: (ante: PreflopAnte, players: number, stackBb: number) =>
     inTauri
-      ? invoke<PreflopSpots>("preflop_spots", { players, stackBb })
-      : import("./charts/preflop-demo").then((d) => d.demoSpots(players, stackBb)),
-  preflopNode: (players: number, stackBb: number, node: number) =>
+      ? invoke<PreflopSpots>("preflop_spots", { ante, players, stackBb })
+      : import("./charts/preflop-demo").then((d) => d.demoSpots(ante, players, stackBb)),
+  preflopNode: (ante: PreflopAnte, players: number, stackBb: number, node: number) =>
     inTauri
-      ? invoke<PreflopNode>("preflop_node", { players, stackBb, node })
-      : import("./charts/preflop-demo").then((d) => d.demoNode(players, stackBb, node)),
+      ? invoke<PreflopNode>("preflop_node", { ante, players, stackBb, node })
+      : import("./charts/preflop-demo").then((d) => d.demoNode(ante, players, stackBb, node)),
+  preflopCancel: () =>
+    inTauri ? invoke<void>("preflop_cancel") : import("./charts/preflop-demo").then((d) => d.demoCancel()),
   solverEstimate: (spot: SolverSpot, threads: number) =>
     call<SolverEstimate>("solver_estimate", { spot, threads }, () => solverDemo.demoEstimate(spot, threads)),
-  /** Progress and result arrive via `onSolverProgress`/`onSolverDone`, tagged with `run`. */
-  solverStart: (spot: SolverSpot, settings: SolverSettings, run: number) =>
-    call<void>("solver_start", { spot, settings, run }, () => solverDemo.demoStart(spot, settings, run)),
+  /**
+   * Progress and result arrive via `onSolverProgress`/`onSolverDone`, tagged with `run`. A saved
+   * solution of the same spot opens instead unless `fresh`; `info` labels it in "Meine Lösungen".
+   */
+  solverStart: (spot: SolverSpot, settings: SolverSettings, run: number, info: SolveInfo, fresh: boolean) =>
+    call<void>("solver_start", { spot, settings, run, info, fresh }, () => solverDemo.demoStart(spot, settings, run)),
   solverCancel: () => call<void>("solver_cancel", {}, solverDemo.demoCancel),
   solverClear: () => call<void>("solver_clear", {}, solverDemo.demoClear),
   solverNode: (path: SolverStep[]) => call<SolverNode>("solver_node", { path }, () => solverDemo.demoNode(path)),
@@ -163,6 +192,19 @@ export function onSolverProgress(handler: (p: SolverProgress) => void): Promise<
 
 export function onSolverDone(handler: (d: SolverDone) => void): Promise<UnlistenFn> {
   return inTauri ? on("solver-done", handler) : Promise.resolve(solverDemo.onDone(handler));
+}
+
+export function onPreflopProgress(handler: (p: PreflopProgress) => void): Promise<UnlistenFn> {
+  return inTauri ? on("preflop-progress", handler) : import("./charts/preflop-demo").then((d) => d.onProgress(handler));
+}
+
+export function onAnalysisStatus(handler: (s: AnalysisStatus) => void): Promise<UnlistenFn> {
+  return inTauri ? on("analysis-status", handler) : Promise.resolve(analysisDemo.onStatus(handler));
+}
+
+/** A hand's postflop spot was solved (or failed). */
+export function onAnalysisHand(handler: (handId: number) => void): Promise<UnlistenFn> {
+  return inTauri ? on("analysis-hand", handler) : Promise.resolve(analysisDemo.onHand(handler));
 }
 
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {

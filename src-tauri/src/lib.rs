@@ -1,9 +1,15 @@
+mod analysis;
 mod charts;
 pub mod cloud;
 mod coach;
+mod gpu;
 mod importer;
+mod jobs;
+mod library;
 mod overlay;
+mod play;
 mod settings;
+mod solutions;
 mod solver;
 
 use std::collections::HashSet;
@@ -223,6 +229,7 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
 async fn save_settings(mut settings: Settings, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
     // A settings page opened before the cloud notice was answered must not undo it.
     settings.cloud = state.settings.lock().unwrap().cloud;
+    settings.library = state.settings.lock().unwrap().library;
     store_settings(&app, &state, settings)
 }
 
@@ -483,6 +490,15 @@ async fn blocking<T: Send + 'static>(
     .map_err(err)?
 }
 
+/// Where the database and caches live. Debug builds take `RINGSIDE_DATA_DIR` instead, so the
+/// end-to-end run (and `tauri dev`) can work on its own data; release builds ignore it.
+fn data_dir(app: &AppHandle) -> tauri::Result<std::path::PathBuf> {
+    match std::env::var_os("RINGSIDE_DATA_DIR") {
+        Some(dir) if cfg!(debug_assertions) => Ok(dir.into()),
+        _ => app.path().app_data_dir(),
+    }
+}
+
 fn now_secs() -> i64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
 }
@@ -609,7 +625,7 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
-            let dir = app.path().app_data_dir()?;
+            let dir = data_dir(app.handle())?;
             std::fs::create_dir_all(&dir)?;
             let db = Db::open(&dir.join("ringside.sqlite"))?;
             let mut settings: Settings = db
@@ -626,15 +642,25 @@ pub fn run() {
                 notes: Mutex::new(NotesState::default()),
             });
             app.manage(coach::CoachState::default());
+            app.manage(analysis::AnalysisState::default());
             app.manage(cloud::CloudState::default());
+            app.manage(library::LibraryState::default());
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
+            analysis::spawn(app.handle().clone());
+            library::spawn(app.handle().clone());
+            jobs::spawn(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
             // Closing the stats window quits the app, overlays included.
             if window.label() == "main" && matches!(event, tauri::WindowEvent::CloseRequested { .. }) {
                 window.app_handle().exit(0);
+            }
+            if let tauri::WindowEvent::Focused(focused) = event
+                && window.label() == "main"
+            {
+                library::set_focused(*focused);
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -675,11 +701,28 @@ pub fn run() {
             charts::preflop_grid,
             charts::preflop_spots,
             charts::preflop_node,
+            charts::preflop_cancel,
+            analysis::analysis_status,
+            analysis::analysis_run,
+            analysis::analysis_hands,
+            analysis::analysis_cancel,
+            analysis::analysis_cancel_hand,
+            analysis::analysis_decisions,
+            analysis::analysis_summary,
             solver::solver_estimate,
             solver::solver_start,
             solver::solver_cancel,
             solver::solver_clear,
             solver::solver_node,
+            solutions::solutions_list,
+            solutions::solutions_open,
+            solutions::solutions_pin,
+            solutions::solutions_delete,
+            solutions::solutions_set_limit,
+            jobs::jobs_list,
+            jobs::jobs_cancel,
+            jobs::jobs_clear,
+            gpu::gpu_benchmark,
             coach::coach_status,
             coach::coach_set_key,
             coach::coach_test_key,
@@ -700,6 +743,19 @@ pub fn run() {
             cloud::cloud_malformed,
             cloud::cloud_dismiss_malformed,
             cloud::cloud_send_report,
+            library::library_overview,
+            library::library_set_mode,
+            library::library_open,
+            play::play_prepare,
+            play::play_next,
+            play::play_repeat,
+            play::play_current,
+            play::play_act,
+            play::play_hint,
+            play::play_pool_status,
+            play::play_pool_cancel,
+            play::play_open_solver,
+            play::play_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ringside");

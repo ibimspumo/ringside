@@ -81,12 +81,12 @@ const EARLY = ["UTG", "UTG+1", "UTG+2", "UTG+3", "UTG+4", "LJ", "HJ"];
 const BOARD_AT: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 const STREETS: Street[] = ["preflop", "flop", "turn", "river"];
 
-function openRange(pos: string): { id: string; note: string } {
+export function openRange(pos: string): { id: string; note: string } {
   const id = pos === "BTN" ? "btn" : pos === "CO" ? "co" : pos === "SB" ? "sb" : pos === "HJ" ? "hj" : pos === "LJ" ? "lj" : "utg";
   return { id, note: `Open-Raise aus ${pos}` };
 }
 
-function defendRange(pos: string, opener: string): { id: string; note: string } {
+export function defendRange(pos: string, opener: string): { id: string; note: string } {
   if (pos !== "BB") return { id: "flat", note: `Call gegen Open aus ${opener}` };
   const id = opener === "BTN" ? "bb-btn" : opener === "CO" ? "bb-co" : opener === "SB" ? "bb-sb" : EARLY.includes(opener) ? "bb-early" : "bb-co";
   return { id, note: `Big Blind verteidigt gegen ${opener}` };
@@ -164,6 +164,7 @@ export function spotFromHand(
       oop: side(oop),
       ip: side(ip),
       hero: heroIn ? { player: heroSide, cards: hand.hero_cards } : null,
+      players: hand.seats.filter((s) => !s.sitting_out).length,
       source: `Hand #${hand.id}, ${street === "flop" ? "Flop" : street === "turn" ? "Turn" : "River"}`,
     },
   };

@@ -11,11 +11,30 @@
   /**
    * `children` is the hand's title line, laid out flush with the table. With `upTo` the hand ends
    * before that action (an index into `actions`): no later cards, no showdown, no winner.
+   * `marks` colours actions (by index into `actions`) on the log and the timeline; clicking one
+   * calls `onMark`. A new `jumpTo` moves the replay to just before its action. `aside` sits
+   * above the action log.
    */
-  let { hand: full, upTo = null, children }: { hand: Hand; upTo?: number | null; children?: Snippet } = $props();
+  let {
+    hand: full,
+    upTo = null,
+    marks = null,
+    onMark,
+    jumpTo = null,
+    children,
+    aside,
+  }: {
+    hand: Hand;
+    upTo?: number | null;
+    marks?: Map<number, { color: string; label: string }> | null;
+    onMark?: (action: number) => void;
+    jumpTo?: { action: number } | null;
+    children?: Snippet;
+    aside?: Snippet;
+  } = $props();
 
   type Event =
-    | { type: "action"; action: Action }
+    | { type: "action"; action: Action; index: number }
     | { type: "street"; street: Street }
     | { type: "showdown" }
     | { type: "collect" };
@@ -40,13 +59,13 @@
   const events = $derived.by(() => {
     const out: Event[] = [];
     let street: Street = "preflop";
-    for (const action of hand.actions) {
+    hand.actions.forEach((action, index) => {
       while (action.street !== street) {
         street = STREETS[STREETS.indexOf(street) + 1];
         out.push({ type: "street", street });
       }
-      out.push({ type: "action", action });
-    }
+      out.push({ type: "action", action, index });
+    });
     while (STREETS.indexOf(street) < 3 && hand.board.length > BOARD_AT[street]) {
       street = STREETS[STREETS.indexOf(street) + 1];
       out.push({ type: "street", street });
@@ -79,6 +98,25 @@
       }
     });
   });
+
+  $effect(() => {
+    const target = jumpTo;
+    if (!target) return;
+    untrack(() => {
+      const at = events.findIndex((e) => e.type === "action" && e.index === target.action);
+      if (at >= 0) {
+        step = at;
+        playing = false;
+      }
+    });
+  });
+
+  /** Marked actions with their place on the timeline. */
+  const pips = $derived(
+    marks
+      ? events.flatMap((e, i) => (e.type === "action" && marks.has(e.index) ? [{ i, index: e.index, ...marks.get(e.index)! }] : []))
+      : [],
+  );
 
   $effect(() => {
     if (!playing) return;
@@ -203,12 +241,12 @@
 
   /** Actions grouped by street, each with its index in `events` so the log can follow the replay. */
   const log = $derived.by(() => {
-    const out: { street: Street; items: { i: number; a: Action }[] }[] = [];
+    const out: { street: Street; items: { i: number; a: Action; index: number }[] }[] = [];
     events.forEach((e, i) => {
       if (e.type !== "action") return;
       let group = out[out.length - 1];
       if (!group || group.street !== e.action.street) out.push((group = { street: e.action.street, items: [] }));
-      group.items.push({ i, a: e.action });
+      group.items.push({ i, a: e.action, index: e.index });
     });
     return out;
   });
@@ -267,7 +305,7 @@
 <svelte:window onkeydown={key} />
 
 <div class="replayer">
-  <div class="layout" style="--ar:{REFERENCE_ASPECT}">
+  <div class="layout" class:has-aside={!!aside} style="--ar:{REFERENCE_ASPECT}">
     <div class="main">
       {@render children?.()}
       <div class="stage" bind:clientWidth={stageWidth} style="--k:{k}">
@@ -366,7 +404,19 @@
             <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.last} /></svg>
           </button>
         </div>
-        <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt" />
+        <div class="track">
+          <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt" />
+          {#each pips as p (p.index)}
+            <button
+              class="pip"
+              class:at={step === p.i}
+              style="--at:{p.i / Math.max(events.length, 1)}; background:{p.color}"
+              title={p.label}
+              aria-label={p.label}
+              onclick={() => (onMark ? onMark(p.index) : (step = p.i))}
+            ></button>
+          {/each}
+        </div>
         <span class="steps num">{step}/{events.length}</span>
         <div class="seg" role="group" aria-label="Beträge anzeigen in">
           <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
@@ -395,14 +445,17 @@
           {/each}
         </div>
       {/if}
+      {#if aside}<div class="aside">{@render aside()}</div>{/if}
       <div class="log" bind:this={logEl}>
         {#each log as g (g.street)}
           <div class="street-log">
             <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
             <ol>
-              {#each g.items as { i, a } (i)}
+              {#each g.items as { i, a, index } (i)}
+                {@const mark = marks?.get(index)}
                 <li class:future={i >= step} class:now={i === step - 1}>
-                  <button onclick={() => (step = i + 1)}>
+                  <button onclick={() => (mark && onMark ? onMark(index) : (step = i + 1))} title={mark?.label}>
+                    {#if mark}<span class="mark" style="background:{mark.color}"></span>{/if}
                     <span class="actor" title={a.player}>{a.player}</span>
                     <span class="what">{a.all_in ? "All-in" : LABEL[a.kind]}</span>
                     {#if a.amount > 0}<span class="num amt">{amount(a.to ?? a.amount)}</span>{/if}
@@ -671,10 +724,54 @@
     fill: currentColor;
     stroke: currentColor;
   }
-  input[type="range"] {
+  .track {
+    position: relative;
     flex: 1;
     min-width: 60px;
+    display: flex;
+    align-items: center;
     margin: 0 4px;
+  }
+  input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+  }
+  /* The thumb is about 16px wide, so its centre runs from 8px to the width minus 8px. */
+  .pip {
+    position: absolute;
+    top: -9px;
+    left: calc(8px + (100% - 16px) * var(--at));
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: 2px solid var(--bg);
+    border-radius: 50%;
+    transform: translateX(-50%);
+    cursor: pointer;
+  }
+  .pip:hover,
+  .pip.at {
+    box-shadow: 0 0 0 2px var(--text);
+  }
+  .mark {
+    flex-shrink: 0;
+    align-self: center;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+  }
+  /* Below the table the analysis needs room; the table gives up some height for it. */
+  .layout.has-aside {
+    --log-min: clamp(220px, 46cqh, 460px);
+  }
+  .aside {
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: auto;
+  }
+  .has-aside .log {
+    min-height: 72px;
   }
   .steps {
     font-size: 12px;

@@ -55,11 +55,22 @@ export interface SolverSummary {
 }
 
 export type SolverDone =
-  | { status: "solved"; run: number; summary: SolverSummary }
+  /** `saved`: id in "Meine Lösungen"; `reused`: opened from there instead of solving. */
+  | { status: "solved"; run: number; summary: SolverSummary; saved: number | null; reused: boolean }
   | { status: "cancelled"; run: number; locked: boolean }
   | { status: "failed"; run: number; error: string };
 
 export type SolverStep = { action: number } | { card: string };
+
+/** What the page knows about a spot for "Meine Lösungen". */
+export interface SolveInfo {
+  title: string;
+  oop: string;
+  ip: string;
+  ranges: string;
+  source: "own" | "hand" | "library" | "training" | null;
+  hand_id: number | null;
+}
 export type SolverPlayer = "oop" | "ip";
 export type SolverActionKind = "fold" | "check" | "call" | "bet" | "raise" | "all_in";
 
@@ -77,6 +88,8 @@ export interface SolverHand {
   strategy: number[];
   equity: number;
   ev: number;
+  /** `ev` after each action, in the order of `SolverNode.actions`; empty when not stored. */
+  evs: number[];
 }
 
 export interface SolverClass {
@@ -96,6 +109,8 @@ export interface SolverNode {
   pot: number;
   bets: [number, number];
   stacks: [number, number];
+  /** The part of `bets` put in on the current street: the chips in front of each player. */
+  street_bets: [number, number];
   player: SolverPlayer | null;
   actions: SolverAction[];
   cards: string[];
@@ -119,5 +134,7 @@ export interface SolverPrefill {
   ip: { position: string; range: string; note: string };
   /** Hero's cards, highlighted in the grid when hero is in the hand. */
   hero: { player: SolverPlayer; cards: string[] } | null;
+  /** Seats at the table the hand was played on, to draw it. */
+  players?: number;
   source: string;
 }

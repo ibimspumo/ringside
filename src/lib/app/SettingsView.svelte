@@ -2,8 +2,10 @@
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
   import CloudSettings from "../cloud/CloudSettings.svelte";
+  import LibrarySettings from "../library/LibrarySettings.svelte";
   import MalformedReports from "../cloud/MalformedReports.svelte";
   import CoachSettings from "../coach/CoachSettings.svelte";
+  import GpuTest from "../gpu/GpuTest.svelte";
   import type { ClientWindow, ImportStatus, NotesSource, Settings } from "../types";
 
   let { status }: { status: ImportStatus | null } = $props();
@@ -192,6 +194,9 @@
       <CoachSettings />
 
       <CloudSettings />
+      <LibrarySettings />
+
+      <GpuTest />
 
       <section class="panel">
         <div class="panel-head"><h2 class="panel-title">Updates</h2></div>

@@ -1,3 +1,4 @@
+import type { DecisionBrief, DecisionFilter } from "./analysis/types";
 export type StatId =
   | "hands"
   | "vpip"
@@ -233,6 +234,10 @@ export interface HandQuery extends Filter {
   min_pot_bb: number | null;
   /** Hands of one leak-finder spot. */
   spot?: SpotFilter | null;
+  /** Hands with a matching analysed decision. */
+  decisions?: DecisionFilter | null;
+  /** Costliest decision first instead of newest first. */
+  sort_by_loss?: boolean;
   limit: number;
   offset: number;
 }
@@ -251,6 +256,8 @@ export interface HandSummary {
   hero_showdown: boolean;
   pot: number;
   board: string;
+  /** The worst analysed decision, among those the decision filter matches. */
+  worst?: DecisionBrief | null;
 }
 
 export type Street = "preflop" | "flop" | "turn" | "river";
@@ -382,7 +389,9 @@ export type LearnKind =
   /** Call or fold against a shove, also after a caller, 2–9 players. */
   | "push_fold_call"
   /** Only from own hands (`learnOwnSpots`), never generated. */
-  | "all_in";
+  | "all_in"
+  /** One attempt per hand of the practice with whole hands, never generated. */
+  | "full_hands";
 
 /** exakt = exact maths; formel = formula / rule of thumb; modell = exact within the model in `model_note`. */
 export type Grading = "exakt" | "formel" | "modell";

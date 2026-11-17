@@ -10,6 +10,7 @@ use ringside_core::notes::{load_all, notes_files};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::jobs::{self, Kind, Target};
 use crate::{AppState, NotesState};
 
 /// How often the client's notes files are checked for changes.
@@ -67,6 +68,7 @@ pub fn spawn(app: AppHandle) {
         let mut first = true;
         let mut notes_stamp = None;
         let mut notes_checked: Option<Instant> = None;
+        let mut rebuild: Option<jobs::Job> = None;
         loop {
             let state = app.state::<AppState>();
             if notes_checked.is_none_or(|t| t.elapsed() >= NOTES_EVERY) {
@@ -85,10 +87,20 @@ pub fn spawn(app: AppHandle) {
             };
             if let Some(step) = step {
                 let mut status = state.import.lock().unwrap();
+                let task = rebuild.get_or_insert_with(|| {
+                    let task = jobs::start(Kind::Rebuild, "Datenbank nach dem Update auffrischen", Target::to("dashboard", None));
+                    task.not_cancellable();
+                    task
+                });
                 let pause = match step {
                     Ok(progress) => {
                         status.upgrade = Some(progress);
+                        task.steps(progress.done as u64, progress.total as u64);
+                        task.detail(format!("{} von {} Händen neu berechnet", progress.done, progress.total));
                         if progress.done >= progress.total {
+                            if let Some(task) = rebuild.take() {
+                                task.finish();
+                            }
                             // Totals are complete now; open overlays reload their numbers and
                             // the next pass reports the normal import state again.
                             let _ = app.emit("stats-rebuilt", ());

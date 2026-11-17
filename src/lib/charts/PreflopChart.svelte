@@ -8,7 +8,8 @@
 
   const RANKS = "AKQJT98765432";
   type Part = { a: number; freq: number; ev: number | null };
-  type Cell = { i: number; key: string; combos: number; parts: Part[] };
+  /** `inRange` false: the hand left the range earlier, all its frequencies are 0. */
+  type Cell = { i: number; key: string; combos: number; parts: Part[]; inRange: boolean };
 
   let hover = $state<{ cell: Cell; anchor: Anchor } | null>(null);
 
@@ -20,16 +21,12 @@
       const hi = RANKS[Math.min(r, c)];
       const lo = RANKS[Math.max(r, c)];
       const key = r === c ? hi + lo : r < c ? `${hi}${lo}s` : `${hi}${lo}o`;
-      return {
-        i,
-        key,
-        combos: r === c ? 6 : r < c ? 4 : 12,
-        parts: actions.map((_, a) => ({
-          a,
-          freq: (node.freq[a]?.[i] ?? 0) / 255,
-          ev: node.ev[a] ? node.ev[a][i] / 100 : null,
-        })),
-      };
+      const parts = actions.map((_, a) => ({
+        a,
+        freq: (node.freq[a]?.[i] ?? 0) / 255,
+        ev: node.ev[a] ? node.ev[a][i] / 100 : null,
+      }));
+      return { i, key, combos: r === c ? 6 : r < c ? 4 : 12, parts, inRange: parts.some((p) => p.freq > 0) };
     }),
   );
 
@@ -72,12 +69,15 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div class="matrix" onmouseleave={() => (hover = null)}>
   {#each cells as c (c.i)}
-    {@const share = mixedShare(c)}
+    {@const share = c.inRange ? mixedShare(c) : null}
     <div
       class="cell"
       class:on={played(c) >= 0.6}
-      style="background:{fill(c)}"
-      aria-label="{c.key}: {c.parts.map((p) => `${actionName(actions[p.a], line)} ${pct(p.freq)}`).join(', ')}"
+      class:out={!c.inRange}
+      style={c.inRange ? `background:${fill(c)}` : undefined}
+      aria-label={c.inRange
+        ? `${c.key}: ${c.parts.map((p) => `${actionName(actions[p.a], line)} ${pct(p.freq)}`).join(", ")}`
+        : `${c.key}: nicht in der Range`}
       onmouseenter={(e) => show(e, c)}
     >
       <span class="k">{c.key}</span>
@@ -89,6 +89,9 @@
     {@const best = bestEv(c)}
     <div class="tip" use:floating={{ anchor: hover.anchor }}>
       <header><b>{c.key}</b> · {c.combos} Kombos</header>
+      {#if !c.inRange}
+        <p class="out-note">Nicht in der Range: Diese Hand hat vorher anders gespielt und kommt hier nicht an.</p>
+      {:else}
       <table>
         <thead><tr><th></th><th>Anteil</th><th>EV</th></tr></thead>
         <tbody>
@@ -102,6 +105,7 @@
         </tbody>
       </table>
       <footer>EV im Modell, gemessen am Stack vor der Hand.</footer>
+      {/if}
     </div>
   {/if}
 </div>
@@ -128,6 +132,12 @@
   }
   .cell.on {
     color: #121418;
+  }
+  .cell.out {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--line);
+    color: var(--text-3);
+    opacity: 0.55;
   }
   .cell:hover {
     outline: 1px solid var(--text);
@@ -166,6 +176,12 @@
   }
   .tip tr.best td {
     font-weight: 600;
+  }
+  .out-note {
+    margin: 6px 0 0;
+    max-width: 220px;
+    font-size: 12px;
+    color: var(--text-2);
   }
   .tip footer {
     margin-top: 6px;

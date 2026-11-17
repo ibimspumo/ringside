@@ -143,6 +143,26 @@ pub struct Settings {
     pub presets: Vec<Preset>,
     /// Changed only through the cloud commands, see `cloud.rs`.
     pub cloud: CloudSettings,
+    /// Changed only through `library_set_mode`, see `library.rs`.
+    pub library: LibrarySettings,
+}
+
+/// When the spot library may grow in the background.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibraryMode {
+    Off,
+    /// While nobody uses the computer.
+    #[default]
+    Idle,
+    /// Whenever PokerStars is closed and the app is not in use.
+    Always,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LibrarySettings {
+    pub background: LibraryMode,
 }
 
 /// Ringside Cloud: shared push/fold solutions. On by default; the first start shows what
@@ -182,6 +202,7 @@ impl Default for Settings {
             layouts: BTreeMap::new(),
             presets: Vec::new(),
             cloud: CloudSettings::default(),
+            library: LibrarySettings::default(),
         }
     }
 }

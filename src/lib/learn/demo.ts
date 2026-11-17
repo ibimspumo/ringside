@@ -30,6 +30,7 @@ const NAMES: Record<LearnKind, string> = {
   push_fold_open: "Shove oder Fold, wenn alle zu dir gefoldet haben",
   push_fold_call: "Call gegen einen Shove",
   all_in: "All-ins eigener Hände",
+  full_hands: "Ganze Hände",
 };
 const KINDS = Object.keys(NAMES) as LearnKind[];
 const LEVEL_NAMES = ["neu", "kennengelernt", "mit Hilfe", "selbstständig", "bestätigt"] as const;
@@ -340,6 +341,8 @@ function genTask(kind: LearnKind, level: number, r: Rng): Task {
     }
     case "all_in":
       throw "Diese Übungsart gibt es nur aus eigenen Händen.";
+    case "full_hands":
+      throw "Ganze Hände gibt es im Übungsmodus „Hände spielen“.";
   }
 }
 

@@ -7,6 +7,7 @@
   import Ring from "./Ring.svelte";
   import Task from "./Task.svelte";
   import Weaknesses from "./Weaknesses.svelte";
+  import { openPlay } from "../play/nav.svelte";
 
   let {
     progress,
@@ -224,6 +225,10 @@
       <button class="door" onclick={onTrainer}>
         <b>Trainer</b>
         <span>Eine Fertigkeit gezielt üben, so lange du willst.</span>
+      </button>
+      <button class="door" onclick={openPlay}>
+        <b>Ganze Hände spielen</b>
+        <span>Zufällige Hände am Tisch, jede Entscheidung sofort bewertet.</span>
       </button>
     </div>
   </div>

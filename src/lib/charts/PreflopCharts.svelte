@@ -1,15 +1,17 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api } from "../api";
+  import { api, onPreflopProgress } from "../api";
   import PreflopChart from "./PreflopChart.svelte";
   import { GROUP_LABEL, actionColor, actionName, bb, spotGroup, spotLabel, spotTitle, type SpotGroup } from "./preflop-labels";
-  import type { PreflopGrid, PreflopNode, PreflopSpot, PreflopSpots } from "./preflop-types";
+  import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpot, PreflopSpots } from "./preflop-types";
 
   /** Spots reached less often than this are left out of the list. */
   const MIN_REACH = 1e-4;
   const GROUPS: SpotGroup[] = ["open", "vs_open", "vs_3bet", "later"];
+  const ANTE_LABEL: Record<PreflopAnte, string> = { none: "Ohne Ante", classic: "Ante", big_blind: "BB-Ante" };
 
   let grid = $state<PreflopGrid | null>(null);
+  let ante = $state<PreflopAnte>("big_blind");
   let players = $state(9);
   let stack = $state(40);
   let custom = $state("");
@@ -20,11 +22,20 @@
   let node = $state<PreflopNode | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
+  /** Checks of the running live solve; the first one sets the scale of the bar. */
+  let progress = $state<{ first: PreflopProgress; last: PreflopProgress } | null>(null);
   const spotCache = new Map<string, PreflopSpots>();
   const nodeCache = new Map<string, PreflopNode>();
 
   onMount(() => {
     api.preflopGrid().then((g) => (grid = g));
+    const off = onPreflopProgress((p) => {
+      if (p.ante !== ante || p.players !== players || p.stack_bb !== stack) return;
+      progress = progress ? { first: progress.first, last: p } : { first: p, last: p };
+    });
+    return () => {
+      off.then((f) => f());
+    };
   });
 
   const live = $derived(!!grid && players <= grid.live_max_players);
@@ -32,7 +43,7 @@
 
   $effect(() => {
     if (!grid) return;
-    const key = `${players}|${stack}`;
+    const key = `${ante}|${players}|${stack}`;
     const hit = spotCache.get(key);
     if (hit) {
       spots = hit;
@@ -42,8 +53,9 @@
     let alive = true;
     loading = true;
     error = null;
+    progress = null;
     api
-      .preflopSpots(players, stack)
+      .preflopSpots(ante, players, stack)
       .then((s) => {
         spotCache.set(key, s);
         if (alive) spots = s;
@@ -70,7 +82,7 @@
       node = null;
       return;
     }
-    const key = `${spots.players}|${spots.stack_bb}|${spot.id}`;
+    const key = `${spots.ante}|${spots.players}|${spots.stack_bb}|${spot.id}`;
     const hit = nodeCache.get(key);
     if (hit) {
       node = hit;
@@ -78,7 +90,7 @@
     }
     let alive = true;
     api
-      .preflopNode(spots.players, spots.stack_bb, spot.id)
+      .preflopNode(spots.ante, spots.players, spots.stack_bb, spot.id)
       .then((n) => {
         nodeCache.set(key, n);
         if (alive) node = n;
@@ -110,6 +122,22 @@
   );
 
   const pct = (x: number, d = 1) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
+
+  /** Share of the way from the first check to the target, on a log scale of NashConv. */
+  const done = $derived.by(() => {
+    if (!progress) return 0;
+    const { first, last } = progress;
+    const span = Math.log(first.exploitability / last.target_exploitability);
+    const byExpl = span > 0 ? Math.log(first.exploitability / last.exploitability) / span : 0;
+    return Math.min(1, Math.max(byExpl, last.iterations / last.max_iterations, 0));
+  });
+
+  const anteText = (s: { ante_bb: number; bb_ante_bb: number }) =>
+    s.ante_bb > 0
+      ? `Ante ${bb(s.ante_bb)} BB je Spieler`
+      : s.bb_ante_bb > 0
+        ? `BB-Ante ${bb(s.bb_ante_bb)} BB, zahlt der Big Blind`
+        : "Keine Ante, nur Blinds";
   const played = (s: PreflopSpot) => s.actions.filter((a) => a.kind !== "fold").reduce((t, a) => t + a.pct, 0);
 
   const sizesText = $derived.by(() => {
@@ -137,8 +165,12 @@
       </div>
     </div>
     <div class="ctl">
-      <span class="lbl">Antes</span>
-      <span class="static">BB-Ante {bb(grid.bb_ante_bb)} BB</span>
+      <span class="lbl">Ante</span>
+      <div class="seg" role="group" aria-label="Ante-Struktur">
+        {#each grid.antes as a (a.ante)}
+          <button class:on={ante === a.ante} title={anteText(a)} onclick={() => (ante = a.ante)}>{ANTE_LABEL[a.ante]}</button>
+        {/each}
+      </div>
     </div>
     <div class="ctl">
       <label class="lbl" for="pre-stack">Stack</label>
@@ -205,7 +237,7 @@
       <div class="panel-head">
         <h2 class="panel-title">{spot ? spotTitle(spot) : "Chart"}</h2>
         {#if spot}
-          <span class="faint num">spielt {pct(played(spot))} % der Hände</span>
+          <span class="faint num">spielt {pct(played(spot))} % der Hände, die hier ankommen</span>
         {/if}
       </div>
       {#if spot}
@@ -225,7 +257,18 @@
         {/if}
       </div>
       {#if loading && !onGrid}
-        <p class="busy faint">Wird live berechnet … ohne vorgerechnete Tabelle dauert das bis zu einigen Minuten.</p>
+        <div class="busy">
+          <div class="bar" role="progressbar" aria-label="Fortschritt der Live-Berechnung" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(done * 100)}>
+            <i style="width:{(done * 100).toFixed(1)}%"></i>
+          </div>
+          <p class="faint">
+            Wird live berechnet … Auf einem Laptop mit 4 Kernen dauert das {players > 6 ? "etwa 4 bis 8 Minuten" : "etwa 2 bis 3 Minuten"}.
+            {#if progress}
+              <span class="num">Iteration {progress.last.iterations}, ausnutzbar {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)</span>
+            {/if}
+          </p>
+          <button class="btn" onclick={() => api.preflopCancel()}>Abbrechen</button>
+        </div>
       {/if}
     </section>
 
@@ -237,7 +280,7 @@
             <dt>Tisch</dt>
             <dd>{spots.players} Spieler, je {bb(spots.stack_bb)} BB</dd>
             <dt>Antes</dt>
-            <dd>BB-Ante {bb(spots.bb_ante_bb)} BB, zahlt der Big Blind</dd>
+            <dd>{anteText(spots)}</dd>
             <dt>Erreicht</dt>
             <dd class="num">{pct(spot.reach * 100, 2)} % der Hände</dd>
             <dt>Quelle</dt>
@@ -336,10 +379,6 @@
     font-size: 12px;
     color: var(--text-2);
   }
-  .static {
-    font-size: 13px;
-    line-height: 30px;
-  }
   .seg.wrap {
     flex-wrap: wrap;
   }
@@ -399,8 +438,29 @@
     opacity: 0.45;
   }
   .busy {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
     margin: -6px 18px 14px;
     font-size: 12.5px;
+  }
+  .busy p {
+    flex: 1 1 260px;
+    margin: 0;
+  }
+  .bar {
+    flex: 1 1 100%;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .bar i {
+    display: block;
+    height: 100%;
+    background: var(--text);
+    transition: width 0.4s;
   }
   .msg {
     margin: 0;

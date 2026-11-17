@@ -22,7 +22,8 @@
 - Turniere: Buy-ins, Preisgeld, Bounties, ROI und ITM je Währung. Ein Klick filtert alle Ansichten auf ein Turnier.
 - Live-Tische: deine Gegner an allen offenen Tischen mit HUD-Werten und PokerStars-Notizen.
 - Spieler mit Detailansicht und allen Händen, die sie gezeigt haben.
-- Hände mit Filtern und Replayer.
+- Hände mit Filtern und Replayer. *Hand-Analyse:* ein Klick bewertet deine ganze Historie oder eine einzelne Hand – jede deiner Entscheidungen bekommt eine Stufe von „beste Wahl“ bis „grober Fehler“, den EV-Verlust in BB und einen Satz zum Warum. Die Liste startet mit deinen teuersten Fehlern; im Replayer markiert die Zeitleiste jede Entscheidung.
+- Aufgaben-Zentrale: alles, was länger rechnet (Solver, Analyse, Bibliothek, Coach), läuft im Hintergrund weiter, zeigt Fortschritt und Restzeit und lässt sich jederzeit abbrechen.
 - HUD-Editor: Panels direkt auf einem eigenen PokerStars-Screenshot ausrichten, Profile als JSON exportieren und importieren.
 
 **Lernen** (gesperrt, solange PokerStars läuft)
@@ -32,14 +33,16 @@
 - *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold aus jeder Position an Tischen mit 2–9 Spielern und mehr, in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
 - *Deine Schwachstellen:* Themen aus den Coach-Berichten fließen in die tägliche Auswahl ein.
 - *Charts:* Push/Fold-Gleichgewicht für 2–9 Spieler, jede Position, Shove oder Call gegen Shove, ohne Ante, mit Ante oder BB-Ante (720 Tabellen vorgerechnet, alles andere live). Dazu Preflop-Charts für 15–100 BB an 6-, 8- und 9-max-Tischen mit Open, 3-Bet, 4-Bet und All-in – als *Modell*, weil das Spiel nach dem Flop über Equity-Realisierung geschätzt wird.
-- *Solver:* Heads-up-Postflop-Solver für Flop, Turn und River mit eigenem Range-Editor; im Replayer startet „Diesen Spot lösen“ mit Board, Pot und Stacks der Hand. Die Lösung gilt für die gewählten Ranges und Einsatzgrößen.
-- *Solver:* Heads-up-Spots ab Flop, Turn oder River lösen – mit eigenen Ranges (13×13-Editor mit Gewichten und Vorlagen), Pot, Stack und Einsatzgrößen. Vorher schätzt Ringside Speicher und Zeit. Das Ergebnis zeigt die Strategie je Hand, Equity und EV in jedem Knoten. „Diesen Spot lösen“ im Replayer übernimmt Board, Pot und Stack einer Hand.
+- *Hände spielen:* endlos zufällige, ganze Hände an einem 6-, 8- oder 9-max-Tisch. Die Gegner spielen nach dem Modell bzw. der Lösung, du bekommst nach jedem Zug eine Bewertung mit Begründung, dazu Session-Statistik, „Hand wiederholen“ und „Tipp anzeigen“. Postflop-Spots rechnet Ringside im Hintergrund voraus.
+- *Solver:* Spot am Tisch aufbauen (Positionen anklicken, Ranges aus dem Preflop-Modell), lösen, Zug um Zug durchspielen und gegen die Lösung üben. Eigene Einsatzgrößen lassen sich nachrechnen. Lösungen bleiben unter „Meine Lösungen“ gespeichert. „Diesen Spot lösen“ im Replayer übernimmt Board, Pot und Stack einer Hand.
+- *Bibliothek:* häufige Postflop-Spots über eine repräsentative Flop-Auswahl, als signiertes Paket geladen oder im Leerlauf selbst gerechnet und über Ringside Cloud geteilt.
 - *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
 
 **KI-Coach** (optional, mit eigenem [OpenRouter](https://openrouter.ai)-Key)
 - Analysiert ein abgeschlossenes Turnier und speichert den Bericht: Gesamteindruck, Spots mit Urteil, bessere Alternative und Schwerpunkte zum Üben.
 - Das Sprachmodell rechnet nie selbst. Jede Zahl holt es über Werkzeuge aus Ringsides Engine; jede Zahl zeigt, ob sie berechnet oder geschätzt ist.
 - Gegnernamen werden vor dem Senden anonymisiert, vor jedem Lauf siehst du die geschätzten Kosten. Der Key liegt im Windows-Tresor.
+- Gründlichkeit wählbar, Fortschritt live. Bei Bubble und Finaltisch rechnet er Push/Fold mit ICM (echte Auszahlungen aus der Turnier-Zusammenfassung oder eine gekennzeichnete Standard-Struktur).
 
 **Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht für 2–9 Spieler (heads-up identisch mit HoldemResources, 3-handed auf einen Prozentpunkt bei Ganzfried & Sandholm 2008).
 

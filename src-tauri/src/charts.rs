@@ -2,15 +2,17 @@
 //! and a live solve for everything off their grid where that stays quick. Locked
 //! while the PokerStars client runs, like the learning area.
 
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Condvar, Mutex};
 
 use ringside_engine::multiway::{MAX_PLAYERS, Solution, seat_name, solve};
 use ringside_engine::preflop::{self, Kind, Realization, Sizes};
 use ringside_engine::preflop_table;
 use ringside_engine::pushfold_table::{Ante, MIN_PLAYERS, lookup, params, stacks};
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Emitter};
 
+use crate::jobs::{self, Target};
 use crate::{CmdResult, blocking};
 
 /// Deeper stacks barely shove anymore, and solves get slow.
@@ -130,7 +132,17 @@ pub async fn pushfold_chart(ante: Ante, players: usize, stack_bb: f64, app: AppH
         match lookup(&p) {
             Some(sol) => Ok(chart(ante, players, stack_bb, true, &sol)),
             None => {
-                let sol = solve(&p).map_err(|e| e.to_string())?;
+                let task = jobs::start(
+                    jobs::Kind::PushFold,
+                    format!("Push/Fold-Chart rechnen: {players} Spieler, {} BB", fmt_bb(stack_bb)),
+                    Target::to("charts", None),
+                );
+                task.not_cancellable();
+                let result = solve(&p);
+                if let Err(e) = &result {
+                    task.fail(e.to_string());
+                }
+                let sol = result.map_err(|e| e.to_string())?;
                 Ok(chart(ante, players, stack_bb, false, &sol))
             }
         }
@@ -141,19 +153,29 @@ pub async fn pushfold_chart(ante: Ante, players: usize, stack_bb: f64, app: AppH
 // ---------------------------------------------------------------------------------
 // Preflop model (deeper stacks).
 
-/// Live solves stay within a minute or two on a normal PC only at six-handed tables.
-const PREFLOP_LIVE_MAX_PLAYERS: usize = 6;
+/// On four threads of a fast desktop a live solve took 78 s at six players and 114–199 s
+/// at eight and nine (45–60 BB); a four-core laptop needs about twice that. So solves
+/// report progress and can be stopped.
+const PREFLOP_LIVE_MAX_PLAYERS: usize = 9;
 const PREFLOP_LIVE_STACKS: (f64, f64) = (10.0, 100.0);
 
 #[derive(Serialize)]
 pub struct PreflopGrid {
     players: Vec<usize>,
     stacks: Vec<f64>,
-    bb_ante_bb: f64,
+    antes: Vec<PreflopAnte>,
     live_max_players: usize,
     live_min_stack_bb: f64,
     live_max_stack_bb: f64,
     target_exploitability_bb: f64,
+}
+
+#[derive(Serialize)]
+struct PreflopAnte {
+    ante: Ante,
+    /// Ante per player and of the big blind alone, in BB.
+    ante_bb: f64,
+    bb_ante_bb: f64,
 }
 
 #[derive(Serialize)]
@@ -162,6 +184,8 @@ pub struct PreflopSpots {
     /// Position names by seat.
     positions: Vec<&'static str>,
     stack_bb: f64,
+    ante: Ante,
+    ante_bb: f64,
     bb_ante_bb: f64,
     precomputed: bool,
     converged: bool,
@@ -186,7 +210,7 @@ struct PreflopStep {
 struct PreflopAction {
     kind: Kind,
     to_bb: f64,
-    /// Share of all combos that take it, in percent.
+    /// Share of the range reaching the spot that takes it, in percent.
     pct: f64,
 }
 
@@ -215,46 +239,120 @@ struct PreflopRealized {
 #[derive(Serialize)]
 pub struct PreflopNode {
     id: usize,
-    /// Frequency per action and hand class (`HandClass::index`), 0–255.
+    /// Frequency per action and hand class (`HandClass::index`), 0–255; all 0 for a
+    /// class that is out of range at this spot.
     freq: Vec<Vec<u8>>,
     /// EV per action and hand class, in hundredths of a BB against the starting stack.
     ev: Vec<Vec<i32>>,
 }
 
-/// Players, stack bits, precomputed, solution.
-type CachedPreflop = (usize, u64, bool, Arc<preflop::Solution>);
+/// How far a live solve is, sent as `preflop-progress`.
+#[derive(Clone, Serialize)]
+struct PreflopProgress {
+    ante: Ante,
+    players: usize,
+    stack_bb: f64,
+    #[serde(flatten)]
+    progress: preflop::Progress,
+}
+
+/// Ante, players, stack bits, precomputed, solution.
+type CachedPreflop = (Ante, usize, u64, bool, Arc<preflop::Solution>);
 
 /// The last solutions asked for, so that browsing nodes doesn't decode or solve again.
 static PREFLOP_CACHE: Mutex<Vec<CachedPreflop>> = Mutex::new(Vec::new());
+/// Set by `preflop_cancel`; a running live solve stops at its next check.
+static PREFLOP_CANCEL: AtomicBool = AtomicBool::new(false);
+/// Keys of live solves running now; a page that asks again for one waits for it.
+static PREFLOP_RUNNING: Mutex<Vec<(Ante, usize, u64)>> = Mutex::new(Vec::new());
+static PREFLOP_DONE: Condvar = Condvar::new();
 
-fn preflop_solution(players: usize, stack_bb: f64) -> Result<(bool, Arc<preflop::Solution>), String> {
-    let key = (players, stack_bb.to_bits());
-    if let Some(hit) = PREFLOP_CACHE.lock().unwrap().iter().find(|e| (e.0, e.1) == key) {
-        return Ok((hit.2, hit.3.clone()));
+fn fmt_bb(x: f64) -> String {
+    format!("{x}").replace('.', ",")
+}
+
+/// Removes its key from `PREFLOP_RUNNING` however the solve ends.
+struct Running((Ante, usize, u64));
+
+impl Drop for Running {
+    fn drop(&mut self) {
+        PREFLOP_RUNNING.lock().unwrap().retain(|k| *k != self.0);
+        PREFLOP_DONE.notify_all();
+    }
+}
+
+fn cached(key: (Ante, usize, u64)) -> Option<(bool, Arc<preflop::Solution>)> {
+    PREFLOP_CACHE.lock().unwrap().iter().find(|e| (e.0, e.1, e.2) == key).map(|hit| (hit.3, hit.4.clone()))
+}
+
+fn preflop_solution(
+    ante: Ante,
+    players: usize,
+    stack_bb: f64,
+    live: Option<(&AppHandle, &AtomicBool)>,
+) -> Result<(bool, Arc<preflop::Solution>), String> {
+    let key = (ante, players, stack_bb.to_bits());
+    if let Some(hit) = cached(key) {
+        return Ok(hit);
     }
     if !preflop_table::PLAYERS.contains(&players) {
         return Err("Das Preflop-Modell gibt es für 6, 8 und 9 Spieler.".into());
     }
-    let p = preflop_table::params(players, stack_bb);
+    let p = preflop_table::params(ante, players, stack_bb);
     let (precomputed, sol) = match preflop_table::lookup(&p) {
         Some(sol) => (true, sol),
         None => {
             let (lo, hi) = PREFLOP_LIVE_STACKS;
             if players > PREFLOP_LIVE_MAX_PLAYERS {
-                return Err(format!(
-                    "Für {players} Spieler gibt es nur die vorgerechneten Tiefen. Live würde diese Tiefe auf einem normalen PC zu lange dauern."
-                ));
+                return Err(format!("Für {players} Spieler gibt es nur die vorgerechneten Tiefen."));
             }
             if !(stack_bb.is_finite() && (lo..=hi).contains(&stack_bb)) {
                 return Err(format!("Der Stack muss zwischen {lo} und {hi} BB liegen."));
             }
-            (false, preflop::solve(&p).map_err(|e| e.to_string())?)
+            // Browsing the nodes of a live solve only reads the cache.
+            let Some((app, client_running)) = live else {
+                return Err("Diese Tiefe ist nicht berechnet.".into());
+            };
+            // The page asks again when it is opened again while the solve still runs.
+            let mut running = PREFLOP_RUNNING.lock().unwrap();
+            if running.contains(&key) {
+                running = PREFLOP_DONE.wait_while(running, |r| r.contains(&key)).unwrap();
+                drop(running);
+                return cached(key).ok_or_else(|| "Die Berechnung wurde abgebrochen.".into());
+            }
+            running.push(key);
+            drop(running);
+            let _running = Running(key);
+            let task = jobs::start(
+                jobs::Kind::Preflop,
+                format!("Preflop-Chart rechnen: {players} Spieler, {} BB", fmt_bb(stack_bb)),
+                Target::to("charts", None),
+            );
+            PREFLOP_CANCEL.store(false, Ordering::SeqCst);
+            let mut first: Option<f64> = None;
+            let solved = preflop::solve_with(&p, |progress| {
+                let _ = app.emit("preflop-progress", PreflopProgress { ante, players, stack_bb, progress: *progress });
+                let start = *first.get_or_insert(progress.exploitability);
+                let span = (start / progress.target_exploitability).ln();
+                let way = if span > 0.0 { (start / progress.exploitability).ln() / span } else { 0.0 };
+                let iterations = progress.iterations as f64 / progress.max_iterations.max(1) as f64;
+                task.progress(way.max(iterations));
+                task.detail(format!("Iteration {} von höchstens {}", progress.iterations, progress.max_iterations));
+                !PREFLOP_CANCEL.load(Ordering::Relaxed) && !client_running.load(Ordering::Relaxed) && !task.should_stop()
+            });
+            match &solved {
+                Ok(Some(_)) => task.finish(),
+                Ok(None) => task.stopped(),
+                Err(e) => task.fail(e.to_string()),
+            }
+            let solved = solved.map_err(|e| e.to_string())?;
+            (false, solved.ok_or("Die Berechnung wurde abgebrochen.")?)
         }
     };
     let sol = Arc::new(sol);
     let mut cache = PREFLOP_CACHE.lock().unwrap();
-    cache.retain(|e| (e.0, e.1) != key);
-    cache.insert(0, (players, stack_bb.to_bits(), precomputed, sol.clone()));
+    cache.retain(|e| (e.0, e.1, e.2) != key);
+    cache.insert(0, (ante, players, stack_bb.to_bits(), precomputed, sol.clone()));
     cache.truncate(4);
     Ok((precomputed, sol))
 }
@@ -268,10 +366,17 @@ fn steps(players: usize, line: &[preflop::Step]) -> Vec<PreflopStep> {
 #[tauri::command]
 pub async fn preflop_grid(app: AppHandle) -> CmdResult<PreflopGrid> {
     blocking(app, |_| {
+        let antes = Ante::ALL
+            .into_iter()
+            .map(|ante| {
+                let (ante_bb, bb_ante_bb) = ante.amounts();
+                PreflopAnte { ante, ante_bb, bb_ante_bb }
+            })
+            .collect();
         Ok(PreflopGrid {
             players: preflop_table::PLAYERS.to_vec(),
             stacks: preflop_table::STACKS.to_vec(),
-            bb_ante_bb: preflop_table::BB_ANTE_BB,
+            antes,
             live_max_players: PREFLOP_LIVE_MAX_PLAYERS,
             live_min_stack_bb: PREFLOP_LIVE_STACKS.0,
             live_max_stack_bb: PREFLOP_LIVE_STACKS.1,
@@ -282,11 +387,14 @@ pub async fn preflop_grid(app: AppHandle) -> CmdResult<PreflopGrid> {
 }
 
 /// Every decision of the model at equal stacks of `stack_bb`, without the per-hand data.
+/// Off the grid this solves live and sends `preflop-progress` until done or cancelled.
 #[tauri::command]
-pub async fn preflop_spots(players: usize, stack_bb: f64, app: AppHandle) -> CmdResult<PreflopSpots> {
-    blocking(app, move |_| {
-        let (precomputed, sol) = preflop_solution(players, stack_bb)?;
-        let p = preflop_table::params(players, stack_bb);
+pub async fn preflop_spots(ante: Ante, players: usize, stack_bb: f64, app: AppHandle) -> CmdResult<PreflopSpots> {
+    let handle = app.clone();
+    blocking(app, move |state| {
+        let (precomputed, sol) = preflop_solution(ante, players, stack_bb, Some((&handle, &state.client_running)))?;
+        let p = preflop_table::params(ante, players, stack_bb);
+        let reach = sol.own_reach();
         let nodes = sol
             .nodes
             .iter()
@@ -300,7 +408,7 @@ pub async fn preflop_spots(players: usize, stack_bb: f64, app: AppHandle) -> Cmd
                     .actions
                     .iter()
                     .enumerate()
-                    .map(|(a, x)| PreflopAction { kind: x.kind, to_bb: x.to_bb, pct: sol.action_pct(id, a) })
+                    .map(|(a, x)| PreflopAction { kind: x.kind, to_bb: x.to_bb, pct: sol.action_pct_in(id, a, &reach[id]) })
                     .collect(),
                 reach: n.reach,
             })
@@ -322,6 +430,8 @@ pub async fn preflop_spots(players: usize, stack_bb: f64, app: AppHandle) -> Cmd
             players,
             positions: ringside_engine::multiway::position_names(players),
             stack_bb,
+            ante,
+            ante_bb: p.ante_bb,
             bb_ante_bb: p.bb_ante_bb,
             precomputed,
             converged: sol.converged,
@@ -339,9 +449,9 @@ pub async fn preflop_spots(players: usize, stack_bb: f64, app: AppHandle) -> Cmd
 
 /// Frequencies and EVs of one decision.
 #[tauri::command]
-pub async fn preflop_node(players: usize, stack_bb: f64, node: usize, app: AppHandle) -> CmdResult<PreflopNode> {
+pub async fn preflop_node(ante: Ante, players: usize, stack_bb: f64, node: usize, app: AppHandle) -> CmdResult<PreflopNode> {
     blocking(app, move |_| {
-        let (_, sol) = preflop_solution(players, stack_bb)?;
+        let (_, sol) = preflop_solution(ante, players, stack_bb, None)?;
         let n = sol.nodes.get(node).ok_or("Diesen Spot gibt es nicht.")?;
         Ok(PreflopNode {
             id: node,
@@ -350,4 +460,10 @@ pub async fn preflop_node(players: usize, stack_bb: f64, node: usize, app: AppHa
         })
     })
     .await
+}
+
+/// Stops a running live preflop solve.
+#[tauri::command]
+pub fn preflop_cancel() {
+    PREFLOP_CANCEL.store(true, Ordering::SeqCst);
 }

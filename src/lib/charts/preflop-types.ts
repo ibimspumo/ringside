@@ -1,11 +1,15 @@
 // Preflop model charts (deeper stacks), mirrored from src-tauri/src/charts.rs.
+import type { PushFoldAnte } from "../types";
+
+export type PreflopAnte = PushFoldAnte;
 
 export type PreflopKind = "fold" | "check" | "call" | "limp" | "raise" | "all_in";
 
 export interface PreflopGrid {
   players: number[];
   stacks: number[];
-  bb_ante_bb: number;
+  /** Ante per player and of the big blind alone, in BB. */
+  antes: { ante: PreflopAnte; ante_bb: number; bb_ante_bb: number }[];
   /** Stacks off the grid are solved live only up to this many players. */
   live_max_players: number;
   live_min_stack_bb: number;
@@ -24,7 +28,7 @@ export interface PreflopStep {
 export interface PreflopAction {
   kind: PreflopKind;
   to_bb: number;
-  /** Share of all combos that take it, in percent. */
+  /** Share of the range reaching the spot that takes it, in percent. */
   pct: number;
 }
 
@@ -80,6 +84,8 @@ export interface PreflopSpots {
   /** Position names by seat. */
   positions: string[];
   stack_bb: number;
+  ante: PreflopAnte;
+  ante_bb: number;
   bb_ante_bb: number;
   /** False: solved live because the grid has no such depth. */
   precomputed: boolean;
@@ -95,8 +101,20 @@ export interface PreflopSpots {
 
 export interface PreflopNode {
   id: number;
-  /** Frequency per action and hand class (row * 13 + col, ace first), 0–255. */
+  /** Frequency per action and hand class (row * 13 + col, ace first), 0–255; all 0 for a hand out of range here. */
   freq: number[][];
   /** EV per action and hand class, hundredths of a BB against the starting stack. */
   ev: number[][];
+}
+
+/** Event `preflop-progress` while a depth off the grid is solved live. */
+export interface PreflopProgress {
+  ante: PreflopAnte;
+  players: number;
+  stack_bb: number;
+  iterations: number;
+  max_iterations: number;
+  /** Best NashConv checked so far, BB per hand. */
+  exploitability: number;
+  target_exploitability: number;
 }

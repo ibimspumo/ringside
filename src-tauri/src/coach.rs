@@ -17,6 +17,7 @@ use ringside_core::db::Filter;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::jobs::{self, Kind, Target};
 use crate::{AppState, CmdResult, blocking, err, now_secs};
 
 const VAULT_SERVICE: &str = "Ringside";
@@ -206,11 +207,23 @@ pub async fn coach_run(token: String, app: AppHandle) -> CmdResult<Report> {
             let client = Client::new(BASE_URL, Some(required_key()?));
             coach.cancel.store(false, Ordering::SeqCst);
             let cancel = coach.cancel.clone();
+            let task = jobs::start(Kind::Coach, "Coach bespricht ein Turnier", Target::to("coach", None));
+            let hook = cancel.clone();
+            task.on_cancel(move || hook.store(true, Ordering::SeqCst));
             let stop = || cancel.load(Ordering::Relaxed) || state.client_running.load(Ordering::Relaxed);
             let mut progress = |p: &ringside_coach::Progress| {
                 let _ = handle.emit("coach-progress", p);
+                task.target(Target::to("coach", Some(p.tournament_id as i64)));
+                task.steps(p.step as u64, p.max_steps as u64);
+                task.detail(p.message.clone());
             };
-            match run(confirmed, &client, now_secs(), &mut progress, &stop) {
+            let result = run(confirmed, &client, now_secs(), &mut progress, &stop);
+            match &result {
+                Ok(_) => task.finish(),
+                Err(CoachError::Api(ApiError::Cancelled)) => task.stopped(),
+                Err(e) => task.fail(e.to_string()),
+            }
+            match result {
                 Ok(report) => {
                     let json = serde_json::to_string(&report).map_err(err)?;
                     let db = state.db.lock().unwrap();
