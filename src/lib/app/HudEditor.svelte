@@ -1231,7 +1231,7 @@
       display: flex;
     }
     .stage-wrap.compact .stage {
-      width: min(100%, calc((100vh - 460px) * var(--aspect))) !important;
+      width: min(100%, calc((100vh - 400px) * var(--aspect))) !important;
     }
     /* Table, then the settings, then the how-to: the settings start in the first screen. */
     .stage-col {
