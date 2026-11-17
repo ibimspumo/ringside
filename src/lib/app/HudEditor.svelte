@@ -320,8 +320,10 @@
             {/if}
           </ul>
           <div class="row actions">
-            <span class="state faint">{customised ? "Eigene Positionen" : "Standard-Positionen"}</span>
-            <button class="btn ghost" onclick={resetLayout} disabled={!customised}>Zurücksetzen</button>
+            <span class="state" class:custom={customised} title="Positionen gelten je Tischgröße, für jede Fenstergröße – am Tisch wie hier.">
+              <i></i>{customised ? `Eigene Positionen für ${maxSeats} Plätze` : `Standard-Positionen für ${maxSeats} Plätze`}
+            </span>
+            {#if customised}<button class="btn ghost" onclick={resetLayout}>Zurücksetzen</button>{/if}
             <label class="btn" title="Screenshot eines PokerStars-Tischs als Hintergrund, um Ring, Zahlenfeld oder Box genau auf die Avatare zu ziehen.">
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.5-2h7L17 7.5h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6" /></svg>
               {shot ? "Anderen Screenshot" : "Tisch-Screenshot laden"}
@@ -338,11 +340,6 @@
             </label>
             <button class="btn ghost" onclick={dropShot}>Screenshot entfernen</button>
           </div>
-        {:else}
-          <p class="hint">
-            Für genaue Positionen: Screenshot eines PokerStars-Tischs laden und Ring, Zahlenfeld oder Box auf die Avatare ziehen.
-            Gespeichert wird je Tischgröße; das gilt für jede Fenstergröße, am Tisch wie hier.
-          </p>
         {/if}
       </section>
 
@@ -643,8 +640,8 @@
               <p>Sichern oder auf einen anderen Rechner mitnehmen.</p>
             </header>
             <div class="row">
-              <button class="btn" onclick={exportProfile} disabled={!inTauri}>Exportieren</button>
-              <button class="btn" onclick={importProfile} disabled={!inTauri}>Importieren</button>
+              <button class="btn" onclick={exportProfile} disabled={!inTauri} title={inTauri ? undefined : "Nur in der App"}>Exportieren</button>
+              <button class="btn" onclick={importProfile} disabled={!inTauri} title={inTauri ? undefined : "Nur in der App"}>Importieren</button>
               <button class="btn ghost danger push" onclick={resetProfile}>Alles auf Standard</button>
             </div>
           </section>
@@ -660,7 +657,7 @@
     padding-top: 20px;
   }
   .wide {
-    max-width: 1600px;
+    max-width: 2000px;
   }
   .layout {
     display: grid;
@@ -760,7 +757,21 @@
     gap: 8px;
   }
   .state {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
     font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .state i {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    border: 1.5px solid var(--text-3);
+  }
+  .state.custom i {
+    border-color: var(--text);
+    background: var(--text);
   }
   .shot-bar {
     display: flex;
@@ -777,13 +788,6 @@
   .crop em {
     font-style: normal;
     min-width: 40px;
-  }
-  .hint {
-    margin: 0;
-    font-size: 12.5px;
-    line-height: 1.55;
-    color: var(--text-2);
-    max-width: 720px;
   }
 
   .inspector {
@@ -1199,9 +1203,6 @@
     .stage-foot,
     .shot-bar {
       order: 2;
-    }
-    .hint {
-      display: none;
     }
     .mode {
       display: grid;
