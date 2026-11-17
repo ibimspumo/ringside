@@ -1,7 +1,7 @@
 <script lang="ts">
   import Felt from "../Felt.svelte";
   import PlayingCard from "../PlayingCard.svelte";
-  import { money } from "../stats";
+  import { money, moneyShort } from "../stats";
   import type { Action, Hand, Street } from "../types";
 
   let { hand }: { hand: Hand } = $props();
@@ -37,6 +37,11 @@
   let step = $state(0);
   let playing = $state(false);
   let inBB = $state(false);
+  let stageWidth = $state(860);
+  let stageHeight = $state(420);
+  let logEl = $state<HTMLElement>();
+  /** Seats, board and bets shrink with the stage so small windows keep the table readable. */
+  const k = $derived(Math.min(1, Math.max(0.8, Math.min(stageWidth / 860, stageHeight / 400))));
 
   $effect(() => {
     void hand.id;
@@ -53,6 +58,17 @@
     return () => clearInterval(t);
   });
 
+  // Keep the current log row in view without moving the page around it.
+  $effect(() => {
+    void step;
+    const row = logEl?.querySelector<HTMLElement>("li.now");
+    if (!logEl || !row) return;
+    const box = logEl.getBoundingClientRect();
+    const r = row.getBoundingClientRect();
+    if (r.top < box.top + 30) logEl.scrollTop -= box.top + 30 - r.top;
+    else if (r.bottom > box.bottom) logEl.scrollTop += r.bottom - box.bottom + 4;
+  });
+
   const LABEL: Record<string, string> = {
     post_small_blind: "SB",
     post_big_blind: "BB",
@@ -64,6 +80,39 @@
     bet: "Bet",
     raise: "Raise",
   };
+
+  /**
+   * Position names as the stats engine assigns them: the big blind is whoever posted it, the small
+   * blind only counts when posted from the seat right before, and the button sits before that.
+   */
+  const positions = $derived.by(() => {
+    const active = hand.seats.filter((s) => !s.sitting_out);
+    const n = active.length;
+    const out = new Map<string, string>();
+    if (n < 2) return out;
+    const posted = (kind: Action["kind"]) => hand.actions.find((a) => a.street === "preflop" && a.kind === kind)?.player;
+    let big = active.findIndex((s) => s.name === posted("post_big_blind"));
+    if (big < 0) {
+      const after = active.findIndex((s) => s.seat >= hand.button_seat);
+      big = ((after < 0 ? 0 : after) + 2) % n;
+    }
+    const order = Array.from({ length: n }, (_, i) => active[(big + 1 + i) % n].name);
+    if (n === 2) {
+      out.set(order[0], "BTN");
+      out.set(order[1], "BB");
+      return out;
+    }
+    const tail = ["BTN"];
+    if (posted("post_small_blind") === order[n - 2]) tail.push("SB");
+    tail.push("BB");
+    const LATE = ["LJ", "HJ", "CO"];
+    const EARLY = ["UTG", "UTG+1", "UTG+2", "UTG+3", "UTG+4"];
+    const rest = n - tail.length;
+    const early = Math.max(0, rest - LATE.length);
+    const labels = [...EARLY.slice(0, early), ...LATE.slice(LATE.length - (rest - early)), ...tail];
+    order.forEach((name, i) => out.set(name, labels[i]));
+    return out;
+  });
 
   const table = $derived.by(() => {
     const stacks = new Map(hand.seats.map((s) => [s.name, s.stack]));
@@ -111,21 +160,47 @@
         pot = 0;
       }
     }
-    return { stacks, put, label, folded, pot, board, revealed, winners, street, last };
+    let inFront = 0;
+    for (const v of put.values()) inFront += v;
+    return { stacks, put, label, folded, pot, total: pot + inFront, board, revealed, winners, street, last };
   });
 
   const heroSeat = $derived(hand.seats.find((s) => s.name === hand.hero)?.seat ?? 1);
+  const done = $derived(step >= events.length);
+
+  /** Actions grouped by street, each with its index in `events` so the log can follow the replay. */
+  const log = $derived.by(() => {
+    const out: { street: Street; items: { i: number; a: Action }[] }[] = [];
+    events.forEach((e, i) => {
+      if (e.type !== "action") return;
+      let group = out[out.length - 1];
+      if (!group || group.street !== e.action.street) out.push((group = { street: e.action.street, items: [] }));
+      group.items.push({ i, a: e.action });
+    });
+    return out;
+  });
+
+  const CENTER = { x: 0.5, y: 0.46 };
 
   function place(seat: number) {
     const n = Math.max(hand.max_seats, 2);
     const visual = (((seat - heroSeat) % n) + n) % n;
     const a = Math.PI / 2 + (visual * 2 * Math.PI) / n;
-    return { x: 0.5 + 0.4 * Math.cos(a), y: 0.47 + 0.36 * Math.sin(a) };
+    const x = 0.5 + 0.41 * Math.cos(a);
+    const y = 0.47 + 0.36 * Math.sin(a);
+    // Bets sit on the cloth between the seat and the pot.
+    return { x, y, bx: x + (CENTER.x - x) * 0.46, by: y + (CENTER.y - y) * 0.5 };
   }
 
   function amount(v: number) {
-    if (inBB && hand.big_blind > 0) return `${+(v / hand.big_blind).toFixed(1)} BB`;
+    if (inBB && hand.big_blind > 0) return `${(v / hand.big_blind).toLocaleString("de-DE", { maximumFractionDigits: 1 })} BB`;
     return money(v, hand.currency, hand.game);
+  }
+
+  function bbs(v: number) {
+    if (hand.big_blind <= 0) return "";
+    const n = v / hand.big_blind;
+    return n.toLocaleString("de-DE", { maximumFractionDigits: n < 10 ? 1 : 0 });
   }
 
   function cardsOf(name: string): string[] | null {
@@ -135,18 +210,30 @@
   }
 
   function key(e: KeyboardEvent) {
+    const t = e.target as HTMLElement | null;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
     if (e.key === "ArrowRight") step = Math.min(step + 1, events.length);
-    if (e.key === "ArrowLeft") step = Math.max(step - 1, 0);
-    if (e.key === " ") playing = !playing;
+    else if (e.key === "ArrowLeft") step = Math.max(step - 1, 0);
+    else if (e.key === " ") playing = !playing;
+    else return;
+    e.preventDefault();
   }
 
   const STREET_NAME: Record<Street, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
+  const ICON = {
+    first: "M6 5v14M18 6l-8 6 8 6z",
+    prev: "M16 6l-8 6 8 6z",
+    next: "M8 6l8 6-8 6z",
+    last: "M18 5v14M6 6l8 6-8 6z",
+    play: "M8 5.5v13l10-6.5z",
+    pause: "M8 5.5v13M16 5.5v13",
+  };
 </script>
 
 <svelte:window onkeydown={key} />
 
 <div class="replayer">
-  <div class="stage">
+  <div class="stage" bind:clientWidth={stageWidth} bind:clientHeight={stageHeight} style="--k:{k}">
     <Felt>
       <div class="center">
         <div class="board">
@@ -154,22 +241,35 @@
             <PlayingCard card={c} size={44} />
           {/each}
         </div>
-        {#if table.pot > 0}
-          <div class="pot num">Pot {amount(table.pot)}</div>
-        {/if}
+        <div class="pot" class:hidden={table.total <= 0}>
+          <span>Pot</span>
+          <b class="num">{amount(Math.max(table.total, 0))}</b>
+        </div>
         <div class="street">{STREET_NAME[table.street]}</div>
       </div>
 
       {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
         {@const p = place(s.seat)}
-        {@const cards = cardsOf(s.name)}
         {@const bet = table.put.get(s.name) ?? 0}
+        {#if bet > 0}
+          <div class="bet num" style="left:{p.bx * 100}%; top:{p.by * 100}%">
+            <i></i>{amount(bet)}
+          </div>
+        {/if}
+      {/each}
+
+      {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
+        {@const p = place(s.seat)}
+        {@const cards = cardsOf(s.name)}
         {@const won = table.winners.get(s.name)}
+        {@const stack = table.stacks.get(s.name) ?? 0}
+        {@const pos = positions.get(s.name)}
         <div
           class="seat"
           class:folded={table.folded.has(s.name)}
           class:acting={table.last === s.name}
           class:winner={won !== undefined}
+          class:hero={s.name === hand.hero}
           style="left:{p.x * 100}%; top:{p.y * 100}%"
         >
           <div class="cards">
@@ -180,39 +280,89 @@
             {/if}
           </div>
           <div class="pod">
-            <span class="name">{s.name}</span>
-            <span class="num stack">{amount(table.stacks.get(s.name) ?? 0)}</span>
-            {#if table.label.get(s.name)}
-              <span class="act">{table.label.get(s.name)}</span>
-            {/if}
+            <div class="who">
+              {#if pos}<span class="tag">{pos}</span>{/if}
+              <span class="name">{s.name}</span>
+            </div>
+            <div class="num stack">
+              {#if inBB}
+                <b>{bbs(stack)}</b> <span class="bbs">BB</span>
+              {:else}
+                <b>{amount(stack)}</b>{#if hand.big_blind > 0}<span class="sep">·</span><span class="bbs">{bbs(stack)} BB</span>{/if}
+              {/if}
+            </div>
             {#if won !== undefined}
               <span class="act win num">+{amount(won)}</span>
+            {:else if table.label.get(s.name)}
+              <span class="act" class:allin={table.label.get(s.name) === "All-in"}>{table.label.get(s.name)}</span>
             {/if}
           </div>
-          {#if s.seat === hand.button_seat}<span class="dealer">D</span>{/if}
-          {#if bet > 0}
-            <div class="bet num" style="--dx:{(0.5 - p.x) * 220}px; --dy:{(0.47 - p.y) * 150}px">
-              <i></i>{amount(bet)}
-            </div>
-          {/if}
+          {#if s.seat === hand.button_seat}<span class="dealer" title="Dealer-Button">D</span>{/if}
         </div>
       {/each}
     </Felt>
   </div>
 
   <div class="controls">
-    <button class="btn" onclick={() => (step = 0)} title="Anfang">⏮</button>
-    <button class="btn" onclick={() => (step = Math.max(step - 1, 0))} title="Zurück (←)">◀</button>
-    <button class="btn primary play" onclick={() => (playing = !playing)} title="Abspielen (Leertaste)"
-      >{playing ? "Pause" : "Abspielen"}</button
-    >
-    <button class="btn" onclick={() => (step = Math.min(step + 1, events.length))} title="Weiter (→)">▶</button>
-    <button class="btn" onclick={() => (step = events.length)} title="Ende">⏭</button>
-    <input type="range" min="0" max={events.length} bind:value={step} />
-    <div class="seg">
+    <div class="buttons">
+      <button class="icon-btn" onclick={() => (step = 0)} title="Zum Anfang" aria-label="Zum Anfang">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.first} /></svg>
+      </button>
+      <button class="icon-btn" onclick={() => (step = Math.max(step - 1, 0))} title="Zurück (←)" aria-label="Zurück">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.prev} /></svg>
+      </button>
+      <button
+        class="btn primary play"
+        onclick={() => {
+          if (done) step = 0;
+          playing = !playing;
+        }}
+        title="Abspielen oder anhalten (Leertaste)"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14"><path d={playing ? ICON.pause : ICON.play} /></svg>
+        {playing ? "Anhalten" : done ? "Nochmal" : "Abspielen"}
+      </button>
+      <button class="icon-btn" onclick={() => (step = Math.min(step + 1, events.length))} title="Weiter (→)" aria-label="Weiter">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.next} /></svg>
+      </button>
+      <button class="icon-btn" onclick={() => (step = events.length)} title="Zum Ende" aria-label="Zum Ende">
+        <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.last} /></svg>
+      </button>
+    </div>
+    <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt" />
+    <span class="steps num">{step}/{events.length}</span>
+    <div class="seg" role="group" aria-label="Beträge anzeigen in">
       <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
       <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
     </div>
+  </div>
+
+  {#if done && hand.bounties_won.length}
+    <div class="bounties">
+      <span class="dim">Bounty gewonnen</span>
+      {#each hand.bounties_won as [name, value] (name)}
+        <span><b>{name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="log" bind:this={logEl}>
+    {#each log as g (g.street)}
+      <div class="street-log">
+        <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
+        <ol>
+          {#each g.items as { i, a } (i)}
+            <li class:future={i >= step} class:now={i === step - 1}>
+              <button onclick={() => (step = i + 1)}>
+                <span class="actor">{a.player}</span>
+                <span class="what">{a.all_in ? "All-in" : LABEL[a.kind]}</span>
+                {#if a.amount > 0}<span class="num amt">{amount(a.to ?? a.amount)}</span>{/if}
+              </button>
+            </li>
+          {/each}
+        </ol>
+      </div>
+    {/each}
   </div>
 </div>
 
@@ -220,13 +370,16 @@
   .replayer {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
     min-width: 0;
+    min-height: 0;
+    height: 100%;
   }
   .stage {
     position: relative;
-    aspect-ratio: 16 / 10;
-    border-radius: 14px;
+    flex: 0 1 410px;
+    min-height: 250px;
+    border-radius: var(--r-lg);
     overflow: hidden;
     border: 1px solid var(--line);
   }
@@ -234,39 +387,53 @@
     position: absolute;
     left: 50%;
     top: 46%;
-    transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%) scale(var(--k));
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
   }
   .board {
     display: flex;
     gap: 5px;
-    min-height: 61px;
+    min-height: 62px;
   }
   .pot {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
     padding: 3px 12px;
     border-radius: 99px;
-    background: rgba(0, 0, 0, 0.45);
-    font-size: 14px;
+    background: rgba(0, 0, 0, 0.42);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .pot b {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .pot.hidden {
+    visibility: hidden;
   }
   .street {
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: rgba(255, 255, 255, 0.35);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: rgba(236, 235, 231, 0.4);
   }
+
   .seat {
     position: absolute;
-    transform: translate(-50%, -50%);
+    z-index: 2;
+    transform: translate(-50%, -50%) scale(var(--k));
     display: flex;
     flex-direction: column;
     align-items: center;
-    transition: opacity 0.25s;
+    transition: opacity 0.2s;
   }
   .seat.folded {
-    opacity: 0.38;
+    opacity: 0.55;
   }
   .cards {
     display: flex;
@@ -277,104 +444,259 @@
   }
   .pod {
     position: relative;
-    min-width: 112px;
-    padding: 12px 12px 6px;
-    border-radius: 10px;
-    background: linear-gradient(180deg, #1d2230, #10131a);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    min-width: 116px;
+    padding: 12px 12px 9px;
+    border-radius: 8px;
+    background: var(--plate);
+    box-shadow:
+      inset 0 0 0 1px var(--plate-edge),
+      0 6px 16px rgba(0, 0, 0, 0.45);
     text-align: center;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-    transition:
-      box-shadow 0.2s,
-      border-color 0.2s;
+    transition: box-shadow 0.15s;
   }
   .acting .pod {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px rgba(255, 138, 61, 0.2);
+    box-shadow:
+      inset 0 0 0 1.5px var(--text),
+      0 6px 16px rgba(0, 0, 0, 0.45);
   }
   .winner .pod {
-    border-color: var(--win);
-    box-shadow: 0 0 22px rgba(61, 220, 151, 0.25);
+    box-shadow:
+      inset 0 0 0 1.5px var(--pos),
+      0 6px 16px rgba(0, 0, 0, 0.45);
+  }
+  .who {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    max-width: 150px;
+  }
+  .tag {
+    flex-shrink: 0;
+    padding: 0 4px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    font-family: var(--font-num);
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 15px;
+    color: var(--text-2);
   }
   .name {
-    display: block;
-    max-width: 130px;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 12.5px;
-    color: var(--text-dim);
+    color: var(--text-2);
+  }
+  .hero .name {
+    color: var(--text);
   }
   .stack {
-    display: block;
+    margin-top: 1px;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: nowrap;
+  }
+  .stack b {
     font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .sep {
+    margin: 0 5px;
+    color: var(--text-3);
+  }
+  .bbs {
+    color: var(--pos);
+    font-weight: 600;
   }
   .act {
     position: absolute;
     left: 50%;
-    bottom: -11px;
+    bottom: -10px;
     transform: translateX(-50%);
-    padding: 1px 8px;
+    padding: 0 8px;
     border-radius: 99px;
-    background: var(--brand);
-    color: #1b0d03;
+    background: var(--surface-3);
+    border: 1px solid var(--line-2);
+    color: var(--text);
     font-size: 11px;
-    font-weight: 700;
+    font-weight: 600;
+    line-height: 17px;
     white-space: nowrap;
   }
+  .act.allin {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
   .act.win {
-    background: var(--win);
+    background: #1d2a1a;
+    border-color: color-mix(in srgb, var(--pos) 55%, transparent);
+    color: var(--pos);
   }
   .dealer {
     position: absolute;
-    right: -12px;
-    top: 34px;
-    width: 20px;
-    height: 20px;
+    right: -9px;
+    top: 30px;
+    width: 18px;
+    height: 18px;
     border-radius: 50%;
-    background: #f4f4f4;
-    color: #111;
-    font-size: 11px;
-    font-weight: 800;
+    background: var(--text);
+    color: var(--bg);
+    font-family: var(--font-num);
+    font-size: 10.5px;
+    font-weight: 700;
     display: grid;
     place-items: center;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
   .bet {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy)));
+    z-index: 1;
+    transform: translate(-50%, -50%) scale(var(--k));
     display: flex;
     align-items: center;
-    gap: 5px;
-    padding: 2px 8px 2px 3px;
+    gap: 6px;
+    padding: 2px 9px 2px 3px;
     border-radius: 99px;
-    background: rgba(0, 0, 0, 0.55);
+    background: rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
     font-size: 13px;
+    font-weight: 600;
     white-space: nowrap;
   }
   .bet i {
     width: 14px;
     height: 14px;
     border-radius: 50%;
-    background: radial-gradient(circle, #fff 0 25%, #ff8a3d 26% 60%, #fff 61% 70%, #ff8a3d 71%);
+    background: var(--text);
+    box-shadow:
+      inset 0 0 0 2px #8f9198,
+      inset 0 0 0 4px var(--text);
   }
+
   .controls {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 10px;
   }
-  .controls .btn {
-    padding: 0 11px;
+  .buttons {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .buttons svg path {
+    fill: currentColor;
   }
   .play {
-    min-width: 104px;
-    justify-content: center;
+    min-width: 116px;
+    margin: 0 4px;
+  }
+  .play svg path {
+    fill: currentColor;
+    stroke: currentColor;
   }
   input[type="range"] {
     flex: 1;
-    margin: 0 8px;
-    accent-color: var(--brand);
+    min-width: 60px;
+    margin: 0 4px;
+  }
+  .steps {
+    font-size: 12px;
+    min-width: 36px;
+    text-align: right;
+    color: var(--text-2);
+  }
+
+  .bounties {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .bounties b {
+    font-weight: 500;
+  }
+
+  .log {
+    flex: 1 1 auto;
+    min-height: 130px;
+    overflow: auto;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: start;
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+  }
+  .street-log {
+    min-width: 0;
+    min-height: 100%;
+    border-left: 1px solid var(--line);
+  }
+  .street-log:first-child {
+    border-left: 0;
+  }
+  h4 {
+    position: sticky;
+    top: 0;
+    margin: 0;
+    padding: 9px 10px 6px;
+    background: var(--surface);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  h4.on {
+    color: var(--text);
+  }
+  ol {
+    margin: 0;
+    padding: 0 0 6px;
+    list-style: none;
+  }
+  ol button {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    width: 100%;
+    padding: 3px 10px;
+    border: 0;
+    border-left: 2px solid transparent;
+    background: transparent;
+    font-size: 12.5px;
+    text-align: left;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+  ol button:hover {
+    background: var(--surface-2);
+  }
+  .future button {
+    color: color-mix(in srgb, var(--text-2) 70%, transparent);
+  }
+  .now button {
+    color: var(--text);
+    background: var(--surface-3);
+    border-left-color: var(--text);
+  }
+  .actor {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .amt {
+    font-size: 12.5px;
   }
 </style>

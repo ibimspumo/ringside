@@ -1,213 +1,338 @@
 <script lang="ts">
   import { api } from "../api";
-  import { STAT_META, fmt, stat, tone } from "../stats";
-  import type { Dashboard, GameKind, HudConfig, PlayerView, StatId } from "../types";
-  import GameFilter from "./GameFilter.svelte";
+  import { PALETTES, RATED_STATS, STAT_META, bountyText, compact, fmt, stat } from "../stats";
+  import type { Dashboard, Filter, HudConfig, StatId } from "../types";
+  import { int, sign, signed } from "./format";
+  import ResultsChart from "./ResultsChart.svelte";
+  import Wheel from "./Wheel.svelte";
 
-  let { refresh }: { refresh: number } = $props();
+  let { filter, hud, refresh }: { filter: Filter; hud: HudConfig | null; refresh: number } = $props();
 
-  let game = $state<GameKind | null>("cash");
   let data = $state<Dashboard | null>(null);
-  let hero = $state<PlayerView | null>(null);
-  let hud = $state<HudConfig | null>(null);
+  let failed = $state(false);
 
   $effect(() => {
     void refresh;
-    const g = game;
-    api.dashboard(g).then(async (d) => {
-      data = d;
-      const name = d.heroes[0];
-      hero = name ? ((await api.players(g, name, 20)).find((p) => p.name === name) ?? null) : null;
-    });
-    api.getSettings().then((s) => (hud = s.hud));
+    const f = { ...filter };
+    let live = true;
+    api
+      .dashboard(f)
+      .then((d) => {
+        if (!live) return;
+        data = d;
+        failed = false;
+      })
+      .catch(() => live && (failed = true));
+    return () => (live = false);
   });
 
-  const W = 1000;
-  const H = 260;
+  const r = $derived(data?.results ?? null);
+  const bb100 = $derived(r && r.hands > 0 ? (r.net_bb / r.hands) * 100 : 0);
+  const hero = $derived(data?.hero ?? null);
+  const heroHands = $derived(hero ? (stat(hero.stats, "hands")?.value ?? 0) : 0);
+  const palette = $derived(hud ? (PALETTES[hud.palette] ?? PALETTES.traffic) : PALETTES.traffic);
 
-  const series = $derived.by(() => {
-    if (!data || data.results.length === 0) return null;
-    let sum = 0;
-    const pts = data.results.map((r) => (sum += r.big_blind > 0 ? r.net / r.big_blind : 0));
-    const step = Math.max(1, Math.ceil(pts.length / 500));
-    const sampled = pts.filter((_, i) => i % step === 0 || i === pts.length - 1);
-    const lo = Math.min(0, ...sampled);
-    const hi = Math.max(0, ...sampled);
-    const span = hi - lo || 1;
-    const x = (i: number) => (i / Math.max(sampled.length - 1, 1)) * W;
-    const y = (v: number) => H - 12 - ((v - lo) / span) * (H - 24);
-    const line = sampled.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join("");
-    return {
-      line,
-      area: `${line}L${W},${y(0)}L0,${y(0)}Z`,
-      zero: y(0),
-      total: sum,
-      hands: pts.length,
-      bb100: (sum / pts.length) * 100,
-      up: sum >= 0,
-    };
-  });
-
-  const TILES: StatId[] = ["vpip", "pfr", "three_bet", "steal", "cbet", "af", "wtsd", "wsd"];
+  /**
+   * Three equal zones (below, inside, above the HUD thresholds); the marker sits where the value
+   * falls inside its zone. The outer zones reach 1.5× the middle width past each threshold.
+   */
+  function gauge(id: StatId, value: number | null): number | null {
+    const t = hud?.thresholds[id];
+    if (!t || value === null) return null;
+    const span = Math.max(t.high - t.low, 0.0001) * 1.5;
+    const lo = Math.max(0, t.low - span);
+    const hi = STAT_META[id].ratio ? t.high + span : Math.min(100, t.high + span);
+    const part = (v: number, a: number, b: number) => (b > a ? Math.min(1, Math.max(0, (v - a) / (b - a))) : 1);
+    if (value < t.low) return part(value, lo, t.low) / 3;
+    if (value <= t.high) return (1 + part(value, t.low, t.high)) / 3;
+    return (2 + part(value, t.high, hi)) / 3;
+  }
 </script>
 
 <div class="page">
-  <div class="page-head">
-    <div>
-      <h1>Übersicht</h1>
-      <p>{data?.heroes.length ? `Deine Ergebnisse als ${data.heroes.join(", ")}` : "Noch keine eigenen Hände importiert"}</p>
-    </div>
-    <GameFilter bind:value={game} />
-  </div>
-
-  <div class="kpis">
-    <div class="kpi panel">
-      <span>Hände</span>
-      <strong class="num">{(series?.hands ?? 0).toLocaleString("de-DE")}</strong>
-    </div>
-    <div class="kpi panel">
-      <span>Ergebnis</span>
-      <strong class="num {series && series.total < 0 ? 'neg' : 'pos'}"
-        >{series ? `${series.total > 0 ? "+" : ""}${series.total.toFixed(1)}` : "–"}<small>BB</small></strong
-      >
-    </div>
-    <div class="kpi panel">
-      <span>Winrate</span>
-      <strong class="num {series && series.bb100 < 0 ? 'neg' : 'pos'}"
-        >{series ? series.bb100.toFixed(1) : "–"}<small>BB/100</small></strong
-      >
-    </div>
-    <div class="kpi panel">
-      <span>VPIP / PFR</span>
-      <strong class="num">
-        {#if hero && hud}
-          <span class="tone-{tone(hud, stat(hero.stats, 'vpip'))}">{fmt(stat(hero.stats, "vpip"))}</span><em>/</em><span
-            class="tone-{tone(hud, stat(hero.stats, 'pfr'))}">{fmt(stat(hero.stats, "pfr"))}</span
-          >
-        {:else}–{/if}
-      </strong>
-    </div>
-  </div>
-
-  <section class="panel chart">
-    <h2 class="panel-title">Gewinnkurve in Big Blinds</h2>
-    {#if series}
-      <svg viewBox="0 0 {W} {H}" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="area" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0" stop-color={series.up ? "#3ddc97" : "#ff5b5b"} stop-opacity="0.28" />
-            <stop offset="1" stop-color={series.up ? "#3ddc97" : "#ff5b5b"} stop-opacity="0" />
-          </linearGradient>
-        </defs>
-        <line x1="0" x2={W} y1={series.zero} y2={series.zero} class="zero" />
-        <path d={series.area} fill="url(#area)" />
-        <path d={series.line} class="line" class:down={!series.up} />
-      </svg>
-    {:else}
-      <div class="empty">Sobald du Hände spielst, erscheint hier deine Kurve.</div>
-    {/if}
-  </section>
-
-  {#if hero && hud}
-    <section class="panel">
-      <h2 class="panel-title">Dein Spielstil</h2>
-      <div class="tiles">
-        {#each TILES as id (id)}
-          {@const s = stat(hero.stats, id)}
-          <div class="tile" title={STAT_META[id].help}>
-            <span>{STAT_META[id].name}</span>
-            <strong class="num tone-{tone(hud, s)}">{fmt(s)}{STAT_META[id].ratio || !s?.value ? "" : "%"}</strong>
-            <small class="num">{s?.made ?? 0} / {s?.opp ?? 0}</small>
-          </div>
-        {/each}
+  {#if failed}
+    <div class="panel empty">Die Daten konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
+  {:else if data && r}
+    <section class="panel kpis">
+      <div class="kpi">
+        <span class="label">Hände</span>
+        <strong class="num">{int(r.hands)}</strong>
+        <small>{data.heroes.length ? `als ${data.heroes.join(", ")}` : "noch kein eigener Name erkannt"}</small>
       </div>
+      <div class="kpi">
+        <span class="label">Ergebnis</span>
+        <strong class="num {sign(r.net_bb)}">{signed(r.net_bb)}<span class="unit">BB</span></strong>
+        <small>in Big Blinds</small>
+      </div>
+      <div class="kpi">
+        <span class="label">Winrate</span>
+        <strong class="num {sign(bb100)}">{signed(bb100, 2)}<span class="unit">BB/100</span></strong>
+        <small>pro 100 Hände</small>
+      </div>
+      {#if filter.game !== "cash"}
+        <div class="kpi">
+          <span class="label">Bounties gewonnen</span>
+          <strong class="num" class:pos={!!bountyText(r.bounties)}>{bountyText(r.bounties) || "–"}</strong>
+          <small>aus Knockouts</small>
+        </div>
+      {/if}
+      <div class="kpi split">
+        <span class="label">Showdown</span>
+        <div class="pair">
+          <span><i class="sw sd"></i>Mit</span>
+          <b class="num {sign(r.showdown_bb)}">{signed(r.showdown_bb)}<span class="unit">BB</span></b>
+        </div>
+        <div class="pair">
+          <span><i class="sw nsd"></i>Ohne</span>
+          <b class="num {sign(r.non_showdown_bb)}">{signed(r.non_showdown_bb)}<span class="unit">BB</span></b>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Ergebnis-Verlauf</h2>
+        <div class="legend">
+          <span><i class="sw total"></i>Gesamt</span>
+          <span><i class="sw sd"></i>Mit Showdown</span>
+          <span><i class="sw nsd"></i>Ohne Showdown</span>
+        </div>
+      </div>
+      <div class="chart">
+        <ResultsChart points={r.points} />
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">Dein Spielstil</h2>
+        {#if hero}<span class="faint hint">Balken: niedrig · normal · hoch nach deinen HUD-Schwellen</span>{/if}
+      </div>
+      {#if hero && hud}
+        <div class="style">
+          <div class="who">
+            <Wheel stats={hero.stats} {hud} size={64} hands={compact(heroHands)} />
+            <div>
+              <strong>{hero.name}</strong>
+              <span class="num dim">{int(heroHands)} Hände</span>
+            </div>
+          </div>
+          <div class="stats">
+            {#each RATED_STATS as id (id)}
+              {@const s = stat(hero.stats, id)}
+              {@const g = gauge(id, s?.value ?? null)}
+              <div class="stat" title="{STAT_META[id].name}: {STAT_META[id].help}">
+                <span class="name">{STAT_META[id].name}</span>
+                <b class="num" class:none={g === null && !s?.opp}
+                  >{fmt(s)}{#if s && s.value !== null && !STAT_META[id].ratio}<span class="unit">%</span>{/if}</b
+                >
+                <span class="gauge" aria-hidden="true" style="--lo:{palette.low}; --mid:{palette.mid}; --hi:{palette.high}">
+                  <i></i><i></i><i></i>
+                  {#if g !== null}<em style="left:{g * 100}%"></em>{/if}
+                </span>
+                <small class="num" title="Treffer / Gelegenheiten">{int(s?.made ?? 0)} / {int(s?.opp ?? 0)}</small>
+              </div>
+            {/each}
+          </div>
+        </div>
+      {:else}
+        <div class="empty">
+          Noch keine eigenen Hände in dieser Auswahl. Ringside erkennt deinen Namen automatisch aus den Hand-Historys.
+        </div>
+      {/if}
     </section>
   {/if}
 </div>
 
 <style>
+  .page {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding-top: 20px;
+  }
   .kpis {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-    margin-bottom: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   }
   .kpi {
-    padding: 16px 18px;
-  }
-  .kpi > span {
-    color: var(--text-dim);
-    font-size: 12.5px;
-  }
-  .kpi strong {
-    display: block;
-    margin-top: 6px;
-    font-size: 30px;
-    font-weight: 600;
-    line-height: 1;
-  }
-  .kpi small {
-    font-size: 13px;
-    margin-left: 5px;
-    color: var(--text-faint);
-    font-weight: 500;
-  }
-  .kpi em {
-    font-style: normal;
-    color: var(--text-faint);
-    margin: 0 3px;
-  }
-  .chart {
-    margin-bottom: 14px;
-  }
-  .chart svg {
-    display: block;
-    width: 100%;
-    height: 280px;
-    padding: 8px 6px 10px;
-  }
-  .zero {
-    stroke: rgba(255, 255, 255, 0.12);
-    stroke-dasharray: 4 6;
-    vector-effect: non-scaling-stroke;
-  }
-  .line {
-    fill: none;
-    stroke: var(--win);
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-    stroke-linejoin: round;
-  }
-  .line.down {
-    stroke: var(--loss);
-  }
-  .tiles {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 1px;
-    margin: 14px 0 0;
-    background: var(--line);
-    border-top: 1px solid var(--line);
-    border-radius: 0 0 14px 14px;
-    overflow: hidden;
-  }
-  .tile {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 14px 18px;
-    background: var(--panel);
+    padding: 14px 18px 15px;
+    border-left: 1px solid var(--line);
+    min-width: 0;
   }
-  .tile span {
-    color: var(--text-dim);
+  .kpi:first-child {
+    border-left: 0;
+  }
+  .label {
     font-size: 12.5px;
+    color: var(--text-2);
   }
-  .tile strong {
-    font-size: 24px;
+  .kpi strong {
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  .kpi small {
+    font-size: 12px;
+    color: var(--text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .kpi.split {
+    gap: 3px;
+  }
+  .pair {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .pair b {
+    font-size: 17px;
     font-weight: 600;
   }
-  .tile small {
-    color: var(--text-faint);
+  .sw {
+    display: inline-block;
+    width: 12px;
+    height: 2px;
+    margin-right: 7px;
+    vertical-align: 4px;
+    background: var(--text);
+  }
+  .sw.sd {
+    background: var(--sd);
+  }
+  .sw.nsd {
+    background: var(--neg);
+  }
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .chart {
+    padding: 10px 14px 10px 4px;
+  }
+  .hint {
+    font-size: 12px;
+  }
+
+  .style {
+    display: grid;
+    grid-template-columns: 196px minmax(0, 1fr);
+    margin-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .who {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 18px;
+    border-right: 1px solid var(--line);
+  }
+  .who strong {
+    display: block;
+    font-size: 15px;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .who .dim {
+    font-size: 13px;
+  }
+  .style {
+    overflow: hidden;
+    border-radius: 0 0 var(--r-lg) var(--r-lg);
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    margin: 0 -1px -1px 0;
+  }
+  .stat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 13px 14px;
+    border-bottom: 1px solid var(--line);
+    border-right: 1px solid var(--line);
+    cursor: help;
+    min-width: 0;
+  }
+  .stat .name {
+    font-size: 12px;
+    color: var(--text-2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .stat b {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--text);
+  }
+  .stat b.none {
+    color: var(--text-3);
+  }
+  .gauge {
+    position: relative;
+    display: flex;
+    gap: 1px;
+    width: 64px;
+    height: 4px;
+    margin: 5px 0 4px;
+  }
+  .gauge i {
+    flex: 1;
+    border-radius: 1px;
+  }
+  .gauge i:nth-child(1) {
+    background: color-mix(in srgb, var(--lo) 35%, transparent);
+  }
+  .gauge i:nth-child(2) {
+    background: color-mix(in srgb, var(--mid) 35%, transparent);
+  }
+  .gauge i:nth-child(3) {
+    background: color-mix(in srgb, var(--hi) 35%, transparent);
+  }
+  .gauge em {
+    position: absolute;
+    top: -2px;
+    width: 2px;
+    height: 8px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--text);
+    box-shadow: 0 0 0 1px var(--surface);
+  }
+  .stat small {
     font-size: 11.5px;
+    color: var(--text-3);
+  }
+
+  @container (max-width: 1100px) {
+    .stats {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+  @container (max-width: 820px) {
+    .style {
+      grid-template-columns: 1fr;
+    }
+    .who {
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .legend {
+      display: none;
+    }
   }
 </style>

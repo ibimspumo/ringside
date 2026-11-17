@@ -1,21 +1,24 @@
 <script lang="ts">
   let { size = 28 }: { size?: number } = $props();
+
+  const R = 25;
+  const GAP = 16;
+  const COLORS = ["#e5483b", "#f2b12e", "#78c142", "#a6d07c"];
+
+  function arc(i: number): string {
+    const a0 = ((-90 + i * 90 + GAP / 2) * Math.PI) / 180;
+    const a1 = ((-90 + (i + 1) * 90 - GAP / 2) * Math.PI) / 180;
+    const p = (a: number) => `${(32 + R * Math.cos(a)).toFixed(2)} ${(32 + R * Math.sin(a)).toFixed(2)}`;
+    return `M${p(a0)} A${R} ${R} 0 0 1 ${p(a1)}`;
+  }
 </script>
 
-<svg width={size} height={size} viewBox="0 0 64 64" aria-label="Ringside">
-  <defs>
-    <linearGradient id="rs-fire" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#ffb259" />
-      <stop offset="1" stop-color="#ff4d2e" />
-    </linearGradient>
-    <linearGradient id="rs-ice" x1="1" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#2f8cff" />
-      <stop offset="1" stop-color="#6fe0ff" />
-    </linearGradient>
-  </defs>
-  <circle cx="32" cy="32" r="27" fill="none" stroke="#1b202b" stroke-width="7" />
-  <path d="M32 5 A27 27 0 0 1 56.6 43" fill="none" stroke="url(#rs-fire)" stroke-width="7" stroke-linecap="round" />
-  <path d="M51 51.5 A27 27 0 0 1 9.5 17" fill="none" stroke="url(#rs-ice)" stroke-width="7" stroke-linecap="round" />
-  <circle cx="32" cy="32" r="15" fill="#141822" stroke="#2a3040" stroke-width="1.5" />
-  <path d="M32 23.5 c4.5 4.6 8 7.4 8 10.6 a4 4 0 0 1-6.6 3 l1.3 4.4h-5.4l1.3-4.4a4 4 0 0 1-6.6-3c0-3.2 3.5-6 8-10.6z" fill="#e9edf4" />
+<svg width={size} height={size} viewBox="0 0 64 64" aria-label="Ringside" role="img">
+  {#each COLORS as color, i (color)}
+    <path d={arc(i)} stroke={color} stroke-width="8" fill="none" />
+  {/each}
+  <path
+    d="M32 21.5c4.2 4.4 8.5 7.4 8.5 11.2a4.3 4.3 0 0 1-7.1 3.3l1.5 5.5h-5.8l1.5-5.5a4.3 4.3 0 0 1-7.1-3.3c0-3.8 4.3-6.8 8.5-11.2z"
+    fill="#ecebe7"
+  />
 </svg>
