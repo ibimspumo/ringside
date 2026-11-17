@@ -605,7 +605,7 @@
               {#each RATED_STATS as id (id)}
                 {@const t = settings.hud.thresholds[id]}
                 {#if t}
-                  <ThresholdScale {id} {t} name={PICK_NAME[id]} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
+                  <ThresholdScale {id} bind:t={settings.hud.thresholds[id]} name={PICK_NAME[id]} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
                 {/if}
               {/each}
             </div>

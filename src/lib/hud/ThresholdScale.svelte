@@ -18,7 +18,7 @@
     onchange: () => void;
   }
 
-  let { id, t, name, colors, marks, exact, meaning, onchange }: Props = $props();
+  let { id, t = $bindable(), name, colors, marks, exact, meaning, onchange }: Props = $props();
   const label = $derived(name ?? STAT_META[id].name);
 
   const ratio = $derived(!!STAT_META[id].ratio);

@@ -31,7 +31,7 @@
   const nameOf = (visual: number) => view.seats.find((x) => x.visual === visual)?.name ?? "";
   const amount = (a: number) => (view.game === "tournament" ? money(a, null, "tournament") : money(a, view.currency));
   const winnerText = $derived(recap.winners.map(([v, a]) => `${nameOf(v)} gewinnt ${amount(a)}`).join(" · "));
-  let holes: Record<number, HTMLElement> = {};
+  let holes = $state<Record<number, HTMLElement>>({});
   /** Current top-left of a seat's cards, measured, so a drag starts where they are. */
   function topLeft(visual: number, p: Point): Point {
     const saved = cardsAt(visual);
