@@ -7,9 +7,11 @@ version = "0.3.0"
 edition = "2024"
 license = "MIT"
 
+# Thin LTO with parallel codegen builds the release in a fraction of the time of fat LTO;
+# the difference in speed is not noticeable for this app.
 [profile.release]
-codegen-units = 1
-lto = true
+codegen-units = 16
+lto = "thin"
 opt-level = 3
 panic = "abort"
 strip = true

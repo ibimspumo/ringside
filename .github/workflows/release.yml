@@ -8,8 +8,29 @@ on:
 permissions:
   contents: write
 
+# The installer is built as a draft while the checks run in parallel; it is only published
+# (and offered to the updater) once both have passed.
 jobs:
-  release:
+  checks:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,8 +41,9 @@ jobs:
           cache: pnpm
       - uses: dtolnay/rust-toolchain@1.100.0
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release
       - run: pnpm install --frozen-lockfile
-      - run: cargo test -p ringside-core
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -31,6 +53,14 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Ringside ${{ github.ref_name }}
           releaseBody: Installer für Windows unten unter „Assets“ (Ringside_…_x64-setup.exe). Bestehende Installationen finden das Update über „Nach Updates suchen“.
-          releaseDraft: false
+          releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
+
+  publish:
+    needs: [checks, build]
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
