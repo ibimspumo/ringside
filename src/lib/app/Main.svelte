@@ -54,6 +54,7 @@
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings: "Ringside arbeitet komplett lokal. Ins Internet geht es nur, wenn du nach Updates suchst.",
+    training: "Gesperrt, solange PokerStars läuft. Dein Fortschritt bleibt auf diesem Rechner.",
   };
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
@@ -276,7 +277,7 @@
       {:else if tab === "live"}
         <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
       {:else if tab === "training"}
-        <Training />
+        <Training {hud} />
       {:else if tab === "hands"}
         <Hands
           {filter}

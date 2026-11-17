@@ -1,13 +1,16 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import Felt from "../Felt.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
   import PlayingCard from "../PlayingCard.svelte";
   import { money, moneyShort } from "../stats";
   import type { Action, Hand, Street } from "../types";
 
-  /** `children` is the hand's title line, laid out flush with the table. */
-  let { hand, children }: { hand: Hand; children?: Snippet } = $props();
+  /**
+   * `children` is the hand's title line, laid out flush with the table. With `upTo` the hand ends
+   * before that action (an index into `actions`): no later cards, no showdown, no winner.
+   */
+  let { hand: full, upTo = null, children }: { hand: Hand; upTo?: number | null; children?: Snippet } = $props();
 
   type Event =
     | { type: "action"; action: Action }
@@ -17,6 +20,20 @@
 
   const STREETS: Street[] = ["preflop", "flop", "turn", "river"];
   const BOARD_AT: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+
+  const hand = $derived.by((): Hand => {
+    if (upTo === null) return full;
+    const street = full.actions[upTo]?.street ?? full.actions.at(-1)?.street ?? "preflop";
+    return {
+      ...full,
+      actions: full.actions.slice(0, upTo),
+      board: full.board.slice(0, BOARD_AT[street]),
+      shown: [],
+      collected: [],
+      returned: [],
+      bounties_won: [],
+    };
+  });
 
   const events = $derived.by(() => {
     const out: Event[] = [];
@@ -33,7 +50,7 @@
       out.push({ type: "street", street });
     }
     if (hand.shown.length) out.push({ type: "showdown" });
-    out.push({ type: "collect" });
+    if (upTo === null) out.push({ type: "collect" });
     return out;
   });
 
@@ -45,10 +62,20 @@
   /** The stage keeps its shape, so seats, board and bets simply scale with its width. */
   const k = $derived(Math.min(1.15, Math.max(0.8, stageWidth / 880)));
 
+  // A new hand starts at the beginning, a stopped one at its stop; lifting the stop plays on.
+  let shownId: number | null = null;
   $effect(() => {
-    void hand.id;
-    step = 0;
-    playing = false;
+    const id = full.id;
+    const stop = upTo;
+    untrack(() => {
+      if (id !== shownId) {
+        shownId = id;
+        step = stop === null ? 0 : events.length;
+        playing = false;
+      } else if (stop === null) {
+        playing = true;
+      }
+    });
   });
 
   $effect(() => {
@@ -610,8 +637,9 @@
   .controls {
     flex-shrink: 0;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 6px 10px;
   }
   .buttons {
     display: flex;

@@ -355,3 +355,158 @@ export interface LiveTable {
   /** null until a hand of this table has been imported. */
   table: TableView | null;
 }
+
+// Learning area (crates/ringside-learn). Cards are strings like "Ah", "Td"; amounts in big blinds.
+
+export type LearnKind =
+  | "outs"
+  | "pot_odds"
+  | "probability"
+  | "combos"
+  | "position"
+  | "showdown"
+  | "equity_hand"
+  | "equity_range"
+  | "push_fold_sb"
+  | "push_fold_bb"
+  /** Only from own hands (`learnOwnSpots`), never generated. */
+  | "all_in";
+
+/** exakt = exact maths; formel = formula / rule of thumb; modell = exact within the model in `model_note`. */
+export type Grading = "exakt" | "formel" | "modell";
+
+/** Generated when `hand_id` is null: (kind, level, seed) rebuilds it. Send it back unchanged. */
+export interface Exercise {
+  kind: LearnKind;
+  level: number;
+  /** Below 2^53; pass it back as received. */
+  seed: number;
+  hand_id: number | null;
+  question: string;
+  prompt: ExercisePrompt;
+  answer: AnswerSpec;
+  grading: Grading;
+  model_note: string | null;
+}
+
+export type ExercisePrompt =
+  | { type: "outs"; hero: string[]; villain: string[] | null; board: string[] }
+  | { type: "pot_odds"; pot: number; to_call: number; equity_pct: number | null }
+  | { type: "probability"; outs: number; unseen: number; cards_to_come: number; method: "rule" | "exact" }
+  | { type: "combos"; class: string | null; range: string | null; dead: string[] }
+  | {
+      type: "position";
+      table_size: number;
+      occupied: number[];
+      button: number;
+      dead_button: boolean;
+      small_blind: number | null;
+      big_blind: number | null;
+      ask: PositionAsk;
+    }
+  | { type: "showdown"; board: string[]; players: string[][] }
+  | { type: "equity_hand"; hero: string[]; villain: string[]; board: string[] }
+  | { type: "equity_range"; hero: string[]; range_name: string; range: string; range_pct: number; board: string[] }
+  | {
+      type: "push_fold";
+      hero_position: "sb" | "bb";
+      hand: string[];
+      class: string;
+      stack_bb: number;
+      small_blind_bb: number;
+      ante_bb: number;
+      dead_bb: number;
+      players: number;
+    }
+  | { type: "all_in"; hero: string[]; opponents: string[][]; board: string[]; pots: PotView[] };
+
+export type PositionAsk = { type: "seat_of"; label: string } | { type: "label_of"; seat: number };
+
+/** players: 0 = hero, 1.. = opponents in order. */
+export interface PotView {
+  amount_bb: number;
+  players: number[];
+}
+
+export type AnswerSpec =
+  | { type: "number"; unit: string; min: number; max: number; step: number }
+  | { type: "choice"; options: ChoiceOption[] }
+  | { type: "cards"; from: string[] }
+  | { type: "seat"; seats: number[] };
+
+export interface ChoiceOption {
+  id: string;
+  label: string;
+}
+
+/** Percentages as 0–100. */
+export type LearnAnswer = { number: number } | { choice: string } | { cards: string[] } | { seat: number };
+
+export interface Feedback {
+  correct: boolean;
+  /** 0–1. */
+  score: number;
+  truth: LearnAnswer;
+  truth_text: string;
+  facts: Fact[];
+  highlight: Highlight[];
+  ev_loss_bb: number | null;
+  grading: Grading;
+  model_note: string | null;
+}
+
+export interface Fact {
+  label: string;
+  value: string;
+  formula: string | null;
+}
+
+export interface Highlight {
+  card: string;
+  tag: "out" | "missed" | "half_out" | "wrong" | "dirty";
+}
+
+export interface OwnSpot {
+  /** "<kind>:<hand_id>", for `learnCheckOwn`. */
+  id: string;
+  kind: LearnKind;
+  hand_id: number;
+  played_at: string;
+  /** Index into `Hand.actions` of the hero's decision. */
+  stop_before_action: number;
+  exercise: Exercise;
+  played: LearnAnswer | null;
+  played_ev_loss_bb: number | null;
+  /** Outcome of an all-in; show only after answering. */
+  all_in: AllInResult | null;
+}
+
+export interface AllInResult {
+  equity_pct: number;
+  pot_bb: number;
+  ev_bb: number;
+  net_bb: number;
+  luck_bb: number;
+  rake_bb: number;
+}
+
+export interface LearnProgress {
+  /** One per kind, fixed order. */
+  skills: SkillProgress[];
+  /** Answers since Monday 00:00 UTC. */
+  xp_week: number;
+  xp_total: number;
+}
+
+export interface SkillProgress {
+  id: LearnKind;
+  name_de: string;
+  level: 0 | 1 | 2 | 3 | 4;
+  level_name: "neu" | "kennengelernt" | "mit Hilfe" | "selbstständig" | "bestätigt";
+  /** Highest exercise level tried (0 = none). */
+  max_level: number;
+  attempts: number;
+  mean_score: number | null;
+  /** Unix seconds. */
+  last_at: number | null;
+}

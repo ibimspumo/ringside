@@ -1,7 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as demo from "./demo";
+import * as learnDemo from "./learn/demo";
 import type {
+  Exercise,
+  Feedback,
+  LearnAnswer,
+  LearnKind,
+  LearnProgress,
+  OwnSpot,
   ClientWindow,
   Dashboard,
   Filter,
@@ -24,7 +31,7 @@ import type {
 /** False when the UI runs in a normal browser (design work, screenshots). */
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-function call<T>(cmd: string, args: Record<string, unknown>, fallback: () => T): Promise<T> {
+export function call<T>(cmd: string, args: Record<string, unknown>, fallback: () => T): Promise<T> {
   return inTauri ? invoke<T>(cmd, args) : Promise.resolve(fallback());
 }
 
@@ -102,7 +109,16 @@ export const api = {
     ),
   shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
   hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, () => demo.demoHands(query)),
-  hand: (id: number) => call<Hand | null>("hand", { id }, () => demo.demoHandById(id)),
+  hand: (id: number) => call<Hand | null>("hand", { id }, () => learnDemo.demoSpotHand(id) ?? demo.demoHandById(id)),
+  learnExercise: (kind: LearnKind, level: number, seed: number | null = null) =>
+    call<Exercise>("learn_exercise", { kind, level, seed }, () => learnDemo.demoExercise(kind, level, seed)),
+  learnCheck: (exercise: Exercise, answer: LearnAnswer) =>
+    call<Feedback>("learn_check", { exercise, answer }, () => learnDemo.demoCheck(exercise, answer)),
+  learnOwnSpots: (filter: Filter, kind: LearnKind | null = null, limit = 60) =>
+    call<OwnSpot[]>("learn_own_spots", { filter, kind, limit }, () => learnDemo.demoOwnSpots(kind, limit)),
+  learnCheckOwn: (spotId: string, answer: LearnAnswer) =>
+    call<Feedback>("learn_check_own", { spotId, answer }, () => learnDemo.demoCheckOwn(spotId, answer)),
+  learnProgress: () => call<LearnProgress>("learn_progress", {}, learnDemo.demoProgress),
 };
 
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {
