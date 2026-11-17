@@ -1,3 +1,4 @@
+mod coach;
 mod importer;
 mod overlay;
 mod settings;
@@ -601,6 +602,7 @@ pub fn run() {
                 client_running: AtomicBool::new(false),
                 notes: Mutex::new(NotesState::default()),
             });
+            app.manage(coach::CoachState::default());
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
             Ok(())
@@ -642,6 +644,19 @@ pub fn run() {
             learn_own_spots,
             learn_check_own,
             learn_progress,
+            coach::coach_status,
+            coach::coach_set_key,
+            coach::coach_test_key,
+            coach::coach_delete_key,
+            coach::coach_models,
+            coach::coach_set_model,
+            coach::coach_prepare,
+            coach::coach_run,
+            coach::coach_cancel,
+            coach::coach_reports,
+            coach::coach_report,
+            coach::coach_delete_report,
+            coach::coach_concepts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ringside");

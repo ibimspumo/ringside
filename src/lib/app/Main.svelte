@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import Coach from "../coach/Coach.svelte";
   import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, TournamentRow } from "../types";
   import Dashboard from "./Dashboard.svelte";
@@ -15,7 +16,17 @@
   import Tournaments from "./Tournaments.svelte";
   import Training from "./Training.svelte";
 
-  type Tab = "dashboard" | "reports" | "tournaments" | "hands" | "players" | "live" | "training" | "hud" | "settings";
+  type Tab =
+    | "dashboard"
+    | "reports"
+    | "tournaments"
+    | "hands"
+    | "coach"
+    | "players"
+    | "live"
+    | "training"
+    | "hud"
+    | "settings";
   type NavItem = { id: Tab; label: string; icon: string };
   const GROUPS: { label: string; items: NavItem[] }[] = [
     {
@@ -25,6 +36,7 @@
         { id: "reports", label: "Berichte", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
         { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
         { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
+        { id: "coach", label: "Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
       ],
     },
     {
@@ -53,7 +65,9 @@
     tournaments: "Klick auf ein Turnier filtert alle Ansichten darauf und zeigt seine Hände.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
-    settings: "Ringside arbeitet komplett lokal. Ins Internet geht es nur, wenn du nach Updates suchst.",
+    settings:
+      "Ringside arbeitet lokal. Ins Internet geht es nur, wenn du nach Updates suchst oder eine Coach-Analyse startest.",
+    coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
     training: "Gesperrt, solange PokerStars läuft. Dein Fortschritt bleibt auf diesem Rechner.",
   };
   const GAMES: [GameKind | null, string][] = [
@@ -90,6 +104,8 @@
   /** Hands tab: optional player filter and a hand to open, set from other views. */
   let handsPlayer = $state<string | null>(null);
   let handToOpen = $state<number | null>(null);
+  /** Coach tab: a tournament to analyse, set from the tournaments page. */
+  let analyzeTournament = $state<number | null>(null);
 
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) ?? "null");
@@ -271,6 +287,22 @@
             tournament = id;
             showHands(null);
           }}
+          onAnalyze={(id) => {
+            analyzeTournament = id;
+            tab = "coach";
+          }}
+        />
+      {:else if tab === "coach"}
+        <Coach
+          analyze={analyzeTournament}
+          tournaments={tournamentList}
+          onAnalyzeHandled={() => (analyzeTournament = null)}
+          onHand={(t, id) => {
+            tournament = t;
+            showHands(null, id);
+          }}
+          onTraining={() => (tab = "training")}
+          onSettings={() => (tab = "settings")}
         />
       {:else if tab === "players"}
         <Players {filter} {hud} {refresh} onHands={(name, id) => showHands(name, id ?? null)} />

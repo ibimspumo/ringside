@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import CoachSettings from "../coach/CoachSettings.svelte";
   import type { ClientWindow, ImportStatus, NotesSource, Settings } from "../types";
 
   let { status }: { status: ImportStatus | null } = $props();
@@ -184,6 +185,8 @@
           </div>
         </div>
       </section>
+
+      <CoachSettings />
 
       <section class="panel">
         <div class="panel-head"><h2 class="panel-title">Updates</h2></div>

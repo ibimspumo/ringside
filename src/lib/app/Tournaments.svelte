@@ -10,7 +10,22 @@
     refresh,
     selected,
     onHands,
-  }: { filter: Filter; refresh: number; selected: number | null; onHands: (tournament: number) => void } = $props();
+    onAnalyze,
+  }: {
+    filter: Filter;
+    refresh: number;
+    selected: number | null;
+    onHands: (tournament: number) => void;
+    onAnalyze: (tournament: number) => void;
+  } = $props();
+
+  /** Why the coach cannot analyse this tournament yet, or null. */
+  function notAnalyzable(r: TournamentRow): string | null {
+    if (r.prize === null) return "Erst wenn das Turnier für dich vorbei ist";
+    if (r.game && !r.game.includes("Hold")) return "Der Coach analysiert bisher nur Hold'em";
+    if (r.hands === 0) return "Keine Hände von diesem Turnier gespeichert";
+    return null;
+  }
 
   type Point = { n: number; played_at: string; profit: number; bounties: number };
   type Col = "date" | "game" | "buy_in" | "entrants" | "place" | "prize" | "bounties" | "profit" | "hands";
@@ -235,6 +250,7 @@
                   onclick={() => sortOn(col)}>{label}</th
                 >
               {/each}
+              <th><span class="sr">Coach</span></th>
             </tr>
           </thead>
           <tbody>
@@ -267,6 +283,20 @@
                   {#if r.profit === null}<span class="unknown">offen</span>{:else}{signedCash(r.profit, r.currency)}{/if}
                 </td>
                 <td>{int(r.hands)}</td>
+                <td class="coach">
+                  {#if notAnalyzable(r) === null}
+                    <button
+                      class="btn analyze"
+                      title="Vom KI-Coach analysieren lassen. Vorher siehst du, was gesendet wird und was es kostet."
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        onAnalyze(r.id);
+                      }}>Analysieren</button
+                    >
+                  {:else}
+                    <span class="na" title={notAnalyzable(r)}>–</span>
+                  {/if}
+                </td>
               </tr>
             {/each}
           </tbody>
@@ -410,6 +440,26 @@
     flex-shrink: 0;
     font-family: var(--font-num);
     font-size: 12px;
+  }
+  td.coach {
+    width: 1%;
+    padding-right: 12px;
+  }
+  .analyze {
+    height: 24px;
+    padding: 0 9px;
+    font-size: 12px;
+  }
+  .na {
+    color: var(--text-3);
+    cursor: help;
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
   }
   .unknown {
     font-family: var(--font-ui);

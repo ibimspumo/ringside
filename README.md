@@ -31,7 +31,12 @@
 - *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold und mehr in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
 - *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
 
-**Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht (bei 10 BB identisch mit HoldemResources). Internet nur für „Nach Updates suchen“.
+**KI-Coach** (optional, mit eigenem [OpenRouter](https://openrouter.ai)-Key)
+- Analysiert ein abgeschlossenes Turnier und speichert den Bericht: Gesamteindruck, Spots mit Urteil, bessere Alternative und Schwerpunkte zum Üben.
+- Das Sprachmodell rechnet nie selbst. Jede Zahl holt es über Werkzeuge aus Ringsides Engine; jede Zahl zeigt, ob sie berechnet oder geschätzt ist.
+- Gegnernamen werden vor dem Senden anonymisiert, vor jedem Lauf siehst du die geschätzten Kosten. Der Key liegt im Windows-Tresor.
+
+**Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht (bei 10 BB identisch mit HoldemResources). Ins Internet geht es nur für „Nach Updates suchen“ und, wenn du ihn nutzt, für den KI-Coach.
 
 | Grafisch | Klassisch („Klartext“) |
 | --- | --- |
@@ -48,6 +53,10 @@
 | Lernen | Trainer |
 | --- | --- |
 | ![](docs/training.png) | ![](docs/trainer.png) |
+
+**KI-Coach**
+
+![KI-Coach](docs/coach.png)
 
 | Replayer | HUD-Editor |
 | --- | --- |

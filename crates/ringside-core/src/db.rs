@@ -257,7 +257,13 @@ impl Db {
                  ev_loss_bb REAL,
                  at INTEGER NOT NULL
              );
-             CREATE INDEX IF NOT EXISTS learn_attempts_kind ON learn_attempts(kind, at);"
+             CREATE INDEX IF NOT EXISTS learn_attempts_kind ON learn_attempts(kind, at);
+             CREATE TABLE IF NOT EXISTS coach_reports (
+                 tournament_id INTEGER PRIMARY KEY,
+                 created_at INTEGER NOT NULL,
+                 model TEXT NOT NULL,
+                 report TEXT NOT NULL
+             );"
         ))?;
         let added: &[(&str, &str, &str)] = &[
             ("hands", "hero_position", "TEXT"),
@@ -862,6 +868,43 @@ impl Db {
             params![key, value],
         )?;
         Ok(())
+    }
+
+    /// Raw text of every hand of a tournament, in the order played.
+    pub fn tournament_raw_hands(&self, tournament_id: u64) -> Result<Vec<String>, Error> {
+        let mut stmt =
+            self.conn.prepare_cached("SELECT raw FROM hands WHERE tournament_id = ?1 ORDER BY played_at, id")?;
+        let rows = stmt.query_map([tournament_id as i64], |r| r.get(0))?;
+        rows.collect()
+    }
+
+    /// Stores the coach's report (JSON) for a tournament, replacing an older one.
+    pub fn save_coach_report(&self, tournament_id: u64, created_at: i64, model: &str, json: &str) -> Result<(), Error> {
+        self.conn.execute(
+            "INSERT INTO coach_reports (tournament_id, created_at, model, report) VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(tournament_id) DO UPDATE SET created_at = excluded.created_at, model = excluded.model,
+                                                      report = excluded.report",
+            params![tournament_id as i64, created_at, model, json],
+        )?;
+        Ok(())
+    }
+
+    pub fn coach_report(&self, tournament_id: u64) -> Result<Option<String>, Error> {
+        self.conn
+            .query_row("SELECT report FROM coach_reports WHERE tournament_id = ?1", [tournament_id as i64], |r| r.get(0))
+            .optional()
+    }
+
+    /// Every stored report (JSON), newest first.
+    pub fn coach_reports(&self) -> Result<Vec<String>, Error> {
+        let mut stmt = self.conn.prepare_cached("SELECT report FROM coach_reports ORDER BY created_at DESC, tournament_id DESC")?;
+        let rows = stmt.query_map([], |r| r.get(0))?;
+        rows.collect()
+    }
+
+    /// Returns whether there was a report to delete.
+    pub fn delete_coach_report(&self, tournament_id: u64) -> Result<bool, Error> {
+        Ok(self.conn.execute("DELETE FROM coach_reports WHERE tournament_id = ?1", [tournament_id as i64])? > 0)
     }
 }
 
