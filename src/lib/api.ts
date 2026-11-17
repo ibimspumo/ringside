@@ -4,13 +4,16 @@ import * as demo from "./demo";
 import type {
   ClientWindow,
   Dashboard,
-  GameKind,
+  Filter,
   Hand,
+  HandQuery,
   HandSummary,
   ImportStatus,
   PlayerView,
+  Reports,
   SeatPos,
   Settings,
+  ShownHand,
   TableView,
 } from "./types";
 
@@ -21,38 +24,74 @@ function call<T>(cmd: string, args: Record<string, unknown>, fallback: () => T):
   return inTauri ? invoke<T>(cmd, args) : Promise.resolve(fallback());
 }
 
+/** Browser-only stand-in for saved settings, so the demo reacts to edits. */
+let demoStore: Settings = structuredClone(demo.demoSettings);
+
 export const api = {
-  overlayView: (label: string) => call<TableView | null>("overlay_view", { label }, () => demo.demoTable()),
-  previewView: () => call<TableView | null>("preview_view", {}, () => demo.demoTable()),
+  overlayView: (label: string, aspect: number) =>
+    call<TableView | null>("overlay_view", { label, aspect }, () => ({
+      ...demo.demoTable(),
+      hud: structuredClone(demoStore.hud),
+    })),
+  previewView: (aspect: number) => call<TableView | null>("preview_view", { aspect }, () => null),
+  layoutFor: (maxSeats: number, aspect: number) =>
+    call<{ key: string; layout: SeatPos[] }>("layout_for", { maxSeats, aspect }, () => {
+      const key = `${maxSeats}@${(Math.round(aspect * 20) / 20).toFixed(2)}`;
+      return { key, layout: demoStore.layouts[key] ?? demo.defaultLayout(maxSeats) };
+    }),
   setHitRegions: (label: string, regions: { x: number; y: number; w: number; h: number }[]) =>
     call<void>("set_hit_regions", { label, regions }, () => undefined),
-  getSettings: () => call<Settings>("get_settings", {}, () => structuredClone(demo.demoSettings)),
-  saveSettings: (settings: Settings) => call<void>("save_settings", { settings }, () => undefined),
-  saveSeat: (maxSeats: number, visual: number, pos: SeatPos) =>
-    call<void>("save_seat", { maxSeats, visual, pos }, () => undefined),
-  resetLayout: (maxSeats: number) => call<void>("reset_layout", { maxSeats }, () => undefined),
+  getSettings: () => call<Settings>("get_settings", {}, () => structuredClone(demoStore)),
+  saveSettings: (settings: Settings) =>
+    call<void>("save_settings", { settings }, () => {
+      demoStore = structuredClone(settings);
+    }),
+  saveSeat: (key: string, visual: number, pos: SeatPos) =>
+    call<void>("save_seat", { key, visual, pos }, () => {
+      const max = Number(key.split("@")[0]);
+      const layout = demoStore.layouts[key] ?? demo.defaultLayout(max);
+      layout[visual] = pos;
+      demoStore.layouts[key] = layout;
+    }),
+  resetLayout: (key: string) =>
+    call<void>("reset_layout", { key }, () => {
+      delete demoStore.layouts[key];
+    }),
+  exportProfile: (path: string) => call<void>("export_profile", { path }, () => undefined),
+  importProfile: (path: string) => call<void>("import_profile", { path }, () => undefined),
+  resetProfile: () =>
+    call<void>("reset_profile", {}, () => {
+      demoStore = { ...structuredClone(demo.demoSettings), hand_history_dirs: demoStore.hand_history_dirs };
+    }),
   importStatus: () =>
     call<ImportStatus>("import_status", {}, () => ({
       dirs: ["C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\HandHistory"],
       files_read: 12,
       hands_imported: 12,
-      total_hands: 1840,
+      total_hands: 6431,
       malformed: 0,
       last_error: null,
+      upgrade: null,
     })),
   clientWindows: () =>
     call<ClientWindow[]>("client_windows", {}, () => [
-      { title: "Bounty Builder $11 - 45/90 Ante 14 - Turnier 4046791618 Tisch 12 - Eingeloggt als Hero", class: "PokerStarsTableFrameClass", table_key: "t:4046791618:12", has_hands: true },
+      {
+        title: "$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10 - Eingeloggt als Hero",
+        class: "PokerStarsTableFrameClass",
+        table_key: "t:4046789300:10",
+        has_hands: true,
+      },
       { title: "PokerStars Lobby", class: "PokerStarsLobbyClass", table_key: null, has_hands: false },
     ]),
   detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
-  dashboard: (game: GameKind | null) => call<Dashboard>("dashboard", { game }, demo.demoDashboard),
-  players: (game: GameKind | null, search: string, limit = 200) =>
-    call<PlayerView[]>("players", { game, search, limit }, () =>
+  dashboard: (filter: Filter) => call<Dashboard>("dashboard", { filter }, demo.demoDashboard),
+  reports: (filter: Filter) => call<Reports>("reports", { filter }, demo.demoReports),
+  players: (filter: Filter, search: string, limit = 300) =>
+    call<PlayerView[]>("players", { filter, search, limit }, () =>
       demo.demoPlayers().filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
     ),
-  hands: (game: GameKind | null, player: string | null, limit = 100, offset = 0) =>
-    call<HandSummary[]>("hands", { game, player, limit, offset }, demo.demoHands),
+  shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
+  hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, demo.demoHands),
   hand: (id: number) => call<Hand | null>("hand", { id }, () => demo.demoHand),
 };
 

@@ -1,90 +1,141 @@
 <script lang="ts">
   import { api } from "../api";
   import type { Point, SeatPos, TableView } from "../types";
-  import SeatHud from "./SeatHud.svelte";
+  import ClassicBox from "./ClassicBox.svelte";
+  import DetailPopup from "./DetailPopup.svelte";
+  import GraphicSeat from "./GraphicSeat.svelte";
+  import Recap from "./Recap.svelte";
+  import { plateSide, stageScale } from "./geometry";
 
   interface Props {
     view: TableView;
     width: number;
     height: number;
+    showRecap?: boolean;
+    /** Editor without a screenshot: draw stand-in avatars and name the classic boxes. */
+    preview?: boolean;
     onDragging?: (dragging: boolean) => void;
+    /** Called after a position was saved, with the new layout. */
+    onLayoutChange?: (layout: SeatPos[]) => void;
   }
 
-  let { view, width, height, onDragging }: Props = $props();
+  let { view, width, height, showRecap = false, preview = false, onDragging, onLayoutChange }: Props = $props();
 
+  type Part = "ring" | "card" | "plate";
   /** Positions in px while something is being dragged. */
-  let draftRing = $state<Record<number, Point>>({});
-  let draftCard = $state<Record<number, Point>>({});
+  let draft = $state<Record<string, Point>>({});
   let openSeat = $state<number | null>(null);
 
-  const scale = $derived(view.hud.scale * Math.min(Math.max(width / 960, 0.5), 1.7));
+  const s = $derived(view.hud.scale * stageScale(width, height));
 
-  function seatPos(visual: number): SeatPos {
-    return view.layout[visual] ?? { x: 0.5, y: 0.5 };
-  }
+  const seatPos = (visual: number): SeatPos => view.layout[visual] ?? { x: 0.5, y: 0.5 };
+  const toPx = (p: Point): Point => ({ x: p.x * width, y: p.y * height });
 
   function ring(visual: number): Point {
-    const p = seatPos(visual);
-    return draftRing[visual] ?? { x: p.x * width, y: p.y * height };
+    return draft[`${visual}:ring`] ?? toPx(seatPos(visual));
+  }
+  function part(visual: number, which: "card" | "plate"): Point | null {
+    const saved = seatPos(visual)[which];
+    return draft[`${visual}:${which}`] ?? (saved ? toPx(saved) : null);
+  }
+  /** Side of the client's name plate, from the seat's default (not dragged) position. */
+  function side(visual: number) {
+    const p = toPx(seatPos(visual));
+    return plateSide(p.x, p.y, width, height);
   }
 
-  function card(visual: number): Point | null {
-    const c = seatPos(visual).card;
-    return draftCard[visual] ?? (c ? { x: c.x * width, y: c.y * height } : null);
+  function move(visual: number, which: Part, p: Point, done: boolean) {
+    draft[`${visual}:${which}`] = p;
+    onDragging?.(!done);
+    if (!done) return;
+    delete draft[`${visual}:${which}`];
+    const n = { x: p.x / width, y: p.y / height };
+    save(visual, which === "ring" ? { ...seatPos(visual), ...n } : { ...seatPos(visual), [which]: n });
   }
 
-  /**
-   * The client draws the name plate beside the avatar, on the outer side for side seats and
-   * on opposite sides for the two seats near the vertical centre line. The card goes on the
-   * free side.
-   */
-  function cardLeft(x: number) {
-    const rel = x / width;
-    return rel > 0.5 !== Math.abs(rel - 0.5) < 0.1;
+  function reset(visual: number, which: "card" | "plate") {
+    save(visual, { ...seatPos(visual), [which]: null });
   }
 
   function save(visual: number, pos: SeatPos) {
     view.layout[visual] = pos;
-    api.saveSeat(view.max_seats, visual, $state.snapshot(pos));
+    api.saveSeat(view.layout_key, visual, $state.snapshot(pos));
+    onLayoutChange?.($state.snapshot(view.layout));
   }
 
-  function dragRing(visual: number, p: Point, done: boolean) {
-    draftRing[visual] = p;
-    onDragging?.(!done);
-    if (!done) return;
-    delete draftRing[visual];
-    save(visual, { ...seatPos(visual), x: p.x / width, y: p.y / height });
+  function tap(seat: number) {
+    openSeat = openSeat === seat ? null : seat;
   }
 
-  function dragCard(visual: number, p: Point, done: boolean) {
-    draftCard[visual] = p;
-    onDragging?.(!done);
-    if (!done) return;
-    delete draftCard[visual];
-    save(visual, { ...seatPos(visual), card: { x: p.x / width, y: p.y / height } });
-  }
-
-  function resetCard(visual: number) {
-    save(visual, { ...seatPos(visual), card: null });
-  }
+  const openView = $derived(view.seats.find((x) => x.seat === openSeat));
 </script>
 
+{#if preview}
+  {#each view.seats as seat (seat.seat)}
+    {@const r = ring(seat.visual)}
+    <div class="avatar" style="left:{r.x}px; top:{r.y}px; width:{66 * s}px; height:{66 * s}px; font-size:{22 * s}px">
+      {seat.name.slice(0, 1)}
+    </div>
+  {/each}
+{/if}
+
 {#each view.seats as seat (seat.seat)}
-  {@const p = ring(seat.visual)}
-  <SeatHud
-    {seat}
-    hud={view.hud}
-    x={p.x}
-    y={p.y}
-    card={card(seat.visual)}
-    {scale}
-    cardLeft={cardLeft(p.x)}
-    game={view.game}
-    currency={view.currency}
-    open={openSeat === seat.seat}
-    onToggle={() => (openSeat = openSeat === seat.seat ? null : seat.seat)}
-    onRingDrag={(p, done) => dragRing(seat.visual, p, done)}
-    onCardDrag={(p, done) => dragCard(seat.visual, p, done)}
-    onCardReset={() => resetCard(seat.visual)}
-  />
+  {@const r = ring(seat.visual)}
+  {#if view.hud.mode === "graphic"}
+    <GraphicSeat
+      {seat}
+      hud={view.hud}
+      ring={r}
+      plate={part(seat.visual, "plate")}
+      scale={s}
+      side={side(seat.visual)}
+      game={view.game}
+      currency={view.currency}
+      bountyCurrency={view.bounty_currency}
+      onRingMove={(p, done) => move(seat.visual, "ring", p, done)}
+      onPlateMove={(p, done) => move(seat.visual, "plate", p, done)}
+      onPlateReset={() => reset(seat.visual, "plate")}
+      onTap={() => tap(seat.seat)}
+    />
+  {:else}
+    <ClassicBox
+      {seat}
+      hud={view.hud}
+      ring={r}
+      box={part(seat.visual, "card")}
+      showName={preview}
+      scale={s}
+      {width}
+      {height}
+      game={view.game}
+      currency={view.currency}
+      bountyCurrency={view.bounty_currency}
+      onMove={(p, done) => move(seat.visual, "card", p, done)}
+      onReset={() => reset(seat.visual, "card")}
+      onTap={() => tap(seat.seat)}
+    />
+  {/if}
 {/each}
+
+{#if showRecap}
+  <Recap {view} seatAt={ring} {width} {height} scale={s} />
+{/if}
+
+{#if openView}
+  {@const r = ring(openView.visual)}
+  <DetailPopup seat={openView} hud={view.hud} at={{ x: r.x + (r.x > width / 2 ? -40 * s : 40 * s), y: r.y + 30 * s }} flip={r.x > width / 2} />
+{/if}
+
+<style>
+  .avatar {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 35% 30%, #3a404b, #1f2329);
+    color: rgba(236, 235, 231, 0.4);
+    font-family: var(--font-num);
+    pointer-events: none;
+  }
+</style>

@@ -27,11 +27,12 @@ export interface Point {
   y: number;
 }
 
-/** Ring centre, plus the card's top-left corner once the card was moved on its own. */
+/** Avatar centre (ring), plus the classic box / graphic plate once moved on their own. */
 export interface SeatPos {
   x: number;
   y: number;
   card?: Point | null;
+  plate?: Point | null;
 }
 
 export interface Threshold {
@@ -39,15 +40,22 @@ export interface Threshold {
   high: number;
 }
 
+export type OverlayMode = "classic" | "graphic";
+export type ClassicPreset = "beginner" | "standard" | "tournament" | "detailed" | "custom";
+export type Palette = "traffic" | "icefire";
+
 export interface HudConfig {
-  ring_outer: StatId;
-  ring_inner: StatId;
-  rows: StatId[];
+  mode: OverlayMode;
+  palette: Palette;
+  classic: { preset: ClassicPreset; custom: StatId[] };
+  graphic: { segments: StatId[]; plate_stats: StatId[]; cover_plate: boolean };
   thresholds: Record<string, Threshold>;
   scale: number;
   opacity: number;
   split_by_game: boolean;
   show_stack: boolean;
+  show_bounty: boolean;
+  recap_seconds: number;
 }
 
 export interface Settings {
@@ -63,8 +71,19 @@ export interface SeatView {
   name: string;
   stack: number;
   stack_bb: number;
+  bounty: number | null;
   is_hero: boolean;
   stats: StatValue[];
+}
+
+export interface Recap {
+  hand_id: number;
+  board: string[];
+  pot: number;
+  /** [visual seat, cards] */
+  shown: [number, string[]][];
+  winners: [number, number][];
+  bounties: [number, number][];
 }
 
 export interface TableView {
@@ -74,10 +93,13 @@ export interface TableView {
   max_seats: number;
   big_blind: number;
   currency: string | null;
+  bounty_currency: string | null;
   hand_id: number;
   seats: SeatView[];
+  layout_key: string;
   layout: SeatPos[];
   hud: HudConfig;
+  recap: Recap;
 }
 
 export interface ClientWindow {
@@ -87,6 +109,11 @@ export interface ClientWindow {
   has_hands: boolean;
 }
 
+export interface RebuildProgress {
+  done: number;
+  total: number;
+}
+
 export interface ImportStatus {
   dirs: string[];
   files_read: number;
@@ -94,24 +121,88 @@ export interface ImportStatus {
   total_hands: number;
   malformed: number;
   last_error: string | null;
+  upgrade: RebuildProgress | null;
+}
+
+export interface Filter {
+  game: GameKind | null;
+  /** "YYYY/MM/DD" */
+  since: string | null;
 }
 
 export interface ResultPoint {
-  hand_id: number;
-  net: number;
-  big_blind: number;
+  n: number;
+  played_at: string;
+  net_bb: number;
+  showdown_bb: number;
+  non_showdown_bb: number;
 }
 
-export interface Dashboard {
-  hand_count: number;
-  heroes: string[];
-  results: ResultPoint[];
+export interface Results {
+  hands: number;
+  net: number;
+  net_bb: number;
+  showdown_bb: number;
+  non_showdown_bb: number;
+  /** Knockout money won per currency, e.g. { USD: 3745 }. */
+  bounties: Record<string, number>;
+  points: ResultPoint[];
 }
 
 export interface PlayerView {
   name: string;
   net: number;
   stats: StatValue[];
+}
+
+export interface Dashboard {
+  hand_count: number;
+  heroes: string[];
+  results: Results;
+  hero: PlayerView | null;
+}
+
+export interface GroupView {
+  /** Position ("BTN") or starting hand ("AKs"). */
+  key: string;
+  net: number;
+  net_bb: number;
+  stats: StatValue[];
+}
+
+export interface Session {
+  start: string;
+  end: string;
+  hands: number;
+  net: number;
+  net_bb: number;
+  bounties: Record<string, number>;
+  tables: number;
+}
+
+export interface Reports {
+  positions: GroupView[];
+  starting_hands: GroupView[];
+  sessions: Session[];
+}
+
+export interface ShownHand {
+  hand_id: number;
+  played_at: string;
+  cards: string;
+  board: string;
+  position: string | null;
+  net: number;
+  big_blind: number;
+}
+
+export interface HandQuery extends Filter {
+  player: string | null;
+  showdown_only: boolean;
+  result: "won" | "lost" | null;
+  min_pot_bb: number | null;
+  limit: number;
+  offset: number;
 }
 
 export interface HandSummary {
@@ -123,7 +214,11 @@ export interface HandSummary {
   big_blind: number;
   currency: string | null;
   hero_cards: string;
+  hero_position: string | null;
   hero_net: number | null;
+  hero_showdown: boolean;
+  pot: number;
+  board: string;
 }
 
 export type Street = "preflop" | "flop" | "turn" | "river";
@@ -159,7 +254,7 @@ export interface Hand {
   big_blind: number;
   currency: string | null;
   played_at: string;
-  seats: { seat: number; name: string; stack: number; sitting_out: boolean }[];
+  seats: { seat: number; name: string; stack: number; bounty: number | null; sitting_out: boolean }[];
   hero: string | null;
   hero_cards: string[];
   board: string[];
@@ -170,4 +265,6 @@ export interface Hand {
   showdown: boolean;
   total_pot: number;
   rake: number;
+  bounties_won: [string, number][];
+  bounty_currency: string | null;
 }

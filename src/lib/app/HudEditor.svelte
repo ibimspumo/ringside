@@ -1,300 +1,627 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api } from "../api";
+  import { api, inTauri } from "../api";
   import { demoTable } from "../demo";
   import Felt from "../Felt.svelte";
   import HudLayer from "../hud/HudLayer.svelte";
-  import { ALL_STATS, STAT_META } from "../stats";
-  import type { Settings, StatId, TableView } from "../types";
+  import { REFERENCE_ASPECT } from "../hud/geometry";
+  import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META } from "../stats";
+  import type { ClassicPreset, HudConfig, Palette, Settings, StatId, TableView } from "../types";
+
+  const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const SHAPES = [
+    { id: "standard", label: "Standard", aspect: REFERENCE_ASPECT },
+    { id: "wide", label: "Breit 16:9", aspect: 16 / 9 },
+  ];
 
   let settings = $state<Settings | null>(null);
+  let base = $state<TableView | null>(null);
   let view = $state<TableView | null>(null);
+  let maxSeats = $state(8);
+  let shape = $state("standard");
+  let showRecap = $state(false);
   let stageW = $state(0);
   let stageH = $state(0);
+  let message = $state<{ ok: boolean; text: string } | null>(null);
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const RING_STATS = ALL_STATS.filter((id) => id !== "hands");
+  /** A table screenshot to calibrate against; `crop` removes the window title bar. */
+  let shot = $state<{ url: string; w: number; h: number; crop: number } | null>(null);
+
+  const aspect = $derived(
+    shape === "screenshot" && shot ? shot.w / Math.max(shot.h - shot.crop, 1) : (SHAPES.find((x) => x.id === shape)?.aspect ?? REFERENCE_ASPECT),
+  );
+  const customised = $derived(!!view && !!settings?.layouts[view.layout_key]);
 
   onMount(async () => {
     settings = await api.getSettings();
-    view = (await api.previewView()) ?? demoTable();
+    base = await api.previewView(REFERENCE_ASPECT);
+    if (base) maxSeats = base.max_seats;
+  });
+
+  // Rebuild the preview whenever the table size or window shape changes.
+  $effect(() => {
+    const s = settings;
+    const n = maxSeats;
+    const a = aspect;
+    if (!s) return;
+    api.layoutFor(n, a).then(({ key, layout }) => {
+      const seats = base && base.max_seats === n ? base : demoTable(n);
+      view = { ...seats, hud: $state.snapshot(s.hud) as HudConfig, layout_key: key, layout };
+    });
   });
 
   function changed() {
-    if (!settings || !view) return;
-    view.hud = settings.hud;
+    if (!settings) return;
+    if (view) view.hud = $state.snapshot(settings.hud) as HudConfig;
     clearTimeout(saveTimer);
-    const snapshot = $state.snapshot(settings);
+    const snapshot = $state.snapshot(settings) as Settings;
     saveTimer = setTimeout(() => api.saveSettings(snapshot), 250);
   }
 
-  function toggleRow(id: StatId) {
-    if (!settings) return;
-    const rows = settings.hud.rows;
-    settings.hud.rows = rows.includes(id) ? rows.filter((r) => r !== id) : rows.length < 4 ? [...rows, id] : rows;
+  function setMode(mode: HudConfig["mode"]) {
+    settings!.hud.mode = mode;
+    changed();
+  }
+
+  function setPreset(id: ClassicPreset) {
+    settings!.hud.classic.preset = id;
+    changed();
+  }
+
+  function toggleCustom(id: StatId) {
+    const list = settings!.hud.classic.custom;
+    settings!.hud.classic.custom = list.includes(id) ? list.filter((x) => x !== id) : list.length < 8 ? [...list, id] : list;
     changed();
   }
 
   async function resetLayout() {
     if (!view) return;
-    await api.resetLayout(view.max_seats);
-    view = (await api.previewView()) ?? demoTable();
-    if (settings) settings.layouts = (await api.getSettings()).layouts;
+    await api.resetLayout(view.layout_key);
+    settings = await api.getSettings();
+  }
+
+  function loadShot(e: Event) {
+    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      if (shot) URL.revokeObjectURL(shot.url);
+      shot = { url, w: img.naturalWidth, h: img.naturalHeight, crop: 0 };
+      shape = "screenshot";
+    };
+    img.src = url;
+  }
+
+  function dropShot() {
+    if (shot) URL.revokeObjectURL(shot.url);
+    shot = null;
+    shape = "standard";
+  }
+
+  async function exportProfile() {
+    const { save } = await import("@tauri-apps/plugin-dialog");
+    const path = await save({ defaultPath: "ringside-profil.json", filters: [{ name: "Ringside-Profil", extensions: ["json"] }] });
+    if (!path) return;
+    try {
+      await api.exportProfile(path);
+      message = { ok: true, text: `Gespeichert: ${path}` };
+    } catch (e) {
+      message = { ok: false, text: String(e) };
+    }
+  }
+
+  async function importProfile() {
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const path = await open({ multiple: false, filters: [{ name: "Ringside-Profil", extensions: ["json"] }] });
+    if (typeof path !== "string") return;
+    try {
+      await api.importProfile(path);
+      settings = await api.getSettings();
+      message = { ok: true, text: "Profil übernommen." };
+    } catch (e) {
+      message = { ok: false, text: String(e) };
+    }
+  }
+
+  async function resetProfile() {
+    await api.resetProfile();
+    settings = await api.getSettings();
+    message = { ok: true, text: "Darstellung und Positionen auf Standard zurückgesetzt." };
   }
 </script>
 
 <div class="page wide">
-  <div class="page-head">
-    <div>
-      <h1>HUD anpassen</h1>
-      <p>Änderungen erscheinen sofort an allen offenen Tischen. Panels lassen sich hier und am Tisch verschieben.</p>
-    </div>
-  </div>
 
   {#if settings && view}
     <div class="layout">
-      <div class="stage panel" bind:clientWidth={stageW} bind:clientHeight={stageH}>
-        <Felt>
-          {#each view.layout as p, i (i)}
-            <div class="avatar" style="left:{p.x * 100}%; top:{p.y * 100}%; --s:{Math.min(Math.max(stageW / 960, 0.5), 1.7) * settings.hud.scale}">
-              {view.seats.find((s) => s.visual === i)?.name.slice(0, 1) ?? ""}
+      <section class="stage-col">
+        <div class="toolbar">
+          <label class="group">
+            <span>Tisch</span>
+            <select class="field" bind:value={maxSeats}>
+              {#each SIZES as n (n)}<option value={n}>{n} Plätze</option>{/each}
+            </select>
+          </label>
+          <div class="group">
+            <span>Fenster</span>
+            <div class="seg">
+              {#each SHAPES as sh (sh.id)}
+                <button class:on={shape === sh.id} onclick={() => (shape = sh.id)}>{sh.label}</button>
+              {/each}
+              {#if shot}
+                <button class:on={shape === "screenshot"} onclick={() => (shape = "screenshot")}>Wie Screenshot</button>
+              {/if}
             </div>
-          {/each}
-          {#if stageW > 0}
-            <HudLayer {view} width={stageW} height={stageH} />
+          </div>
+          <label class="check toggle">
+            <input type="checkbox" bind:checked={showRecap} />
+            <span>Rückblick zeigen</span>
+          </label>
+        </div>
+
+        <div class="stage" style="aspect-ratio:{aspect}" bind:clientWidth={stageW} bind:clientHeight={stageH}>
+          {#if shot && shape === "screenshot"}
+            <img
+              class="shot"
+              src={shot.url}
+              alt="Tisch-Screenshot"
+              style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%"
+            />
+          {:else}
+            <Felt />
           {/if}
-        </Felt>
-      </div>
+          {#if stageW > 0}
+            <HudLayer
+              {view}
+              width={stageW}
+              height={stageH}
+              {showRecap}
+              preview={!(shot && shape === "screenshot")}
+              onLayoutChange={() => api.getSettings().then((s) => (settings = s))}
+            />
+          {/if}
+        </div>
 
-      <div class="controls">
-        <section class="panel">
-          <h2 class="panel-title">Ring um den Avatar</h2>
-          <div class="body">
-            <label>
-              <span>Außen</span>
-              <select class="field" bind:value={settings.hud.ring_outer} onchange={changed}>
-                {#each RING_STATS as id (id)}<option value={id}>{STAT_META[id].name}</option>{/each}
-              </select>
+        <div class="stage-foot">
+          <span class="faint">
+            {maxSeats} Plätze · {shape === "wide" ? "Breitbild" : shape === "screenshot" ? "Fenster wie Screenshot" : "Standardfenster"} ·
+            {customised ? "eigene Positionen" : "Standard-Positionen"}
+          </span>
+          <div class="row">
+            <label class="btn">
+              Tisch-Screenshot laden
+              <input type="file" accept="image/*" onchange={loadShot} hidden />
             </label>
-            <label>
-              <span>Innen</span>
-              <select class="field" bind:value={settings.hud.ring_inner} onchange={changed}>
-                {#each RING_STATS as id (id)}<option value={id}>{STAT_META[id].name}</option>{/each}
-              </select>
-            </label>
+            {#if shot}
+              <label class="crop">
+                <span>Titelleiste weg</span>
+                <input type="range" min="0" max={Math.round(shot.h * 0.12)} bind:value={shot.crop} />
+                <em class="num">{shot.crop} px</em>
+              </label>
+              <button class="btn ghost" onclick={dropShot}>Screenshot entfernen</button>
+            {/if}
+            <button class="btn ghost" onclick={resetLayout} disabled={!customised}>Positionen zurücksetzen</button>
           </div>
-        </section>
+        </div>
+        <p class="hint">
+          Tipp: Screenshot eines PokerStars-Tischs laden, die Titelleiste wegschneiden und Ring, Platte oder Box auf die
+          Avatare ziehen. Gespeichert wird je Tischgröße und Fensterform. Doppelklick auf Platte oder Box legt sie wieder an
+          den Avatar.
+        </p>
+      </section>
 
+      <aside class="inspector">
         <section class="panel">
-          <h2 class="panel-title">Werte in der Karte <small>(max. 4)</small></h2>
-          <div class="body chips">
-            {#each RING_STATS as id (id)}
-              <button
-                class="chip"
-                class:on={settings.hud.rows.includes(id)}
-                title={STAT_META[id].help}
-                onclick={() => toggleRow(id)}
-              >
-                {STAT_META[id].short}
-                {#if settings.hud.rows.includes(id)}<i>{settings.hud.rows.indexOf(id) + 1}</i>{/if}
+          <div class="panel-head"><h2 class="panel-title">Darstellung</h2></div>
+          <div class="body">
+            <div class="modes">
+              <button class="mode" class:on={settings.hud.mode === "graphic"} onclick={() => setMode("graphic")}>
+                <b>Grafisch</b><span>Ring um den Avatar, Platte über dem Namensschild</span>
               </button>
-            {/each}
+              <button class="mode" class:on={settings.hud.mode === "classic"} onclick={() => setMode("classic")}>
+                <b>Klassisch</b><span>Eine Textbox pro Spieler</span>
+              </button>
+            </div>
+
+            {#if settings.hud.mode === "graphic"}
+              <div class="sub">Ring – vier Segmente im Uhrzeigersinn</div>
+              <div class="grid2">
+                {#each settings.hud.graphic.segments as _, i (i)}
+                  <select class="field" bind:value={settings.hud.graphic.segments[i]} onchange={changed}>
+                    {#each RATED_STATS as id (id)}<option value={id}>{STAT_META[id].name}</option>{/each}
+                  </select>
+                {/each}
+              </div>
+              <div class="sub">Platte – drei große Zahlen</div>
+              <div class="grid3">
+                {#each settings.hud.graphic.plate_stats as _, i (i)}
+                  <select class="field" bind:value={settings.hud.graphic.plate_stats[i]} onchange={changed}>
+                    {#each RATED_STATS as id (id)}<option value={id}>{STAT_META[id].short}</option>{/each}
+                  </select>
+                {/each}
+              </div>
+              <label class="check">
+                <input type="checkbox" bind:checked={settings.hud.graphic.cover_plate} onchange={changed} />
+                <span>
+                  Namensschild von PokerStars überdecken
+                  <small>Sieht aus wie früher Jivaro. Verdeckt aber auch „Check“, „Fold“ und den Zeitbalken.</small>
+                </span>
+              </label>
+            {:else}
+              <div class="presets">
+                {#each Object.entries(CLASSIC_PRESETS) as [id, p] (id)}
+                  <button class="preset" class:on={settings.hud.classic.preset === id} onclick={() => setPreset(id as ClassicPreset)}>
+                    <b>{p.name}</b><span>{p.description}</span>
+                  </button>
+                {/each}
+                <button class="preset" class:on={settings.hud.classic.preset === "custom"} onclick={() => setPreset("custom")}>
+                  <b>Eigene</b><span>Werte selbst wählen, vier pro Zeile</span>
+                </button>
+              </div>
+              {#if settings.hud.classic.preset === "custom"}
+                <div class="chips">
+                  {#each [...RATED_STATS, "hands" as StatId] as id (id)}
+                    {@const n = settings.hud.classic.custom.indexOf(id)}
+                    <button class="chip" class:on={n >= 0} title={STAT_META[id].help} onclick={() => toggleCustom(id)}>
+                      {STAT_META[id].short}{#if n >= 0}<i>{n + 1}</i>{/if}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+            {/if}
           </div>
         </section>
 
         <section class="panel">
-          <h2 class="panel-title">Darstellung</h2>
+          <div class="panel-head"><h2 class="panel-title">Anzeige</h2></div>
           <div class="body">
-            <label>
+            <label class="slider">
               <span>Größe</span>
               <input type="range" min="0.6" max="1.6" step="0.05" bind:value={settings.hud.scale} oninput={changed} />
               <em class="num">{Math.round(settings.hud.scale * 100)} %</em>
             </label>
-            <label>
+            <label class="slider">
               <span>Deckkraft</span>
-              <input type="range" min="0.4" max="1" step="0.02" bind:value={settings.hud.opacity} oninput={changed} />
+              <input type="range" min="0.5" max="1" step="0.01" bind:value={settings.hud.opacity} oninput={changed} />
               <em class="num">{Math.round(settings.hud.opacity * 100)} %</em>
+            </label>
+            <label class="slider">
+              <span>Rückblick</span>
+              <input type="range" min="0" max="10" step="1" bind:value={settings.hud.recap_seconds} oninput={changed} />
+              <em class="num">{settings.hud.recap_seconds ? `${settings.hud.recap_seconds} s` : "aus"}</em>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={settings.hud.show_stack} onchange={changed} />
-              Stack anzeigen (Turniere in BB)
+              <span>Stack zeigen <small>Stand zu Beginn der letzten Hand</small></span>
+            </label>
+            <label class="check">
+              <input type="checkbox" bind:checked={settings.hud.show_bounty} onchange={changed} />
+              <span>Bounty zeigen <small>bei Knockout-Turnieren</small></span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={settings.hud.split_by_game} onchange={changed} />
-              Cash und Turniere getrennt zählen
+              <span>Cash Games und Turniere getrennt zählen</span>
             </label>
-            <button class="btn" onclick={resetLayout}>Sitzpositionen für {view.max_seats}-max zurücksetzen</button>
           </div>
         </section>
 
         <section class="panel">
-          <h2 class="panel-title">Farbschwellen</h2>
-          <div class="legend">
-            <span><i style="background:var(--ice)"></i>darunter</span>
-            <span><i style="background:var(--neutral)"></i>dazwischen</span>
-            <span><i style="background:var(--fire)"></i>darüber</span>
+          <div class="panel-head"><h2 class="panel-title">Farben</h2></div>
+          <div class="body">
+            <div class="seg palettes">
+              {#each Object.entries(PALETTES) as [id, p] (id)}
+                <button class:on={settings.hud.palette === id} onclick={() => ((settings!.hud.palette = id as Palette), changed())}>
+                  <i style="background:{p.low}"></i><i style="background:{p.mid}"></i><i style="background:{p.high}"></i>
+                  {p.name}
+                </button>
+              {/each}
+            </div>
+            <div class="thresholds">
+              <div class="trow head"><span>Wert</span><span>unter</span><span>über</span></div>
+              {#each RATED_STATS as id (id)}
+                {@const t = settings.hud.thresholds[id]}
+                {#if t}
+                  <div class="trow" title={STAT_META[id].help}>
+                    <span>{STAT_META[id].name}</span>
+                    <input class="field num" type="number" step="0.5" bind:value={t.low} onchange={changed} style="--c:{PALETTES[settings.hud.palette].low}" />
+                    <input class="field num" type="number" step="0.5" bind:value={t.high} onchange={changed} style="--c:{PALETTES[settings.hud.palette].high}" />
+                  </div>
+                {/if}
+              {/each}
+            </div>
+            <p class="note">Je Wert höchstens drei Farben – so verlangt es PokerStars für HUDs.</p>
           </div>
-          <div class="body thresholds">
-            {#each RING_STATS as id (id)}
-              {@const t = settings.hud.thresholds[id]}
-              {#if t}
-                <div class="trow" title={STAT_META[id].help}>
-                  <span>{STAT_META[id].name}</span>
-                  <input class="field num" type="number" step="0.5" bind:value={t.low} onchange={changed} />
-                  <input class="field num" type="number" step="0.5" bind:value={t.high} onchange={changed} />
-                </div>
-              {/if}
-            {/each}
-          </div>
-          <p class="note">
-            Höchstens drei Farben je Wert, keine Spieler-Etiketten und keine situationsabhängigen Werte – so bleibt
-            das HUD innerhalb der PokerStars-Regeln für Hilfsprogramme.
-          </p>
         </section>
-      </div>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">Profil</h2></div>
+          <div class="body">
+            <p class="note">
+              Ein Profil enthält Darstellung, Farben und alle Positionen. Exportieren, um es zu sichern oder weiterzugeben.
+            </p>
+            <div class="row">
+              <button class="btn" onclick={exportProfile} disabled={!inTauri}>Exportieren</button>
+              <button class="btn" onclick={importProfile} disabled={!inTauri}>Importieren</button>
+              <button class="btn ghost" onclick={resetProfile}>Auf Standard</button>
+            </div>
+            {#if message}<p class="msg" class:bad={!message.ok}>{message.text}</p>{/if}
+          </div>
+        </section>
+      </aside>
     </div>
   {/if}
 </div>
 
 <style>
+  .page {
+    padding-top: 20px;
+  }
   .wide {
-    max-width: 1500px;
+    max-width: 1560px;
   }
   .layout {
     display: grid;
-    grid-template-columns: 1fr 340px;
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 18px;
     align-items: start;
   }
-  .stage {
+  .stage-col {
     position: sticky;
-    top: 20px;
-    aspect-ratio: 4 / 3;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+  }
+  .group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-2);
+    font-size: 13px;
+  }
+  .toggle {
+    margin-left: auto;
+    align-items: center;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .toggle input {
+    margin: 0;
+  }
+  .stage {
+    position: relative;
+    width: 100%;
+    max-height: calc(100vh - 230px);
+    border-radius: var(--r);
     overflow: hidden;
+    border: 1px solid var(--line-2);
+    background: #0f1114;
   }
-  .avatar {
+  .shot {
     position: absolute;
-    width: calc(56px * var(--s));
-    height: calc(56px * var(--s));
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #3a4152, #1a1e28);
-    display: grid;
-    place-items: center;
-    font-family: var(--font-num);
-    font-size: calc(20px * var(--s));
-    color: rgba(255, 255, 255, 0.35);
+    left: 0;
+    width: 100%;
+    pointer-events: none;
   }
-  .controls {
+  .stage-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+  .crop {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .crop em {
+    font-style: normal;
+    min-width: 40px;
+  }
+  .hint {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-3);
+    max-width: 760px;
+  }
+
+  .inspector {
     display: flex;
     flex-direction: column;
     gap: 12px;
-  }
-  .panel-title small {
-    text-transform: none;
-    letter-spacing: 0;
-    font-weight: 400;
-    color: var(--text-faint);
   }
   .body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 12px 18px 16px;
+    padding: 12px 16px 16px;
   }
-  label {
+  .sub {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .modes,
+  .presets {
     display: grid;
-    grid-template-columns: 76px 1fr auto;
-    align-items: center;
-    gap: 10px;
-    color: var(--text-dim);
-  }
-  label select {
-    grid-column: 2 / 4;
-  }
-  label em {
-    font-style: normal;
-    color: var(--text);
-    min-width: 42px;
-    text-align: right;
-  }
-  input[type="range"] {
-    accent-color: var(--brand);
-  }
-  .check {
-    display: flex;
-    gap: 9px;
-    color: var(--text);
-  }
-  .check input {
-    accent-color: var(--brand);
-  }
-  .chips {
-    flex-direction: row;
-    flex-wrap: wrap;
     gap: 6px;
   }
-  .chip {
-    position: relative;
-    padding: 6px 11px;
-    border-radius: 99px;
-    border: 1px solid var(--line-strong);
-    background: transparent;
-    color: var(--text-dim);
+  .modes {
+    grid-template-columns: 1fr 1fr;
+  }
+  .mode,
+  .preset {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 9px 11px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line-2);
+    background: var(--bg);
+    text-align: left;
     cursor: pointer;
+  }
+  .mode span,
+  .preset span {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--text-3);
+  }
+  .mode.on,
+  .preset.on {
+    border-color: var(--text);
+    background: var(--surface-2);
+  }
+  .mode.on span,
+  .preset.on span {
+    color: var(--text-2);
+  }
+  .grid2,
+  .grid3 {
+    display: grid;
+    gap: 6px;
+  }
+  .grid2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .grid3 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .grid2 select,
+  .grid3 select {
+    min-width: 0;
+    width: 100%;
+  }
+  .check {
+    font-size: 13px;
+  }
+  small {
+    display: block;
+    margin-top: 1px;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .chip {
+    padding: 4px 9px;
+    border-radius: 99px;
+    border: 1px solid var(--line-2);
+    background: transparent;
+    color: var(--text-2);
     font-family: var(--font-num);
-    letter-spacing: 0.04em;
+    font-size: 12.5px;
+    cursor: pointer;
   }
   .chip.on {
-    background: rgba(255, 138, 61, 0.14);
-    border-color: rgba(255, 138, 61, 0.55);
+    border-color: var(--text);
     color: var(--text);
   }
   .chip i {
+    margin-left: 4px;
     font-style: normal;
     font-size: 10px;
-    margin-left: 4px;
-    color: var(--brand);
+    color: var(--text-3);
   }
-  .legend {
-    display: flex;
-    gap: 14px;
-    padding: 10px 18px 0;
-    font-size: 12px;
-    color: var(--text-dim);
+  .slider {
+    display: grid;
+    grid-template-columns: 74px 1fr 46px;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-2);
   }
-  .legend i {
-    display: inline-block;
-    width: 9px;
-    height: 9px;
+  .slider em {
+    font-style: normal;
+    text-align: right;
+    color: var(--text);
+  }
+  .palettes {
+    align-self: flex-start;
+  }
+  .palettes button {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+  .palettes i {
+    width: 8px;
+    height: 8px;
     border-radius: 50%;
-    margin-right: 6px;
+  }
+  .palettes i:last-of-type {
+    margin-right: 5px;
   }
   .thresholds {
-    gap: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
   .trow {
     display: grid;
-    grid-template-columns: 1fr 70px 70px;
-    gap: 8px;
+    grid-template-columns: 1fr 62px 62px;
     align-items: center;
-    color: var(--text-dim);
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .trow.head {
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .trow.head span:not(:first-child) {
+    text-align: right;
+    padding-right: 4px;
   }
   .trow input {
-    height: 30px;
+    height: 28px;
     text-align: right;
-  }
-  .trow input:first-of-type {
-    border-color: rgba(76, 198, 255, 0.35);
-  }
-  .trow input:last-of-type {
-    border-color: rgba(255, 91, 58, 0.35);
+    border-left: 3px solid var(--c);
   }
   .note {
     margin: 0;
-    padding: 0 18px 16px;
     font-size: 12px;
     line-height: 1.5;
-    color: var(--text-faint);
+    color: var(--text-3);
+  }
+  .msg {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--pos);
+    overflow-wrap: anywhere;
+  }
+  .msg.bad {
+    color: #ff9d93;
+  }
+  @media (max-width: 1180px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+    .stage-col {
+      position: static;
+    }
   }
 </style>

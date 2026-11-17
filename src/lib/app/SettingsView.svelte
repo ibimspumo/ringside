@@ -79,17 +79,11 @@
 </script>
 
 <div class="page">
-  <div class="page-head">
-    <div>
-      <h1>Einstellungen</h1>
-      <p>Ringside arbeitet komplett lokal. Ins Internet geht es nur, wenn du nach Updates suchst.</p>
-    </div>
-  </div>
 
   {#if settings}
     <div class="grid">
       <section class="panel">
-        <h2 class="panel-title">Hand-History-Ordner</h2>
+        <div class="panel-head"><h2 class="panel-title">Hand-History-Ordner</h2></div>
         <div class="body">
           <p class="hint">
             In PokerStars unter <b>Einstellungen → Spielhistorie</b> das Speichern der Hand-Histories einschalten.
@@ -125,7 +119,7 @@
       </section>
 
       <section class="panel">
-        <h2 class="panel-title">Tische</h2>
+        <div class="panel-head"><h2 class="panel-title">Tische</h2></div>
         <div class="body">
           <label class="check">
             <input type="checkbox" bind:checked={settings.preferred_seating} onchange={save} />
@@ -148,7 +142,7 @@
                   {:else}
                     kein Tisch
                   {/if}
-                  · {w.class}
+
                 </span>
               </div>
             {:else}
@@ -159,7 +153,7 @@
       </section>
 
       <section class="panel">
-        <h2 class="panel-title">Updates</h2>
+        <div class="panel-head"><h2 class="panel-title">Updates</h2></div>
         <div class="body">
           <p class="version">Version <b class="num">{version}</b></p>
           <div class="row">
@@ -178,7 +172,7 @@
       </section>
 
       <section class="panel">
-        <h2 class="panel-title">Über Ringside</h2>
+        <div class="panel-head"><h2 class="panel-title">Über Ringside</h2></div>
         <div class="body">
           <p class="hint">
             Open Source unter MIT-Lizenz. Ringside liest nur deine eigenen Hand-Histories und zeigt einfache
@@ -192,6 +186,9 @@
 </div>
 
 <style>
+  .page {
+    padding-top: 20px;
+  }
   .grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
