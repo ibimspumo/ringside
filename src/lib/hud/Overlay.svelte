@@ -115,6 +115,7 @@
       {view}
       {width}
       {height}
+      avatars={!inTauri && !backdrop}
       showRecap={now < recapUntil}
       onDragging={(d) => {
         dragging = d;

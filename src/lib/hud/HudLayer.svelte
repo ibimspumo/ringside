@@ -16,12 +16,15 @@
     editRecap?: boolean;
     /** Editor without a screenshot: draw stand-in avatars and name the classic boxes. */
     preview?: boolean;
+    /** Stand-in avatars only, where the client's own pictures would be (browser preview of the overlay). */
+    avatars?: boolean;
     onDragging?: (dragging: boolean) => void;
     /** Called after a position was saved, with the new layout. */
     onLayoutChange?: (layout: SeatPos[]) => void;
   }
 
-  let { view, width, height, showRecap = false, editRecap = false, preview = false, onDragging, onLayoutChange }: Props = $props();
+  let { view, width, height, showRecap = false, editRecap = false, preview = false, avatars = preview, onDragging, onLayoutChange }: Props =
+    $props();
 
   type Part = "ring" | "card" | "recap";
   /** Positions in px while something is being dragged. */
@@ -93,7 +96,7 @@
   const openView = $derived(view.seats.find((x) => x.seat === openSeat));
 </script>
 
-{#if preview}
+{#if avatars}
   {#each view.seats as seat (seat.seat)}
     {@const r = ring(seat.visual)}
     <div class="avatar" style="left:{r.x}px; top:{r.y}px; width:{66 * s}px; height:{66 * s}px; font-size:{22 * s}px">

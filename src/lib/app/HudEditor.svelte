@@ -61,7 +61,7 @@
   let platePage = $state(0);
   let exact = $state(false);
   /** Narrow windows: a smaller table leaves more of the settings in view. */
-  let smallStage = $state(false);
+  let smallStage = $state(true);
 
   /** A table screenshot to calibrate against; `crop` removes the window title bar. */
   let shot = $state<{ url: string; w: number; h: number; crop: number } | null>(null);
@@ -222,7 +222,10 @@
     shape = "standard";
   }
 
+  const appOnly = () => (message = { ok: false, text: "Export und Import gehen nur in der App, nicht in der Browser-Vorschau." });
+
   async function exportProfile() {
+    if (!inTauri) return appOnly();
     const { save } = await import("@tauri-apps/plugin-dialog");
     const path = await save({ defaultPath: "ringside-profil.json", filters: [{ name: "Ringside-Profil", extensions: ["json"] }] });
     if (!path) return;
@@ -235,6 +238,7 @@
   }
 
   async function importProfile() {
+    if (!inTauri) return appOnly();
     const { open } = await import("@tauri-apps/plugin-dialog");
     const path = await open({ multiple: false, filters: [{ name: "Ringside-Profil", extensions: ["json"] }] });
     if (typeof path !== "string") return;
@@ -657,8 +661,8 @@
               <p>Sichern oder auf einen anderen Rechner mitnehmen.</p>
             </header>
             <div class="row">
-              <button class="btn" onclick={exportProfile} disabled={!inTauri} title={inTauri ? undefined : "Nur in der App"}>Exportieren</button>
-              <button class="btn" onclick={importProfile} disabled={!inTauri} title={inTauri ? undefined : "Nur in der App"}>Importieren</button>
+              <button class="btn" onclick={exportProfile}>Exportieren</button>
+              <button class="btn" onclick={importProfile}>Importieren</button>
               <button class="btn ghost danger push" onclick={resetProfile}>Alles auf Standard</button>
             </div>
           </section>
