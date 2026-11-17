@@ -76,7 +76,10 @@ export const api = {
     }),
   importStatus: () =>
     call<ImportStatus>("import_status", {}, () => ({
-      dirs: ["C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\HandHistory"],
+      // Browser preview: ?nohistory=1 shows the first-run state without a hand history folder.
+      dirs: new URLSearchParams(window.location.search).has("nohistory")
+        ? []
+        : ["C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\HandHistory"],
       files_read: 12,
       hands_imported: 12,
       total_hands: 6431,

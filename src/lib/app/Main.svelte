@@ -236,7 +236,11 @@
         </div>
       {/if}
       {#if status && !upgrade && status.dirs.length === 0}
-        <button class="warn" onclick={chooseFolder}>Kein Hand-History-Ordner gefunden. Ordner wählen</button>
+        <div class="warn">
+          <strong>PokerStars speichert noch keine Hände</strong>
+          <span>In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.</span>
+          <button onclick={chooseFolder}>Ordner selbst wählen</button>
+        </div>
       {/if}
       <div class="live" class:active={tables > 0}>
         <span class="dot"></span>
@@ -467,19 +471,30 @@
     transition: width 0.3s;
   }
   .warn {
+    display: grid;
+    gap: 5px;
     margin-bottom: 4px;
-    padding: 7px 9px;
+    padding: 8px 9px;
     border: 1px solid var(--line-2);
     border-radius: var(--r-sm);
     background: var(--surface-2);
-    color: var(--text);
-    font-size: 12.5px;
-    line-height: 1.35;
-    text-align: left;
-    cursor: pointer;
+    color: var(--text-2);
+    font-size: 12px;
+    line-height: 1.4;
   }
-  .warn:hover {
+  .warn strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .warn button {
+    justify-self: start;
+    padding: 3px 8px;
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-sm);
     background: var(--surface-3);
+    color: var(--text);
+    font-size: 12px;
+    cursor: pointer;
   }
 
   main {

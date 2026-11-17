@@ -10,6 +10,8 @@
   const backdrop = inTauri ? null : params.get("bg");
 
   let view = $state<TableView | null>(null);
+  /** PokerStars saves no hand histories until the player turns it on, so the table stays empty. */
+  let noHistory = $state(false);
   let width = $state(window.innerWidth);
   let height = $state(window.innerHeight);
   let recapUntil = $state(0);
@@ -61,6 +63,10 @@
         const { getCurrentWebviewWindow } = await import("@tauri-apps/api/webviewWindow");
         label = getCurrentWebviewWindow().label;
       }
+      if (inTauri) {
+        api.importStatus().then((st) => (noHistory = st.dirs.length === 0));
+        unlisten.push(on<{ dirs: string[] }>("import-status", (st) => (noHistory = st.dirs.length === 0)));
+      }
       unlisten.push(on("overlay-table", load));
       unlisten.push(on<string>("table-updated", (key) => (!view || view.table_key === key) && load()));
       unlisten.push(on("settings-changed", load));
@@ -95,7 +101,14 @@
     <Felt />
   {/if}
   {#if !view && inTauri}
-    <div class="waiting">Ringside · wartet auf die erste Hand an diesem Tisch</div>
+    {#if noHistory}
+      <div class="waiting">
+        Ringside sieht keine Hände: PokerStars speichert noch keine Hand-Historys. In PokerStars unter
+        Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten.
+      </div>
+    {:else}
+      <div class="waiting">Ringside · wartet auf die erste Hand an diesem Tisch</div>
+    {/if}
   {/if}
   {#if view}
     <HudLayer
@@ -124,7 +137,9 @@
     border-radius: 6px;
     background: #14161a;
     color: #a4a7ad;
+    max-width: min(560px, calc(100% - 20px));
     font-size: 11.5px;
+    line-height: 1.4;
     pointer-events: none;
   }
   .backdrop {
