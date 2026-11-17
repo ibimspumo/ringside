@@ -6,7 +6,7 @@
 //! to strong while per-class counts of weaker combos (minus those sharing a card with
 //! the current one, by inclusion–exclusion) are added to the class row. Boards are
 //! reduced to suit-isomorphism classes first because class equities don't change
-//! under suit permutation.
+//! under suit permutation. The same sweep counts splits for the tie table.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
@@ -19,13 +19,20 @@ use crate::eval::Hand;
 use crate::range::{Combo, HandClass, NUM_CLASSES, NUM_COMBOS, class_pair_count};
 
 const MAGIC: &[u8; 4] = b"RSPM";
+const TIE_MAGIC: &[u8; 4] = b"RSPT";
 const VERSION: u32 = 1;
 const N: usize = NUM_CLASSES;
+const STALE: &str = "run `cargo run --release -p ringside-engine --bin gen-preflop-matrix`";
 
 static EMBEDDED_BYTES: &[u8] = include_bytes!("../data/preflop_169.bin");
 static EMBEDDED: LazyLock<PreflopMatrix> = LazyLock::new(|| {
     PreflopMatrix::from_bytes(EMBEDDED_BYTES)
-        .expect("data/preflop_169.bin is invalid; run `cargo run --release -p ringside-engine --bin gen-preflop-matrix`")
+        .unwrap_or_else(|e| panic!("data/preflop_169.bin is invalid ({e}); {STALE}"))
+});
+static EMBEDDED_TIE_BYTES: &[u8] = include_bytes!("../data/preflop_169_ties.bin");
+static EMBEDDED_TIES: LazyLock<TieMatrix> = LazyLock::new(|| {
+    TieMatrix::from_bytes(EMBEDDED_TIE_BYTES)
+        .unwrap_or_else(|e| panic!("data/preflop_169_ties.bin is invalid ({e}); {STALE}"))
 });
 
 /// `equity(a, b)` is the all-in pot share of class `a` against class `b`.
@@ -56,49 +63,94 @@ impl PreflopMatrix {
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(12 + 4 * N * N);
-        out.extend_from_slice(MAGIC);
-        out.extend_from_slice(&VERSION.to_le_bytes());
-        out.extend_from_slice(&(N as u32).to_le_bytes());
-        for v in &self.eq {
-            out.extend_from_slice(&v.to_le_bytes());
-        }
-        out
+        table_to_bytes(MAGIC, &self.eq)
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<PreflopMatrix, Error> {
-        let bad = |m: &str| Error::InvalidInput(format!("preflop matrix: {m}"));
-        if bytes.len() != 12 + 4 * N * N || &bytes[..4] != MAGIC {
-            return Err(bad("wrong size or magic"));
-        }
-        let word = |i: usize| u32::from_le_bytes(bytes[i..i + 4].try_into().expect("4 bytes"));
-        if word(4) != VERSION || word(8) != N as u32 {
-            return Err(bad("unsupported version"));
-        }
-        let eq = (0..N * N)
-            .map(|i| f32::from_bits(word(12 + 4 * i)))
-            .collect();
-        Ok(PreflopMatrix { eq })
+        Ok(PreflopMatrix {
+            eq: table_from_bytes(MAGIC, bytes, "preflop matrix")?,
+        })
     }
 
     /// Exact computation over all boards (seconds in release, far longer in debug).
     pub fn compute() -> PreflopMatrix {
-        let wins = half_point_counts();
+        PreflopMatrix::compute_with_ties().0
+    }
+
+    /// The equity matrix and the tie table from one sweep over all boards.
+    pub fn compute_with_ties() -> (PreflopMatrix, TieMatrix) {
+        let counts = half_point_counts();
         let boards_per_pair = binomial(48, 5) as f64;
         let mut eq = vec![0f32; N * N];
+        let mut tie = vec![0f32; N * N];
         for a in HandClass::all() {
             for b in HandClass::all() {
                 let i = a.index() * N + b.index();
-                let pairs = class_pair_count(a, b) as f64;
-                eq[i] = (wins[i] as f64 / (2.0 * pairs * boards_per_pair)) as f32;
+                let showdowns = class_pair_count(a, b) as f64 * boards_per_pair;
+                eq[i] = (counts[i] as f64 / (2.0 * showdowns)) as f32;
+                tie[i] = (counts[N * N + i] as f64 / showdowns) as f32;
             }
         }
-        PreflopMatrix { eq }
+        (PreflopMatrix { eq }, TieMatrix { tie })
     }
 }
 
+/// `tie(a, b)` is the probability that class `a` and class `b` split an all-in pot,
+/// over all combo pairs that share no card. With [`PreflopMatrix::equity`] it gives
+/// the full heads-up outcome: `a` wins with `equity − tie / 2`.
+#[derive(Clone, PartialEq)]
+pub struct TieMatrix {
+    tie: Vec<f32>,
+}
+
+impl TieMatrix {
+    /// The table shipped in `data/preflop_169_ties.bin`.
+    pub fn embedded() -> &'static TieMatrix {
+        &EMBEDDED_TIES
+    }
+
+    pub fn tie(&self, a: HandClass, b: HandClass) -> f64 {
+        self.tie[a.index() * N + b.index()] as f64
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        table_to_bytes(TIE_MAGIC, &self.tie)
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<TieMatrix, Error> {
+        Ok(TieMatrix {
+            tie: table_from_bytes(TIE_MAGIC, bytes, "tie matrix")?,
+        })
+    }
+}
+
+fn table_to_bytes(magic: &[u8; 4], values: &[f32]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(12 + 4 * N * N);
+    out.extend_from_slice(magic);
+    out.extend_from_slice(&VERSION.to_le_bytes());
+    out.extend_from_slice(&(N as u32).to_le_bytes());
+    for v in values {
+        out.extend_from_slice(&v.to_le_bytes());
+    }
+    out
+}
+
+fn table_from_bytes(magic: &[u8; 4], bytes: &[u8], what: &str) -> Result<Vec<f32>, Error> {
+    let bad = |m: &str| Error::InvalidInput(format!("{what}: {m}"));
+    if bytes.len() != 12 + 4 * N * N || &bytes[..4] != magic {
+        return Err(bad("wrong size or magic"));
+    }
+    let word = |i: usize| u32::from_le_bytes(bytes[i..i + 4].try_into().expect("4 bytes"));
+    if word(4) != VERSION || word(8) != N as u32 {
+        return Err(bad("unsupported version"));
+    }
+    Ok((0..N * N)
+        .map(|i| f32::from_bits(word(12 + 4 * i)))
+        .collect())
+}
+
 /// `count[a * 169 + b]` = Σ over disjoint (combo of a, combo of b, board) of
-/// 2 for a win, 1 for a split.
+/// 2 for a win, 1 for a split; `count[169² + a * 169 + b]` counts the splits alone.
 fn half_point_counts() -> Vec<u64> {
     struct Live {
         hand: Hand,
@@ -129,7 +181,7 @@ fn half_point_counts() -> Vec<u64> {
         group_card: Vec<i32>,
     }
     let new_scratch = || Scratch {
-        counts: vec![0; N * N],
+        counts: vec![0; 2 * N * N],
         sorted: Vec::with_capacity(NUM_COMBOS),
         below: vec![0; N],
         below_card: vec![0; 52 * N],
@@ -170,13 +222,16 @@ fn half_point_counts() -> Vec<u64> {
                     // `group - gx - gy` subtracts `c` itself twice but counts it once;
                     // the temporary +1 makes its own class come out right.
                     s.group[c.class as usize] += 1;
-                    let row = &mut s.counts[c.class as usize * N..][..N];
+                    let (points, splits) = s.counts.split_at_mut(N * N);
+                    let row = &mut points[c.class as usize * N..][..N];
+                    let tie_row = &mut splits[c.class as usize * N..][..N];
                     let (bx, by) = (&s.below_card[x..x + N], &s.below_card[y..y + N]);
                     let (gx, gy) = (&s.group_card[x..x + N], &s.group_card[y..y + N]);
                     for b in 0..N {
                         let wins = s.below[b] - bx[b] - by[b];
                         let ties = s.group[b] - gx[b] - gy[b];
                         row[b] += weight * (2 * wins + ties) as u64;
+                        tie_row[b] += weight * ties as u64;
                     }
                     s.group[c.class as usize] -= 1;
                 }
@@ -196,7 +251,7 @@ fn half_point_counts() -> Vec<u64> {
         })
         .map(|s| s.counts)
         .reduce(
-            || vec![0; N * N],
+            || vec![0; 2 * N * N],
             |mut a, b| {
                 a.iter_mut().zip(b).for_each(|(x, y)| *x += y);
                 a

@@ -6,6 +6,7 @@ use std::time::Instant;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use rayon::prelude::*;
+use ringside_engine::multiway::{self, Params};
 use ringside_engine::{
     CardSet, Hand, Method, PreflopMatrix, PushFoldParams, Range, equity, solve_push_fold,
 };
@@ -104,6 +105,22 @@ fn main() {
         r.shove_pct,
         r.call_pct
     );
+
+    // The first multiway solve also simulates the three-way showdowns it needs; they
+    // are kept for the process, so the second run shows the solve alone.
+    for players in [3, 6, 9] {
+        for run in ["first", "again"] {
+            let start = Instant::now();
+            let s = multiway::solve(&Params::equal(players, 10.0)).unwrap();
+            println!(
+                "Nash push/fold {players} players 10 BB ({run}): {:.0} ms ({} CFR+ iterations, NashConv {:.1e} BB, 3-way pots {:.2} %)",
+                ms(start),
+                s.iterations,
+                s.exploitability,
+                100.0 * s.approximation.multiway_probability
+            );
+        }
+    }
 }
 
 fn ms(start: Instant) -> f64 {

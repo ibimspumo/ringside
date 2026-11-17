@@ -5,6 +5,7 @@ pub mod cards;
 pub mod equity;
 pub mod eval;
 pub mod icm;
+pub mod multiway;
 pub mod outs;
 pub mod preflop_matrix;
 pub mod pushfold;

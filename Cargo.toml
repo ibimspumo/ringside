@@ -15,3 +15,7 @@ lto = "thin"
 opt-level = 3
 panic = "abort"
 strip = true
+
+# The solvers run millions of iterations; unoptimised they make tests and `tauri dev` crawl.
+[profile.dev.package.ringside-engine]
+opt-level = 3

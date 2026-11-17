@@ -2,6 +2,7 @@ use std::time::Instant;
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use ringside_engine::preflop_matrix::TieMatrix;
 use ringside_engine::{CardSet, HandClass, Method, PreflopMatrix, Range, equity};
 
 fn class(s: &str) -> HandClass {
@@ -73,12 +74,19 @@ fn random_entries_match_exact_enumeration() {
 #[ignore = "slow in debug; run with --release -- --ignored"]
 fn embedded_file_matches_fresh_computation() {
     let start = Instant::now();
-    let fresh = PreflopMatrix::compute();
-    println!("matrix computed in {:.2} s", start.elapsed().as_secs_f64());
+    let (fresh, ties) = PreflopMatrix::compute_with_ties();
+    println!("matrices computed in {:.2} s", start.elapsed().as_secs_f64());
     assert!(
         &fresh == PreflopMatrix::embedded(),
         "data/preflop_169.bin is stale"
     );
+    assert!(
+        &ties == TieMatrix::embedded(),
+        "data/preflop_169_ties.bin is stale"
+    );
+    // Split pots are common between equal classes and rare between distant ones.
+    let ak = class("AKo");
+    assert!(ties.tie(ak, ak) > 0.9 && ties.tie(class("AA"), class("72o")) < 0.01);
 }
 
 #[test]
