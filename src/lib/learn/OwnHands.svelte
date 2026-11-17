@@ -333,6 +333,17 @@
     gap: 12px;
     min-width: 0;
   }
+  /* Wide windows: replay and question side by side, so both stay in view. */
+  @container (min-width: 1800px) {
+    .detail {
+      grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+      align-items: start;
+    }
+    .detail .replay {
+      position: sticky;
+      top: 0;
+    }
+  }
   .replay {
     display: flex;
     height: clamp(460px, 66vh, 700px);

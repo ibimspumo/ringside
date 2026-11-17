@@ -2,6 +2,7 @@
   import type { Feedback } from "../types";
   import { GRADING, explain, fmtBB, withTerms } from "./catalog";
   import { preview } from "./preview";
+  import { input } from "./input";
   import Ring from "./Ring.svelte";
 
   let {
@@ -58,7 +59,8 @@
   $effect(() => {
     const calm = matchMedia("(prefers-reduced-motion: reduce)").matches || preview("answer") !== null;
     root?.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
-    nextBtn?.focus({ preventScroll: true });
+    // Show the focus ring only to people who answered with the keyboard, like :focus-visible would.
+    nextBtn?.focus({ preventScroll: true, focusVisible: input.keys } as FocusOptions);
   });
 </script>
 

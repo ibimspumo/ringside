@@ -42,8 +42,8 @@
 </span>
 
 <style>
+  /* Ring and icon share one grid cell; no positioning, so they paint with the text around them. */
   .badge {
-    position: relative;
     display: inline-grid;
     place-items: center;
     width: var(--s);
@@ -51,9 +51,8 @@
     flex-shrink: 0;
     color: var(--text);
   }
-  .ring {
-    position: absolute;
-    inset: 0;
+  .badge > svg {
+    grid-area: 1 / 1;
   }
   .ring path {
     fill: none;

@@ -237,7 +237,7 @@
                     <span class="pname">
                       <b>{SKILLS[g.kind].short}</b>
                       <span class="dim"
-                        >{g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}{g.why === "Schwachstelle" && whyText(g.kind) ? ` · ${whyText(g.kind)} im Coach` : ""}</span
+                        >{LEVEL_TEXT[byKind.get(g.kind)?.level ?? 0]} · {g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}{g.why === "Schwachstelle" && whyText(g.kind) ? ` · ${whyText(g.kind)} im Coach` : ""}</span
                       >
                     </span>
                   </li>
@@ -337,10 +337,13 @@
 {:else}
   <section class="done panel">
     <div class="result">
+      <div class="score">
       <Ring value={mean} size={150} stroke={12} tone={mean >= 0.8 ? "var(--pos)" : mean >= 0.5 ? "var(--amber)" : "var(--neg)"} label="Punktzahl {Math.round(mean * 100)} von 100">
         <b class="num huge">{Math.round(mean * 100)}</b>
         <span class="faint small">von 100 Punkten</span>
       </Ring>
+      <p class="ring-note dim small">Schnitt deiner Antworten.<br />Knapp daneben gibt Teilpunkte.</p>
+      </div>
       <div class="numbers">
         <h1>{answered === 0 ? "Runde beendet" : mean >= 0.8 ? "Starke Runde!" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h1>
         {#if answered}
@@ -370,8 +373,7 @@
           <div><b class="num">{xpWeek}<span class="of">/{goal}</span></b><span>diese Woche</span></div>
         </div>
         <p class="dim small">
-          Die Punkte sind der Schnitt deiner Antworten; knapp daneben gibt Teilpunkte. Was danebenging, kommt in den nächsten
-          Tagen wieder.
+          Was danebenging, kommt in den nächsten Tagen wieder. So bleibt es hängen.
         </p>
       </div>
     </div>
@@ -411,6 +413,16 @@
   .start {
     display: grid;
     gap: 14px;
+  }
+  @container (min-width: 1800px) {
+    .start {
+      grid-template-columns: minmax(0, 1fr) 340px;
+      align-items: stretch;
+    }
+    .doors {
+      grid-template-columns: 1fr;
+      align-content: start;
+    }
   }
 
   .hero {
@@ -678,6 +690,15 @@
     display: flex;
     align-items: center;
     gap: 22px 32px;
+  }
+  .score {
+    display: grid;
+    justify-items: center;
+    gap: 10px;
+  }
+  .ring-note {
+    margin: 0;
+    text-align: center;
   }
   .numbers {
     display: grid;

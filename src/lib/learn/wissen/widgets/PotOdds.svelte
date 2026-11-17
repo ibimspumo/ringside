@@ -76,7 +76,7 @@
           <i class:ok={dr.eq >= need}></i>
           <span>{dr.label}</span>
           <b class="num">{pct(dr.eq)}</b>
-          <span class:pos={dr.eq >= need} class:neg={dr.eq < need}>{dr.eq >= need ? "reicht, wenn nichts mehr gesetzt wird" : "reicht nicht"}</span>
+          <span class:pos={dr.eq >= need} class:neg={dr.eq < need}>{dr.eq >= need ? "reicht ohne weitere Bet" : "reicht nicht"}</span>
         </li>
       {/each}
     </ul>

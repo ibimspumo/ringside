@@ -370,13 +370,14 @@
   .field-wrap {
     position: relative;
     display: block;
-    width: 120px;
+    width: 100px;
   }
   .field-wrap .field {
     width: 100%;
-    height: 40px;
-    padding-right: 34px;
-    font-size: 18px;
+    height: 36px;
+    padding-right: 30px;
+    background: transparent;
+    font-size: 16px;
     font-weight: 600;
   }
   .unit-label {

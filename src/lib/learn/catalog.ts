@@ -108,7 +108,7 @@ export const SKILLS: Record<LearnKind, SkillMeta> = {
 };
 
 export const GRADING: Record<Grading, { label: string; text: string }> = {
-  exakt: { label: "Exakt", text: "Reine Mathematik, eindeutig richtig oder falsch." },
+  exakt: { label: "Exakt", text: "Reine Mathematik mit eindeutiger Lösung. Nahe Schätzungen bekommen Teilpunkte." },
   formel: { label: "Formel", text: "Faustformel. Bewertet wird, ob du die Formel richtig anwendest." },
   modell: { label: "Modell", text: "Exakt innerhalb eines Modells. Die Annahmen stehen dabei." },
 };
