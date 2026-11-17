@@ -350,13 +350,18 @@
                 <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d={SKILLS[t.kind].icon} /></svg>
                 <span>{SKILLS[t.kind].short}</span>
                 <span class="dots">
-                  {#each t.at as i (i)}<i class={tone(scores[i])} title="{Math.round((scores[i] ?? 0) * 100)} Punkte"></i>{/each}
+                  {#each t.at as i (i)}<i class={tone(scores[i])} title="{Math.round((scores[i] ?? 0) * 100)} Punkte"
+                      >{tone(scores[i]) === "ok" ? "✓" : tone(scores[i]) === "close" ? "≈" : "×"}</i
+                    >{/each}
                 </span>
               </li>
             {/each}
           </ul>
           <div class="legend" aria-hidden="true">
-            <span class="ok">richtig</span><span class="close">teilweise richtig</span><span class="miss">daneben</span>
+            <span>Ein Kästchen je Aufgabe:</span>
+            <span><i class="ok">✓</i> richtig</span>
+            <span><i class="close">≈</i> teilweise richtig</span>
+            <span><i class="miss">×</i> daneben</span>
           </div>
         {/if}
         <div class="stats">
@@ -708,20 +713,36 @@
     gap: 3px;
     margin-left: 2px;
   }
-  .dots i {
-    --t: var(--text-3);
-    width: 9px;
-    height: 9px;
-    border-radius: 3px;
-    background: var(--t);
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
   }
-  .dots i.ok {
+  .dots i,
+  .legend i {
+    --t: var(--text-3);
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    background: var(--t);
+    color: var(--bg);
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .dots i.ok,
+  .legend i.ok {
     --t: var(--pos);
   }
-  .dots i.close {
+  .dots i.close,
+  .legend i.close {
     --t: var(--amber);
   }
-  .dots i.miss {
+  .dots i.miss,
+  .legend i.miss {
     --t: var(--neg);
   }
   @keyframes pop {
@@ -737,24 +758,6 @@
     margin-top: -6px;
     font-size: 12px;
     color: var(--text-2);
-  }
-  .legend span::before {
-    content: "";
-    display: inline-block;
-    width: 9px;
-    height: 9px;
-    margin-right: 6px;
-    border-radius: 3px;
-    background: var(--t);
-  }
-  .legend .ok {
-    --t: var(--pos);
-  }
-  .legend .close {
-    --t: var(--amber);
-  }
-  .legend .miss {
-    --t: var(--neg);
   }
   .stats {
     display: flex;
@@ -836,6 +839,11 @@
   @container (max-width: 560px) {
     .result {
       flex-wrap: wrap;
+    }
+  }
+  @container (max-width: 1100px) {
+    .changes {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
   @container (max-width: 760px) {

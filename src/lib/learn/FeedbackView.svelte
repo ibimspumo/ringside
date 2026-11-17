@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Feedback } from "../types";
-  import { GRADING, explain, fmtBB } from "./catalog";
+  import { GRADING, explain, fmtBB, withTerms } from "./catalog";
   import { preview } from "./preview";
   import Ring from "./Ring.svelte";
 
@@ -127,7 +127,10 @@
 
   <footer class="grading" title={g.text}>
     <span class="badge {feedback.grading}">{g.label}</span>
-    <span class="dim">{feedback.model_note ?? g.text}</span>
+    <span class="dim"
+      >{#each withTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.tip}<span class="term" title={p.tip}>{p.text}</span
+          >{:else}{p.text}{/if}{/each}</span
+    >
   </footer>
 </section>
 

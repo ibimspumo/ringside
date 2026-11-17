@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { Exercise, Feedback, LearnAnswer } from "../types";
   import CardPicker from "./CardPicker.svelte";
-  import { GRADING, SKILLS, errorText, fmtPct } from "./catalog";
+  import { GRADING, SKILLS, errorText, firstTerm, fmtPct } from "./catalog";
   import FeedbackView from "./FeedbackView.svelte";
   import Stage from "./Stage.svelte";
   import { preview, previewAnswer } from "./preview";
@@ -136,6 +136,10 @@
   </header>
 
   <h2 class="q">{exercise.question}</h2>
+  {#if firstTerm(exercise.question)}
+    {@const t = firstTerm(exercise.question)}
+    <p class="term-hint"><b>{t?.term}:</b> {t?.tip}</p>
+  {/if}
   {#if !feedback && exercise.model_note && (prompt.type === "push_fold" || prompt.type === "push_fold_table")}
     <p class="model-note"><span class="badge modell">Modell</span> {exercise.model_note}</p>
   {/if}
@@ -302,6 +306,16 @@
     font-weight: 500;
     line-height: 1.45;
     text-wrap: pretty;
+  }
+  .term-hint {
+    margin: -8px 0 0;
+    max-width: 80ch;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .term-hint b {
+    color: var(--text);
+    font-weight: 600;
   }
   .model-note {
     margin: -6px 0 0;

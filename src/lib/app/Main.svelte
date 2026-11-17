@@ -82,7 +82,7 @@
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
     leaks: "Deine Werte je Position und Stacktiefe gegen veröffentlichte Richtwerte.",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
-    training: "Nur bei geschlossenem PokerStars – gesperrt, solange PokerStars läuft. Dein Fortschritt bleibt lokal.",
+    training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen. Gesperrt, solange PokerStars läuft.",
     solver: "Gesperrt, solange PokerStars läuft. Gerechnet wird nur auf diesem Rechner.",
   };
   const GAMES: [GameKind | null, string][] = [

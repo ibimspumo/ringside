@@ -469,19 +469,15 @@
   }
   @container (min-width: 640px) {
     .hu {
-      grid-template-columns: 1fr auto 1fr;
+      grid-template-columns: auto auto auto;
+      justify-content: center;
       align-items: center;
+      column-gap: 40px;
       padding: 16px 24px;
-    }
-    .hu .hu-seat:first-child {
-      justify-self: end;
     }
     .hu .hu-mid {
       order: 0;
       max-width: 260px;
-    }
-    .hu .hu-seat.hero {
-      justify-self: start;
     }
   }
   .hu-seat {

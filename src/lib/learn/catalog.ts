@@ -313,7 +313,40 @@ const TERMS: [RegExp, string][] = [
   [/^Glück/, "Ergebnis minus Erwartungswert. Über viele Hände gleicht es sich aus."],
   [/^Blockiert/, "Kombinationen, die es wegen deiner eigenen Karten nicht geben kann."],
   [/^Mögliche Kombos/, "Wie viele Kartenpaare der Gegner halten kann."],
+  [/^Chip-EV/, "Gerechnet in Chips, nicht in Preisgeld."],
+  [/^ICM/, "Rechnet Chips in Preisgeld um. Ohne ICM zählt jeder Chip gleich viel."],
 ];
+
+/** Terms inside running text (questions, model notes) that get the same plain explanation. */
+const INLINE: [RegExp, string][] = [
+  [/Heads-up-Nash|Nash/, "Die Entscheidung, die ein perfekt spielender Gegner nicht ausnutzen kann."],
+  [/Chip-EV/, "Gerechnet in Chips, nicht in Preisgeld."],
+  [/ICM/, "Rechnet Chips in Preisgeld um. Ohne ICM zählt jeder Chip gleich viel."],
+  [/totes Geld|Totes Geld/, "Chips im Pot von Spielern, die schon gefoldet haben."],
+  [/Effektiver Stack|effektive[rn]? Stack/, "Der kleinere der beteiligten Stacks. Mehr kann in dieser Hand nicht gewonnen oder verloren werden."],
+  [/Equity/, "Wie oft du gewinnst, wenn alle Karten ausgeteilt werden – dein Anteil am Pot."],
+  [/Outs/, "Karten, die deine Hand nach vorn bringen."],
+];
+
+/** Splits text into plain parts and explained terms, for dotted-underline tooltips. */
+export function withTerms(text: string): { text: string; tip: string | null }[] {
+  const re = new RegExp(INLINE.map(([r]) => r.source).join("|"), "g");
+  const out: { text: string; tip: string | null }[] = [];
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index > last) out.push({ text: text.slice(last, m.index), tip: null });
+    out.push({ text: m[0], tip: INLINE.find(([r]) => new RegExp(`^(?:${r.source})$`).test(m[0]))?.[1] ?? null });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last), tip: null });
+  return out;
+}
+
+/** The first explained term in a text, for a one-line hint under a question. */
+export function firstTerm(text: string): { term: string; tip: string } | null {
+  const hit = withTerms(text).find((p) => p.tip);
+  return hit?.tip ? { term: hit.text, tip: hit.tip } : null;
+}
 
 export function explain(label: string): string | null {
   return TERMS.find(([re]) => re.test(label))?.[1] ?? null;

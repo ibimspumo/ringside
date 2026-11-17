@@ -303,10 +303,14 @@
     color: var(--text-2);
   }
   .tag.now {
-    background: var(--text);
-    border-color: var(--text);
-    color: var(--bg);
+    border-color: transparent;
+    padding-left: 0;
+    color: var(--text);
     font-weight: 600;
+  }
+  .tag.now::before {
+    content: "← ";
+    color: var(--text-2);
   }
   .goal {
     margin: -4px 0 0;
