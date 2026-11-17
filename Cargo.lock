@@ -3207,7 +3207,7 @@ dependencies = [
 
 [[package]]
 name = "ringside"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "keyring",
  "ringside-coach",
@@ -3227,7 +3227,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-coach"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "ringside-core",
  "ringside-engine",
@@ -3239,7 +3239,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-core"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "regex",
  "roxmltree",
@@ -3251,7 +3251,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-engine"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "rand",
  "rand_chacha",
@@ -3262,7 +3262,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-learn"
-version = "0.3.1"
+version = "0.4.0"
 dependencies = [
  "rand",
  "rand_chacha",
