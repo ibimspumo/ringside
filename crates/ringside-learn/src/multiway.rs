@@ -10,6 +10,7 @@
 use std::sync::{Arc, LazyLock, Mutex, PoisonError};
 
 use rand::Rng;
+pub use ringside_engine::multiway::position_names;
 use ringside_engine::multiway::{self, MAX_PLAYERS, Params, Solution};
 use ringside_engine::{Card, CardSet, ClassEv, Combo};
 
@@ -240,23 +241,6 @@ pub fn generate(kind: Kind, level: u8, rng: &mut Rng8) -> Result<Task, String> {
         return Ok(task(&hand, &spot));
     }
     Err("Kein passender Push/Fold-Spot gefunden".into())
-}
-
-/// Position names in action order, as the HUD labels seats: the first seat is always
-/// UTG, the three before the button are LJ, HJ and CO. Heads-up the button is the small
-/// blind.
-pub fn position_names(players: usize) -> Vec<&'static str> {
-    if players == 2 {
-        return vec!["SB", "BB"];
-    }
-    const EARLY: [&str; 3] = ["UTG", "UTG+1", "UTG+2"];
-    const LATE: [&str; 3] = ["LJ", "HJ", "CO"];
-    let rest = players.saturating_sub(3);
-    let early = rest.saturating_sub(LATE.len());
-    let mut names: Vec<&str> = EARLY[..early].to_vec();
-    names.extend(&LATE[LATE.len() - (rest - early)..]);
-    names.extend(["BTN", "SB", "BB"]);
-    names
 }
 
 /// "im Big Blind", "am Button", "auf UTG+1".

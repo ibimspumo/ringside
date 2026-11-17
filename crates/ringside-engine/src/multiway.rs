@@ -246,17 +246,25 @@ impl Solution {
     }
 }
 
+/// Table position names of a game of `players` in action order, as the HUD names them:
+/// the first seat is UTG, the late seats LJ, HJ and CO are filled from the back.
+pub fn position_names(players: usize) -> Vec<&'static str> {
+    if players == 2 {
+        return vec!["SB", "BB"];
+    }
+    const EARLY: [&str; 3] = ["UTG", "UTG+1", "UTG+2"];
+    const LATE: [&str; 3] = ["LJ", "HJ", "CO"];
+    let rest = players.saturating_sub(3);
+    let early = rest.saturating_sub(LATE.len());
+    let mut names: Vec<&str> = EARLY[..early].to_vec();
+    names.extend(&LATE[LATE.len() - (rest - early)..]);
+    names.extend(["BTN", "SB", "BB"]);
+    names
+}
+
 /// Table position name of `seat` in a game of `players` (action order).
 pub fn seat_name(players: usize, seat: usize) -> &'static str {
-    const FROM_BUTTON: [&str; 7] = ["BTN", "CO", "HJ", "LJ", "UTG+2", "UTG+1", "UTG"];
-    if seat + 1 == players {
-        "BB"
-    } else if seat + 2 == players {
-        "SB"
-    } else {
-        let names = &FROM_BUTTON[..players - 2];
-        names[players - 3 - seat]
-    }
+    position_names(players)[seat]
 }
 
 pub fn solve(params: &Params) -> Result<Solution, Error> {
@@ -1834,6 +1842,10 @@ mod tests {
         assert_eq!(seat_name(3, 0), "BTN");
         let nine: Vec<_> = (0..9).map(|s| seat_name(9, s)).collect();
         assert_eq!(nine, ["UTG", "UTG+1", "UTG+2", "LJ", "HJ", "CO", "BTN", "SB", "BB"]);
+        let seven: Vec<_> = (0..7).map(|s| seat_name(7, s)).collect();
+        assert_eq!(seven, ["UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"]);
+        let eight: Vec<_> = (0..8).map(|s| seat_name(8, s)).collect();
+        assert_eq!(eight, ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"]);
     }
 
     #[test]
