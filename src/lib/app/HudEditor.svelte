@@ -8,7 +8,7 @@
   import SeatAnatomy, { type Slot } from "../hud/SeatAnatomy.svelte";
   import ThresholdScale from "../hud/ThresholdScale.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
-  import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META, stat } from "../stats";
+  import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
   import type { ClassicPreset, HudConfig, Palette, Preset, SeatView, Settings, StatId, TableView } from "../types";
 
   const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -441,7 +441,22 @@
                 {/each}
               </div>
               {#if slotStat}
-                <p class="explain"><b>{STAT_META[slotStat].name}:</b> {STAT_META[slotStat].help}</p>
+                {@const m = STAT_META[slotStat]}
+                {@const v = stat(sample.stats, slotStat)}
+                {@const t = hud.thresholds[slotStat]}
+                {@const k = tone(hud, v)}
+                <div class="explain">
+                  <p><b>{m.name}:</b> {m.help}</p>
+                  <p class="example">
+                    Beispiel {sample.name}: {m.plain}
+                    <b class="num" style="color:{toneColor(hud, v, 'var(--text-2)')}">{fmtUnit(v)}</b>{m.after ? ` ${m.after}` : ""}
+                    {#if k === "none"}
+                      – noch keine Daten.
+                    {:else}
+                      → <b>{k === "mid" ? "normal" : MEANING[slotStat]?.[k === "low" ? 0 : 1]}</b>{#if t}{" "}<span class="faint">(normal bei dir: {t.low.toLocaleString("de-DE")}–{t.high.toLocaleString("de-DE")}{m.ratio ? "×" : " %"})</span>{/if}
+                    {/if}
+                  </p>
+                </div>
               {/if}
             </section>
 
@@ -508,7 +523,7 @@
                     </button>
                   {/each}
                 </div>
-                <p class="explain">Reihenfolge wie angeklickt, höchstens acht Werte.</p>
+                <p class="note">Reihenfolge wie angeklickt, höchstens acht Werte.</p>
               {/if}
             </section>
           {/if}
@@ -825,7 +840,7 @@
   }
   .sec-head p {
     margin: 3px 0 0;
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.45;
     color: var(--text-2);
   }
@@ -953,14 +968,14 @@
     cursor: pointer;
   }
   .stat b {
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.25;
     font-weight: 500;
   }
   .stat i {
     flex-shrink: 0;
     font-style: normal;
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-3);
   }
   .stat:hover {
@@ -987,13 +1002,21 @@
     padding: 9px 11px;
     border-radius: var(--r-sm);
     background: var(--surface-2);
-    font-size: 12.5px;
+    font-size: 13px;
     line-height: 1.5;
     color: var(--text-2);
   }
   .explain b {
     color: var(--text);
     font-weight: 600;
+  }
+  .explain p {
+    margin: 0;
+  }
+  .example {
+    margin-top: 6px !important;
+    padding-top: 6px;
+    border-top: 1px solid var(--line);
   }
 
   .presets {
@@ -1174,7 +1197,7 @@
     }
     /* Keep the inspector's tabs in the first screen when it moves below the table. */
     .stage {
-      width: min(100%, calc((100vh - 360px) * var(--aspect))) !important;
+      width: min(100%, calc((100vh - 330px) * var(--aspect))) !important;
     }
   }
 </style>

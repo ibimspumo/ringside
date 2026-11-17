@@ -164,7 +164,7 @@
     border: 1px solid var(--line-2);
     background: var(--surface-2);
     color: var(--text-2);
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 600;
     letter-spacing: 0.02em;
     cursor: pointer;
@@ -188,8 +188,8 @@
   .hands {
     position: absolute;
     transform: translate(-50%, -50%);
-    font-size: 11px;
-    color: var(--text-3);
+    font-size: 12px;
+    color: var(--text-2);
     pointer-events: none;
   }
   .col-hit {

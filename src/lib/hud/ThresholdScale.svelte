@@ -95,7 +95,7 @@
     color: var(--text);
   }
   .abbr {
-    font-size: 11px;
+    font-size: 11.5px;
     color: var(--text-3);
   }
   .fields {
@@ -107,7 +107,7 @@
     display: flex;
     justify-content: space-between;
     gap: 12px;
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1.3;
   }
   .scale {
@@ -156,7 +156,7 @@
     position: absolute;
     top: 0;
     transform: translateX(-50%);
-    font-size: 11.5px;
+    font-size: 12px;
     line-height: 1;
     color: var(--text);
     pointer-events: none;
