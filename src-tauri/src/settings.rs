@@ -141,6 +141,26 @@ pub struct Settings {
     pub layouts: BTreeMap<String, Vec<SeatPos>>,
     /// Saved looks and layouts the user can switch between.
     pub presets: Vec<Preset>,
+    /// Changed only through the cloud commands, see `cloud.rs`.
+    pub cloud: CloudSettings,
+}
+
+/// Ringside Cloud: shared push/fold solutions. On by default; the first start shows what
+/// is shared until `notice_seen`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct CloudSettings {
+    /// Look up solutions other users computed (each is checked here before use).
+    pub fetch: bool,
+    /// Offer own solutions: calculation input and result, nothing about the user.
+    pub share: bool,
+    pub notice_seen: bool,
+}
+
+impl Default for CloudSettings {
+    fn default() -> Self {
+        CloudSettings { fetch: true, share: true, notice_seen: false }
+    }
 }
 
 /// A named snapshot of the HUD look and all layouts.
@@ -161,6 +181,7 @@ impl Default for Settings {
             hud: builtin.hud.clone(),
             layouts: BTreeMap::new(),
             presets: Vec::new(),
+            cloud: CloudSettings::default(),
         }
     }
 }
@@ -279,6 +300,7 @@ mod tests {
         assert_eq!(s.hand_history_dirs, ["C:/HH"]);
         assert_eq!(s.hud.scale, 1.2);
         assert_eq!(s.hud.mode, OverlayMode::Graphic);
+        assert_eq!(s.cloud, CloudSettings { fetch: true, share: true, notice_seen: false }, "cloud on, notice not seen");
     }
 
     #[test]

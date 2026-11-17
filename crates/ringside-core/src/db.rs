@@ -813,13 +813,13 @@ impl Db {
         rows.collect()
     }
 
-    /// Raw text of the hero's hands that may hold a learning spot (hero showed cards, or
-    /// sat in a blind), newest first.
+    /// Raw text of the hero's hands that may hold a learning spot (a tournament hand, where
+    /// every seat can face a push/fold decision, or hero showed cards), newest first.
     pub fn learn_candidates(&self, filter: &Filter, limit: usize, offset: usize) -> Result<Vec<String>, Error> {
         let sql = format!(
             "SELECT h.raw FROM hands h
              WHERE {FILTER_SQL} AND h.hero IS NOT NULL
-               AND (h.hero_position IN ('SB', 'BB', 'BTN')
+               AND (h.game = 'tournament'
                     OR EXISTS (SELECT 1 FROM player_hands ph
                                WHERE ph.hand_id = h.id AND ph.player = h.hero AND ph.shown != ''))
              ORDER BY h.played_at DESC, h.id DESC LIMIT ?4 OFFSET ?5"

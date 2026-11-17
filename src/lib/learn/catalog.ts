@@ -1,3 +1,4 @@
+import type { ConceptCount } from "../coach/types";
 import type { Grading, LearnKind, SkillProgress } from "../types";
 import type { UnitId } from "./wissen/articles";
 
@@ -13,6 +14,8 @@ export const TRAINABLE: LearnKind[] = [
   "equity_range",
   "push_fold_sb",
   "push_fold_bb",
+  "push_fold_open",
+  "push_fold_call",
 ];
 
 export type SkillMeta = {
@@ -82,6 +85,18 @@ export const SKILLS: Record<LearnKind, SkillMeta> = {
     short: "Call im BB",
     levels: ["Ohne Ante", "Mit Ante", "Volle Tische, totes Geld"],
     icon: "M12 4v12M7 11l5 5 5-5M5 20h14",
+    articles: ["push-fold", "pot-odds", "effektiver-stack"],
+  },
+  push_fold_open: {
+    short: "Shove nach Folds",
+    levels: ["2–6 Spieler, ohne Ante", "6–9 Spieler mit Ante", "Ungleiche Stacks, knappe Spots"],
+    icon: "M4 18h16M6 18v-5M10 18V9M14 18V6l4 4v8",
+    articles: ["push-fold", "fold-equity", "effektiver-stack"],
+  },
+  push_fold_call: {
+    short: "Call gegen Shove",
+    levels: ["2–6 Spieler, ohne Ante", "6–9 Spieler mit Ante", "Overcalls, ungleiche Stacks"],
+    icon: "M5 5l7 7M12 12l7-7M12 12v8M7 20h10",
     articles: ["push-fold", "pot-odds", "effektiver-stack"],
   },
   all_in: {
@@ -169,10 +184,10 @@ export const UNITS: Unit[] = [
     id: "pushfold",
     n: 7,
     title: "Push/Fold",
-    goal: "Shoven und Callen bei kurzen Stacks nach Nash.",
-    skills: ["push_fold_sb", "push_fold_bb"],
+    goal: "Shoven und Callen bei kurzen Stacks nach Nash, von heads-up bis zum vollen Tisch.",
+    skills: ["push_fold_sb", "push_fold_bb", "push_fold_open", "push_fold_call"],
     articles: ["push-fold", "effektiver-stack"],
-    next: ["Shoves aus früher Position"],
+    next: ["Push/Fold mit ICM"],
   },
   {
     id: "icm",
@@ -211,6 +226,12 @@ export const UNITS: Unit[] = [
     next: ["Varianz"],
   },
 ];
+
+/** Coach concepts with at least one mistake or questionable spot, weakest first as the coach sorts them. */
+export const weakConcepts = (concepts: ConceptCount[]) => concepts.filter((c) => c.mistakes + c.questionable > 0);
+
+/** The generated exercise that trains a coach concept, if there is one. */
+export const trainableKind = (c: ConceptCount): LearnKind | null => TRAINABLE.find((k) => k === c.exercise) ?? null;
 
 /** 0–1 share of the way to "bestätigt". */
 export const mastery = (s: SkillProgress | undefined) => (s ? s.level / 4 : 0);

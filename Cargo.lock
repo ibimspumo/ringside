@@ -3210,8 +3210,10 @@ name = "ringside"
 version = "0.4.0"
 dependencies = [
  "keyring",
+ "ringside-cloud",
  "ringside-coach",
  "ringside-core",
+ "ringside-engine",
  "ringside-learn",
  "serde",
  "serde_json",
@@ -3266,6 +3268,7 @@ dependencies = [
 name = "ringside-engine"
 version = "0.4.0"
 dependencies = [
+ "miniz_oxide 0.8.9",
  "rand",
  "rand_chacha",
  "rayon",

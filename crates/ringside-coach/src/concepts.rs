@@ -25,8 +25,8 @@ const fn c(
 
 pub const CONCEPTS: &[Concept] = &[
     c("push_fold_sb", "Push/Fold im Small Blind", Some("push_fold_sb"), &["push-fold", "effektiver-stack"]),
-    c("push_fold_call", "Callen gegen einen Shove", Some("push_fold_bb"), &["push-fold"]),
-    c("short_stack", "Kurzer Stack außerhalb der Blinds", None, &["push-fold", "m-ratio", "fold-equity"]),
+    c("push_fold_call", "Callen gegen einen Shove", Some("push_fold_call"), &["push-fold"]),
+    c("short_stack", "Kurzer Stack außerhalb der Blinds", Some("push_fold_open"), &["push-fold", "m-ratio", "fold-equity"]),
     c("pot_odds", "Pot Odds", Some("pot_odds"), &["pot-odds", "mdf"]),
     c("equity", "Equity gegen Ranges", Some("equity_range"), &["equity", "range"]),
     c("outs", "Outs und Draws", Some("outs"), &["outs", "regel-2-4", "implizite-odds"]),

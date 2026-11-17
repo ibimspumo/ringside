@@ -1,12 +1,8 @@
 //! The calculators the model may call. Every input is checked first; a bad input comes
 //! back as a German error the model can read and correct, never as a crash.
 
-use std::collections::HashMap;
-use std::sync::{Arc, LazyLock, Mutex};
-
-use ringside_engine::{
-    Card, CardSet, Combo, HandClass, Method, PushFoldParams, PushFoldResult, Range, equity, icm, outs, solve_push_fold,
-};
+use ringside_engine::{Card, CardSet, Combo, HandClass, Method, Range, equity, icm, outs};
+use ringside_learn::{TableSpot, lookup_or_solve, position_names};
 use serde_json::{Value, json};
 
 use crate::concepts::CONCEPTS;
@@ -37,13 +33,19 @@ pub fn definitions() -> Value {
         ),
         f(
             "push_fold_nash",
-            "Heads-up-Push/Fold-Gleichgewicht Small Blind gegen Big Blind in Chip-EV, nur gültig, wenn alle vor dem Small Blind gefoldet haben. Liefert für eine Hand, wie oft der Small Blind sie schiebt und der Big Blind sie gegen einen Shove callt, und den EV jeder Option in bb.",
+            "Push/Fold-Gleichgewicht für einen Tisch mit 2 bis 9 Spielern, in Chip-EV oder mit Auszahlungen in ICM. Gilt nur für reines Push/Fold: Bis zum ersten Shove folden alle, danach wird nur gecallt oder gefoldet, ein Call setzt den ganzen Stack. Keine Limps, keine Raises unter All-in, höchstens 3 Spieler all-in (danach folden alle übrigen). Das ist ein Modell: Ab 3 Spielern sind Kartenentfernung und 3-Wege-Equity genähert, eine Lösung kann leicht ungenau sein (siehe 'konvergiert'). Liefert für eine Hand an einer Position die Frequenz von Shove bzw. Call und den EV beider Optionen. Positionen in Aktionsreihenfolge: 2 Spieler SB, BB; 3 BTN, SB, BB; 6 LJ, HJ, CO, BTN, SB, BB; 9 UTG, UTG+1, UTG+2, LJ, HJ, CO, BTN, SB, BB (dazwischen von hinten aufgefüllt).",
             json!({"type": "object", "properties": {
-                "stack_bb": {"type": "number", "description": "Effektiver Stack in bb vor dem Posten, 1 bis 100"},
                 "hand": {"type": "string", "description": "Handklasse wie 'K6o', 'A5s', '77' oder Karten wie 'Kh6d'"},
-                "ante_bb": {"type": "number", "description": "Ante, die SB und BB je zahlen, in bb"},
-                "dead_bb": {"type": "number", "description": "Totes Geld im Pot in bb: Antes der anderen, Big-Blind-Ante"}
-            }, "required": ["stack_bb", "hand"]})
+                "stacks_bb": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 9, "description": "Stack jedes Spielers in bb vor dem Posten, in Aktionsreihenfolge: erster Spieler nach dem Big Blind zuerst, Small Blind vorletzter, Big Blind letzter"},
+                "position": {"type": "string", "description": "Position der Hand, z. B. 'CO' oder 'BB'"},
+                "shover": {"type": "string", "description": "Position des Spielers, der zuerst all-in ging; weglassen, wenn alle vor 'position' gefoldet haben"},
+                "callers": {"type": "array", "items": {"type": "string"}, "description": "Positionen, die den Shove vor 'position' gecallt haben (höchstens einer)"},
+                "ante_bb": {"type": "number", "description": "Ante, die jeder Spieler zahlt, in bb"},
+                "bb_ante_bb": {"type": "number", "description": "Big-Blind-Ante in bb (zahlt nur der Big Blind)"},
+                "dead_bb": {"type": "number", "description": "Sonstiges totes Geld im Pot in bb"},
+                "small_blind_bb": {"type": "number", "description": "Small Blind in bb, Standard 0,5"},
+                "payouts": {"type": "array", "items": {"type": "number"}, "description": "Optional: Auszahlungen ab Platz 1 für die Spieler am Tisch; dann rechnet das Werkzeug in ICM statt in Chips"}
+            }, "required": ["hand", "stacks_bb", "position"]})
         ),
         f(
             "icm",
@@ -191,26 +193,6 @@ fn pot_odds(args: &Value) -> Result<Value, String> {
     }))
 }
 
-type Key = [u64; 3];
-static SOLVED: LazyLock<Mutex<HashMap<Key, Arc<PushFoldResult>>>> = LazyLock::new(Default::default);
-
-fn solve(stack: f64, ante: f64, dead: f64) -> Result<Arc<PushFoldResult>, String> {
-    let key = [stack, ante, dead].map(f64::to_bits);
-    if let Some(r) = SOLVED.lock().map_err(|_| "Rechenkern blockiert")?.get(&key) {
-        return Ok(r.clone());
-    }
-    let mut p = PushFoldParams::new(stack);
-    p.ante_bb = ante;
-    p.dead_bb = dead;
-    let r = Arc::new(solve_push_fold(&p).map_err(|e| format!("Push/Fold nicht lösbar: {e}"))?);
-    let mut cache = SOLVED.lock().map_err(|_| "Rechenkern blockiert")?;
-    if cache.len() > 256 {
-        cache.clear();
-    }
-    cache.insert(key, r.clone());
-    Ok(r)
-}
-
 /// "K6o", "77", "A5s" or two cards like "Kh6d".
 fn hand_class(s: &str) -> Result<HandClass, String> {
     let t = s.trim();
@@ -228,32 +210,124 @@ fn hand_class(s: &str) -> Result<HandClass, String> {
     Ok(first)
 }
 
+fn optional_numbers(args: &Value, key: &str) -> Result<Vec<f64>, String> {
+    match args.get(key) {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(_) => numbers(args, key),
+    }
+}
+
+/// Seat of a position name at a table of `players`.
+fn seat(names: &[&str], text: &str, key: &str) -> Result<usize, String> {
+    let t = text.trim();
+    names.iter().position(|n| n.eq_ignore_ascii_case(t)).ok_or_else(|| {
+        format!("'{key}': '{t}' gibt es an einem Tisch mit {} Spielern nicht. Positionen: {}.", names.len(), names.join(", "))
+    })
+}
+
 fn push_fold(args: &Value) -> Result<Value, String> {
-    let stack = number(args, "stack_bb")?;
-    let ante = optional_number(args, "ante_bb")?;
-    let dead = optional_number(args, "dead_bb")?;
-    if !(1.0..=100.0).contains(&stack) {
-        return Err("'stack_bb' muss zwischen 1 und 100 liegen.".into());
-    }
-    if ante < 0.0 || dead < 0.0 || stack < 1.0 + ante {
-        return Err(
-            "Ante und totes Geld dürfen nicht negativ sein, und der Stack muss Big Blind plus Ante decken.".into()
-        );
-    }
     let class = hand_class(text(args, "hand")?)?;
-    let r = solve(round(stack, 2), round(ante, 3), round(dead, 3))?;
-    let i = class.index();
+    let stacks = numbers(args, "stacks_bb")?;
+    let n = stacks.len();
+    if !(2..=9).contains(&n) {
+        return Err("'stacks_bb' braucht 2 bis 9 Stacks, einen je Spieler am Tisch.".into());
+    }
+    if stacks.iter().any(|s| !(0.0..=200.0).contains(s)) {
+        return Err("Jeder Stack muss zwischen 0 und 200 bb liegen.".into());
+    }
+    let names = position_names(n);
+    let hero = seat(&names, text(args, "position")?, "position")?;
+    let shover = match args.get("shover").and_then(Value::as_str).filter(|s| !s.trim().is_empty()) {
+        Some(s) => Some(seat(&names, s, "shover")?),
+        None => None,
+    };
+    let callers = match args.get("callers") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(Value::Array(list)) => list
+            .iter()
+            .map(|v| v.as_str().ok_or("'callers' muss eine Liste von Positionen sein.".to_string()))
+            .map(|v| v.and_then(|s| seat(&names, s, "callers")))
+            .collect::<Result<Vec<_>, _>>()?,
+        Some(_) => return Err("'callers' muss eine Liste von Positionen sein.".into()),
+    };
+    match shover {
+        None if !callers.is_empty() => return Err("Ohne 'shover' kann es keine 'callers' geben.".into()),
+        None if hero + 1 == n => {
+            return Err("Der Big Blind entscheidet nur gegen einen Shove; gib 'shover' an.".into());
+        }
+        Some(s) if s >= hero => return Err("'shover' muss vor 'position' handeln.".into()),
+        Some(s) if callers.windows(2).any(|w| w[0] >= w[1]) || callers.iter().any(|&c| c <= s || c >= hero) => {
+            return Err("'callers' müssen zwischen 'shover' und 'position' sitzen, in Aktionsreihenfolge.".into());
+        }
+        Some(_) if callers.len() > 1 => {
+            return Err("Höchstens 3 Spieler all-in: Nach einem Shove und zwei Calls folden im Modell alle übrigen.".into());
+        }
+        _ => {}
+    }
+    let small_blind = match args.get("small_blind_bb") {
+        None | Some(Value::Null) => 0.5,
+        Some(_) => number(args, "small_blind_bb")?,
+    };
+    let spot = TableSpot {
+        stacks_bb: stacks.iter().map(|s| round(*s, 1)).collect(),
+        small_blind_bb: round(small_blind, 3),
+        ante_bb: round(optional_number(args, "ante_bb")?, 3),
+        bb_ante_bb: round(optional_number(args, "bb_ante_bb")?, 3),
+        dead_bb: round(optional_number(args, "dead_bb")?, 3),
+        hero,
+        shover,
+        callers,
+    };
+    if [spot.ante_bb, spot.bb_ante_bb, spot.dead_bb].iter().any(|v| *v < 0.0) || !spot.valid() {
+        return Err("Antes und totes Geld dürfen nicht negativ sein, der Small Blind liegt über 0 und höchstens bei 1 bb, und jeder Stack muss Ante und Blind decken.".into());
+    }
+    let payouts = optional_numbers(args, "payouts")?;
+    if payouts.len() > n || payouts.iter().any(|p| *p < 0.0) || (!payouts.is_empty() && payouts.iter().sum::<f64>() <= 0.0) {
+        return Err("'payouts': höchstens eine Auszahlung je Spieler, nicht negativ, zusammen über 0.".into());
+    }
+    let icm = !payouts.is_empty();
+    let mut params = spot.params();
+    if icm {
+        params = params.with_payouts(payouts);
+    }
+    let solution = lookup_or_solve(&params)?;
+    let s = solution
+        .spot(spot.hero, class, spot.shover, &spot.callers)
+        .ok_or("Diese Entscheidung gibt es im Push/Fold-Modell nicht.")?;
+    let (act, act_name) = if shover.is_some() { ("call", "Call") } else { ("shove", "All-in") };
+    let best = if s.freq >= 1.0 {
+        act_name
+    } else if s.freq <= 0.0 {
+        "Fold"
+    } else {
+        "gemischt"
+    };
+    let mut situation = match shover {
+        None => format!("Alle vor {} haben gefoldet", names[hero]),
+        Some(s) => format!("{} geht all-in", names[s]),
+    };
+    for &c in &spot.callers {
+        situation.push_str(&format!(", {} callt", names[c]));
+    }
+    let digits = if icm { 4 } else { 3 };
     Ok(json!({
         "hand": class.to_string(),
-        "sb_shove_frequenz_pct": round(100.0 * r.shove[i], 1),
-        "sb_ev_shove_bb": round(r.sb_class_ev[i].act, 3),
-        "sb_ev_fold_bb": round(r.sb_class_ev[i].fold, 3),
-        "bb_call_frequenz_pct": round(100.0 * r.call[i], 1),
-        "bb_ev_call_bb": round(r.bb_class_ev[i].act, 3),
-        "bb_ev_fold_bb": round(r.bb_class_ev[i].fold, 3),
-        "sb_shove_range_pct": round(r.shove_pct, 1),
-        "bb_call_range_pct": round(r.call_pct, 1),
-        "modell": "Heads-up SB gegen BB, Chip-EV ohne ICM; EV je Option ab vor dem Posten gerechnet.",
+        "spieler": n,
+        "position": names[hero],
+        "positionen": names,
+        "situation": situation,
+        "aktion": act,
+        "frequenz_pct": round(100.0 * s.freq, 1),
+        "ev_aktion": round(s.ev_act, digits),
+        "ev_fold": round(s.ev_fold, digits),
+        "beste_option": best,
+        "range_pct": round(solution.act_pct(s.node), 1),
+        "effektiver_stack_bb": round(spot.effective_bb(), 1),
+        "ev_einheit": if icm { "ICM-Equity in Einheiten der Auszahlungen" } else { "bb gewonnen oder verloren gegenüber dem Stack vor dem Posten" },
+        "konvergiert": solution.converged,
+        "rest_ausnutzbarkeit": round(solution.exploitability, 4),
+        "mehrweg_all_in_pct": round(100.0 * solution.approximation.multiway_probability, 1),
+        "modell": "Reines Push/Fold, höchstens 3 Spieler all-in, 3-Wege-Equity per Monte Carlo geschätzt, Kartenentfernung paarweise genähert.",
     }))
 }
 
@@ -322,9 +396,21 @@ mod tests {
             ("equity", json!({"players": ["AhKh", "AhQd"]})),
             ("equity", json!({"players": ["AhKh", "xx"]})),
             ("equity", json!({"players": ["AhKh", "QQ"], "board": "2c3c"})),
-            ("push_fold_nash", json!({"stack_bb": 0.5, "hand": "AA"})),
-            ("push_fold_nash", json!({"stack_bb": 10, "hand": "AK"})),
-            ("push_fold_nash", json!({"stack_bb": 10, "hand": "Zz"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10], "position": "SB", "hand": "AK"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10], "position": "SB", "hand": "Zz"})),
+            ("push_fold_nash", json!({"stacks_bb": [10], "position": "SB", "hand": "AA"})),
+            ("push_fold_nash", json!({"stacks_bb": vec![10; 10], "position": "SB", "hand": "AA"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 0.5], "position": "SB", "hand": "AA"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10, 10], "position": "UTG", "hand": "AA"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10, 10], "position": "BB", "hand": "AA"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10, 10], "position": "SB", "shover": "BB", "hand": "AA"})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10, 10], "position": "SB", "callers": ["BTN"], "hand": "AA"})),
+            (
+                "push_fold_nash",
+                json!({"stacks_bb": [10, 10, 10, 10], "position": "BB", "shover": "CO", "callers": ["BTN", "SB"], "hand": "AA"}),
+            ),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10], "position": "SB", "hand": "AA", "payouts": [5, 3, 2]})),
+            ("push_fold_nash", json!({"stacks_bb": [10, 10], "position": "SB", "hand": "AA", "ante_bb": -1})),
             ("icm", json!({"stacks": [100], "payouts": [1]})),
             ("icm", json!({"stacks": [100, 50], "payouts": [1, 2, 3]})),
             ("outs", json!({"hero": "AhKh", "board": "2h"})),
@@ -344,15 +430,48 @@ mod tests {
         let eq = r["equity_pct"][0].as_f64().unwrap();
         assert!((81.0..83.0).contains(&eq), "{eq}");
 
-        let r = run("push_fold_nash", &json!({"stack_bb": 8, "hand": "Kh6d"})).unwrap();
+        let r = run("push_fold_nash", &json!({"stacks_bb": [8, 8], "position": "SB", "hand": "Kh6d"})).unwrap();
         assert_eq!(r["hand"], "K6o");
-        assert_eq!(r["sb_shove_frequenz_pct"], 100.0);
+        assert_eq!(r["frequenz_pct"], 100.0);
+        assert_eq!(r["beste_option"], "All-in");
 
         let r = run("icm", &json!({"stacks": [5000, 5000], "payouts": [70, 30]})).unwrap();
         assert_eq!(r["equity"][0], 50.0);
 
         let r = run("outs", &json!({"hero": "AhKh", "board": "2h7h9c", "villain": "QsQd"})).unwrap();
         assert!(r["outs"].as_u64().unwrap() >= 9);
+    }
+
+    /// The tool answers with the solver's numbers for the same table, rounded.
+    #[test]
+    fn push_fold_matches_the_solver_at_a_full_table() {
+        let args = json!({
+            "stacks_bb": [12, 25, 7, 18, 9, 11], "position": "BB", "shover": "LJ", "callers": ["BTN"],
+            "hand": "AQo", "ante_bb": 0.125
+        });
+        let r = run("push_fold_nash", &args).unwrap();
+        assert_eq!((r["spieler"].as_u64(), r["aktion"].as_str()), (Some(6), Some("call")));
+        assert_eq!(r["situation"], "LJ geht all-in, BTN callt");
+        let spot = TableSpot {
+            stacks_bb: vec![12.0, 25.0, 7.0, 18.0, 9.0, 11.0],
+            small_blind_bb: 0.5,
+            ante_bb: 0.125,
+            bb_ante_bb: 0.0,
+            dead_bb: 0.0,
+            hero: 5,
+            shover: Some(0),
+            callers: vec![3],
+        };
+        let class: HandClass = "AQo".parse().unwrap();
+        let s = lookup_or_solve(&spot.params()).unwrap().spot(5, class, Some(0), &[3]).unwrap();
+        assert_eq!(r["frequenz_pct"], round(100.0 * s.freq, 1));
+        assert_eq!(r["ev_aktion"], round(s.ev_act, 3));
+        assert_eq!(r["ev_fold"], round(s.ev_fold, 3));
+
+        let icm = run("push_fold_nash", &json!({"stacks_bb": [6, 9, 15], "position": "BTN", "hand": "Q9s", "payouts": [50, 30, 20]}))
+            .unwrap();
+        assert_eq!(icm["ev_einheit"], "ICM-Equity in Einheiten der Auszahlungen");
+        assert!(icm["ev_fold"].as_f64().unwrap() > 0.0 && icm["ev_fold"].as_f64().unwrap() < 100.0);
     }
 
     #[test]

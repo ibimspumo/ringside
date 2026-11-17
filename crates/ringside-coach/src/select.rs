@@ -9,7 +9,7 @@
 
 use ringside_core::model::{ActionKind, Hand, Street};
 use ringside_learn::own::check_spot;
-use ringside_learn::{Answer, Kind, OwnSpot, detect_spots};
+use ringside_learn::{Answer, Kind, OwnSpot, Prompt, detect_spots};
 use serde::Serialize;
 
 use crate::render::num;
@@ -80,7 +80,7 @@ fn reasons(hand: &Hand, hero: &str, spots: &[OwnSpot]) -> Vec<Reason> {
     if spots.iter().any(|s| s.kind == Kind::AllIn) {
         r.push(Reason::AllIn);
     }
-    if spots.iter().any(|s| matches!(s.kind, Kind::PushFoldSb | Kind::PushFoldBb)) {
+    if spots.iter().any(|s| matches!(s.kind, Kind::PushFoldOpen | Kind::PushFoldCall)) {
         r.push(Reason::PushFold);
     }
     let own: Vec<_> = hand.actions.iter().enumerate().filter(|(_, a)| a.player == hero && !a.kind.is_post()).collect();
@@ -143,24 +143,29 @@ fn facts(hand: &Hand, spots: &[OwnSpot]) -> Vec<String> {
             continue;
         }
         let Some(played) = &spot.played else { continue };
+        let Prompt::PushFoldTable { positions, hero, shover, callers, .. } = &spot.exercise.prompt else { continue };
         let Ok((_, fb)) = check_spot(hand, &spot.id, played) else { continue };
         let did = match played {
             Answer::Choice(c) if c == "shove" => "all-in",
             Answer::Choice(c) if c == "call" => "Call",
             _ => "Fold",
         };
-        let side = if spot.kind == Kind::PushFoldSb {
-            "Push/Fold im Small Blind, alle vor dir haben gefoldet"
-        } else {
-            "Big Blind gegen den Shove des Small Blind"
+        let at = format!("{} am Tisch mit {} Spielern", positions[*hero], positions.len());
+        let side = match shover {
+            None => format!("Push/Fold {at}, alle vor dir haben gefoldet"),
+            Some(s) => {
+                let calls: String = callers.iter().map(|&c| format!(", {} callt", positions[c])).collect();
+                format!("{at} gegen den Shove von {}{calls}", positions[*s])
+            }
         };
-        let details: Vec<String> = fb.facts.iter().map(|f| format!("{} {}", f.label, f.value)).collect();
+        let details: Vec<String> =
+            fb.facts.iter().filter(|f| f.label != "Damals gespielt").map(|f| format!("{} {}", f.label, f.value)).collect();
         let loss = fb
             .ev_loss_bb
             .map(|l| format!(" Verlust deiner Wahl gegenüber der besten: {} bb.", num(l, 2)))
             .unwrap_or_default();
         out.push(format!(
-            "{side} (Nash heads-up, Chip-EV): {}. Nash spielt hier: {}. Du hast {did} gespielt.{loss}",
+            "{side} (Push/Fold-Gleichgewicht am ganzen Tisch, Chip-EV, höchstens 3 Spieler all-in, 3-Wege-Equity geschätzt): {}. Nash spielt hier: {}. Du hast {did} gespielt.{loss}",
             details.join(", "),
             fb.truth_text,
         ));
@@ -171,7 +176,7 @@ fn facts(hand: &Hand, spots: &[OwnSpot]) -> Vec<String> {
 pub fn select(hands: Vec<Hand>, max: usize) -> Selection {
     let total = hands.len();
     let mut without_decision = 0;
-    let mut picked: Vec<(usize, Selected)> = Vec::new();
+    let mut picked: Vec<(usize, Vec<OwnSpot>, Selected)> = Vec::new();
     for (i, hand) in hands.into_iter().enumerate() {
         let Some(hero) = hand.hero.clone() else { continue };
         if hand.big_blind <= 0 || hand.hero_cards.is_empty() {
@@ -184,19 +189,48 @@ pub fn select(hands: Vec<Hand>, max: usize) -> Selection {
             continue;
         }
         let score = score(&hand, &reasons);
-        let facts = facts(&hand, &spots);
-        picked.push((i, Selected { spots: spots.len(), hand, reasons, facts, score }));
+        picked.push((i, spots, Selected { spots: 0, hand, reasons, facts: Vec::new(), score }));
     }
     let qualified = picked.len();
-    picked.sort_by(|a, b| b.1.score.total_cmp(&a.1.score).then(a.0.cmp(&b.0)));
+    picked.sort_by(|a, b| b.2.score.total_cmp(&a.2.score).then(a.0.cmp(&b.0)));
     picked.truncate(max);
-    picked.sort_by_key(|(i, _)| *i);
-    Selection {
-        dropped: qualified - picked.len(),
-        hands: picked.into_iter().map(|(_, s)| s).collect(),
-        total,
-        without_decision,
-    }
+    picked.sort_by_key(|(i, ..)| *i);
+    // Push/fold facts solve the table, so only the hands that stay get them.
+    let mut facts = all_facts(&picked);
+    let hands: Vec<Selected> = picked
+        .into_iter()
+        .zip(&mut facts)
+        .map(|((_, spots, mut s), f)| {
+            s.facts = std::mem::take(f);
+            s.spots = spots.len();
+            s
+        })
+        .collect();
+    Selection { dropped: qualified - hands.len(), hands, total, without_decision }
+}
+
+/// Solves run a few at a time: one table alone leaves most cores idle, and a solve
+/// takes seconds at a full table.
+const FACT_THREADS: usize = 4;
+
+fn all_facts(picked: &[(usize, Vec<OwnSpot>, Selected)]) -> Vec<Vec<String>> {
+    let mut out = vec![Vec::new(); picked.len()];
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..FACT_THREADS)
+            .map(|k| {
+                scope.spawn(move || {
+                    let mine = picked.iter().enumerate().skip(k).step_by(FACT_THREADS);
+                    mine.map(|(i, (_, spots, s))| (i, facts(&s.hand, spots))).collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        for worker in workers {
+            for (i, f) in worker.join().unwrap_or_default() {
+                out[i] = f;
+            }
+        }
+    });
+    out
 }
 
 #[cfg(test)]
@@ -267,8 +301,9 @@ Total pot 150 | Rake 0
         assert!(faced.facts.iter().any(|f| f.contains("Equity")), "{:?}", faced.facts);
     }
 
+    /// A 12 bb open fold on the button is a push/fold decision at the whole table.
     #[test]
-    fn short_stack_open_fold_counts() {
+    fn short_stack_open_fold_is_a_push_fold_spot() {
         let mut h = hand("Cid: folds\nHero: folds\nAnn: folds\nBob collected 150 from pot", 20);
         for s in &mut h.seats {
             if s.name == "Hero" {
@@ -277,6 +312,9 @@ Total pot 150 | Rake 0
         }
         let s = select(vec![h], 10);
         assert_eq!(s.hands.len(), 1);
-        assert_eq!(s.hands[0].reasons, vec![Reason::ShortStackFold]);
+        assert_eq!(s.hands[0].reasons, vec![Reason::PushFold]);
+        let fact = &s.hands[0].facts[0];
+        assert!(fact.starts_with("Push/Fold BTN am Tisch mit 4 Spielern"), "{fact}");
+        assert!(fact.contains("Du hast Fold gespielt"), "{fact}");
     }
 }

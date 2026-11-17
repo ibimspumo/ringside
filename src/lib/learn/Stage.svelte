@@ -181,6 +181,40 @@
         <div><dt>Am Tisch</dt><dd class="num">{prompt.players} Spieler</dd></div>
       </dl>
     </div>
+  {:else if prompt.type === "push_fold_table"}
+    {@const p = prompt}
+    {@const pos = p.positions[p.hero]}
+    <div class="pf">
+      <div class="hand">
+        <span class="cards">{#each p.hand as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
+        <span class="cls num">{p.class}</span>
+      </div>
+      <dl class="spot">
+        <div><dt>Du sitzt</dt><dd>{pos} <span class="faint">von {p.positions.length}</span></dd></div>
+        <div>
+          <dt>Situation</dt>
+          <dd>
+            {#if p.shover === null}Alle vor dir folden{:else}{p.positions[p.shover]} all-in{#each p.callers as c (c)}, {p.positions[c]} callt{/each}{/if}
+          </dd>
+        </div>
+        <div><dt>Effektiver Stack</dt><dd class="num">{fmtBB(p.effective_bb)}</dd></div>
+        <div><dt>Blinds</dt><dd class="num">{fmtBB(p.small_blind_bb)} / 1 bb</dd></div>
+        {#if p.ante_bb > 0}<div><dt>Ante</dt><dd class="num">{fmtBB(p.ante_bb)}</dd></div>{/if}
+        {#if p.bb_ante_bb > 0}<div><dt>Big-Blind-Ante</dt><dd class="num">{fmtBB(p.bb_ante_bb)}</dd></div>{/if}
+        {#if p.dead_bb > 0}<div><dt>Totes Geld</dt><dd class="num">{fmtBB(p.dead_bb)}</dd></div>{/if}
+      </dl>
+    </div>
+    <ol class="seats" aria-label="Tisch in Reihenfolge der Aktion">
+      {#each p.positions as name, i (name)}
+        {@const act =
+          i === p.hero ? "Du" : i === p.shover ? "All-in" : p.callers.includes(i) ? "Call" : i < p.hero ? "Fold" : "danach"}
+        <li class:hero={i === p.hero} class:in={i === p.shover || p.callers.includes(i)} class:out={act === "Fold"}>
+          <span class="seat-pos">{name}</span>
+          <span class="num">{fmtBB(p.stacks_bb[i])}</span>
+          <span class="seat-act">{act}</span>
+        </li>
+      {/each}
+    </ol>
   {/if}
 </div>
 
@@ -442,6 +476,49 @@
   dd {
     margin: 0;
     font-size: 15px;
+    font-weight: 600;
+  }
+  .seats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .seats li {
+    display: grid;
+    justify-items: center;
+    gap: 1px;
+    padding: 7px 4px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    font-size: 13px;
+  }
+  .seats .seat-pos {
+    font-weight: 600;
+  }
+  .seats .seat-act {
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .seats li.out {
+    opacity: 0.5;
+  }
+  .seats li.in {
+    border-color: var(--neg);
+  }
+  .seats li.in .seat-act {
+    color: var(--neg);
+    font-weight: 600;
+  }
+  .seats li.hero {
+    border-color: var(--text);
+    background: rgba(236, 235, 231, 0.08);
+  }
+  .seats li.hero .seat-act {
+    color: var(--text);
     font-weight: 600;
   }
   .note {

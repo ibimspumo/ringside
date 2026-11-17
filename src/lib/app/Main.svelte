@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import CloudNotice from "../cloud/CloudNotice.svelte";
   import Coach from "../coach/Coach.svelte";
   import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, TournamentRow } from "../types";
@@ -15,6 +16,7 @@
   import TournamentPicker from "./TournamentPicker.svelte";
   import Tournaments from "./Tournaments.svelte";
   import Training from "./Training.svelte";
+  import PushFoldCharts from "../charts/PushFoldCharts.svelte";
 
   type Tab =
     | "dashboard"
@@ -25,6 +27,7 @@
     | "players"
     | "live"
     | "training"
+    | "charts"
     | "hud"
     | "settings";
   type NavItem = { id: Tab; label: string; icon: string };
@@ -48,7 +51,10 @@
     },
     {
       label: "Lernen",
-      items: [{ id: "training", label: "Training", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" }],
+      items: [
+        { id: "training", label: "Training", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
+        { id: "charts", label: "Push/Fold", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
+      ],
     },
     {
       label: "Einrichten",
@@ -66,7 +72,7 @@
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
-      "Ringside arbeitet lokal. Ins Internet geht es nur, wenn du nach Updates suchst oder eine Coach-Analyse startest.",
+      "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
     training: "Gesperrt, solange PokerStars läuft. Dein Fortschritt bleibt auf diesem Rechner.",
   };
@@ -251,6 +257,7 @@
   </aside>
 
   <main>
+    <CloudNotice onSettings={() => (tab = "settings")} />
     <header class="top">
       <div class="title">
         <h1>{NAV.find((n) => n.id === tab)?.label}</h1>
@@ -314,6 +321,8 @@
         <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
       {:else if tab === "training"}
         <Training {hud} />
+      {:else if tab === "charts"}
+        <PushFoldCharts />
       {:else if tab === "hands"}
         <Hands
           {filter}

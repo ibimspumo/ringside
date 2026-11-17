@@ -172,6 +172,20 @@ fn import_reads_only_complete_appended_hands() {
 }
 
 #[test]
+fn import_keeps_unreadable_hands_for_a_report() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("HH20240115 Aquila II.txt");
+    let [first, _]: [&str; 2] = split_hands(CASH).try_into().unwrap();
+    let broken = first.replacen("Table '", "Tisch '", 1);
+    fs::write(&path, format!("{broken}\n\n\n{first}\n\n\n")).unwrap();
+    let r = import_file(&mut Db::open_in_memory().unwrap(), &path).unwrap();
+    assert_eq!((r.new_hands.len(), r.malformed), (1, 1));
+    let (text, reason) = &r.malformed_hands[0];
+    assert!(text.contains("Tisch '"), "{text}");
+    assert_eq!(reason, "table line");
+}
+
+#[test]
 fn header_variants() {
     let body = "Table 'Pool' 6-max Seat #1 is the button\nSeat 1: A (€2 in chips)\nSeat 2: B (€2 in chips)\n";
     let zoom = format!(

@@ -269,6 +269,15 @@ export function remove(tournament: number): boolean {
   return reports.delete(tournament);
 }
 
+/** Exercise and articles of the concepts the demo reports use, as in crates/ringside-coach/src/concepts.rs. */
+const LINKS: Record<string, { exercise: string | null; articles: string[] }> = {
+  push_fold_sb: { exercise: "push_fold_sb", articles: ["push-fold", "effektiver-stack"] },
+  short_stack: { exercise: "push_fold_open", articles: ["push-fold", "m-ratio", "fold-equity"] },
+  pot_odds: { exercise: "pot_odds", articles: ["pot-odds", "mdf"] },
+  outs: { exercise: "outs", articles: ["outs", "regel-2-4", "implizite-odds"] },
+  value_bet: { exercise: null, articles: ["value-bluff", "alpha"] },
+};
+
 export function concepts(): ConceptCount[] {
   const counts = new Map<string, ConceptCount>();
   for (const r of reports.values()) {
@@ -276,8 +285,8 @@ export function concepts(): ConceptCount[] {
       const c = counts.get(s.concept) ?? {
         id: s.concept,
         name: CONCEPT_NAMES[s.concept] ?? s.concept,
-        exercise: null,
-        articles: [],
+        exercise: LINKS[s.concept]?.exercise ?? null,
+        articles: LINKS[s.concept]?.articles ?? [],
         spots: 0,
         mistakes: 0,
         questionable: 0,
@@ -288,6 +297,7 @@ export function concepts(): ConceptCount[] {
       if (s.verdict === "fraglich") c.questionable++;
       counts.set(s.concept, c);
     }
+    for (const id of new Set(r.spots.map((s) => s.concept))) counts.get(id)!.tournaments++;
   }
   return [...counts.values()].sort((a, b) => b.mistakes - a.mistakes || b.questionable - a.questionable || b.spots - a.spots);
 }

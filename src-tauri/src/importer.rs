@@ -128,6 +128,7 @@ pub fn spawn(app: AppHandle) {
                     Ok(r) => {
                         status.hands_imported += r.new_hands.len();
                         status.malformed += r.malformed;
+                        app.state::<crate::cloud::CloudState>().add_malformed(r.malformed_hands);
                         tables.extend(r.new_hands.iter().map(|h| h.table_key()));
                     }
                     Err(e) => status.last_error = Some(format!("{}: {e}", path.display())),

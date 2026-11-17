@@ -30,14 +30,25 @@
   let right = $state(0);
   let round = $state(0);
 
+  /** The next exercise, fetched while the current one is answered: table push/fold may solve for seconds. */
+  let queued: { key: string; ex: Promise<Exercise> } | null = null;
+
   async function load() {
     const k = kind;
     const l = level;
+    const key = `${k}:${l}`;
     exercise = null;
     error = null;
     try {
-      const ex = await api.learnExercise(k, l);
-      if (k === kind && l === level) exercise = ex;
+      const pending = queued?.key === key ? queued.ex : api.learnExercise(k, l);
+      queued = null;
+      const ex = await pending;
+      if (k !== kind || l !== level) return;
+      exercise = ex;
+      queued = { key, ex: api.learnExercise(k, l) };
+      queued.ex.catch(() => {
+        // Reported when it is used.
+      });
     } catch (e) {
       error = errorText(e);
     }

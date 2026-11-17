@@ -1,18 +1,18 @@
-//! Exercises from the user's own hands: all-ins with every hand known, small-blind
-//! push/fold spots and big-blind calls against a small-blind shove.
+//! Exercises from the user's own hands: all-ins with every hand known, and push/fold
+//! decisions from any seat (open shoves and calls against a shove) at the real table.
 //!
 //! All-in EV is exact for any number of players: every side pot gets its own exact
 //! equity among the players who can win it, with the other known hands removed from
 //! the deck. Rake is taken from each pot in proportion to its size, and bounties are
 //! left out (chips only).
 
-use ringside_core::model::{ActionKind, GameKind, Hand, Street};
+use ringside_core::model::{Action, ActionKind, GameKind, Hand, Seat, Street};
 use ringside_engine::Card;
 use serde::{Deserialize, Serialize};
 
 use crate::equity::all_in_shares;
 use crate::fmt::{self, pct};
-use crate::pushfold::{self, Spot};
+use crate::multiway::{self, TableSpot};
 use crate::{Answer, Exercise, Fact, Feedback, Grading, Kind, PotView, Prompt, grade};
 
 /// A decision from one of the user's hands, ready to replay.
@@ -28,10 +28,9 @@ pub struct OwnSpot {
     /// action before it and stops there.
     pub stop_before_action: usize,
     pub exercise: Exercise,
-    /// What the hero did (`shove`/`call`/`fold`); `None` for all-ins.
+    /// What the hero did (`shove`/`call`/`fold`); `None` for all-ins. What it cost in
+    /// the model comes with the feedback of [`check_spot`], so listing spots solves nothing.
     pub played: Option<Answer>,
-    /// What that decision cost in the model, in big blinds.
-    pub played_ev_loss_bb: Option<f64>,
     /// Result of an all-in spot.
     pub all_in: Option<AllInResult>,
 }
@@ -82,7 +81,7 @@ pub fn detect_spots(hand: &Hand, only: Option<Kind>) -> Vec<OwnSpot> {
     {
         spots.push(s);
     }
-    if only.is_none_or(|k| k == Kind::PushFoldSb || k == Kind::PushFoldBb)
+    if only.is_none_or(|k| k == Kind::PushFoldOpen || k == Kind::PushFoldCall)
         && let Some(s) = push_fold(hand)
         && only.is_none_or(|k| k == s.kind)
     {
@@ -99,6 +98,19 @@ pub fn check_spot(hand: &Hand, id: &str, answer: &Answer) -> Result<(OwnSpot, Fe
         .find(|s| s.id == id)
         .ok_or("Diesen Spot gibt es in der Hand nicht")?;
     let mut fb = grade(&spot.exercise, answer)?;
+    if let Some(played @ Answer::Choice(did)) = &spot.played {
+        let loss = if played == answer { fb.ev_loss_bb } else { grade(&spot.exercise, played)?.ev_loss_bb };
+        let did = match did.as_str() {
+            "shove" => "All-in",
+            "call" => "Call",
+            _ => "Fold",
+        };
+        let verdict = match loss {
+            Some(l) if l > 0.005 => format!("kostete {}", fmt::bb(l)),
+            _ => "im Modell richtig".into(),
+        };
+        fb.facts.push(Fact::new("Damals gespielt", format!("{did}, {verdict}")));
+    }
     if let Some(r) = &spot.all_in {
         fb.facts.push(Fact::new("Pot", fmt::bb(r.pot_bb)));
         fb.facts.push(
@@ -109,6 +121,20 @@ pub fn check_spot(hand: &Hand, id: &str, answer: &Answer) -> Result<(OwnSpot, Fe
         fb.facts.push(Fact::new("Glück", fmt::signed_bb(r.luck_bb)).with("Tatsächlich − EV"));
     }
     Ok((spot, fb))
+}
+
+/// Solves the table of push/fold spot `id` ahead of the answer, so that grading it
+/// does not wait for the solver.
+pub fn prepare_spot(hand: &Hand, id: &str) -> Result<(), String> {
+    let (kind, _) = parse_spot_id(id).ok_or("Ungültige Spot-ID")?;
+    let spot = detect_spots(hand, Some(kind))
+        .into_iter()
+        .find(|s| s.id == id)
+        .ok_or("Diesen Spot gibt es in der Hand nicht")?;
+    if matches!(spot.exercise.prompt, Prompt::PushFoldTable { .. }) {
+        multiway::lookup_or_solve(&multiway::spot_of(&spot.exercise.prompt).params())?;
+    }
+    Ok(())
 }
 
 fn all_in(hand: &Hand) -> Option<OwnSpot> {
@@ -194,7 +220,6 @@ fn all_in(hand: &Hand) -> Option<OwnSpot> {
         stop_before_action: stop,
         exercise: exercise(Kind::AllIn, 1, hand, task),
         played: None,
-        played_ev_loss_bb: None,
         all_in: Some(AllInResult { equity_pct: share, pot_bb, ev_bb, net_bb, luck_bb: net_bb - ev_bb, rake_bb }),
     })
 }
@@ -202,13 +227,18 @@ fn all_in(hand: &Hand) -> Option<OwnSpot> {
 /// Largest effective stack treated as a push/fold spot.
 const MAX_STACK_BB: f64 = 20.0;
 
+/// The hero's push/fold decision at the whole table: shove or fold once everyone
+/// before folded, or call or fold against a shove (also after callers). Hands with a
+/// limp, a raise below all-in or already `max_all_in` players in the pot are no
+/// push/fold spots. Antes of players who are not dealt in become dead money, and so
+/// does any ante above the table's lowest, which also leaves that player's stack.
 fn push_fold(hand: &Hand) -> Option<OwnSpot> {
     if hand.game != GameKind::Tournament || hand.big_blind <= 0 {
         return None;
     }
     let hero = hand.hero.as_deref()?;
     let hero_cards = cards(&hand.hero_cards)?;
-    let pre: Vec<(usize, &ringside_core::model::Action)> =
+    let pre: Vec<(usize, &Action)> =
         hand.actions.iter().enumerate().filter(|(_, a)| a.street == Street::Preflop).collect();
     if pre.iter().any(|(_, a)| a.kind == ActionKind::PostBoth) {
         return None;
@@ -223,73 +253,93 @@ fn push_fold(hand: &Hand) -> Option<OwnSpot> {
     if sb_amount != hand.small_blind || bb_amount != hand.big_blind || sb_name == bb_name {
         return None;
     }
+
+    // Seats in preflop action order: the player after the big blind first, the big blind last.
+    let active: Vec<&Seat> = hand.active_players().collect();
+    let n = active.len();
+    let bb_at = active.iter().position(|s| s.name == bb_name)?;
+    let order: Vec<&Seat> = (1..=n).map(|k| active[(bb_at + k) % n]).collect();
+    if n < 2 || order[n - 2].name != sb_name {
+        return None;
+    }
+    let seat_of = |name: &str| order.iter().position(|s| s.name == name);
     let ante_of = |name: &str| -> i64 {
         pre.iter().filter(|(_, a)| a.player == name && a.kind == ActionKind::PostAnte).map(|(_, a)| a.amount).sum()
     };
-    let stack = |name: &str| hand.seats.iter().find(|s| s.name == name).map(|s| s.stack);
-    let (a_sb, a_bb) = (ante_of(sb_name), ante_of(bb_name));
-    let ante = a_sb.min(a_bb);
-    let other_antes: i64 = pre
+    let antes: Vec<i64> = order.iter().map(|s| ante_of(&s.name)).collect();
+    let ante = *antes[..n - 1].iter().min()?;
+    if antes[n - 1] < ante {
+        return None;
+    }
+    let extra = |i: usize| if i + 1 == n { 0 } else { antes[i] - ante };
+    let outside: i64 = pre
         .iter()
-        .filter(|(_, a)| a.kind == ActionKind::PostAnte && a.player != sb_name && a.player != bb_name)
+        .filter(|(_, a)| a.kind == ActionKind::PostAnte && seat_of(&a.player).is_none())
         .map(|(_, a)| a.amount)
         .sum();
-    let (sb_stack, bb_stack) = (stack(sb_name)?, stack(bb_name)?);
+    let chips: Vec<i64> = order.iter().enumerate().map(|(i, s)| s.stack - extra(i)).collect();
     let big = hand.big_blind as f64;
-    let spot = Spot {
-        stack_bb: (sb_stack - (a_sb - ante)).min(bb_stack - (a_bb - ante)) as f64 / big,
+    let mut spot = TableSpot {
+        stacks_bb: chips.iter().map(|&c| c as f64 / big).collect(),
         small_blind_bb: hand.small_blind as f64 / big,
         ante_bb: ante as f64 / big,
-        dead_bb: (other_antes + (a_sb - ante) + (a_bb - ante)) as f64 / big,
+        bb_ante_bb: (antes[n - 1] - ante) as f64 / big,
+        dead_bb: (outside + (0..n).map(extra).sum::<i64>()) as f64 / big,
+        hero: seat_of(hero)?,
+        shover: None,
+        callers: Vec::new(),
     };
-    if spot.stack_bb > MAX_STACK_BB || spot.stack_bb <= 1.0 + spot.ante_bb || spot.small_blind_bb > 1.0 {
+    if !spot.valid() {
         return None;
     }
-    let voluntary: Vec<(usize, &ringside_core::model::Action)> =
-        pre.iter().filter(|(_, a)| !a.kind.is_post()).copied().collect();
-    // Everyone before the small blind folds.
-    let first_sb = voluntary.iter().position(|(_, a)| a.player == sb_name)?;
-    if voluntary[..first_sb].iter().any(|(_, a)| a.kind != ActionKind::Fold) {
-        return None;
-    }
-    let (sb_index, sb_action) = voluntary[first_sb];
-    let covers = |cap: i64| sb_action.kind == ActionKind::Raise && (sb_action.all_in || sb_action.to.unwrap_or(0) >= cap);
-    let sb_shoves = covers(bb_stack - a_bb);
-    let players = hand.active_players().count() as u8;
-    let (kind, stop, played) = if hero == sb_name {
-        let played = match sb_action.kind {
-            ActionKind::Fold => "fold",
-            _ if sb_shoves => "shove",
-            _ => return None,
-        };
-        (Kind::PushFoldSb, sb_index, played)
-    } else if hero == bb_name {
-        if !sb_shoves {
+
+    // Chips a seat can still put in after its ante.
+    let live = |i: usize| order[i].stack - antes[i];
+    // An opening raise is a shove when it is all-in or covers everyone still to act.
+    let shoves = |a: &Action, i: usize| {
+        a.kind == ActionKind::Raise && (a.all_in || (i + 1..n).all(|j| a.to.unwrap_or(0) >= live(j)))
+    };
+    let voluntary: Vec<(usize, &Action)> = pre.iter().filter(|(_, a)| !a.kind.is_post()).copied().collect();
+    let hero_at = voluntary.iter().position(|(_, a)| a.player == hero)?;
+    for (_, a) in &voluntary[..hero_at] {
+        let Some(i) = seat_of(&a.player) else {
+            if a.kind == ActionKind::Fold {
+                continue;
+            }
             return None;
-        }
-        let (bb_index, bb_action) = *voluntary[first_sb + 1..].iter().find(|(_, a)| a.player == bb_name)?;
-        let played = match bb_action.kind {
-            ActionKind::Fold => "fold",
-            ActionKind::Call => "call",
-            _ => return None,
         };
-        (Kind::PushFoldBb, bb_index, played)
-    } else {
+        match (a.kind, spot.shover) {
+            (ActionKind::Fold, _) => {}
+            (ActionKind::Raise, None) if shoves(a, i) => spot.shover = Some(i),
+            (ActionKind::Call, Some(_)) => spot.callers.push(i),
+            (ActionKind::Raise, Some(_)) if a.all_in => spot.callers.push(i),
+            _ => return None,
+        }
+    }
+    if spot.callers.len() + 1 >= spot.params().max_all_in {
         return None;
+    }
+    let (stop, action) = voluntary[hero_at];
+    let (kind, played) = match (spot.shover, action.kind) {
+        (None, ActionKind::Fold) => (Kind::PushFoldOpen, "fold"),
+        (None, ActionKind::Raise) if shoves(action, spot.hero) => (Kind::PushFoldOpen, "shove"),
+        (Some(_), ActionKind::Fold) => (Kind::PushFoldCall, "fold"),
+        (Some(_), ActionKind::Call) => (Kind::PushFoldCall, "call"),
+        (Some(_), ActionKind::Raise) if action.all_in => (Kind::PushFoldCall, "call"),
+        _ => return None,
     };
-    let task = pushfold::task(kind == Kind::PushFoldSb, &hero_cards, spot, players);
-    let exercise = exercise(kind, 3, hand, task);
-    let played = Answer::Choice(played.into());
-    let loss = grade(&exercise, &played).ok().and_then(|f| f.ev_loss_bb);
+    if spot.effective_bb() > MAX_STACK_BB {
+        return None;
+    }
+    let task = multiway::task(&hero_cards, &spot);
     Some(OwnSpot {
         id: spot_id(kind, hand.id),
         kind,
         hand_id: hand.id,
         played_at: hand.played_at.clone(),
         stop_before_action: stop,
-        exercise,
-        played: Some(played),
-        played_ev_loss_bb: loss,
+        exercise: exercise(kind, 3, hand, task),
+        played: Some(Answer::Choice(played.into())),
         all_in: None,
     })
 }

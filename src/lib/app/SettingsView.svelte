@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import CloudSettings from "../cloud/CloudSettings.svelte";
+  import MalformedReports from "../cloud/MalformedReports.svelte";
   import CoachSettings from "../coach/CoachSettings.svelte";
   import type { ClientWindow, ImportStatus, NotesSource, Settings } from "../types";
 
@@ -128,6 +130,7 @@
               {#if status.malformed}· {status.malformed} nicht lesbar{/if}
             </p>
             {#if status.last_error}<p class="error">{status.last_error}</p>{/if}
+            <MalformedReports count={status.malformed} />
           {/if}
         </div>
       </section>
@@ -187,6 +190,8 @@
       </section>
 
       <CoachSettings />
+
+      <CloudSettings />
 
       <section class="panel">
         <div class="panel-head"><h2 class="panel-title">Updates</h2></div>

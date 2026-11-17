@@ -208,7 +208,7 @@ fn full_loop_with_tool_errors_and_a_corrected_report() {
             vec![
                 tool_call("c1", "pot_odds", r#"{"call": 9, "pot_before_call": 25.5}"#),
                 tool_call("c2", "equity", "{kaputt"),
-                tool_call("c3", "push_fold_nash", r#"{"stack_bb": 0.2, "hand": "AA"}"#),
+                tool_call("c3", "push_fold_nash", r#"{"stacks_bb": [0.2, 10], "position": "SB", "hand": "AA"}"#),
             ],
             1000,
             200,
@@ -236,7 +236,7 @@ fn full_loop_with_tool_errors_and_a_corrected_report() {
     assert_eq!(tool_results.len(), 3);
     assert!(tool_results[0]["content"].as_str().unwrap().contains("26.09"));
     assert!(tool_results[1]["content"].as_str().unwrap().contains("kein gültiges JSON"));
-    assert!(tool_results[2]["content"].as_str().unwrap().contains("stack_bb"));
+    assert!(tool_results[2]["content"].as_str().unwrap().contains("Stack muss Ante und Blind decken"));
     let fix = requests[2]["messages"].as_array().unwrap().last().unwrap()["content"].as_str().unwrap().to_string();
     assert!(fix.contains("H9"), "{fix}");
 

@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api } from "../api";
+  import { coachApi } from "../coach/api";
+  import type { ConceptCount } from "../coach/types";
   import type { HudConfig, LearnKind, LearnProgress } from "../types";
   import { errorText } from "./catalog";
   import OwnHands from "./OwnHands.svelte";
@@ -33,6 +35,8 @@
 
   let section = $state<Section>(initial());
   let progress = $state<LearnProgress | null>(null);
+  /** Coach concepts from stored reports; empty without reports. */
+  let concepts = $state<ConceptCount[]>([]);
   let loadError = $state<string | null>(null);
   let article = $state<string | null>(null);
   /** Skill and level the trainer opens with when coming from the path. */
@@ -59,6 +63,12 @@
 
   onMount(() => {
     reload();
+    coachApi
+      .concepts()
+      .then((c) => (concepts = c))
+      .catch(() => {
+        // Without reports, or while locked, the learning area simply shows no weaknesses.
+      });
   });
 
   function go(s: Section) {
@@ -110,9 +120,18 @@
 
   <div role="tabpanel" aria-label={SECTIONS.find((s) => s.id === section)?.label}>
     {#if section === "today"}
-      <Today {progress} onProgress={reload} onPath={() => go("path")} onOwn={() => go("own")} onTrainer={() => go("trainer")} />
+      <Today
+        {progress}
+        {concepts}
+        onProgress={reload}
+        onPath={() => go("path")}
+        onOwn={() => go("own")}
+        onTrainer={() => go("trainer")}
+        onTrain={train}
+        onRead={read}
+      />
     {:else if section === "path"}
-      <Path {progress} onTrain={train} onRead={read} />
+      <Path {progress} {concepts} onTrain={train} onRead={read} />
     {:else if section === "own"}
       <OwnHands onProgress={reload} onRead={read} />
     {:else if section === "trainer"}

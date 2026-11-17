@@ -80,7 +80,7 @@
 
   <div class="body">
     {#if st.kind === "preparing"}
-      <p class="dim">Ringside sucht deine Entscheidungen heraus und rechnet die Spots vor …</p>
+      <p class="dim">Ringside sucht deine Entscheidungen heraus und rechnet die Spots vor. Push/Fold-Spots am ganzen Tisch brauchen dabei einige Sekunden …</p>
     {:else if st.kind === "confirm"}
       {@const e = st.estimate}
       <div class="facts">

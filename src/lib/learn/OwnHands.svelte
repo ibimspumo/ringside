@@ -12,11 +12,14 @@
   const KINDS: { id: LearnKind | null; label: string }[] = [
     { id: null, label: "Alle" },
     { id: "all_in", label: "All-ins" },
-    { id: "push_fold_sb", label: "Shove im SB" },
-    { id: "push_fold_bb", label: "Call im BB" },
+    { id: "push_fold_open", label: "Shove nach Folds" },
+    { id: "push_fold_call", label: "Call gegen Shove" },
   ];
-  const KIND_LABEL: Partial<Record<LearnKind, string>> = { all_in: "All-in", push_fold_sb: "Shove im SB", push_fold_bb: "Call im BB" };
-  const ACT: Record<string, string> = { shove: "All-in", call: "Call", fold: "Fold" };
+  const KIND_LABEL: Partial<Record<LearnKind, string>> = {
+    all_in: "All-in",
+    push_fold_open: "Shove nach Folds",
+    push_fold_call: "Call gegen Shove",
+  };
 
   let kind = $state<LearnKind | null>(null);
   let spots = $state<OwnSpot[] | null>(null);
@@ -51,8 +54,19 @@
     hand = null;
     const spot = spots?.find((s) => s.id === id);
     if (!spot) return;
+    prepare(spot);
+    const following = spots?.slice((spots?.indexOf(spot) ?? 0) + 1).find((s) => !results[s.id]);
+    if (following) prepare(following);
     const h = await api.hand(spot.hand_id);
     if (selected === id) hand = h;
+  }
+
+  /** A push/fold spot's table takes seconds to solve; start while the user looks at the hand. */
+  const prepared = new Set<string>();
+  function prepare(s: OwnSpot) {
+    if (s.exercise.prompt.type !== "push_fold_table" || prepared.has(s.id)) return;
+    prepared.add(s.id);
+    api.learnPrepareOwn(s.id).catch(() => prepared.delete(s.id));
   }
 
   const spot = $derived(spots?.find((s) => s.id === selected) ?? null);
@@ -67,12 +81,13 @@
 
   function cards(s: OwnSpot): string[] {
     const p = s.exercise.prompt;
-    return p.type === "push_fold" ? p.hand : p.type === "all_in" ? p.hero : [];
+    return p.type === "push_fold" || p.type === "push_fold_table" ? p.hand : p.type === "all_in" ? p.hero : [];
   }
 
   function stack(s: OwnSpot): string | null {
     const p = s.exercise.prompt;
     if (p.type === "push_fold") return fmtBB(p.stack_bb);
+    if (p.type === "push_fold_table") return `${p.positions[p.hero]} · ${p.positions.length} Spieler · ${fmtBB(p.effective_bb)}`;
     if (p.type === "all_in") return `Pot ${fmtBB(p.pots.reduce((a, x) => a + x.amount_bb, 0))}`;
     return null;
   }
@@ -88,10 +103,6 @@
   function graded(id: string, fb: Feedback) {
     results[id] = fb;
     onProgress();
-  }
-
-  function playedText(p: LearnAnswer | null) {
-    return p && "choice" in p ? (ACT[p.choice] ?? p.choice) : "–";
   }
 
   function tone(fb: Feedback | undefined) {
@@ -110,8 +121,8 @@
     <div>
       <h1>Aus deinen Händen</h1>
       <p class="dim">
-        Deine All-ins und Push/Fold-Spots. Der Replayer hält vor deiner Entscheidung an, das Ergebnis bleibt verdeckt, bis du
-        geantwortet hast.
+        Deine All-ins und Push/Fold-Spots aus jeder Position. Der Replayer hält vor deiner Entscheidung an, das Ergebnis bleibt
+        verdeckt, bis du geantwortet hast.
       </p>
     </div>
     <div class="seg" role="group" aria-label="Art der Spots">
@@ -129,8 +140,8 @@
     <div class="empty panel">
       <p>Noch keine passenden Spots gefunden.</p>
       <p class="faint">
-        Sobald du in Turnieren all-in gehst oder im Small oder Big Blind mit höchstens 20 bb vor einer Push/Fold-Entscheidung
-        stehst, tauchen die Hände hier auf.
+        Sobald du in Turnieren all-in gehst oder mit höchstens 20 bb effektiv vor einer Push/Fold-Entscheidung stehst, als
+        Erster nach lauter Folds oder gegen einen Shove, tauchen die Hände hier auf.
       </p>
     </div>
   {:else}
@@ -142,7 +153,12 @@
               <span class="cards">{#each cards(s) as c (c)}<PlayingCard card={c} size={22} />{/each}</span>
               <span class="txt">
                 <b>{KIND_LABEL[s.kind] ?? s.kind}</b>
-                <span class="faint">{when(s.played_at)}{#if stack(s)} · {stack(s)}{/if}</span>
+                {#if s.exercise.prompt.type === "push_fold_table"}
+                  <span class="dim">{stack(s)}</span>
+                  <span class="faint">{when(s.played_at)}</span>
+                {:else}
+                  <span class="faint">{when(s.played_at)}{#if stack(s)} · {stack(s)}{/if}</span>
+                {/if}
               </span>
               <span class="state {tone(results[s.id])}" title={results[s.id] ? `${Math.round(results[s.id].score * 100)} Punkte` : "Noch offen"}></span>
             </button>
@@ -156,7 +172,7 @@
             {#if hand}
               <Replayer {hand} upTo={reveal ? null : spot.stop_before_action}>
                 <div class="hand-title">
-                  <b>{KIND_LABEL[spot.kind]}</b>
+                  <b>{KIND_LABEL[spot.kind]}{#if spot.exercise.prompt.type === "push_fold_table"} · {stack(spot)}{/if}</b>
                   <span class="faint">Hand {spot.hand_id} · {when(spot.played_at)}</span>
                   {#if !reveal}<span class="stop">Stopp vor deiner Entscheidung</span>{/if}
                 </div>
@@ -195,17 +211,6 @@
                         Equity {fmtPct(r.equity_pct, 1)} · Pot {fmtBB(r.pot_bb)}{#if r.rake_bb > 0} · Rake {fmtBB(r.rake_bb)}{/if}. Glück ist das
                         Ergebnis minus EV. Über viele Hände gleicht es sich aus.
                       </p>
-                    </div>
-                  {:else if spot.played}
-                    <div class="then">
-                      <span>Damals: <b>{playedText(spot.played)}</b></span>
-                      {#if spot.played_ev_loss_bb !== null}
-                        {#if spot.played_ev_loss_bb <= 0.005}
-                          <span class="pos">im Modell richtig</span>
-                        {:else}
-                          <span class="neg">kostete {fmtBB(spot.played_ev_loss_bb)}</span>
-                        {/if}
-                      {/if}
                     </div>
                   {/if}
                   <div class="more">
@@ -410,15 +415,6 @@
     from {
       transform: scaleX(0);
     }
-  }
-  .then {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px 14px;
-    padding: 10px 14px;
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    font-size: 13.5px;
   }
   .more {
     display: flex;

@@ -124,6 +124,9 @@
   </header>
 
   <h2 class="q">{exercise.question}</h2>
+  {#if exercise.model_note && (prompt.type === "push_fold" || prompt.type === "push_fold_table")}
+    <p class="model-note"><span class="badge modell">Modell</span> {exercise.model_note}</p>
+  {/if}
 
   {#if showStage}
     <Stage
@@ -284,6 +287,18 @@
     font-weight: 500;
     line-height: 1.45;
     text-wrap: pretty;
+  }
+  .model-note {
+    margin: -6px 0 0;
+    max-width: 80ch;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-3);
+  }
+  .model-note .badge {
+    margin-right: 4px;
+    font-size: 10.5px;
+    color: var(--text-2);
   }
   .input {
     min-width: 0;

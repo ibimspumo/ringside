@@ -3,7 +3,6 @@
 import type {
   Action,
   Exercise,
-  ExercisePrompt,
   Fact,
   Feedback,
   Hand,
@@ -28,6 +27,8 @@ const NAMES: Record<LearnKind, string> = {
   equity_range: "Equity gegen eine Range",
   push_fold_sb: "Push/Fold im Small Blind",
   push_fold_bb: "Callen gegen einen Shove im Big Blind",
+  push_fold_open: "Shove oder Fold, wenn alle zu dir gefoldet haben",
+  push_fold_call: "Call gegen einen Shove",
   all_in: "All-ins eigener Hände",
 };
 const KINDS = Object.keys(NAMES) as LearnKind[];
@@ -322,9 +323,69 @@ function genTask(kind: LearnKind, level: number, r: Rng): Task {
         model_note: "Heads-up-Nash zwischen Small und Big Blind, Chip-EV, ohne ICM. Spieler, die schon gefoldet haben, zählen nur als totes Geld.",
       };
     }
+    case "push_fold_open":
+    case "push_fold_call": {
+      const open = kind === "push_fold_open";
+      const profiles = [
+        [12, 25, 7, 18, 9, 30, 14, 5, 11],
+        [20, 8, 15, 6, 22, 10, 16, 13, 9],
+      ];
+      const n = level === 1 ? r.int(2, 6) : level === 2 ? r.int(6, 9) : r.int(3, 9);
+      const [ante, bbAnte] = level === 1 ? [0, 0] : r.pick([[0.125, 0], [0, 1]]);
+      const stacks = level === 3 ? r.pick(profiles).slice(9 - n) : Array(n).fill(level === 1 ? r.pick([8, 10, 12, 15]) : r.pick([6, 8, 10, 12, 15, 20]));
+      const shover = open ? null : r.int(0, n - 2);
+      const hero = open ? r.int(0, n - 2) : r.int((shover ?? 0) + 1, n - 1);
+      const callers = !open && level === 3 && hero > (shover ?? 0) + 1 && r.next() < 0.4 ? [r.int((shover ?? 0) + 1, hero - 1)] : [];
+      return tableTask(r.deal(new Set(), 2), stacks, hero, shover, callers, ante, bbAnte, 0);
+    }
     case "all_in":
       throw "Diese Übungsart gibt es nur aus eigenen Händen.";
   }
+}
+
+const TABLE_NOTE =
+  "Gleichgewicht für reines Push/Fold in Chips (ohne ICM): schieben oder folden, nach einem Shove nur callen oder folden. Höchstens 3 Spieler all-in, 3-Wege-Equity geschätzt.";
+
+function tableTask(hand: string[], stacks: number[], hero: number, shover: number | null, callers: number[], ante: number, bbAnte: number, dead: number): Task {
+  const n = stacks.length;
+  const positions = positionLabels(n);
+  const cls = classOf(hand);
+  const others = shover === null ? stacks.slice(hero + 1) : [stacks[shover], ...callers.map((c) => stacks[c])];
+  const effective = Math.min(stacks[hero], Math.max(...others));
+  const at: Record<string, string> = { BB: "im Big Blind", SB: "im Small Blind", BTN: "am Button", CO: "im Cutoff", HJ: "im Hijack", LJ: "im Lojack" };
+  let setup = `Dein Stack ${bb(stacks[hero])}`;
+  if (effective < stacks[hero]) setup += `, effektiv ${bb(effective)}`;
+  if (ante) setup += `, Ante ${bb(ante)}`;
+  if (bbAnte) setup += `, Big-Blind-Ante ${bb(bbAnte)}`;
+  const table = `${n} Spieler, du sitzt ${at[positions[hero]] ?? `auf ${positions[hero]}`}`;
+  const action = shover === null ? "" : `${positions[shover]} geht mit ${bb(stacks[shover])} all-in${callers.map((c) => `, ${positions[c]} callt`).join("")}`;
+  return {
+    question:
+      shover === null
+        ? `${table}. Alle vor dir haben gefoldet. ${setup}. Schiebst du mit ${cls} all-in?`
+        : `${table}. ${action}. ${setup}. Callst du mit ${cls}?`,
+    prompt: {
+      type: "push_fold_table",
+      hand,
+      class: cls,
+      positions,
+      stacks_bb: stacks,
+      hero,
+      shover,
+      callers,
+      effective_bb: effective,
+      small_blind_bb: 0.5,
+      ante_bb: ante,
+      bb_ante_bb: bbAnte,
+      dead_bb: dead,
+    },
+    answer: {
+      type: "choice",
+      options: shover === null ? [{ id: "shove", label: "All-in" }, { id: "fold", label: "Fold" }] : [{ id: "call", label: "Call" }, { id: "fold", label: "Fold" }],
+    },
+    grading: "modell",
+    model_note: TABLE_NOTE,
+  };
 }
 
 function positionLabels(n: number): string[] {
@@ -486,6 +547,34 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       fb.ev_loss_bb = loss;
       return fb;
     }
+    case "push_fold_table": {
+      const open = p.shover === null;
+      const at = PERCENTILE.get(p.class) ?? 100;
+      const s = p.effective_bb;
+      const behind = p.positions.length - 1 - p.hero;
+      const dead = p.ante_bb * p.positions.length + p.bb_ante_bb + p.dead_bb;
+      const base0 = open ? 1100 / Math.max(s, 1.5) - 5 : 600 / Math.max(s, 1.5) - 3;
+      const range = Math.max(2, Math.min(100, base0 / (1 + 0.3 * Math.max(0, behind - 1)) / (1 + p.callers.length) + dead * 6));
+      const act = open ? "shove" : "call";
+      const name = open ? "All-in" : "Call";
+      const play = at <= range;
+      const choice = "choice" in a ? a.choice : "";
+      const ok = (choice === act) === play;
+      const margin = Math.abs(at - range);
+      const loss = ok ? 0 : Math.round(Math.min(s * 0.4, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
+      const evAct = Math.round((play ? 1 : -1) * Math.min(3, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
+      const pos = p.positions[p.hero];
+      const facts = [
+        fact("Nash-Strategie", play ? `${name} (immer)` : "Fold (immer)"),
+        fact(`EV ${name}`, sbb(evAct)),
+        fact("EV Fold", sbb(pos === "SB" ? -0.5 - p.ante_bb : pos === "BB" ? -1 - p.ante_bb - p.bb_ante_bb : -p.ante_bb)),
+        fact(`${open ? "Shove" : "Call"}-Range ${pos}`, `${pct(range)} aller Hände`),
+        fact("Effektiver Stack", bb(s)),
+      ];
+      const fb = base(ok, ok ? 1 : Math.max(0, 0.5 - loss / 2), { choice: play ? act : "fold" }, play ? name : "Fold", facts, ex);
+      fb.ev_loss_bb = loss;
+      return fb;
+    }
     case "all_in": {
       const spot = SPOTS.find((x) => x.exercise.hand_id === ex.hand_id);
       const r = spot?.all_in;
@@ -556,11 +645,11 @@ type SpotSeed = { kind: LearnKind; id: number; when: string; hero: string[]; sta
 
 const SPOT_SEEDS: SpotSeed[] = [
   { kind: "all_in", id: 900000000101, when: "2026/11/16 21:48:12", hero: ["Ah", "Qh"], stack: 18, villainCards: ["Kc", "Kd"], board: ["Qs", "7h", "2c", "Ad", "9s"], heroAct: "call" },
-  { kind: "push_fold_sb", id: 900000000102, when: "2026/11/16 21:31:40", hero: ["Kd", "7s"], stack: 9.5, villainCards: [], board: [], heroAct: "fold" },
-  { kind: "push_fold_bb", id: 900000000103, when: "2026/11/16 20:57:03", hero: ["Qs", "9d"], stack: 11, villainCards: ["Ac", "4c"], board: ["8h", "6c", "2d", "Kc", "Ts"], heroAct: "call" },
+  { kind: "push_fold_open", id: 900000000102, when: "2026/11/16 21:31:40", hero: ["Kd", "7s"], stack: 9.5, villainCards: [], board: [], heroAct: "fold" },
+  { kind: "push_fold_call", id: 900000000103, when: "2026/11/16 20:57:03", hero: ["Qs", "9d"], stack: 11, villainCards: ["Ac", "4c"], board: ["8h", "6c", "2d", "Kc", "Ts"], heroAct: "call" },
   { kind: "all_in", id: 900000000104, when: "2026/11/15 23:12:55", hero: ["Js", "Jc"], stack: 24, villainCards: ["Ad", "Kh"], board: ["9d", "4s", "3h", "Kd", "2s"], heroAct: "shove" },
-  { kind: "push_fold_sb", id: 900000000105, when: "2026/11/15 22:40:18", hero: ["As", "3d"], stack: 13, villainCards: ["Jh", "Jd"], board: ["Td", "8c", "5s", "2h", "Qd"], heroAct: "shove" },
-  { kind: "push_fold_bb", id: 900000000106, when: "2026/11/15 22:02:44", hero: ["Th", "8h"], stack: 7, villainCards: [], board: [], heroAct: "fold" },
+  { kind: "push_fold_open", id: 900000000105, when: "2026/11/15 22:40:18", hero: ["As", "3d"], stack: 13, villainCards: ["Jh", "Jd"], board: ["Td", "8c", "5s", "2h", "Qd"], heroAct: "shove" },
+  { kind: "push_fold_call", id: 900000000106, when: "2026/11/15 22:02:44", hero: ["Th", "8h"], stack: 7, villainCards: [], board: [], heroAct: "fold" },
 ];
 
 /** Hand amounts are in hundredths, like imported hands: 400 chips. */
@@ -570,7 +659,7 @@ const SEATS = ["Hero", "maverick_77", "Lumi.K", "Saltbae", "RiverRat", "nordlich
 
 /** A tournament hand that leads to the spot: everybody folds to the blinds, then the decision. */
 function spotHandOf(s: SpotSeed): { hand: Hand; stop: number } {
-  const heroSb = s.kind === "push_fold_sb" || s.kind === "all_in";
+  const heroSb = s.kind === "push_fold_open" || s.kind === "all_in";
   const sbName = heroSb ? "Hero" : "maverick_77";
   const bbName = heroSb ? "maverick_77" : "Hero";
   const stack = s.stack * BB;
@@ -660,25 +749,20 @@ function makeSpot(s: SpotSeed): OwnSpot {
       stop_before_action: stop,
       exercise,
       played: null,
-      played_ev_loss_bb: null,
       all_in: { equity_pct: round(eq), pot_bb: round(pot), ev_bb: round(ev), net_bb: round(net), luck_bb: round(net - ev), rake_bb: 0 },
     };
   }
-  const t = genTask(s.kind, 1, rng(s.id % 100_000));
-  const p = t.prompt as Extract<ExercisePrompt, { type: "push_fold" }>;
-  const cls = classOf(s.hero);
-  const exercise: Exercise = {
-    ...base,
-    ...t,
-    question:
-      s.kind === "push_fold_sb"
-        ? `Alle haben zu dir in den Small Blind gefoldet. Effektiver Stack ${bb(s.stack)}, Ante ${bb(ANTE / BB)}. Schiebst du mit ${cls} all-in?`
-        : `Der Small Blind geht gegen dich all-in, du bist im Big Blind. Effektiver Stack ${bb(s.stack)}, Ante ${bb(ANTE / BB)}. Callst du mit ${cls}?`,
-    prompt: { ...p, hand: s.hero, class: cls, stack_bb: s.stack, ante_bb: ANTE / BB, dead_bb: (ANTE / BB) * 6, players: 8 },
-  };
-  const played: LearnAnswer = { choice: s.heroAct };
-  const fb = grade(exercise, played);
-  return { id: `${s.kind}:${s.id}`, kind: s.kind, hand_id: s.id, played_at: s.when, stop_before_action: stop, exercise, played, played_ev_loss_bb: fb.ev_loss_bb, all_in: null };
+  // Seats in action order: everyone after the big blind, the blinds last.
+  const { hand } = spotHandOf(s);
+  const bySeat = [...hand.seats].sort((x, y) => x.seat - y.seat);
+  const bbAt = bySeat.findIndex((x) => x.name === (s.kind === "push_fold_open" ? "maverick_77" : "Hero"));
+  const order = bySeat.map((_, i) => bySeat[(bbAt + 1 + i) % bySeat.length]);
+  const stacks = order.map((x) => x.stack / BB);
+  const heroAt = order.findIndex((x) => x.name === "Hero");
+  const shover = s.kind === "push_fold_call" ? order.length - 2 : null;
+  const t = tableTask(s.hero, stacks, heroAt, shover, [], ANTE / BB, 0, 0);
+  const exercise: Exercise = { ...base, level: 3, ...t };
+  return { id: `${s.kind}:${s.id}`, kind: s.kind, hand_id: s.id, played_at: s.when, stop_before_action: stop, exercise, played: { choice: s.heroAct }, all_in: null };
 }
 
 const SPOTS: OwnSpot[] = SPOT_SEEDS.map(makeSpot);
@@ -704,7 +788,13 @@ export function demoOwnSpots(kind: LearnKind | null, limit: number): OwnSpot[] {
 export function demoCheckOwn(spotId: string, answer: LearnAnswer): Feedback {
   const spot = SPOTS.find((s) => s.id === spotId);
   if (!spot) throw "Spot nicht gefunden";
-  return demoCheck(spot.exercise, answer);
+  const fb = demoCheck(spot.exercise, answer);
+  if (spot.played && "choice" in spot.played) {
+    const loss = grade(spot.exercise, spot.played).ev_loss_bb ?? 0;
+    const did = { shove: "All-in", call: "Call" }[spot.played.choice] ?? "Fold";
+    fb.facts.push(fact("Damals gespielt", `${did}, ${loss > 0.005 ? `kostete ${bb(loss)}` : "im Modell richtig"}`));
+  }
+  return fb;
 }
 
 export function demoProgress(): LearnProgress {

@@ -44,7 +44,11 @@ impl From<rusqlite::Error> for ImportError {
 pub struct FileImport {
     pub new_hands: Vec<Hand>,
     pub malformed: usize,
+    /// The first [`KEEP_MALFORMED`] of them: (hand text, reason), for a bug report.
+    pub malformed_hands: Vec<(String, String)>,
 }
+
+pub const KEEP_MALFORMED: usize = 20;
 
 /// `HandHistory` folders below `%LOCALAPPDATA%\PokerStars*` (.com, .EU, .DE, ...).
 pub fn default_dirs(local_app_data: &Path) -> Vec<PathBuf> {
@@ -196,7 +200,12 @@ pub fn import_file(db: &mut Db, path: &Path) -> Result<FileImport, ImportError> 
         match parse_hand(chunk) {
             Ok(hand) => parsed.push((hand, chunk.to_string())),
             Err(ParseError::Unsupported(_)) => {}
-            Err(ParseError::Malformed(_)) => result.malformed += 1,
+            Err(ParseError::Malformed(reason)) => {
+                result.malformed += 1;
+                if result.malformed_hands.len() < KEEP_MALFORMED {
+                    result.malformed_hands.push((chunk.to_string(), reason));
+                }
+            }
         }
     }
     let inserted = db.insert_hands(&parsed)?;

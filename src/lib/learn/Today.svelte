@@ -1,26 +1,34 @@
 <script lang="ts">
   import { api } from "../api";
+  import type { ConceptCount } from "../coach/types";
   import type { Exercise, LearnKind, LearnProgress, SkillProgress } from "../types";
-  import { LEVEL_TEXT, SKILLS, TRAINABLE, errorText, isDue, nextLevel } from "./catalog";
+  import { LEVEL_TEXT, SKILLS, TRAINABLE, errorText, isDue, nextLevel, trainableKind, weakConcepts } from "./catalog";
   import Mastery from "./Mastery.svelte";
   import Ring from "./Ring.svelte";
   import Task from "./Task.svelte";
+  import Weaknesses from "./Weaknesses.svelte";
 
   let {
     progress,
+    concepts,
     onProgress,
     onPath,
     onOwn,
     onTrainer,
+    onTrain,
+    onRead,
   }: {
     progress: LearnProgress | null;
+    concepts: ConceptCount[];
     onProgress: () => Promise<void>;
     onPath: () => void;
     onOwn: () => void;
     onTrainer: () => void;
+    onTrain: (kind: LearnKind, level: number) => void;
+    onRead: (id: string) => void;
   } = $props();
 
-  type Why = "Wiederholen" | "Neu" | "Festigen";
+  type Why = "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
   type Item = { kind: LearnKind; level: number; why: Why };
   const LENGTH = 8;
   const GOALS = [20, 50, 100];
@@ -46,12 +54,18 @@
 
   const byKind = $derived(new Map((progress?.skills ?? []).map((s) => [s.id, s])));
 
-  /** Due reviews first, then something new, then the weakest skills; no skill twice in a row. */
-  function buildPlan(p: LearnProgress | null): Item[] {
+  /** Weak spots from coach reports first, then due reviews, something new and the weakest skills; no skill twice in a row. */
+  function buildPlan(p: LearnProgress | null, weak: ConceptCount[]): Item[] {
     const skills = TRAINABLE.map((k) => p?.skills.find((s) => s.id === k)).filter((s): s is SkillProgress => !!s);
     const items: Item[] = [];
+    // The two weakest concepts with an exercise get two tasks each.
+    const weakKinds = [...new Set(weakConcepts(weak).map(trainableKind).filter((k): k is LearnKind => !!k))].slice(0, 2);
+    for (const k of weakKinds) {
+      const s = skills.find((x) => x.id === k);
+      for (let n = 0; n < 2; n++) items.push({ kind: k, level: nextLevel(s), why: "Schwachstelle" });
+    }
     const due = skills.filter(isDue).sort((a, b) => a.level - b.level || (a.last_at ?? 0) - (b.last_at ?? 0));
-    for (const s of due.slice(0, 4)) items.push({ kind: s.id, level: nextLevel(s), why: "Wiederholen" });
+    for (const s of due.filter((x) => !weakKinds.includes(x.id)).slice(0, 4)) items.push({ kind: s.id, level: nextLevel(s), why: "Wiederholen" });
     const fresh = skills.filter((s) => s.attempts === 0).slice(0, 2);
     // A new skill gets two tries, so the first one is not the only impression.
     fresh.forEach((s, i) => {
@@ -78,7 +92,7 @@
     return out;
   }
 
-  const plan = $derived(buildPlan(progress));
+  const plan = $derived(buildPlan(progress, concepts));
   const planGroups = $derived(
     [...new Map(plan.map((x) => [x.kind, x])).values()].map((x) => ({ ...x, n: plan.filter((y) => y.kind === x.kind).length })),
   );
@@ -92,17 +106,35 @@
   let correct = $state<boolean[]>([]);
   let before = $state<Map<LearnKind, SkillProgress>>(new Map());
 
+  /** Exercises fetched ahead by index: table push/fold may solve for seconds. */
+  let ahead = new Map<number, Promise<Exercise>>();
+  function fetchAt(i: number): Promise<Exercise> {
+    const p = ahead.get(i) ?? api.learnExercise(items[i].kind, items[i].level);
+    ahead.delete(i);
+    return p;
+  }
+
   async function load(i: number) {
     exercise = null;
     error = null;
     try {
-      exercise = await api.learnExercise(items[i].kind, items[i].level);
+      const ex = await fetchAt(i);
+      if (i !== index) return;
+      exercise = ex;
+      if (i + 1 < items.length && !ahead.has(i + 1)) {
+        const next = api.learnExercise(items[i + 1].kind, items[i + 1].level);
+        next.catch(() => {
+          // Reported when it is used.
+        });
+        ahead.set(i + 1, next);
+      }
     } catch (e) {
       error = errorText(e);
     }
   }
 
   function start() {
+    ahead = new Map();
     items = plan;
     before = new Map(byKind);
     scores = items.map(() => null);
@@ -145,13 +177,14 @@
         <span class="eyebrow">Heute lernen · etwa 5 Minuten</span>
         <h1>{LENGTH} Aufgaben, gemischt</h1>
         <p class="dim">
-          Fällige Wiederholungen zuerst, dazu etwas Neues. Nach jeder Antwort siehst du sofort, warum. Fehler kosten nichts, sie
+          {#if planGroups.some((g) => g.why === "Schwachstelle")}Deine Schwachstellen aus den Coach-Berichten zuerst, dann
+            fällige Wiederholungen und etwas Neues.{:else}Fällige Wiederholungen zuerst, dazu etwas Neues.{/if} Nach jeder Antwort siehst du sofort, warum. Fehler kosten nichts, sie
           kommen nur bald wieder.
         </p>
         <ul class="plan" aria-label="Plan für heute">
           {#each planGroups as g (g.kind)}
             <li>
-              <span class="why {g.why === 'Neu' ? 'new' : g.why === 'Wiederholen' ? 'due' : ''}">{g.why}</span>
+              <span class="why {g.why === 'Neu' ? 'new' : g.why === 'Wiederholen' ? 'due' : g.why === 'Schwachstelle' ? 'weak' : ''}">{g.why}</span>
               <span class="name">{SKILLS[g.kind].short}</span>
               {#if g.n > 1}<span class="faint num">×{g.n}</span>{/if}
             </li>
@@ -176,6 +209,8 @@
         <span class="faint tiny">1 XP pro Antwort, richtig oder falsch.</span>
       </div>
     </section>
+
+    <Weaknesses {concepts} {progress} limit={3} {onTrain} {onRead} />
 
     <div class="doors">
       <button class="door" onclick={onOwn}>
@@ -328,6 +363,10 @@
   }
   .why.due {
     color: var(--text);
+  }
+  .why.weak {
+    background: rgba(229, 72, 59, 0.16);
+    color: var(--neg);
   }
   .go {
     height: 42px;

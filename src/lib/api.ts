@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
+import * as chartsDemo from "./charts/demo";
 import type {
   Exercise,
   Feedback,
@@ -26,6 +27,9 @@ import type {
   ShownHand,
   TableView,
   Tournaments,
+  PushFoldAnte,
+  PushFoldChart,
+  PushFoldGrid,
 } from "./types";
 
 /** False when the UI runs in a normal browser (design work, screenshots). */
@@ -121,7 +125,12 @@ export const api = {
     call<OwnSpot[]>("learn_own_spots", { filter, kind, limit }, () => learnDemo.demoOwnSpots(kind, limit)),
   learnCheckOwn: (spotId: string, answer: LearnAnswer) =>
     call<Feedback>("learn_check_own", { spotId, answer }, () => learnDemo.demoCheckOwn(spotId, answer)),
+  /** Solves a push/fold spot's table ahead of the answer; seconds at a full table. */
+  learnPrepareOwn: (spotId: string) => call<void>("learn_prepare_own", { spotId }, () => undefined),
   learnProgress: () => call<LearnProgress>("learn_progress", {}, learnDemo.demoProgress),
+  pushfoldGrid: () => call<PushFoldGrid>("pushfold_grid", {}, chartsDemo.demoGrid),
+  pushfoldChart: (ante: PushFoldAnte, players: number, stackBb: number) =>
+    call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, chartsDemo.demoChart),
 };
 
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {

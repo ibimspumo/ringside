@@ -11,7 +11,7 @@ use crate::fmt::{self, pct};
 use crate::score::decision;
 use crate::{Answer, AnswerSpec, ChoiceOption, Exercise, Fact, Feedback, Grading, Kind, Prompt, Task, choice, feedback};
 
-pub const MODEL_NOTE: &str = "Heads-up-Nash-Gleichgewicht in Chips (ohne ICM): Alle anderen haben gefoldet, der Small Blind schiebt oder foldet, der Big Blind callt oder foldet. Tote Antes gehen an den Gewinner des Pots.";
+pub const MODEL_NOTE: &str = "Heads-up-Gleichgewicht für reines Push/Fold in Chips (ohne ICM): Alle anderen haben gefoldet, der Small Blind schiebt oder foldet, der Big Blind callt oder foldet. Equity exakt, tote Antes gehen an den Gewinner.";
 
 /// Decisions closer than this (in bb per hand) count as close calls for level 3; levels
 /// 1 and 2 only ask clearer ones.

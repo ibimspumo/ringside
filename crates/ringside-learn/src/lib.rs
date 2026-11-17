@@ -9,6 +9,7 @@ mod deal;
 pub mod fmt;
 mod math;
 pub mod mastery;
+mod multiway;
 pub mod own;
 mod pushfold;
 mod score;
@@ -20,6 +21,7 @@ use ringside_engine::Card;
 use serde::{Deserialize, Serialize};
 
 pub use mastery::{Progress, SkillProgress, progress};
+pub use multiway::{TableSpot, lookup_or_solve, position_names};
 pub use own::{AllInResult, OwnSpot, detect_spots};
 
 /// Exercise families. Each one is a skill in [`Progress`]; `all_in` only comes from
@@ -37,11 +39,15 @@ pub enum Kind {
     EquityRange,
     PushFoldSb,
     PushFoldBb,
+    /// Shove or fold from any seat once everyone before folded, 2–9 players.
+    PushFoldOpen,
+    /// Call or fold against a shove, also after a caller, 2–9 players.
+    PushFoldCall,
     AllIn,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 11] = [
+    pub const ALL: [Kind; 13] = [
         Kind::Outs,
         Kind::PotOdds,
         Kind::Probability,
@@ -52,6 +58,8 @@ impl Kind {
         Kind::EquityRange,
         Kind::PushFoldSb,
         Kind::PushFoldBb,
+        Kind::PushFoldOpen,
+        Kind::PushFoldCall,
         Kind::AllIn,
     ];
 
@@ -68,6 +76,8 @@ impl Kind {
             Kind::EquityRange => "equity_range",
             Kind::PushFoldSb => "push_fold_sb",
             Kind::PushFoldBb => "push_fold_bb",
+            Kind::PushFoldOpen => "push_fold_open",
+            Kind::PushFoldCall => "push_fold_call",
             Kind::AllIn => "all_in",
         }
     }
@@ -88,6 +98,8 @@ impl Kind {
             Kind::EquityRange => "Equity gegen eine Range",
             Kind::PushFoldSb => "Push/Fold im Small Blind",
             Kind::PushFoldBb => "Callen gegen einen Shove im Big Blind",
+            Kind::PushFoldOpen => "Shove oder Fold, wenn alle zu dir gefoldet haben",
+            Kind::PushFoldCall => "Call gegen einen Shove",
             Kind::AllIn => "All-ins eigener Hände",
         }
     }
@@ -129,8 +141,8 @@ pub struct Exercise {
     pub model_note: Option<String>,
 }
 
-/// What the exercise shows, one variant per kind (`push_fold` serves both push/fold
-/// kinds). Cards are strings like "Ah", "Td"; amounts are in big blinds unless named
+/// What the exercise shows, one variant per kind (`push_fold` serves both heads-up
+/// push/fold kinds, `push_fold_table` both table kinds). Cards are strings like "Ah", "Td"; amounts are in big blinds unless named
 /// otherwise.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -212,6 +224,30 @@ pub enum Prompt {
         dead_bb: f64,
         /// Players dealt in, for the table picture.
         players: u8,
+    },
+    /// Push/fold at a table of 2–9 players. Seats are in preflop action order: the first
+    /// player after the big blind first, the big blind last.
+    PushFoldTable {
+        hand: Vec<Card>,
+        class: String,
+        /// Position name per seat: "UTG", …, "BTN", "SB", "BB".
+        positions: Vec<String>,
+        /// Stack per seat before posting.
+        stacks_bb: Vec<f64>,
+        hero: usize,
+        /// `None`: everyone before the hero folded, hero shoves or folds.
+        shover: Option<usize>,
+        /// Seats that called the shove before the hero.
+        callers: Vec<usize>,
+        /// Hero's stack against the deepest player it can lose to.
+        effective_bb: f64,
+        small_blind_bb: f64,
+        /// Ante paid by every player.
+        ante_bb: f64,
+        /// Ante paid by the big blind alone.
+        bb_ante_bb: f64,
+        /// Other money in the pot, e.g. antes of players who are not dealt in.
+        dead_bb: f64,
     },
     /// An all-in from the user's own hand with every hand known. Pots hold side pots
     /// separately; player 0 is the hero, then `opponents` in order.
@@ -371,6 +407,7 @@ pub fn generate(kind: Kind, level: u8, seed: u64) -> Result<Exercise, String> {
         Kind::EquityHand => equity::hand(level, &mut rng),
         Kind::EquityRange => equity::range(level, &mut rng),
         Kind::PushFoldSb | Kind::PushFoldBb => pushfold::generate(kind, level, &mut rng)?,
+        Kind::PushFoldOpen | Kind::PushFoldCall => multiway::generate(kind, level, &mut rng)?,
         Kind::AllIn => return Err("All-in-Übungen gibt es nur aus eigenen Händen".into()),
     };
     Ok(Exercise {
@@ -406,6 +443,7 @@ fn grade(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {
         Prompt::EquityHand { .. } => equity::grade_hand(ex, answer)?,
         Prompt::EquityRange { .. } => equity::grade_range(ex, answer)?,
         Prompt::PushFold { .. } => pushfold::grade(ex, answer)?,
+        Prompt::PushFoldTable { .. } => multiway::grade(ex, answer)?,
         Prompt::AllIn { .. } => equity::grade_all_in(ex, answer)?,
     };
     feedback.grading = ex.grading;

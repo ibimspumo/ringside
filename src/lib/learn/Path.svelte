@@ -1,16 +1,24 @@
 <script lang="ts">
+  import type { ConceptCount } from "../coach/types";
   import type { LearnKind, LearnProgress } from "../types";
   import { SKILLS, UNITS, fmtPct, mastery, nextLevel } from "./catalog";
   import Mastery from "./Mastery.svelte";
   import Ring from "./Ring.svelte";
+  import Weaknesses from "./Weaknesses.svelte";
   import { ARTICLE_BY_ID } from "./wissen/articles";
   import { loadRead } from "./wissen/read";
 
   let {
     progress,
+    concepts,
     onTrain,
     onRead,
-  }: { progress: LearnProgress | null; onTrain: (kind: LearnKind, level: number) => void; onRead: (id: string) => void } = $props();
+  }: {
+    progress: LearnProgress | null;
+    concepts: ConceptCount[];
+    onTrain: (kind: LearnKind, level: number) => void;
+    onRead: (id: string) => void;
+  } = $props();
 
   const read = loadRead();
   const byKind = $derived(new Map((progress?.skills ?? []).map((s) => [s.id, s])));
@@ -38,6 +46,8 @@
       <b class="num">{solid}</b><span class="faint">/ {total.length} Fertigkeiten selbstständig</span>
     </div>
   </header>
+
+  <Weaknesses {concepts} {progress} limit={6} {onTrain} {onRead} />
 
   <ol class="units">
     {#each units as u (u.id)}

@@ -1,3 +1,5 @@
+mod charts;
+pub mod cloud;
 mod coach;
 mod importer;
 mod overlay;
@@ -15,7 +17,7 @@ use ringside_core::notes::{Notes, NotesSource, PlayerNote};
 use ringside_core::stats::{StatValue, stat_values};
 use ringside_core::table::{REFERENCE_ASPECT, SeatPos, layout_key, normalize_layouts, to_reference, visual_index};
 use ringside_core::tournament::{Totals, TournamentRow, totals};
-use ringside_learn::own::{check_spot, parse_spot_id};
+use ringside_learn::own::{check_spot, parse_spot_id, prepare_spot};
 use ringside_learn::{Answer, Exercise, Feedback, Kind, OwnSpot, Progress, detect_spots};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -217,7 +219,9 @@ fn get_settings(state: State<'_, AppState>) -> Settings {
 }
 
 #[tauri::command]
-async fn save_settings(settings: Settings, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+async fn save_settings(mut settings: Settings, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    // A settings page opened before the cloud notice was answered must not undo it.
+    settings.cloud = state.settings.lock().unwrap().cloud;
     store_settings(&app, &state, settings)
 }
 
@@ -563,6 +567,18 @@ async fn learn_check_own(spot_id: String, answer: Answer, app: AppHandle) -> Cmd
     blocking(app, move |state| check_own(state, &spot_id, &answer)).await
 }
 
+/// Solves the table of a push/fold spot from `learn_own_spots` while the user still
+/// looks at it, so that `learn_check_own` answers at once.
+#[tauri::command]
+async fn learn_prepare_own(spot_id: String, app: AppHandle) -> CmdResult<()> {
+    blocking(app, move |state| {
+        let (_, hand_id) = parse_spot_id(&spot_id).ok_or("Ungültige Spot-ID")?;
+        let hand = state.db.lock().unwrap().hand(hand_id).map_err(err)?.ok_or("Hand nicht gefunden")?;
+        prepare_spot(&hand, &spot_id)
+    })
+    .await
+}
+
 #[tauri::command]
 async fn learn_progress(app: AppHandle) -> CmdResult<Progress> {
     blocking(app, |state| {
@@ -603,6 +619,7 @@ pub fn run() {
                 notes: Mutex::new(NotesState::default()),
             });
             app.manage(coach::CoachState::default());
+            app.manage(cloud::CloudState::default());
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
             Ok(())
@@ -643,7 +660,10 @@ pub fn run() {
             learn_check,
             learn_own_spots,
             learn_check_own,
+            learn_prepare_own,
             learn_progress,
+            charts::pushfold_grid,
+            charts::pushfold_chart,
             coach::coach_status,
             coach::coach_set_key,
             coach::coach_test_key,
@@ -657,6 +677,12 @@ pub fn run() {
             coach::coach_report,
             coach::coach_delete_report,
             coach::coach_concepts,
+            cloud::cloud_settings,
+            cloud::cloud_save_settings,
+            cloud::cloud_ack_notice,
+            cloud::cloud_malformed,
+            cloud::cloud_dismiss_malformed,
+            cloud::cloud_send_report,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ringside");

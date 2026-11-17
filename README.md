@@ -28,7 +28,9 @@
 - *Heute:* kurze Sitzungen aus fälligen Wiederholungen und neuen Aufgaben, mit Wochenziel.
 - *Lernpfad:* elf Einheiten von den Grundlagen bis ICM, mit Kompetenzstufe je Fertigkeit.
 - *Deine Hände:* eigene All-ins und Push/Fold-Spots noch einmal entscheiden – danach EV, Ergebnis und Glück in BB.
-- *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold und mehr in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
+- *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold aus jeder Position an Tischen mit 2–9 Spielern und mehr, in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
+- *Deine Schwachstellen:* Themen aus den Coach-Berichten fließen in die tägliche Auswahl ein.
+- *Push/Fold-Charts:* Gleichgewicht für 2–9 Spieler, jede Position, Shove oder Call gegen Shove, ohne Ante, mit Ante oder BB-Ante. 720 Tabellen sind vorgerechnet, alles andere rechnet die App live.
 - *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
 
 **KI-Coach** (optional, mit eigenem [OpenRouter](https://openrouter.ai)-Key)
@@ -36,7 +38,9 @@
 - Das Sprachmodell rechnet nie selbst. Jede Zahl holt es über Werkzeuge aus Ringsides Engine; jede Zahl zeigt, ob sie berechnet oder geschätzt ist.
 - Gegnernamen werden vor dem Senden anonymisiert, vor jedem Lauf siehst du die geschätzten Kosten. Der Key liegt im Windows-Tresor.
 
-**Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht (bei 10 BB identisch mit HoldemResources). Ins Internet geht es nur für „Nach Updates suchen“ und, wenn du ihn nutzt, für den KI-Coach.
+**Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht für 2–9 Spieler (heads-up identisch mit HoldemResources, 3-handed auf einen Prozentpunkt bei Ganzfried & Sandholm 2008).
+
+**Internet:** „Nach Updates suchen“, der KI-Coach, wenn du ihn nutzt, und *Ringside Cloud*: Selbst gerechnete Push/Fold-Lösungen werden geteilt und fertige abgerufen – nur Rechen-Eingaben und Ergebnisse, nichts Persönliches. Jede Lösung wird vor der Freigabe und nach dem Download auf ihre Ausbeutbarkeit geprüft. Standardmäßig an, in den Einstellungen abschaltbar; solange PokerStars läuft, ist die Cloud still.
 
 | Grafisch | Klassisch („Klartext“) |
 | --- | --- |

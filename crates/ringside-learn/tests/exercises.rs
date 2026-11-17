@@ -1,8 +1,11 @@
-use ringside_learn::{Answer, AnswerSpec, Exercise, Kind, Prompt, check, generate};
+use ringside_engine::{Combo, HandClass};
+use ringside_learn::{Answer, AnswerSpec, Exercise, Kind, Prompt, TableSpot, check, generate, lookup_or_solve};
 
-/// Seeds per (kind, level); the exact equity and Nash kinds cost a second each in debug.
+/// Seeds per (kind, level); the exact equity and Nash kinds cost a second each in debug,
+/// a table solve up to a few seconds.
 fn seeds(kind: Kind) -> u64 {
     match kind {
+        Kind::PushFoldOpen | Kind::PushFoldCall => 1,
         Kind::EquityHand | Kind::PushFoldSb | Kind::PushFoldBb => 2,
         _ => 25,
     }
@@ -114,4 +117,63 @@ fn push_fold_reports_ev_loss() {
         let (_, fb2) = check(Kind::PushFoldSb, 1, seed, &Answer::Choice(other.into())).unwrap();
         assert_ne!(fb.correct, fb2.correct);
     }
+}
+
+/// Table exercises: the level decides the table, and both answers are graded with the
+/// solver's frequency and EVs for the dealt class at that node.
+#[test]
+fn table_push_fold_follows_the_level_and_the_solver() {
+    for kind in [Kind::PushFoldOpen, Kind::PushFoldCall] {
+        for level in 1..=3 {
+            let ex = generate(kind, level, 0).unwrap();
+            let Prompt::PushFoldTable {
+                ref hand, ref stacks_bb, small_blind_bb, ante_bb, bb_ante_bb, dead_bb, hero, shover, ref callers, ..
+            } = ex.prompt
+            else {
+                panic!("{:?}", ex.prompt)
+            };
+            let t = TableSpot {
+                stacks_bb: stacks_bb.clone(),
+                small_blind_bb,
+                ante_bb,
+                bb_ante_bb,
+                dead_bb,
+                hero,
+                shover,
+                callers: callers.clone(),
+            };
+            let n = stacks_bb.len();
+            let equal = stacks_bb.iter().all(|&x| x == stacks_bb[0]);
+            match level {
+                1 => assert!(n <= 6 && equal && ante_bb == 0.0 && bb_ante_bb == 0.0),
+                2 => assert!(n >= 6 && equal && ante_bb + bb_ante_bb > 0.0),
+                _ => assert!(n >= 3 && !equal),
+            }
+            assert_eq!(shover.is_none(), kind == Kind::PushFoldOpen);
+            assert!(level == 3 || callers.is_empty());
+            assert!(t.effective_bb() <= 20.0);
+
+            let class: HandClass = Combo::new(hand[0], hand[1]).class();
+            let truth = lookup_or_solve(&t.params()).unwrap().spot(hero, class, shover, callers).unwrap();
+            let close = (truth.freq > 0.0 && truth.freq < 1.0) || (truth.ev_act - truth.ev_fold).abs() < 0.3;
+            assert_eq!(close, level == 3, "{kind:?} {level}: {truth:?}");
+            let act = if kind == Kind::PushFoldOpen { "shove" } else { "call" };
+            for (answer, acted) in [(act, true), ("fold", false)] {
+                let (_, fb) = check(kind, level, 0, &Answer::Choice(answer.into())).unwrap();
+                let chosen = if acted { truth.ev_act } else { truth.ev_fold };
+                assert_eq!(fb.correct, if acted { truth.freq > 0.0 } else { truth.freq < 1.0 });
+                assert!((fb.ev_loss_bb.unwrap() - (truth.ev_act.max(truth.ev_fold) - chosen)).abs() < 1e-12);
+            }
+        }
+    }
+}
+
+/// Equal stacks on the bundled grid come from the precomputed table, without solving.
+#[test]
+fn bundled_tables_answer_without_solving() {
+    let p = ringside_engine::multiway::Params::equal(9, 10.0);
+    let start = std::time::Instant::now();
+    let s = ringside_learn::lookup_or_solve(&p).unwrap();
+    assert_eq!(s.players, 9);
+    assert!(start.elapsed() < std::time::Duration::from_secs(2), "{:?}: solved instead of read", start.elapsed());
 }

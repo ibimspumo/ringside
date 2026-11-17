@@ -369,6 +369,10 @@ export type LearnKind =
   | "equity_range"
   | "push_fold_sb"
   | "push_fold_bb"
+  /** Shove or fold from any seat once everyone before folded, 2–9 players. */
+  | "push_fold_open"
+  /** Call or fold against a shove, also after a caller, 2–9 players. */
+  | "push_fold_call"
   /** Only from own hands (`learnOwnSpots`), never generated. */
   | "all_in";
 
@@ -417,6 +421,25 @@ export type ExercisePrompt =
       ante_bb: number;
       dead_bb: number;
       players: number;
+    }
+  | {
+      /** Seats in preflop action order: first after the big blind first, the big blind last. */
+      type: "push_fold_table";
+      hand: string[];
+      class: string;
+      /** "UTG", …, "BTN", "SB", "BB" per seat. */
+      positions: string[];
+      /** Before posting. */
+      stacks_bb: number[];
+      hero: number;
+      /** null: everyone before the hero folded. */
+      shover: number | null;
+      callers: number[];
+      effective_bb: number;
+      small_blind_bb: number;
+      ante_bb: number;
+      bb_ante_bb: number;
+      dead_bb: number;
     }
   | { type: "all_in"; hero: string[]; opponents: string[][]; board: string[]; pots: PotView[] };
 
@@ -475,8 +498,8 @@ export interface OwnSpot {
   /** Index into `Hand.actions` of the hero's decision. */
   stop_before_action: number;
   exercise: Exercise;
+  /** What it cost comes with the feedback as the fact "Damals gespielt". */
   played: LearnAnswer | null;
-  played_ev_loss_bb: number | null;
   /** Outcome of an all-in; show only after answering. */
   all_in: AllInResult | null;
 }
@@ -509,4 +532,41 @@ export interface SkillProgress {
   mean_score: number | null;
   /** Unix seconds. */
   last_at: number | null;
+}
+
+export type PushFoldAnte = "none" | "classic" | "big_blind";
+
+export interface PushFoldGrid {
+  min_players: number;
+  max_players: number;
+  antes: { ante: PushFoldAnte; ante_bb: number; bb_ante_bb: number; stacks: number[] }[];
+}
+
+export interface PushFoldChart {
+  players: number;
+  stack_bb: number;
+  ante: PushFoldAnte;
+  /** False: solved live because no precomputed chart matches. */
+  precomputed: boolean;
+  converged: boolean;
+  exploitability_bb: number;
+  multiway_probability: number;
+  nodes: PushFoldNode[];
+}
+
+export interface PushFoldNode {
+  /** Action order: first player after the big blind … small blind, big blind. */
+  seat: number;
+  position: string;
+  /** null: everyone before folded and the seat may shove. */
+  shover: number | null;
+  /** Seats that called the shove before this one. */
+  callers: number[];
+  reach: number;
+  act_pct: number;
+  /** Shove/call frequency per hand class (row * 13 + col, ace first), 0–255. */
+  freq: number[];
+  /** Shove/call EV per hand class and fold EV, in hundredths of a BB. */
+  ev_act: number[];
+  ev_fold: number;
 }
