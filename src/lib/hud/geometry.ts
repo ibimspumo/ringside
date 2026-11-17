@@ -49,7 +49,9 @@ export const other = (side: Side): Side => (side === "left" ? "right" : "left");
  * Default anchor of a classic box: under the client's name plate, flush with its outer edge,
  * which keeps it off the bets (towards the table centre), the cards (above the plate) and the
  * neighbouring seats. The bottom-centre seat gets it centred under its plate; the top-centre
- * seat beside its avatar, since under its plate are the dealer button and the timer.
+ * seat beside its avatar, since under its plate are the dealer button and the timer. That box
+ * grows upwards from a little below the avatar's centre: growing down, a three-line box covers
+ * the avatar of the seat to its side.
  */
 export function classicAnchor(cx: number, cy: number, s: number, width: number, height: number) {
   const side = plateSide(cx, cy, width, height);
@@ -57,9 +59,10 @@ export function classicAnchor(cx: number, cy: number, s: number, width: number, 
   const below = cy + (PLATE.height / 2 + PLATE.offsetY) * s;
   if (centred && cy / height < 0.5) {
     const gap = (RING.size / 2 + 3) * s;
+    const bottom = cy + 8 * s;
     return side === "left"
-      ? { x: cx + gap, y: cy - AVATAR_RADIUS * s, transform: "translate(0, 0)" }
-      : { x: cx - gap, y: cy - AVATAR_RADIUS * s, transform: "translate(-100%, 0)" };
+      ? { x: cx + gap, y: bottom, transform: "translate(0, -100%)" }
+      : { x: cx - gap, y: bottom, transform: "translate(-100%, -100%)" };
   }
   if (centred) {
     const plateCentre = cx + (side === "left" ? -1 : 1) * (PLATE.width / 2 - PLATE.behindAvatar) * s;
