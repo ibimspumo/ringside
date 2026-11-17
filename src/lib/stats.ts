@@ -1,6 +1,7 @@
 import type { ClassicPreset, GameKind, HudConfig, Palette, StatId, StatValue } from "./types";
 
-export const STAT_META: Record<StatId, { short: string; name: string; plain: string; help: string; ratio?: boolean }> = {
+/** `plain` + value + `after` reads as a sentence in the "Klartext" preset. */
+export const STAT_META: Record<StatId, { short: string; name: string; plain: string; after?: string; help: string; ratio?: boolean }> = {
   hands: { short: "H", name: "Hände", plain: "Hände", help: "Gemeinsame Hände – je mehr, desto verlässlicher die Werte." },
   vpip: { short: "VPIP", name: "VPIP", plain: "spielt", help: "Wie oft freiwillig Geld in den Pot gelegt wird. Hoch = spielt viele Hände (loose)." },
   pfr: { short: "PFR", name: "Preflop-Raise", plain: "erhöht", help: "Wie oft vor dem Flop erhöht wird. Nah an VPIP = aggressiv, weit darunter = passiv." },
@@ -12,7 +13,14 @@ export const STAT_META: Record<StatId, { short: string; name: string; plain: str
   fold_to_cbet: { short: "FCB", name: "Fold auf C-Bet", plain: "gibt am Flop auf", help: "Wie oft auf eine C-Bet am Flop gefoldet wird." },
   wtsd: { short: "WTSD", name: "Showdown", plain: "geht zum Showdown", help: "Wie oft es nach gesehenem Flop zum Showdown geht." },
   wsd: { short: "W$SD", name: "Gewonnen am Showdown", plain: "gewinnt Showdowns", help: "Anteil gewonnener Showdowns." },
-  af: { short: "AF", name: "Aggression", plain: "aggressiv", help: "(Bets + Raises) / Calls nach dem Flop. Über 3 = sehr aggressiv.", ratio: true },
+  af: {
+    short: "AF",
+    name: "Aggression",
+    plain: "setzt/erhöht",
+    after: "so oft wie er callt",
+    help: "Aggressionsfaktor nach dem Flop: (Bets + Raises) ÷ Calls. 2,8× heißt: auf jeden Call kommen 2,8 Bets oder Raises. Unter 1,5 passiv, 1,5–3,5 normal, über 3,5 sehr aggressiv. Checks und Folds zählen nicht mit.",
+    ratio: true,
+  },
   afq: { short: "AFq", name: "Aggressions-Frequenz", plain: "aggressiv nach dem Flop", help: "Anteil aggressiver Aktionen nach dem Flop." },
 };
 
@@ -110,7 +118,7 @@ export const CLASSIC_PRESETS: Record<
     name: "Klartext",
     description: "Ausgeschriebene Sätze, ideal zum Lernen",
     words: true,
-    lines: [["vpip", "pfr"], ["three_bet", "af"]],
+    lines: [["vpip", "pfr"], ["three_bet", "steal"], ["af"]],
   },
   standard: {
     name: "Standard",

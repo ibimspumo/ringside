@@ -69,14 +69,17 @@
       <div class="sentence">
         {#each line as id, j (j)}
           {#if j > 0}<span class="dot">·</span>{/if}
-          <span class="word">{STAT_META[id].plain}</span>
-          <b class="num" style="color:{color(id)}">{fmt(stat(seat.stats, id))}<small>{unit(stat(seat.stats, id))}</small></b>
+          <span class="phrase" title={STAT_META[id].help}>
+            <span class="word">{STAT_META[id].plain}</span>
+            <b class="num" style="color:{color(id)}">{fmt(stat(seat.stats, id))}<small>{unit(stat(seat.stats, id))}</small></b>
+            {#if STAT_META[id].after}<span class="word">{STAT_META[id].after}</span>{/if}
+          </span>
         {/each}
       </div>
     {:else}
       <div class="cols" class:wide={line.length > 4}>
         {#each line as id, j (j)}
-          <span class="col">
+          <span class="col" title={STAT_META[id].help}>
             <b class="num" style="color:{id === 'hands' ? 'var(--text)' : color(id)}">{fmt(stat(seat.stats, id))}</b>
             <i>{STAT_META[id].short}</i>
           </span>
