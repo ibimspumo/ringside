@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { STAT_META, fill, fmt, moneyShort, stat, toneColor } from "../stats";
+  import { STAT_META, fill, fmt, moneyShort, stat, toneColor, unit } from "../stats";
   import type { GameKind, HudConfig, Point, SeatView, StatId } from "../types";
   import { draggable } from "./drag";
   import { AVATAR_RADIUS, PLATE, RING, defaultPlate, type Side } from "./geometry";
@@ -105,7 +105,7 @@
     <div class="cols">
       {#each plateStats as p, i (i)}
         <div class="col" title={STAT_META[p.id].help}>
-          <b class="num" style="color:{toneColor(hud, p.s, 'var(--text-3)')}">{fmt(p.s)}</b>
+          <b class="num" style="color:{toneColor(hud, p.s, 'var(--text-3)')}">{fmt(p.s)}<small>{unit(p.s)}</small></b>
           <i>{STAT_META[p.id].short}</i>
         </div>
       {/each}
@@ -236,6 +236,12 @@
     font-size: calc(19px * var(--s));
     font-weight: 700;
     line-height: 1;
+  }
+  .col b small {
+    margin-left: calc(1px * var(--s));
+    font-size: 0.5em;
+    font-weight: 600;
+    opacity: 0.75;
   }
   .col i {
     margin-top: calc(2px * var(--s));
