@@ -11,6 +11,7 @@
   import Today from "./Today.svelte";
   import Trainer from "./Trainer.svelte";
   import Wissen from "./wissen/Wissen.svelte";
+  import { preview } from "./preview";
 
   let {
     hud = null,
@@ -34,6 +35,8 @@
   const STORE = "ringside.learn.section";
 
   function initial(): Section {
+    const p = preview("learn");
+    if (SECTIONS.some((x) => x.id === p)) return p as Section;
     try {
       const s = localStorage.getItem(STORE);
       if (SECTIONS.some((x) => x.id === s)) return s as Section;
@@ -48,9 +51,11 @@
   /** Coach concepts from stored reports; empty without reports. */
   let concepts = $state<ConceptCount[]>([]);
   let loadError = $state<string | null>(null);
-  let article = $state<string | null>(null);
+  let article = $state<string | null>(preview("article"));
   /** Skill and level the trainer opens with when coming from the path. */
-  let trainerPick = $state<{ kind: LearnKind; level: number } | null>(null);
+  let trainerPick = $state<{ kind: LearnKind; level: number } | null>(
+    preview("skill") ? { kind: preview("skill") as LearnKind, level: 1 } : null,
+  );
   let top = $state<HTMLElement>();
 
   $effect(() => {

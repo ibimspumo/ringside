@@ -7,6 +7,7 @@
   import Ring from "./Ring.svelte";
   import Task from "./Task.svelte";
   import Weaknesses from "./Weaknesses.svelte";
+  import { preview } from "./preview";
 
   let {
     progress,
@@ -163,6 +164,17 @@
   const rights = $derived(correct.filter(Boolean).length);
   const practiced = $derived([...new Set(items.slice(0, Math.max(answered, 1)).map((x) => x.kind))]);
   const xpWeek = $derived(progress?.xp_week ?? 0);
+
+  const previewSession = preview("session");
+  $effect(() => {
+    if (!progress || !previewSession || phase !== "start") return;
+    start();
+    if (previewSession !== "done") return;
+    const demo = [1, 1, 0.6, 1, 0, 1, 0.85, 1];
+    scores = items.map((_, i) => demo[i % demo.length]);
+    correct = scores.map((s) => (s ?? 0) >= 0.999);
+    phase = "done";
+  });
 
   function tone(s: number | null) {
     if (s === null) return "";

@@ -5,6 +5,8 @@
   import { GRADING, SKILLS, errorText } from "./catalog";
   import FeedbackView from "./FeedbackView.svelte";
   import Stage from "./Stage.svelte";
+  import { preview, previewAnswer } from "./preview";
+  import { onMount } from "svelte";
 
   /**
    * One exercise: question, picture, the matching input, then feedback.
@@ -66,6 +68,16 @@
       busy = false;
     }
   }
+
+  onMount(() => {
+    if (preview("answer") !== "1") return;
+    const a = previewAnswer(spec);
+    if ("choice" in a) chosen = a.choice;
+    if ("seat" in a) seat = a.seat;
+    if ("cards" in a) picked = a.cards;
+    if ("number" in a) value = a.number;
+    submit(a);
+  });
 
   function submitDraft() {
     if (!ready) return;
