@@ -375,6 +375,7 @@
                 {:else}
                   <span class="dim">{LEVEL_TEXT[a?.level ?? 0]}</span>
                 {/if}
+                <span class="faint">+{items.slice(0, answered).filter((x) => x.kind === k).length} geübt in dieser Runde</span>
               </span>
             </li>
           {/each}

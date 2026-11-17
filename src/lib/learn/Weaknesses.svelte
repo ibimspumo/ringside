@@ -10,12 +10,15 @@
     concepts,
     progress,
     limit = 4,
+    primary = false,
     onTrain,
     onRead,
   }: {
     concepts: ConceptCount[];
     progress: LearnProgress | null;
     limit?: number;
+    /** The first card's practice button is the page's main action. */
+    primary?: boolean;
     onTrain: (kind: LearnKind, level: number) => void;
     onRead: (id: string) => void;
   } = $props();
@@ -52,7 +55,7 @@
           </div>
           <div class="go">
             {#if kind}
-              <button class="btn" onclick={() => onTrain(kind, nextLevel(skill))}>
+              <button class="btn" class:primary={primary && i === 0} onclick={() => onTrain(kind, nextLevel(skill))}>
                 Üben
                 <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
               </button>

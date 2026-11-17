@@ -186,7 +186,7 @@
           Blinds {fmtBB(prompt.small_blind_bb)} / 1 bb{#if prompt.ante_bb > 0}{` · Ante ${fmtBB(prompt.ante_bb)}`}{/if}{#if prompt.dead_bb > 0}{` · `}<span
               class="term"
               title={explain("Totes Geld")}>Totes Geld</span
-            >{` ${fmtBB(prompt.dead_bb)}`}{/if} · {prompt.players} Spieler am Tisch
+            >{` ${fmtBB(prompt.dead_bb)}`}{/if} · {prompt.players === 2 ? "Heads-up: nur ihr beide" : `${prompt.players} Spieler am Tisch`}
         </span>
       </div>
       <div class="hu-seat hero">
@@ -194,7 +194,6 @@
         <span class="hu-pos">Du · {sb ? "Small Blind" : "Big Blind"} · <span class="num">{fmtBB(prompt.stack_bb)}</span></span>
         <span class="cls-line"><b class="num cls-sm">{prompt.class}</b> <span class="dim">{handHint(prompt.class)}</span></span>
       </div>
-      <span class="eff dim small"><span class="term" title={explain("Effektiver Stack")}>Effektiver Stack</span> {fmtBB(prompt.stack_bb)}</span>
     </div>
   {:else if prompt.type === "push_fold_table"}
     {@const p = prompt}
@@ -465,9 +464,25 @@
   }
 
   .hu {
-    position: relative;
     gap: 10px;
-    padding: 14px 14px 12px;
+    padding: 14px;
+  }
+  @container (min-width: 640px) {
+    .hu {
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 16px 24px;
+    }
+    .hu .hu-seat:first-child {
+      justify-self: end;
+    }
+    .hu .hu-mid {
+      order: 0;
+      max-width: 260px;
+    }
+    .hu .hu-seat.hero {
+      justify-self: start;
+    }
   }
   .hu-seat {
     display: grid;
@@ -514,11 +529,6 @@
     font-size: 18px;
     font-weight: 600;
     margin-right: 4px;
-  }
-  .eff {
-    position: absolute;
-    right: 14px;
-    bottom: 12px;
   }
   .term {
     text-decoration: underline dotted;

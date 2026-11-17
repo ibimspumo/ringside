@@ -36,6 +36,9 @@
     if (Math.abs(d) < 0.05) return "Genau getroffen.";
     return `Du lagst ${unit === "%" ? `${n} Prozentpunkte` : `um ${n}`} zu ${d > 0 ? "hoch" : "niedrig"}.`;
   });
+  /** "31,8 %" as a frequency a beginner can picture. */
+  const tenths = $derived(unit === "%" && truthNumber !== null ? Math.round(truthNumber / 10) : null);
+
   /** Tiles the sentence or the slider already say. */
   const SAID = new Set(["Deine Antwort", "Abweichung"]);
   const facts = $derived(
@@ -70,6 +73,11 @@
     <div class="what">
       <h3>{TITLE[verdict]}</h3>
       <p>Lösung: <b class="num">{feedback.truth_text}</b>{#if gapSentence}<span class="gap">{gapSentence}</span>{/if}</p>
+      {#if tenths !== null}
+        <p class="plain">
+          Zum Vorstellen: {feedback.truth_text} sind etwa {tenths} von 10 Fällen{tenths === 0 ? ", also fast nie" : tenths === 10 ? ", also fast immer" : ""}.
+        </p>
+      {/if}
     </div>
     <Ring value={feedback.score} size={60} stroke={5} {tone} label="{Math.round(feedback.score * 100)} von 100 Punkten">
       <b class="num score">{Math.round(feedback.score * 100)}</b>
@@ -187,6 +195,10 @@
   .what b {
     color: var(--text);
     font-size: 15px;
+  }
+  .plain {
+    margin-top: 2px;
+    font-size: 13px;
   }
   .gap {
     margin-left: 10px;

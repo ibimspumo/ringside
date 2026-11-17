@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { ConceptCount } from "../coach/types";
   import type { LearnKind, LearnProgress } from "../types";
-  import { LEVEL_HINT, LEVEL_TEXT, SKILLS, UNITS, currentUnit, fmtPct, mastery, nextLevel } from "./catalog";
+  import { LEVEL_HINT, LEVEL_TEXT, SKILLS, UNITS, currentUnit, fmtPct, mastery, nextLevel, trainableKind, weakConcepts } from "./catalog";
     import Ring from "./Ring.svelte";
   import SkillBadge from "./SkillBadge.svelte";
   import Weaknesses from "./Weaknesses.svelte";
@@ -34,6 +34,8 @@
   const here = $derived(currentUnit(byKind)?.id ?? null);
   /** The one skill the path suggests next: the first in the current unit that is not yet "mit Hilfe". */
   const nextKind = $derived(UNITS.find((u) => u.id === here)?.skills.find((k) => (byKind.get(k)?.level ?? 0) < 2) ?? null);
+  /** With weak spots from the coach, the first of them is the one main action on this page. */
+  const weakFirst = $derived(weakConcepts(concepts).some((c) => !!trainableKind(c)));
   const total = $derived(progress?.skills.filter((s) => s.id !== "all_in") ?? []);
   const solid = $derived(total.filter((s) => s.level >= 3).length);
 </script>
@@ -67,7 +69,7 @@
     <span class="dim small">Zeig auf eine Stufe, um zu sehen, was sie verlangt.</span>
   </div>
 
-  <Weaknesses {concepts} {progress} limit={6} {onTrain} {onRead} />
+  <Weaknesses {concepts} {progress} limit={6} primary={weakFirst} {onTrain} {onRead} />
 
 <ol class="units">
     {#each units as u (u.id)}
@@ -107,7 +109,7 @@
                   </span>
                   <span class="lvl" title={LEVEL_HINT[s?.level ?? 0]}>{LEVEL_TEXT[s?.level ?? 0]}</span>
                   {#if k !== "all_in"}
-                    <button class="btn" class:primary={k === nextKind} onclick={() => onTrain(k, nextLevel(s))}>Üben</button>
+                    <button class="btn" class:primary={!weakFirst && k === nextKind} onclick={() => onTrain(k, nextLevel(s))}>Üben</button>
                   {/if}
                 </li>
               {/each}

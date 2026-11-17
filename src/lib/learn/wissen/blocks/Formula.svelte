@@ -48,7 +48,7 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 12px;
     font-weight: 600;
   }

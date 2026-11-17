@@ -155,9 +155,9 @@
                 <b>{KIND_LABEL[s.kind] ?? s.kind}</b>
                 {#if s.exercise.prompt.type === "push_fold_table"}
                   <span class="dim">{stack(s)}</span>
-                  <span class="faint">{when(s.played_at)}</span>
+                  <span class="dim">{when(s.played_at)}</span>
                 {:else}
-                  <span class="faint">{when(s.played_at)}{stack(s) ? ` · ${stack(s)}` : ""}</span>
+                  <span class="dim">{when(s.played_at)}{stack(s) ? ` · ${stack(s)}` : ""}</span>
                 {/if}
               </span>
               <span class="state {tone(results[s.id])}" title={results[s.id] ? `${Math.round(results[s.id].score * 100)} Punkte` : "Noch offen"}></span>
