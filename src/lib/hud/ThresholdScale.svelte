@@ -74,7 +74,7 @@
     <span class="v num" style="left:{pct(t.high)}">{show(t.high)}</span>
   </div>
   {#if meaning}
-    <div class="means"><span style="color:{colors.low}">{meaning[0]}</span><span style="color:{colors.high}">{meaning[1]}</span></div>
+    <div class="means"><span><i style="background:{colors.low}"></i>{meaning[0]}</span><span><i style="background:{colors.high}"></i>{meaning[1]}</span></div>
   {/if}
 </div>
 
@@ -109,6 +109,17 @@
     gap: 12px;
     font-size: 12px;
     line-height: 1.3;
+  }
+  .means span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-2);
+  }
+  .means i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
   }
   .scale {
     position: relative;

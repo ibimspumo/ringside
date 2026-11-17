@@ -411,7 +411,10 @@
                   </button>
                 {/if}
                 {#if hud.graphic.plate_pages.length > 1}
-                  <button class="btn ghost small" onclick={removePage}>Seite {platePage + 1} entfernen</button>
+                  <button class="btn ghost small danger-quiet" onclick={removePage} title="Seite {platePage + 1} entfernen">
+                    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12" /></svg>
+                    Seite {platePage + 1} entfernen
+                  </button>
                 {/if}
               </div>
               <div class="closeup">
@@ -721,10 +724,9 @@
   }
   .stage-foot {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px 16px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
   }
   .legend {
     display: flex;
@@ -933,6 +935,9 @@
   }
   .pages .seg button {
     min-width: 30px;
+  }
+  .danger-quiet:hover {
+    color: #ff9d93;
   }
   .small {
     height: 28px;
@@ -1188,6 +1193,11 @@
   }
   .msg.bad {
     color: #ff9d93;
+  }
+  @media (min-width: 1900px) {
+    .layout {
+      grid-template-columns: minmax(0, 1fr) 460px;
+    }
   }
   @media (max-width: 1240px) {
     .layout {

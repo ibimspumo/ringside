@@ -220,7 +220,8 @@
   }
   .cols {
     display: flex;
-    margin-top: calc(5px * var(--s));
+    margin-top: calc(4px * var(--s));
+    padding-bottom: calc(3px * var(--s));
   }
   .col {
     flex: 1;
