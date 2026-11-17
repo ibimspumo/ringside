@@ -1,0 +1,15 @@
+[package]
+name = "ringside-solver"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Heads-up postflop solver for Ringside, built on postflop-solver"
+
+[dependencies]
+postflop-solver = { path = "../postflop-solver" }
+rayon = "1"
+ringside-engine = { path = "../ringside-engine" }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+serde_json = "1"

@@ -2883,6 +2883,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "postflop-solver"
+version = "0.1.0"
+dependencies = [
+ "once_cell",
+ "rayon",
+ "regex",
+]
+
+[[package]]
 name = "potential_utf"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3215,6 +3224,7 @@ dependencies = [
  "ringside-core",
  "ringside-engine",
  "ringside-learn",
+ "ringside-solver",
  "serde",
  "serde_json",
  "tauri",
@@ -3257,6 +3267,7 @@ name = "ringside-core"
 version = "0.5.0"
 dependencies = [
  "regex",
+ "ringside-engine",
  "roxmltree",
  "rusqlite",
  "serde",
@@ -3283,6 +3294,17 @@ dependencies = [
  "rand",
  "rand_chacha",
  "ringside-core",
+ "ringside-engine",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "ringside-solver"
+version = "0.5.0"
+dependencies = [
+ "postflop-solver",
+ "rayon",
  "ringside-engine",
  "serde",
  "serde_json",

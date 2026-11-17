@@ -1,11 +1,11 @@
 [workspace]
 resolver = "3"
-members = ["crates/ringside-cloud", "crates/ringside-coach", "crates/ringside-core", "crates/ringside-engine", "crates/ringside-learn", "src-tauri"]
+members = ["crates/postflop-solver", "crates/ringside-cloud", "crates/ringside-coach", "crates/ringside-core", "crates/ringside-engine", "crates/ringside-learn", "crates/ringside-solver", "src-tauri"]
 
 [workspace.package]
 version = "0.5.0"
 edition = "2024"
-license = "MIT"
+license = "AGPL-3.0-or-later"
 
 # Thin LTO with parallel codegen builds the release in a fraction of the time of fat LTO;
 # the difference in speed is not noticeable for this app.
@@ -18,4 +18,11 @@ strip = true
 
 # The solvers run millions of iterations; unoptimised they make tests and `tauri dev` crawl.
 [profile.dev.package.ringside-engine]
+opt-level = 3
+
+[profile.dev.package.postflop-solver]
+opt-level = 3
+
+# The postflop solver's loops are generic and get compiled into this crate.
+[profile.dev.package.ringside-solver]
 opt-level = 3
