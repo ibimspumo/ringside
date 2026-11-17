@@ -104,7 +104,7 @@
       </div>
       <div class="progress" title="{readCount} von {ARTICLES.length} gelesen">
         <span class="num"><b>{readCount}</b> / {ARTICLES.length}</span>
-        <span class="faint">gelesen</span>
+        <span class="dim">gelesen</span>
         <span class="pbar"><span style="width:{(readCount / ARTICLES.length) * 100}%"></span></span>
       </div>
     </header>
@@ -172,7 +172,6 @@
     container: wissen / inline-size;
     display: grid;
     gap: 20px;
-    max-width: 1180px;
     scroll-margin-top: 20px;
   }
   svg {
@@ -207,7 +206,8 @@
   }
   .progress {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: max-content max-content;
+    justify-content: start;
     align-items: baseline;
     gap: 2px 8px;
     min-width: 150px;
@@ -329,13 +329,7 @@
     font-weight: 600;
   }
   .one {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     align-self: start;
-    max-height: calc(2 * 1.4em);
     color: var(--text-2);
     font-size: 13px;
     line-height: 1.4;
@@ -346,7 +340,7 @@
     align-items: center;
     gap: 4px 10px;
     margin-top: 5px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 11.5px;
   }
   .lvl {

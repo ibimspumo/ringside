@@ -46,7 +46,7 @@
           <div class="top">
             {#if kind}<SkillBadge {kind} {skill} size={38} />{:else}<span class="rank num" aria-hidden="true">{i + 1}</span>{/if}
             <span class="name">
-              <b>{c.name}</b>
+              <b>{kind ? SKILLS[kind].short : c.name}</b>
               <span class="dim small">{counts(c)}</span>
             </span>
           </div>

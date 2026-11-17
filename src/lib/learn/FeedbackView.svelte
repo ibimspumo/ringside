@@ -50,8 +50,9 @@
       <h3>{TITLE[verdict]}</h3>
       <p>Lösung: <b class="num">{feedback.truth_text}</b></p>
     </div>
-    <Ring value={feedback.score} size={54} stroke={5} {tone} label="{Math.round(feedback.score * 100)} von 100 Punkten">
+    <Ring value={feedback.score} size={60} stroke={5} {tone} label="{Math.round(feedback.score * 100)} von 100 Punkten">
       <b class="num score">{Math.round(feedback.score * 100)}</b>
+      <span class="of">Punkte</span>
     </Ring>
     {#if onNext}
       <button class="btn primary next" bind:this={nextBtn} onclick={onNext}>{nextLabel} <kbd>Enter</kbd></button>
@@ -63,7 +64,7 @@
       {#if feedback.ev_loss_bb <= 0.005}
         <b>Beste Entscheidung.</b>
       {:else}
-        <b>Deine Wahl kostet im Schnitt <span class="num">{fmtBB(feedback.ev_loss_bb)}</span> pro Hand.</b>
+        <b>Deine Wahl kostet im Schnitt <span class="num">{fmtBB(feedback.ev_loss_bb)}</span> mehr als {feedback.truth_text}.</b>
       {/if}
       {evSentence}
     </div>
@@ -168,7 +169,11 @@
     font-size: 15px;
   }
   .score {
-    font-size: 16px;
+    font-size: 17px;
+  }
+  .of {
+    font-size: 9.5px;
+    color: var(--text-2);
   }
   .ev {
     padding: 9px 12px;
@@ -224,7 +229,7 @@
   }
   .facts {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
     margin: 0;
   }

@@ -157,7 +157,7 @@
                   <span class="dim">{stack(s)}</span>
                   <span class="faint">{when(s.played_at)}</span>
                 {:else}
-                  <span class="faint">{when(s.played_at)}{#if stack(s)} · {stack(s)}{/if}</span>
+                  <span class="faint">{when(s.played_at)}{stack(s) ? ` · ${stack(s)}` : ""}</span>
                 {/if}
               </span>
               <span class="state {tone(results[s.id])}" title={results[s.id] ? `${Math.round(results[s.id].score * 100)} Punkte` : "Noch offen"}></span>
