@@ -82,7 +82,8 @@ mod tests {
         for c in CONCEPTS {
             assert!(text.contains(&format!("  {}: \"{}\",", c.id, c.name)), "{} fehlt in concepts.ts", c.id);
         }
-        assert_eq!(text.matches("\",\n").count(), CONCEPTS.len(), "concepts.ts hat Einträge, die es nicht gibt");
+        let entries = text.lines().filter(|l| l.trim_end().ends_with("\",")).count();
+        assert_eq!(entries, CONCEPTS.len(), "concepts.ts hat Einträge, die es nicht gibt");
     }
 
     #[test]

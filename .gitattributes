@@ -1,0 +1,8 @@
+# Check out LF everywhere, also on Windows, so tests that read source files see the same text.
+* text=auto eol=lf
+*.png binary
+*.ico binary
+*.icns binary
+*.bin binary
+# Kept byte-exact: tests that parse files PokerStars wrote with CRLF.
+crates/ringside-core/tests/fixtures/summaries/busted.txt -text
