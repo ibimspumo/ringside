@@ -7,28 +7,30 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
-# The installer is built as a draft while the checks run in parallel; it is only published
-# (and offered to the updater) once both have passed.
+# The installer is built as a draft while CI checks the same commit; it is only published
+# (and offered to the updater) once both have passed. The release does not run the checks a
+# second time: the tagged commit is on main, so the CI run of its push is the check.
 jobs:
   checks:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-      - uses: dtolnay/rust-toolchain@1.100.0
-        with:
-          components: clippy
-      - uses: Swatinem/rust-cache@v2
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm check
-      - run: pnpm build
-      - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - name: Wait for CI on the tagged commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for i in $(seq 1 120); do
+            state=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow ci.yml --commit "$GITHUB_SHA" \
+              --json status,conclusion -q '.[0] | "\(.status) \(.conclusion)"')
+            echo "CI: ${state:-not started}"
+            case "$state" in
+              "completed success") exit 0 ;;
+              completed*) echo "CI failed for $GITHUB_SHA"; exit 1 ;;
+            esac
+            sleep 30
+          done
+          echo "CI did not finish within an hour"; exit 1
 
   build:
     runs-on: windows-latest
