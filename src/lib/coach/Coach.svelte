@@ -110,7 +110,7 @@
     {/if}
 
     {#if failed}
-      <div class="panel empty">{failed}</div>
+      <div class="panel empty-state">{failed}</div>
     {:else if list && list.length === 0}
       <section class="panel intro">
         <h2>So arbeitet der Coach</h2>

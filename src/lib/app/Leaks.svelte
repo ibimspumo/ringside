@@ -25,6 +25,87 @@
     onLearn: (target: LearnTarget) => void;
   } = $props();
 
+  /** What a value measures, what a deviation usually means, and where to start. */
+  const EXPLAIN: Partial<Record<StatId, { what: string; high: string; low: string; tryHigh: string; tryLow: string }>> = {
+    vpip: {
+      what: "Wie oft du vor dem Flop freiwillig Chips in den Pot legst, also callst oder erhöhst. Die Blinds zählen nicht.",
+      high: "Du spielst zu viele Hände. Schwache Hände landen später oft gegen bessere.",
+      low: "Du spielst zu wenige Hände und lässt Gelegenheiten liegen, vor allem aus später Position.",
+      tryHigh: "Aus früher Position die schwächsten Hände folden, Hände nach Position auswählen.",
+      tryLow: "Aus Cutoff, Button und Small Blind mehr Hände öffnen.",
+    },
+    pfr: {
+      what: "Wie oft du vor dem Flop erhöhst.",
+      high: "Du erhöhst sehr viele Hände. Aufmerksame Gegner setzen dich mit 3-Bets unter Druck.",
+      low: "Du callst oft, wo ein Raise besser wäre, und gibst damit die Initiative ab.",
+      tryHigh: "Aus früher Position enger öffnen.",
+      tryLow: "Hände, die du spielst, lieber erhöhen als callen, vor allem als Erster im Pot.",
+    },
+    three_bet: {
+      what: "Wie oft du gegen einen Open-Raise noch einmal erhöhst (Re-Raise).",
+      high: "Du 3-bettest sehr viel. Gegner callen oder 4-betten dich leichter.",
+      low: "Du 3-bettest kaum. Deine Re-Raises zeigen fast immer ein Monster, und du gewinnst selten Pots vor dem Flop.",
+      tryHigh: "Schwächere 3-Bets durch Calls oder Folds ersetzen.",
+      tryLow: "Neben starken Händen auch ein paar Hände mit Blockern (z. B. A5s) 3-betten.",
+    },
+    fold_to_three_bet: {
+      what: "Wie oft du nach deinem Raise foldest, wenn jemand erneut erhöht.",
+      high: "Du gibst nach einem Re-Raise zu oft auf. Gegner können dich mit Bluff-3-Bets ausnutzen.",
+      low: "Du gehst gegen 3-Bets sehr oft mit, auch mit Händen, die in einem großen Pot schlecht spielen.",
+      tryHigh: "Die besseren Hände deiner Open-Range gegen 3-Bets verteidigen (callen oder 4-betten).",
+      tryLow: "Schwache Opens gegen 3-Bets aufgeben, besonders ohne Position.",
+    },
+    steal: {
+      what: "Wie oft du aus Cutoff, Button oder Small Blind erhöhst, wenn alle vor dir gefoldet haben.",
+      high: "Du stiehlst sehr breit. Die Blinds wehren sich dann gern mit 3-Bets.",
+      low: "Du lässt leichte Pots liegen: Aus später Position gewinnt ein Raise oft sofort Blinds und Antes.",
+      tryHigh: "Gegen Blinds, die viel 3-betten, etwas enger stehlen.",
+      tryLow: "Vom Button und aus dem Cutoff deutlich mehr Hände öffnen, mit Antes erst recht.",
+    },
+    fold_to_steal: {
+      what: "Wie oft du im Small oder Big Blind foldest, wenn jemand aus später Position erhöht.",
+      high: "Du gibst deine Blinds zu leicht her. Gegner stehlen dann gewinnbringend gegen dich.",
+      low: "Du verteidigst sehr breit, auch mit Händen, die ohne Position schwer zu spielen sind.",
+      tryHigh: "Im Big Blind mehr Hände callen: Du hast schon gezahlt und bekommst gute Pot Odds.",
+      tryLow: "Die schwächsten Verteidigungen weglassen, vor allem im Small Blind.",
+    },
+    cbet: {
+      what: "Wie oft du am Flop setzt, wenn du vor dem Flop als Letzter erhöht hast (Continuation-Bet).",
+      high: "Du setzt fast immer nach. Wenn das Board nicht zu dir passt, callen oder raisen Gegner leichter.",
+      low: "Du gibst die Initiative oft ab und lässt Pots liegen, die eine kleine Bet gewonnen hätte.",
+      tryHigh: "Auf Boards, die dem Caller helfen (verbunden, mittelhoch), öfter checken.",
+      tryLow: "Auf trockenen Boards mit hoher Karte öfter klein setzen.",
+    },
+    fold_to_cbet: {
+      what: "Wie oft du am Flop foldest, wenn der Raiser vor dem Flop nachsetzt.",
+      high: "Du gibst zu oft auf, sobald der Raiser setzt. Jede C-Bet wird gegen dich profitabel.",
+      low: "Du callst C-Bets sehr oft, auch ohne genug Equity für die Pot Odds.",
+      tryHigh: "Gegen kleine C-Bets mit Draws und Overcards öfter weiterspielen.",
+      tryLow: "Mit Luft und schwachen Draws auch mal folden, die Pot Odds geben den Ausschlag.",
+    },
+    wtsd: {
+      what: "Wie oft du bis zum Showdown kommst, wenn du den Flop gesehen hast.",
+      high: "Du gehst oft bis zum Ende mit, meist durch Calls auf Turn und River mit mittelstarken Händen.",
+      low: "Du gibst oft vor dem Showdown auf. Gegner können dich mit späten Bluffs zum Folden bringen.",
+      tryHigh: "Auf Turn und River gegen große Bets genauer prüfen, ob der Call sich lohnt.",
+      tryLow: "Mit Händen, die oft vorne sind, öfter bis zum Ende mitgehen.",
+    },
+    wsd: {
+      what: "Wie viele deiner Showdowns du gewinnst.",
+      high: "Du gewinnst fast jeden Showdown. Vermutlich gehst du nur mit sehr starken Händen hin und gibst vorher zu oft auf.",
+      low: "Du verlierst viele Showdowns, oft ein Zeichen für zu viele Calls mit zweitbesten Händen.",
+      tryHigh: "Mit mittleren Händen öfter bis zum Showdown mitgehen.",
+      tryLow: "Mit zweitbesten Händen gegen starke Linien öfter folden.",
+    },
+    af: {
+      what: "Wie oft du nach dem Flop setzt oder erhöhst, im Verhältnis zu deinen Calls.",
+      high: "Sehr aggressiv: Du setzt und erhöhst viel und callst selten.",
+      low: "Passiv: Du callst viel und setzt selten, und gewinnst deshalb seltener Pots ohne Showdown.",
+      tryHigh: "Mit mittelstarken Händen öfter checken oder callen, statt zu setzen.",
+      tryLow: "Starke Hände und gute Draws öfter selbst setzen oder erhöhen, statt nur zu callen.",
+    },
+  };
+
   const ARTICLE: Partial<Record<StatId, string>> = {
     vpip: "vpip",
     pfr: "pfr",
@@ -115,6 +196,7 @@
   {@const article = ARTICLE[l.stat]}
   {@const title = article ? ARTICLES.find((a) => a.id === article)?.title : undefined}
   {@const ex = exercise(l)}
+  {@const explain = EXPLAIN[l.stat]}
   <article class="leak panel" class:unsure={l.uncertain}>
     <header>
       <h3>
@@ -166,6 +248,17 @@
 
     {@render bar(l)}
 
+    {#if explain}
+      <div class="explain">
+        <p><b>Was ist das?</b> {explain.what}</p>
+        <p>
+          <b>{l.direction === "too_high" ? "Zu hoch heißt meist:" : "Zu niedrig heißt meist:"}</b>
+          {l.direction === "too_high" ? explain.high : explain.low}
+        </p>
+        <p><b>Ansatz:</b> {l.direction === "too_high" ? explain.tryHigh : explain.tryLow}</p>
+      </div>
+    {/if}
+
     <footer>
       <div class="cites">
         {#each l.cites as c (c.source)}
@@ -189,7 +282,7 @@
 
 <div class="page leaks">
   {#if failed}
-    <div class="panel empty">Die Daten konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
+    <div class="panel empty-state">Die Daten konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
   {:else if data}
     <section class="panel intro">
       <div class="kpi">
@@ -207,14 +300,29 @@
         <strong class="num pos">{int(data.fine.length)}</strong>
         <small>{int(data.too_small)} Spots unter 10 Gelegenheiten</small>
       </div>
-      <p class="about">
-        Ringside vergleicht deine Werte je Position und Stacktiefe mit veröffentlichten Richtwerten. Das sind Orientierungen
-        aus den unten genannten Quellen, keine „richtige“ Strategie. Sortiert nach Sicherheit × Abweichung.
-      </p>
+      <div class="about">
+        <p>
+          Ringside vergleicht deine Werte je Position und Stacktiefe mit veröffentlichten Richtwerten. Das sind Orientierungen
+          aus den unten genannten Quellen, keine „richtige“ Strategie. Sortiert nach Sicherheit × Abweichung.
+        </p>
+        <dl class="legend">
+          <div><dt><span class="key ref"></span>Grüner Bereich</dt><dd>der Richtwert aus den Quellen</dd></div>
+          <div><dt><span class="key dot"></span>Punkt</dt><dd>dein Wert</dd></div>
+          <div>
+            <dt><span class="key ci"></span>Linie</dt>
+            <dd>wo dein wahrer Wert mit 95 % liegt. Je weniger Hände, desto länger die Linie.</dd>
+          </div>
+          <div>
+            <dt>Sicherheit</dt>
+            <dd>wie sicher dein wahrer Wert außerhalb des Richtwerts liegt. Ab 90 % lohnt es sich, daran zu arbeiten.</dd>
+          </div>
+          <div><dt>20–40 BB …</dt><dd>dein effektiver Stack in der Hand; Turnier und Cash werden getrennt geprüft.</dd></div>
+        </dl>
+      </div>
     </section>
 
     {#if data.leaks.length === 0}
-      <div class="panel empty">
+      <div class="panel empty-state">
         {data.fine.length
           ? "Kein Wert liegt außerhalb seines Richtbereichs."
           : "Noch zu wenig Hände in dieser Auswahl. Ab 10 Gelegenheiten je Spot vergleicht Ringside deine Werte."}
@@ -311,6 +419,72 @@
     font-size: 13px;
     color: var(--text-2);
     line-height: 1.5;
+  }
+  .about p {
+    margin: 0;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    margin: 10px 0 0;
+    font-size: 12.5px;
+  }
+  .legend div {
+    display: flex;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .legend dt {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .legend dd {
+    margin: 0;
+  }
+  .key {
+    display: inline-block;
+    flex: none;
+  }
+  .key.ref {
+    width: 18px;
+    height: 10px;
+    border-left: 1px solid var(--pos);
+    border-right: 1px solid var(--pos);
+    background: color-mix(in srgb, var(--pos) 28%, transparent);
+  }
+  .key.dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--amber);
+  }
+  .key.ci {
+    width: 18px;
+    height: 2px;
+    background: var(--text-2);
+  }
+  .explain {
+    display: grid;
+    gap: 4px;
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .explain p {
+    margin: 0;
+  }
+  .explain b {
+    color: var(--text);
+    font-weight: 600;
   }
   .list {
     display: flex;

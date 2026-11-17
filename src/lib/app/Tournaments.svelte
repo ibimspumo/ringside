@@ -153,9 +153,9 @@
 
 <div class="page">
   {#if failed}
-    <div class="panel empty">Die Turniere konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
+    <div class="panel empty-state">Die Turniere konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
   {:else if data && data.rows.length === 0}
-    <div class="panel empty">
+    <div class="panel empty-state">
       Noch keine Turniere in diesem Zeitraum. Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem
       Ordner „TournSummary“ neben „HandHistory“.
     </div>
