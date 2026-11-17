@@ -1,0 +1,15 @@
+[package]
+name = "ringside-cloud"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Ringside Cloud: shared solutions, their verification and parser reports"
+
+[dependencies]
+base64 = "0.22"
+flate2 = "1"
+ring = "0.17"
+ringside-engine = { path = "../ringside-engine" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2.12", default-features = false, features = ["tls"] }

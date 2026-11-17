@@ -1,0 +1,13 @@
+{
+  "nodeModulesDir": "none",
+  "compilerOptions": {
+    "strict": true
+  },
+  "tasks": {
+    "test": "deno test --allow-read=.,../crates/ringside-cloud/testdata",
+    "check": "deno check edge/main.ts db/migrate.ts edge/deploy.ts packs/packs.ts",
+    "migrate": "deno run --allow-read=../.env,db/migrations --allow-env --allow-net db/migrate.ts",
+    "deploy": "deno run --allow-read=../.env,.,../target --allow-env --allow-net --allow-run=deno --allow-write=../target edge/deploy.ts",
+    "packs": "deno run --allow-read --allow-env --allow-net --allow-write=../.env packs/packs.ts"
+  }
+}

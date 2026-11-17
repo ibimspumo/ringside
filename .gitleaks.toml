@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "SHA-256 keys of canonical solver inputs, shared test vectors between Rust and the edge script"
+paths = ['''crates/ringside-cloud/testdata/canonical\.json''']

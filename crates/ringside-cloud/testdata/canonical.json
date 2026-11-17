@@ -1,0 +1,87 @@
+{
+  "valid": [
+    {
+      "kind": "pushfold-hu",
+      "engine_version": 1,
+      "input": {
+        "stack_mbb": 10000,
+        "sb_mbb": 500,
+        "ante_mbb": 0,
+        "dead_mbb": 0
+      },
+      "canonical": "{\"ante_mbb\":0,\"dead_mbb\":0,\"sb_mbb\":500,\"stack_mbb\":10000}",
+      "key": "d0bc63798dd92babad764962a8ca4da527d50757d05a175e1689ebebfb8a1ff9"
+    },
+    {
+      "kind": "pushfold-hu",
+      "engine_version": 1,
+      "input": {
+        "stack_mbb": 15250,
+        "sb_mbb": 500,
+        "ante_mbb": 125,
+        "dead_mbb": 1000
+      },
+      "canonical": "{\"ante_mbb\":125,\"dead_mbb\":1000,\"sb_mbb\":500,\"stack_mbb\":15250}",
+      "key": "21e6ce210667d0e2ee7cc706c832906a9697385f7dd0a39b170a581b1da6489b"
+    },
+    {
+      "kind": "example",
+      "engine_version": 7,
+      "input": {
+        "z": [
+          1,
+          -2,
+          0,
+          true,
+          null,
+          []
+        ],
+        "a": {
+          "b": "q\"uote\\back slash",
+          "c": {}
+        },
+        "m_1": 9007199254740991,
+        "n": -9007199254740991
+      },
+      "canonical": "{\"a\":{\"b\":\"q\\\"uote\\\\back slash\",\"c\":{}},\"m_1\":9007199254740991,\"n\":-9007199254740991,\"z\":[1,-2,0,true,null,[]]}",
+      "key": "a98ec1e5bcae97f993ee7ea09d6919ebf99431f96c2e579a3d81925891a866c6"
+    }
+  ],
+  "invalid": [
+    1.5,
+    {
+      "A": 1
+    },
+    {
+      "a": "ü"
+    },
+    {
+      "a": 9007199254740992
+    },
+    "tab\t",
+    {
+      "a-b": 1
+    },
+    [
+      [
+        [
+          [
+            [
+              [
+                [
+                  [
+                    [
+                      [
+                        1
+                      ]
+                    ]
+                  ]
+                ]
+              ]
+            ]
+          ]
+        ]
+      ]
+    ]
+  ]
+}
