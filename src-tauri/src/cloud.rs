@@ -72,9 +72,12 @@ fn cloud_settings_of(app: &AppHandle) -> CloudSettings {
     app.state::<AppState>().settings.lock().unwrap().cloud
 }
 
-/// Whether a request may go out now: not while PokerStars runs or the cloud is down.
+/// Whether a request may go out now: not before the user has seen what the cloud shares
+/// (the first-start notice), not while PokerStars runs, not while the cloud is down.
 pub(crate) fn may_talk(app: &AppHandle) -> bool {
-    unlocked(&app.state::<AppState>()).is_ok() && app.state::<CloudState>().reachable()
+    cloud_settings_of(app).notice_seen
+        && unlocked(&app.state::<AppState>()).is_ok()
+        && app.state::<CloudState>().reachable()
 }
 
 // ---------------------------------------------------------------------------------
