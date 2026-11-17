@@ -229,6 +229,24 @@ impl Default for PostFlopNode {
 }
 
 impl PostFlopNode {
+    /// Chips each player has put in since the root; a terminal pays out `starting_pot / 2 + amount`.
+    #[inline]
+    pub fn amount(&self) -> i32 {
+        self.amount
+    }
+
+    /// The river card, `NOT_DEALT` before the river.
+    #[inline]
+    pub fn river(&self) -> Card {
+        self.river
+    }
+
+    /// For a terminal node, the player who folded.
+    #[inline]
+    pub fn folded_player(&self) -> Option<usize> {
+        (self.player & PLAYER_FOLD_FLAG == PLAYER_FOLD_FLAG).then_some((self.player & PLAYER_MASK) as usize)
+    }
+
     #[inline]
     pub(super) fn children(&self) -> &[MutexLike<Self>] {
         // This is safe because `MutexLike<T>` is a `repr(transparent)` wrapper around `T`.

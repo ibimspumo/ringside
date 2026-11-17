@@ -1,5 +1,5 @@
 //! End-to-end check against the deployed API: health, submit, hidden until verified,
-//! verify, served, manipulated solution rejected (for every kind), rate limit, report.
+//! verify, served, manipulated solution rejected (for every kind, postflop included), rate limit, report.
 //! Deletes its test rows afterwards, also when a step fails.
 
 use std::path::PathBuf;
@@ -9,12 +9,16 @@ use std::time::Duration;
 use ringside_cloud::client::{DEFAULT_BASE_URL, RetryPolicy};
 use ringside_cloud::kinds::pushfold_mw::reference;
 use ringside_cloud::kinds::{
-    Kind, PushFoldHu, PushFoldHuInput, PushFoldHuSolution, PushFoldMw, PushFoldMwInput, PushFoldMwSolution, Verdict,
+    Kind, Postflop, PostflopInput, PostflopSolution, PushFoldHu, PushFoldHuInput, PushFoldHuSolution, PushFoldMw,
+    PushFoldMwInput, PushFoldMwSolution, Verdict,
 };
 use ringside_cloud::operator::{Db, SqlValue, VerifyOptions, check_here, load_env, need, now, verify_pending};
 use ringside_cloud::{Client, Error, Report, SubmitStatus};
 use ringside_engine::range::HandClass;
 use ringside_engine::solve_push_fold;
+use ringside_solver::library::format::encode;
+use ringside_solver::library::{SpotId, catalog, solve_spot};
+use ringside_solver::{Settings, solve};
 
 const HELP: &str = "\
 Usage: ringside-smoke [--base URL] [--env-file PATH]
@@ -146,6 +150,7 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
     step("resubmit verified", r == SubmitStatus::AlreadyVerified, format!("{r:?}"))?;
 
     multiway(&client, db, keys, stack_mbb)?;
+    postflop(&client, db, keys)?;
 
     let report = Report {
         app_version: SMOKE_VERSION.into(),
@@ -215,6 +220,72 @@ fn multiway(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, st
     step("mw: verified is served", served.as_ref() == Some(&good), "200, locally re-checked")?;
     let r = client.get_solution::<PushFoldMw>(&bad_input).map_err(|e| e.to_string())?;
     step("mw: rejected stays hidden", r.is_none(), "404")
+}
+
+/// The same round for `postflop`, on a catalog spot nobody has submitted yet. Inputs are
+/// catalog spots only, so the manipulated solution goes first under the same key and is
+/// then replaced by the good one, as the API allows for rejected rows.
+fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
+    let c = catalog();
+    let scenario = c.scenario("3bp-btn-bb-40").ok_or("smoke scenario missing from the catalog")?;
+    let offset = (now() % c.flops.len() as i64) as usize;
+    let mut chosen = None;
+    for k in 0..c.flops.len() {
+        let flop = (offset + k) % c.flops.len();
+        let input = PostflopInput::new(&c.scenarios[scenario].id, &c.flops[flop]);
+        let key = Postflop::key(&input).map_err(|e| e.to_string())?;
+        let rows = db.execute(&[("SELECT count(*) AS n FROM solutions WHERE key = ?", vec![key.as_str().into()])])?;
+        if rows[0].col(0, "n").as_i64() == Some(0) {
+            chosen = Some((SpotId { scenario, flop }, input, key));
+            break;
+        }
+    }
+    let (id, input, key) = chosen.ok_or("every smoke spot is taken")?;
+    keys.push((Postflop::NAME, key.clone()));
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
+    let memory = 8u64 << 30;
+    let s = &c.scenarios[scenario];
+    let flop = &c.flops[id.flop];
+
+    // One iteration: a well-formed spot whose flop strategy is far from solved.
+    let rough = Settings { target_pct: c.target_pct, max_iterations: 1, threads };
+    let mut early = solve(&s.spot(flop), &rough, memory, |_| {}, || false).map_err(|e| e.to_string())?;
+    let bad = PostflopSolution::from_stored(&encode(&mut early, c, s, flop).map_err(|e| e.to_string())?);
+    let good_stored = solve_spot(c, id, threads, memory, |_| {}, || false).map_err(|e| e.to_string())?;
+    let good = PostflopSolution::from_stored(&good_stored);
+
+    let r = client.submit_solution::<Postflop>(&input, &bad).map_err(|e| e.to_string())?;
+    step("pf: submit unsolved flop strategy", r == SubmitStatus::Submitted, format!("{r:?} {} {flop} key {key}", s.id))?;
+    let checked = verify(db, &keys[keys.len() - 1..])?;
+    let v = checked.first().and_then(|c| c.1.clone());
+    step("pf: verifier rejects it", matches!(v, Some(Verdict::Rejected { exploitability: Some(e), .. }) if e > Postflop::TOLERANCE), format!("{v:?}"))?;
+    let r = client.get_solution::<Postflop>(&input).map_err(|e| e.to_string())?;
+    step("pf: rejected stays hidden", r.is_none(), "404")?;
+
+    let r = client.submit_solution::<Postflop>(&input, &good).map_err(|e| e.to_string())?;
+    step("pf: submit solved spot (replaces the rejected row)", r == SubmitStatus::Submitted, format!("{r:?}"))?;
+    let r = client.get_solution::<Postflop>(&input).map_err(|e| e.to_string())?;
+    step("pf: unverified is hidden", r.is_none(), "404")?;
+    let checked = verify(db, &keys[keys.len() - 1..])?;
+    let v = checked.first().and_then(|c| c.1.clone());
+    let rebuilt = matches!(&v, Some(Verdict::Verified { result: Some(_), .. }));
+    step("pf: verifier accepts it and stores its own rebuild", rebuilt, format!("{:?}", v.as_ref().map(|v| match v {
+        Verdict::Verified { exploitability, .. } => format!("verified {exploitability:.3} %"),
+        Verdict::Rejected { reason, .. } => format!("rejected: {reason}"),
+    })))?;
+    let mut served = None;
+    for _ in 0..15 {
+        served = client.get_solution::<Postflop>(&input).map_err(|e| e.to_string())?;
+        if served.is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    let served = served.ok_or("pf: verified spot is not served")?;
+    let stored = served.stored(&input)?;
+    let same_flop = stored.nodes.iter().zip(&good_stored.nodes).all(|(a, b)| a.strategy == b.strategy)
+        && stored.nodes.len() == good_stored.nodes.len();
+    step("pf: served spot reads and keeps the submitted flop strategy", same_flop, format!("{} bytes", served.data.len()))
 }
 
 /// Drops this run's solution URLs from the CDN cache; only for a ringside-* host.

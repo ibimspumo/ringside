@@ -170,7 +170,7 @@ mod tests {
     fn good_solution_passes() {
         let s = solved(TEN_BB);
         match verdict::<PushFoldHu>(&TEN_BB, &s) {
-            Verdict::Verified { exploitability } => assert!(exploitability < 1e-9, "{exploitability}"),
+            Verdict::Verified { exploitability, .. } => assert!(exploitability < 1e-9, "{exploitability}"),
             v => panic!("{v:?}"),
         }
     }

@@ -236,7 +236,8 @@ impl Db {
 pub struct Checked {
     pub key: String,
     pub kind: String,
-    /// `None` if this verifier does not know the kind or engine version (left pending).
+    /// `None` if this verifier does not know the kind or engine version, or the check was
+    /// put off (left pending).
     pub verdict: Option<Verdict>,
 }
 
@@ -252,12 +253,19 @@ fn gunzip(bytes: &[u8]) -> Result<String, String> {
     Ok(out)
 }
 
-/// Checks a stored row: (kind, key, canonical input JSON, result JSON) → verdict.
-pub type Check<'a> = &'a dyn Fn(&KindEntry, &str, &str, &str) -> Verdict;
+fn gzip(text: &str) -> Vec<u8> {
+    let mut e = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut e, text.as_bytes()).expect("writing to memory");
+    e.finish().expect("writing to memory")
+}
+
+/// Checks a stored row: (kind, key, canonical input JSON, result JSON) → verdict, or
+/// `None` to leave it pending.
+pub type Check<'a> = &'a dyn Fn(&KindEntry, &str, &str, &str) -> Option<Verdict>;
 
 /// Runs a kind's check in this process.
-pub fn check_here(entry: &KindEntry, key: &str, input: &str, result: &str) -> Verdict {
-    (entry.check)(key, input, result)
+pub fn check_here(entry: &KindEntry, key: &str, input: &str, result: &str) -> Option<Verdict> {
+    Some((entry.check)(key, input, result))
 }
 
 pub struct VerifyOptions<'a> {
@@ -303,16 +311,21 @@ pub fn verify_pending(db: &Db, opts: &VerifyOptions, check: Check) -> Result<Vec
         let verdict = match rows.col(i, "result") {
             SqlValue::Blob(b) => match gunzip(b) {
                 Ok(result) => check(entry, &key, input, &result),
-                Err(reason) => Verdict::Rejected { exploitability: None, reason },
+                Err(reason) => Some(Verdict::Rejected { exploitability: None, reason }),
             },
-            _ => Verdict::Rejected { exploitability: None, reason: "result is not a blob".into() },
+            _ => Some(Verdict::Rejected { exploitability: None, reason: "result is not a blob".into() }),
+        };
+        let Some(verdict) = verdict else {
+            out.push(Checked { key, kind, verdict: None });
+            continue;
         };
         if !dry_run {
             let (status, exploitability, note) = match &verdict {
-                Verdict::Verified { exploitability } => ("verified", Some(*exploitability), None),
+                Verdict::Verified { exploitability, .. } => ("verified", Some(*exploitability), None),
                 Verdict::Rejected { exploitability, reason } => ("rejected", *exploitability, Some(reason.as_str())),
             };
-            db.execute(&[(
+            let submitted_at = rows.col(i, "submitted_at").clone();
+            let mut stmts = vec![(
                 "UPDATE solutions SET status = ?, exploitability = ?, checked_at = ?, check_note = ? \
                  WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
                 vec![
@@ -321,9 +334,27 @@ pub fn verify_pending(db: &Db, opts: &VerifyOptions, check: Check) -> Result<Vec
                     now().into(),
                     note.map_or(SqlValue::Null, SqlValue::from),
                     key.as_str().into(),
-                    rows.col(i, "submitted_at").clone(),
+                    submitted_at.clone(),
                 ],
-            )])?;
+            )];
+            // The verifier's own rebuild replaces the submitted result first, so a row
+            // never turns verified with the submitted one.
+            if let Verdict::Verified { result: Some(result), .. } = &verdict {
+                stmts.insert(
+                    0,
+                    (
+                        "UPDATE solutions SET result = ?, result_size = ? \
+                         WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
+                        vec![
+                            SqlValue::Blob(gzip(result)),
+                            (result.len() as i64).into(),
+                            key.as_str().into(),
+                            submitted_at,
+                        ],
+                    ),
+                );
+            }
+            db.execute(&stmts)?;
         }
         out.push(Checked { key, kind, verdict: Some(verdict) });
     }

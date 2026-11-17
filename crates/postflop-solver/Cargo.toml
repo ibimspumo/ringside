@@ -1,7 +1,8 @@
 # Vendored from https://github.com/b-inary/postflop-solver at 9d1509fe5077d019825f833eed04b16d342dfda1
 # (Wataru Inariba, AGPL-3.0-or-later; upstream development is suspended). Local changes: explicit
 # reborrows and lifetimes that Rust 1.100 requires, `try_update` for the renamed atomic method,
-# and the save/load feature (bincode, zstd) removed.
+# the save/load feature (bincode, zstd) removed, and read accessors on `PostFlopNode` (amount,
+# river, folded player) so ringside-gpu can export the tree.
 [package]
 name = "postflop-solver"
 version = "0.1.0"

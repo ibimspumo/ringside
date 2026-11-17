@@ -2,7 +2,9 @@
 //! `postflop-solver`: Ringside's range notation, amounts in big blinds, a memory check before
 //! anything is allocated, and a solve that reports progress and can be stopped.
 
+pub mod library;
 mod node;
+pub mod saved;
 mod solve;
 mod spot;
 

@@ -7,7 +7,7 @@ use crate::solve::Solution;
 use crate::spot::bb;
 
 /// One move from the root: the index of an action, or the card dealt at a chance node.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Step {
     Action(usize),
@@ -77,6 +77,8 @@ pub struct HandInfo {
     pub equity: f64,
     /// Expected share of the current pot minus further bets, in BB.
     pub ev: f64,
+    /// `ev` after taking each action, in the order of `Node::actions`; folding is 0.
+    pub evs: Vec<f64>,
 }
 
 /// The combos of one hand class, averaged by how often each reaches the node.
@@ -108,6 +110,8 @@ pub struct Node {
     /// What OOP and IP put in since the root, and what they have left behind.
     pub bets: [f64; 2],
     pub stacks: [f64; 2],
+    /// The part of `bets` put in on the current street, the chips in front of each player.
+    pub street_bets: [f64; 2],
     /// Who acts at an action node.
     pub player: Option<Player>,
     pub actions: Vec<ActionInfo>,
@@ -130,11 +134,16 @@ impl Solution {
     pub fn node(&mut self, path: &[Step]) -> Result<Node, Error> {
         let game = &mut self.game;
         game.back_to_root();
+        let mut street_start = [0, 0];
         for step in path {
             walk(game, step)?;
+            if matches!(step, Step::Card(_)) {
+                street_start = game.total_bet_amount();
+            }
         }
         game.cache_normalized_weights();
-        Ok(view(game, path, self.spot.stack))
+        let street_bets = [0, 1].map(|p| bb((game.total_bet_amount()[p] - street_start[p]) as f64));
+        Ok(view(game, path, self.spot.stack, street_bets))
     }
 }
 
@@ -174,7 +183,7 @@ fn weighted_average(values: &[f32], weights: &[f32]) -> f64 {
     values.iter().zip(weights).map(|(&v, &w)| v as f64 * w as f64).sum::<f64>() / total
 }
 
-fn view(game: &PostFlopGame, path: &[Step], stack: f64) -> Node {
+fn view(game: &PostFlopGame, path: &[Step], stack: f64, street_bets: [f64; 2]) -> Node {
     let board = game.current_board();
     let street = match board.len() {
         3 => Street::Flop,
@@ -209,6 +218,7 @@ fn view(game: &PostFlopGame, path: &[Step], stack: f64) -> Node {
         pot,
         bets,
         stacks: bets.map(|b| stack - b),
+        street_bets,
         player: None,
         actions: Vec::new(),
         cards: Vec::new(),
@@ -234,6 +244,7 @@ fn fill_action(game: &PostFlopGame, node: &mut Node) {
     let strategy = game.strategy();
     let equity = game.equity(player);
     let ev = game.expected_values(player);
+    let detail = game.expected_values_detail(player);
     let weights = game.weights(player);
     let normalized = game.normalized_weights(player);
     let cards = game.private_cards(player);
@@ -257,6 +268,7 @@ fn fill_action(game: &PostFlopGame, node: &mut Node) {
             strategy: (0..actions.len()).map(|k| strategy[k * n + i] as f64).collect(),
             equity: equity[i] as f64,
             ev: bb(ev[i] as f64),
+            evs: (0..actions.len()).map(|k| bb(detail[k * n + i] as f64)).collect(),
         };
         let entry = classes[class.index()].get_or_insert_with(|| ClassInfo {
             class: class.index(),

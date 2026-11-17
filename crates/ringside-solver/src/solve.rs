@@ -30,7 +30,7 @@ pub struct Progress {
     pub elapsed_ms: u64,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Summary {
     pub iterations: u32,
     pub exploitability: f64,

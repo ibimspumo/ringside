@@ -2,6 +2,7 @@
 //! submitted solution's exploitability; adding one means implementing [`Kind`] and listing
 //! it in [`KINDS`] (and in the server whitelist, `server/edge/kinds.ts`).
 
+pub mod postflop;
 mod pushfold_hu;
 pub mod pushfold_mw;
 
@@ -11,10 +12,11 @@ use serde_json::Value;
 
 use crate::canonical::{CanonicalError, canonicalize, solution_key};
 
+pub use postflop::{Postflop, PostflopInput, PostflopSolution};
 pub use pushfold_hu::{PushFoldHu, PushFoldHuInput, PushFoldHuSolution};
 pub use pushfold_mw::{PushFoldMw, PushFoldMwInput, PushFoldMwSolution};
 
-pub trait Kind {
+pub trait Kind: Sized {
     /// Name in URLs and the database, e.g. `pushfold-hu`.
     const NAME: &'static str;
     /// Version of the game model; bump it whenever the same input would give a different
@@ -22,6 +24,8 @@ pub trait Kind {
     const ENGINE_VERSION: u32;
     /// Largest exploitability that still counts as solved, in the kind's unit.
     const TOLERANCE: f64;
+    /// Longest the verifier lets one check run, in seconds.
+    const CHECK_SECONDS: u64 = 120;
 
     /// Serialized only with integers and short ASCII strings, see [`crate::canonical`].
     type Input: Serialize + DeserializeOwned;
@@ -35,6 +39,21 @@ pub trait Kind {
     /// `pushfold-mw` is the exception, see its module docs.
     fn exploitability(input: &Self::Input, solution: &Self::Solution) -> Result<f64, String>;
 
+    /// The verifier's check: the exploitability, and for a kind whose stored result the
+    /// verifier derives itself, the result to store instead of the submitted one.
+    fn assess(input: &Self::Input, solution: &Self::Solution) -> Result<(f64, Option<Self::Solution>), String> {
+        Ok((Self::exploitability(input, solution)?, None))
+    }
+
+    /// What the app checks before using a download: by default the full check. A kind
+    /// whose check costs a solve only checks the form and relies on the verifier.
+    fn check_download(input: &Self::Input, solution: &Self::Solution) -> Result<(), String> {
+        match verdict::<Self>(input, solution) {
+            Verdict::Verified { .. } => Ok(()),
+            Verdict::Rejected { reason, .. } => Err(reason),
+        }
+    }
+
     fn key(input: &Self::Input) -> Result<String, CanonicalError> {
         let value = serde_json::to_value(input).map_err(|e| CanonicalError(e.to_string()))?;
         Ok(solution_key(Self::NAME, Self::ENGINE_VERSION, &canonicalize(&value)?))
@@ -44,7 +63,8 @@ pub trait Kind {
 /// Outcome of checking a stored submission.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Verdict {
-    Verified { exploitability: f64 },
+    /// `result`: JSON to store in place of the submitted result.
+    Verified { exploitability: f64, result: Option<String> },
     Rejected { exploitability: Option<f64>, reason: String },
 }
 
@@ -52,11 +72,12 @@ pub enum Verdict {
 pub struct KindEntry {
     pub name: &'static str,
     pub engine_version: u32,
+    pub check_seconds: u64,
     /// (key, canonical input JSON, result JSON) → verdict.
     pub check: fn(&str, &str, &str) -> Verdict,
 }
 
-pub const KINDS: &[KindEntry] = &[entry::<PushFoldHu>(), entry::<PushFoldMw>()];
+pub const KINDS: &[KindEntry] = &[entry::<PushFoldHu>(), entry::<PushFoldMw>(), entry::<Postflop>()];
 
 pub fn find(name: &str, engine_version: u32) -> Option<&'static KindEntry> {
     KINDS
@@ -68,6 +89,7 @@ const fn entry<K: Kind>() -> KindEntry {
     KindEntry {
         name: K::NAME,
         engine_version: K::ENGINE_VERSION,
+        check_seconds: K::CHECK_SECONDS,
         check: check_stored::<K>,
     }
 }
@@ -98,9 +120,15 @@ pub fn verdict<K: Kind>(input: &K::Input, solution: &K::Solution) -> Verdict {
     if let Err(e) = K::check_input(input) {
         return reject(e);
     }
-    match K::exploitability(input, solution) {
-        Ok(e) if e.is_finite() && e <= K::TOLERANCE => Verdict::Verified { exploitability: e },
-        Ok(e) => Verdict::Rejected {
+    match K::assess(input, solution) {
+        Ok((e, replacement)) if e.is_finite() && e <= K::TOLERANCE => {
+            let result = match replacement.map(|r| serde_json::to_string(&r)).transpose() {
+                Ok(r) => r,
+                Err(e) => return reject(format!("rebuilt result: {e}")),
+            };
+            Verdict::Verified { exploitability: e, result }
+        }
+        Ok((e, _)) => Verdict::Rejected {
             exploitability: e.is_finite().then_some(e),
             reason: format!("exploitability {e:.3e} above tolerance {:.1e}", K::TOLERANCE),
         },

@@ -23,8 +23,10 @@ the working directory upwards) or the environment. Also deletes rate-limit count
 than two days and parser reports and submission log entries older than 90 days.
 
   --limit N           check at most N solutions (default 50)
-  --max-seconds S     reject a solution whose check takes longer (default 120)
-  --budget-seconds S  start no check after S seconds; the rest waits (default 2400)
+  --max-seconds S     reject a solution whose check takes longer (default: the kind's
+                      own limit, 120 s for push/fold, 900 s for postflop)
+  --budget-seconds S  start no check that could end after S seconds; the rest waits
+                      (default 2400)
   --dry-run           only print verdicts, change and delete nothing
   --env-file PATH     use this .env file
   --help              this text
@@ -51,7 +53,7 @@ fn number<T: std::str::FromStr>(args: &mut impl Iterator<Item = String>, flag: &
 
 fn run() -> Result<(), String> {
     let mut limit = 50u32;
-    let mut max_seconds = 120u64;
+    let mut max_seconds: Option<u64> = None;
     let mut budget_seconds = 2400u64;
     let mut dry_run = false;
     let mut env_file: Option<PathBuf> = None;
@@ -59,7 +61,7 @@ fn run() -> Result<(), String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--limit" => limit = number(&mut args, "--limit")?,
-            "--max-seconds" => max_seconds = number(&mut args, "--max-seconds")?,
+            "--max-seconds" => max_seconds = Some(number(&mut args, "--max-seconds")?),
             "--budget-seconds" => budget_seconds = number(&mut args, "--budget-seconds")?,
             "--dry-run" => dry_run = true,
             "--env-file" => env_file = Some(args.next().ok_or("--env-file needs a path")?.into()),
@@ -75,24 +77,25 @@ fn run() -> Result<(), String> {
     println!("kinds: {}", kinds.join(", "));
 
     let exe = std::env::current_exe().map_err(|e| format!("own executable: {e}"))?;
-    let limit_per_check = Duration::from_secs(max_seconds);
+    let deadline = Instant::now() + Duration::from_secs(budget_seconds);
     let check = |entry: &KindEntry, key: &str, input: &str, result: &str| {
+        let limit = Duration::from_secs(max_seconds.unwrap_or(entry.check_seconds));
+        // A slow kind starts only if its check can end within the budget; the row stays
+        // pending for the next run.
+        if Instant::now() + limit > deadline + Duration::from_secs(budget_slack(budget_seconds)) {
+            return None;
+        }
         let started = Instant::now();
-        let verdict = in_child(&exe, entry, key, input, result, limit_per_check);
+        let verdict = in_child(&exe, entry, key, input, result, limit);
         println!("  checked {} {key} in {:.1}s", entry.name, started.elapsed().as_secs_f64());
-        verdict
+        Some(verdict)
     };
-    let opts = VerifyOptions {
-        keys: None,
-        limit,
-        deadline: Some(Instant::now() + Duration::from_secs(budget_seconds)),
-        dry_run,
-    };
+    let opts = VerifyOptions { keys: None, limit, deadline: Some(deadline), dry_run };
     let checked = verify_pending(&db, &opts, &check)?;
     let (mut verified, mut rejected, mut skipped) = (0, 0, 0);
     for c in &checked {
         match &c.verdict {
-            Some(Verdict::Verified { exploitability }) => {
+            Some(Verdict::Verified { exploitability, .. }) => {
                 verified += 1;
                 println!("verified {} {} exploitability {exploitability:.2e}", c.kind, c.key);
             }
@@ -102,7 +105,7 @@ fn run() -> Result<(), String> {
             }
             None => {
                 skipped += 1;
-                println!("skipped  {} {} (kind or engine version unknown here)", c.kind, c.key);
+                println!("skipped  {} {} (unknown kind or engine version, or no time left)", c.kind, c.key);
             }
         }
     }
@@ -134,6 +137,14 @@ struct Outcome {
     verified: bool,
     exploitability: Option<f64>,
     reason: Option<String>,
+    /// The result to store instead of the submitted one.
+    result: Option<String>,
+}
+
+/// How far past the budget a check may run: a tenth of it, so a run of the default
+/// budget still ends well inside the workflow's timeout.
+fn budget_slack(budget_seconds: u64) -> u64 {
+    budget_seconds / 10
 }
 
 fn rejected(reason: String) -> Verdict {
@@ -191,7 +202,7 @@ fn in_child(exe: &PathBuf, entry: &KindEntry, key: &str, input: &str, result: &s
     }
     match serde_json::from_str::<Outcome>(&out) {
         Ok(o) if status.success() && o.verified => match o.exploitability {
-            Some(exploitability) => Verdict::Verified { exploitability },
+            Some(exploitability) => Verdict::Verified { exploitability, result: o.result },
             None => rejected("check reported no exploitability".into()),
         },
         Ok(o) if status.success() => Verdict::Rejected {
@@ -208,8 +219,12 @@ fn check_one() -> Result<(), String> {
     let job: Job = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let entry = kinds::find(&job.kind, job.engine_version).ok_or("unknown kind")?;
     let outcome = match (entry.check)(&job.key, &job.input, &job.result) {
-        Verdict::Verified { exploitability } => Outcome { verified: true, exploitability: Some(exploitability), reason: None },
-        Verdict::Rejected { exploitability, reason } => Outcome { verified: false, exploitability, reason: Some(reason) },
+        Verdict::Verified { exploitability, result } => {
+            Outcome { verified: true, exploitability: Some(exploitability), reason: None, result }
+        }
+        Verdict::Rejected { exploitability, reason } => {
+            Outcome { verified: false, exploitability, reason: Some(reason), result: None }
+        }
     };
     println!("{}", serde_json::to_string(&outcome).map_err(|e| e.to_string())?);
     Ok(())

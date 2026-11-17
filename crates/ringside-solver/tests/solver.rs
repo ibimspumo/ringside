@@ -133,6 +133,51 @@ fn navigates_actions_and_cards() {
     ));
 }
 
+/// What the table and the practice mode read: chips in front per street, and the EV of
+/// every action per combo, consistent with the combo's EV under its strategy.
+#[test]
+fn reports_street_bets_and_action_evs() {
+    let mut s = solve(&small_flop(), &settings(1.0, 1), LIMIT, |_| {}, || false).unwrap();
+    let root = s.node(&[]).unwrap();
+    assert_eq!(root.street_bets, [0.0, 0.0]);
+    let bet = root.actions.iter().position(|a| a.kind == ActionKind::Bet).unwrap();
+    assert_eq!(root.actions[bet].amount, 5.0);
+    for h in &root.hands {
+        assert_eq!(h.evs.len(), root.actions.len());
+        let mixed: f64 = h.strategy.iter().zip(&h.evs).map(|(p, ev)| p * ev).sum();
+        assert!((mixed - h.ev).abs() < 0.01, "{} ev {} mixed {mixed}", h.combo, h.ev);
+    }
+    // The best action is never worse than the mix: an EV loss is always measured against it.
+    for h in &root.hands {
+        let best = h.evs.iter().cloned().fold(f64::MIN, f64::max);
+        assert!(best >= h.ev - 1e-6, "{}", h.combo);
+    }
+
+    let facing = s.node(&[Step::Action(bet)]).unwrap();
+    assert_eq!(facing.player, Some(Player::Ip));
+    assert_eq!(facing.street_bets, [5.0, 0.0]);
+    assert_eq!(facing.pot, 15.0);
+    let fold = facing.actions.iter().position(|a| a.kind == ActionKind::Fold).unwrap();
+    let call = facing.actions.iter().position(|a| a.kind == ActionKind::Call).unwrap();
+    assert!(facing.hands.iter().all(|h| h.evs[fold] == 0.0));
+
+    // What `solver_node` hands the page: the field names the frontend reads.
+    let json = serde_json::to_value(&facing).unwrap();
+    assert_eq!(json["street_bets"], serde_json::json!([5.0, 0.0]));
+    let first = &json["hands"][0];
+    assert_eq!(first["evs"].as_array().unwrap().len(), facing.actions.len());
+    assert_eq!(first["combo"].as_str().unwrap().len(), 4);
+
+    let chance = s.node(&[Step::Action(bet), Step::Action(call)]).unwrap();
+    assert_eq!(chance.kind, NodeKind::Chance);
+    assert_eq!(chance.street_bets, [5.0, 5.0]);
+    let turn = s.node(&[Step::Action(bet), Step::Action(call), Step::Card("2h".into())]).unwrap();
+    assert_eq!(turn.street_bets, [0.0, 0.0]);
+    assert_eq!(turn.bets, [5.0, 5.0]);
+    assert_eq!(turn.pot, 20.0);
+    assert_eq!(turn.stacks, [15.0, 15.0]);
+}
+
 #[test]
 fn rejects_bad_spots_with_a_message() {
     let cases = [

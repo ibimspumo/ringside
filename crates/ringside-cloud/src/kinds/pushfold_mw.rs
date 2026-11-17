@@ -319,7 +319,7 @@ mod tests {
         for input in [six(10_000), icm3()] {
             let s = solved(&input);
             match verdict::<PushFoldMw>(&input, &s) {
-                Verdict::Verified { exploitability } => assert!(exploitability <= TARGET * 1.001, "{exploitability}"),
+                Verdict::Verified { exploitability, .. } => assert!(exploitability <= TARGET * 1.001, "{exploitability}"),
                 v => panic!("{input:?}: {v:?}"),
             }
         }

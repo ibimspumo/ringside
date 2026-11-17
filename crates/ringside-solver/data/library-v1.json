@@ -1,0 +1,1016 @@
+{
+  "version": 1,
+  "source": "Preflop-Modell von Ringside (ringside-engine 0.6.0), 9 Spieler, Big-Blind-Ante, Chip-EV",
+  "flops": [
+    "AsKhTd",
+    "AsKh5d",
+    "AsQhTd",
+    "AsQh5d",
+    "AsJh9d",
+    "AsJh4d",
+    "AsTh7d",
+    "AsTh2d",
+    "As9h4d",
+    "As8h5d",
+    "As7h5d",
+    "As6h4d",
+    "As5h2d",
+    "KsQhTd",
+    "KsQh5d",
+    "KsJh9d",
+    "KsJh4d",
+    "KsTh7d",
+    "KsTh2d",
+    "Ks9h4d",
+    "Ks8h5d",
+    "Ks7h5d",
+    "Ks6h4d",
+    "Ks5h2d",
+    "QsJh9d",
+    "QsJh4d",
+    "QsTh7d",
+    "QsTh2d",
+    "Qs9h3d",
+    "Qs8h4d",
+    "Qs7h4d",
+    "Qs6h3d",
+    "Qs4h3d",
+    "JsTh7d",
+    "JsTh2d",
+    "Js9h4d",
+    "Js8h5d",
+    "Js7h5d",
+    "Js6h4d",
+    "Js5h2d",
+    "Ts9h7d",
+    "Ts9h2d",
+    "Ts8h3d",
+    "Ts7h3d",
+    "Ts6h2d",
+    "Ts4h2d",
+    "9s8h4d",
+    "9s7h4d",
+    "9s6h3d",
+    "9s4h3d",
+    "8s7h4d",
+    "8s6h3d",
+    "8s4h3d",
+    "7s6h3d",
+    "7s4h3d",
+    "6s5h2d",
+    "5s4h2d",
+    "AsKs7h",
+    "AsKhTs",
+    "AsKh5s",
+    "AsQs9h",
+    "AsQhTs",
+    "AsQh5h",
+    "AsJs7h",
+    "AsJh8s",
+    "AsJh3s",
+    "AsTs2h",
+    "AsTh5h",
+    "As9s5h",
+    "As9h5s",
+    "As8s5h",
+    "As8h4h",
+    "As7h6s",
+    "As6s5h",
+    "As6h2s",
+    "As5h2h",
+    "KsQsTh",
+    "KsQhJh",
+    "KsQh6h",
+    "KsJs9h",
+    "KsJh9h",
+    "KsJh4h",
+    "KsTs4h",
+    "KsTh6h",
+    "Ks9s7h",
+    "Ks9h6h",
+    "Ks8s6h",
+    "Ks8h5h",
+    "Ks7s3h",
+    "Ks7h2s",
+    "Ks6h3h",
+    "Ks5h2s",
+    "Ks3h2h",
+    "QsJhTs",
+    "QsJh5h",
+    "QsTs6h",
+    "QsTh7h",
+    "QsTh2h",
+    "Qs9h7s",
+    "Qs9h2h",
+    "Qs8h6h",
+    "Qs7s5h",
+    "Qs7h3s",
+    "Qs6h4s",
+    "Qs5h3s",
+    "Qs3s2h",
+    "JsTs2h",
+    "JsTh5h",
+    "Js9s4h",
+    "Js9h5h",
+    "Js8s4h",
+    "Js8h4h",
+    "Js7h6s",
+    "Js6s4h",
+    "Js6h2h",
+    "Js4s3h",
+    "Ts9s7h",
+    "Ts9h6s",
+    "Ts8s6h",
+    "Ts8h5h",
+    "Ts7s3h",
+    "Ts7h2s",
+    "Ts6h3h",
+    "Ts5h2s",
+    "Ts3h2h",
+    "9s8h6h",
+    "9s7s5h",
+    "9s7h3h",
+    "9s6h4h",
+    "9s5h3s",
+    "9s3s2h",
+    "8s7h5s",
+    "8s6s2h",
+    "8s5s3h",
+    "8s4h3s",
+    "7s6s2h",
+    "7s5s2h",
+    "7s4h3h",
+    "6s5h4h",
+    "6s4h2h",
+    "5s3s2h",
+    "AsQs8s",
+    "As9s4s",
+    "KsQs6s",
+    "Ks8s7s",
+    "QsJs3s",
+    "Qs6s4s",
+    "Js8s3s",
+    "Ts8s2s",
+    "9s6s3s",
+    "7s5s3s",
+    "AsAhJd",
+    "AsAh6d",
+    "AsKhKd",
+    "As8h8d",
+    "As3h3d",
+    "KsKh9d",
+    "KsKh4d",
+    "KsThTd",
+    "Ks5h5d",
+    "QsQhTd",
+    "QsQh5d",
+    "QsThTd",
+    "Qs5h5d",
+    "JsJh9d",
+    "JsJh4d",
+    "Js7s7h",
+    "Js2s2h",
+    "TsTh5s",
+    "Ts8s8h",
+    "Ts3s3h",
+    "9s9h5s",
+    "9s7s7h",
+    "9s2s2h",
+    "8s8h3s",
+    "8s4s4h",
+    "7s7h4s",
+    "7s4s4h",
+    "6s6h3s",
+    "6s2s2h",
+    "5s3s3h",
+    "4s2s2h",
+    "JsJhJd",
+    "5s5h5d"
+  ],
+  "flop_weights": [
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    120.42105263157895,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    122.57142857142857,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    114.4,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    120.7741935483871,
+    26.0,
+    26.0
+  ],
+  "scenarios": [
+    {
+      "id": "srp-btn-bb-20",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "BTN",
+      "stack_bb": 20.0,
+      "pot": 5.5,
+      "stack": 17.0,
+      "oop_range": "A7s-A6s, KTs-K2s, QTs:0.5, Q9s, Q8s:0.5, Q7s-Q2s, J6s-J2s, T7s:0.85, T6s-T2s, 97s:0.15, 96s-92s, 86s-82s, 72s+, 62s+, 52s+, 42s+, 32s, A8o-A5o, A4o:0.5, A3o-A2o, KJo-K2o, Q2o+, J9o-J2o, T8o-T3o, T2o:0.35, 94o+, 93o:0.5, 84o+, 73o+, 63o+, 52o+, 42o+, 32o",
+      "ip_range": "77+, A6s+, A5s:0.75, K2s+, QJs:0.95, Q9s-Q5s, J9s:0.4, J8s-J7s, AKo:0.25, AQo:0.85, AJo, ATo:0.75, A7o:0.95, A6o-A2o, KQo:0.25, KJo:0.35, KTo-K7o, QJo:0.9, QTo-Q9o, J9o+",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus BTN auf 2 BB"
+    },
+    {
+      "id": "srp-co-bb-20",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "CO",
+      "stack_bb": 20.0,
+      "pot": 5.5,
+      "stack": 17.0,
+      "oop_range": "A9s-A6s, A4s-A2s, KTs-K2s, Q7s-Q2s, J7s-J2s, T7s-T2s, 96s-92s, 86s-82s, 72s+, 62s+, 52s+, 42s+, 32s, A9o-A2o, KJo-K2o, QJo:0.7, QTo-Q2o, J2o+, T9o:0.75, T8o-T4o, 95o+, 84o+, 74o+, 63o+, 52o+, 42o+, 32o",
+      "ip_range": "55+, 44:0.3, 33:0.5, 22:0.55, A2s+, K4s+, K3s:0.6, QJs:0.7, QTs-Q7s, Q6s:0.25, JTs:0.8, J9s-J8s, T9s, T8s:0.6, AKo:0.8, AQo-A3o, KQo:0.85, KJo-K9o, QTo+, JTo",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus CO auf 2 BB"
+    },
+    {
+      "id": "srp-utg-bb-20",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "UTG",
+      "stack_bb": 20.0,
+      "pot": 5.5,
+      "stack": 17.0,
+      "oop_range": "88:0.8, 77-55, 22, AJs-A2s, KQs, KJs:0.25, K9s:0.05, K8s-K2s, Q9s-Q2s, J9s-J2s, T2s+, 92s+, 82s+, 72s+, 62s+, 52s+, 42s+, 32s, AQo:0.45, AJo-A2o, K3o+, K2o:0.7, Q8o+, Q7o:0.7, Q6o:0.6, J8o+, J7o:0.3, T7o+, 96o+, 86o+, 85o:0.45, 75o+, 64o+, 53o+, 43o",
+      "ip_range": "55+, 44:0.2, A7s+, A6s:0.15, A5s, K9s+, Q9s+, JTs, J9s:0.15, T9s, ATo+, KQo, KJo:0.85",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus UTG auf 2 BB"
+    },
+    {
+      "id": "srp-sb-bb-20",
+      "pot_type": "srp",
+      "oop": "SB",
+      "ip": "BB",
+      "stack_bb": 20.0,
+      "pot": 6.0,
+      "stack": 16.5,
+      "oop_range": "KK, 99:0.15, 77:0.05, 66:0.25, AKs:0.85, KJs:0.35, KTs:0.7, K6s:0.05, K5s:0.35, QTs:0.75, JTs:0.15, K8o:0.45, K7o:0.95, K6o:0.65, K5o:0.35, QTo:0.2, Q9o:0.45, Q8o:0.15",
+      "ip_range": "99:0.5, 88, 77:0.7, 66-55, 44:0.65, 33:0.5, 22:0.55, KJs:0.05, KTs:0.65, K9s-K6s, K5s:0.65, K4s:0.3, K3s:0.45, K2s:0.65, QJs:0.8, QTs-Q7s, Q6s:0.9, Q5s-Q2s, J8s+, J7s:0.35, J6s-J2s, T2s+, 92s+, 82s+, 72s+, 62s+, 52s+, 42s+, 32s, A7o:0.05, KQo:0.35, KJo:0.5, KTo-K5o, K4o:0.55, K3o:0.65, K2o:0.9, QJo:0.7, QTo-Q8o, Q7o:0.55, Q6o:0.45, Q5o:0.6, Q4o:0.85, Q3o:0.7, Q2o:0.55, JTo, J9o-J8o:0.6, J7o:0.25, J6o:0.6, J5o:0.9, J4o:0.85, J3o:0.95, J2o:0.7, T6o+, T5o:0.45, T4o:0.6, T3o:0.5, T2o:0.4, 98o, 97o:0.85, 96o, 95o:0.45, 87o:0.9, 86o-85o, 84o:0.15, 76o:0.65, 75o, 74o:0.8, 65o:0.7, 64o:0.75, 63o:0.55, 54o:0.7, 53o, 52o:0.55, 43o, 42o:0.7, 32o:0.75",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Open-Raise aus SB auf 2,5 BB",
+      "ip_note": "Call aus BB gegen das Open"
+    },
+    {
+      "id": "srp-btn-bb-40",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "BTN",
+      "stack_bb": 40.0,
+      "pot": 5.9,
+      "stack": 36.8,
+      "oop_range": "A9s-A6s, A5s:0.8, A4s, A3s:0.45, A2s, KJs-K2s, Q9s-Q2s, J7s-J2s, T6s-T2s, 96s-92s, 85s-82s, 75s-72s, 65s:0.45, 64s-62s, 52s+, 42s+, 32s, ATo:0.45, A9o-A8o, A7o:0.95, A6o:0.75, A5o:0.95, A4o-A2o, KJo-K2o, QJo:0.95, QTo-Q9o, Q8o-Q7o:0.95, Q6o-Q2o, J3o+, T8o-T6o, 98o:0.8, 97o-96o, 95o:0.1, 85o+, 74o+, 64o+, 53o+, 43o",
+      "ip_range": "22+, A2s+, K2s+, Q2s+, J5s+, T7s+, 96s+, 86s+, 76s, 75s:0.05, 65s, 54s:0.65, A2o+, K4o+, K3o:0.2, Q8o+, J9o+, T9o",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus BTN auf 2,2 BB"
+    },
+    {
+      "id": "srp-co-bb-40",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "CO",
+      "stack_bb": 40.0,
+      "pot": 5.9,
+      "stack": 36.8,
+      "oop_range": "66:0.65, 55:0.5, AJs:0.2, ATs-A2s, KJs:0.9, KTs-K2s, Q8s:0.15, Q7s-Q2s, J7s-J2s, T8s:0.45, T7s-T2s, 97s-92s, 82s+, 72s+, 62s+, 52s+, 42s+, 32s, AJo:0.9, ATo-A2o, KJo-K2o, QJo, QTo:0.9, Q9o:0.95, Q8o-Q3o, J9o, J8o:0.95, J7o-J6o, T6o+, 96o+, 85o+, 75o+, 64o+, 53o+, 43o",
+      "ip_range": "22+, A2s+, K3s+, Q7s+, Q6s:0.3, J8s+, T7s+, 97s+, 87s, 76s, A2o+, K8o+, QTo+, JTo",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus CO auf 2,2 BB"
+    },
+    {
+      "id": "srp-utg-bb-40",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "UTG",
+      "stack_bb": 40.0,
+      "pot": 5.9,
+      "stack": 36.8,
+      "oop_range": "TT:0.5, 99-44, 33:0.95, 22, AQs:0.75, AJs-A6s, A2s:0.95, KTs+, K9s:0.2, K8s-K2s, Q2s+, J2s+, T2s+, 93s+, 82s+, 73s+, 62s+, 52s+, 42s+, 32s, AQo-A2o, KQo:0.8, KJo-KTo, Q9o+, J9o+, T8o+, 98o, 87o, 76o",
+      "ip_range": "55+, 44:0.7, A4s+, KTs+, QTs+, JTs, A9o+, KQo, KJo:0.35",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus UTG auf 2,2 BB"
+    },
+    {
+      "id": "srp-sb-bb-40",
+      "pot_type": "srp",
+      "oop": "SB",
+      "ip": "BB",
+      "stack_bb": 40.0,
+      "pot": 7.0,
+      "stack": 36.0,
+      "oop_range": "QQ+, JJ:0.95, TT-88, 77:0.3, 44:0.15, 22:0.3, A2s+, K3s+, K2s:0.65, Q7s+, Q6s:0.7, J9s, J8s:0.65, J7s:0.05, T9s:0.2, T8s:0.1, 93s:0.05, AKo:0.6, ATo:0.35, A9o-A5o, A4o:0.7, A3o:0.8, A2o:0.6, KQo:0.3, KJo-K5o, K4o:0.8, K3o:0.95, K2o:0.9, QJo:0.85, QTo-Q6o, Q5o:0.45, JTo:0.65, J9o:0.6, J8o:0.75, J7o:0.2, T8o+:0.35, T7o:0.25, 97o+:0.2",
+      "ip_range": "77:0.6, 66:0.5, A8s:0.55, A7s-A5s, A4s:0.7, A3s:0.85, A2s, KJs-K2s, QJs:0.3, QTs-Q3s, Q2s:0.95, JTs:0.8, J9s-J8s, J7s:0.55, J6s, J5s-J4s:0.6, J3s:0.7, J2s:0.35, T4s+, T3s:0.75, T2s:0.4, 93s+, 92s:0.95, 82s+, 72s+, 63s+, 62s:0.7, 53s+, 52s:0.6, 43s, 42s:0.65, 32s:0.75, A8o:0.2, A7o-A3o, A2o:0.75, KQo:0.35, KJo-K2o, QTo-Q4o, Q3o:0.65, JTo:0.25, J9o:0.55, J8o-J7o, T9o:0.95, T8o-T7o, 96o+, 86o+, 85o:0.45, 75o+, 65o, 64o:0.85, 54o:0.6, 53o:0.35, 43o:0.4",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Open-Raise aus SB auf 3 BB",
+      "ip_note": "Call aus BB gegen das Open"
+    },
+    {
+      "id": "3bp-btn-bb-40",
+      "pot_type": "three_bet",
+      "oop": "BB",
+      "ip": "BTN",
+      "stack_bb": 40.0,
+      "pot": 18.0,
+      "stack": 30.75,
+      "oop_range": "AA:0.5, TT:0.15, 99:0.1, 66-55:0.05, AJs:0.85, ATs:0.5, ATo:0.55, A7o:0.05, A6o:0.25, A5o:0.05, QJo:0.05, Q8o-Q7o:0.05",
+      "ip_range": "TT:0.6, 88, 77:0.45, 66, 55:0.9, 44:0.95, 33-22, AJs:0.05, ATs-A6s, A5s:0.8, A4s:0.7, A3s:0.65, A2s:0.7, KTs+, K9s:0.85, K8s-K2s, QTs+, Q9s:0.8, Q8s:0.9, Q7s:0.7, Q6s:0.35, Q5s:0.15, J9s+, J8s:0.85, J7s:0.35, T9s:0.85, T8s:0.9, 98s:0.95, 97s:0.85, 96s:0.6, 87s:0.85, 86s, 76s:0.6, 75s:0.05, 65s:0.55, 54s:0.55, AJo:0.65, ATo, A9o:0.45, KQo:0.7, KJo, QJo",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            66.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "3-Bet aus BB auf 8,25 BB",
+      "ip_note": "Open-Raise aus BTN, Call gegen die 3-Bet"
+    },
+    {
+      "id": "3bp-btn-sb-40",
+      "pot_type": "three_bet",
+      "oop": "SB",
+      "ip": "BTN",
+      "stack_bb": 40.0,
+      "pot": 18.5,
+      "stack": 31.75,
+      "oop_range": "AA, KK:0.9, QQ:0.8, JJ-99, 88:0.8, 77, 66:0.9, 44:0.25, 33:0.75, A2s+, KQs, KJs:0.95, KTs:0.35, QJs:0.65, QTs:0.6, AKo:0.8, AQo-A6o, KQo:0.8, KJo, QJo:0.35",
+      "ip_range": "55:0.15, 44-33, 22:0.7, ATs-A2s, KJs:0.85, K9s:0.55, K8s-K2s, QJs, Q9s-Q4s, JTs:0.55, J9s-J7s, J5s:0.5, T7s+, 96s+, 86s+, 76s, 75s:0.05, 65s, 54s:0.65, AJo:0.25, ATo-A5o, A4o:0.85, KJo-KTo, QJo, QTo:0.95, JTo, T9o",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            66.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "3-Bet aus SB auf 8,25 BB",
+      "ip_note": "Open-Raise aus BTN, Call gegen die 3-Bet"
+    },
+    {
+      "id": "3bp-co-btn-40",
+      "pot_type": "three_bet",
+      "oop": "CO",
+      "ip": "BTN",
+      "stack_bb": 40.0,
+      "pot": 14.6,
+      "stack": 33.95,
+      "oop_range": "66:0.9, 55-33, 22:0.05, ATs-A2s, K8s-K4s, K3s:0.25, Q9s:0.6, Q8s-Q7s, Q6s:0.3, J9s-J8s, T7s+, 97s+, 87s, 76s, AJo-A5o, A4o:0.45, KQo:0.35, KJo-KTo, QJo, QTo:0.9, JTo",
+      "ip_range": "77+, 66:0.95, 55-33, A4s+, A3s:0.75, A2s:0.2, K9s+, QTs+, A8o+, KJo+",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            66.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Open-Raise aus CO, Call gegen die 3-Bet",
+      "ip_note": "3-Bet aus BTN auf 6,05 BB"
+    },
+    {
+      "id": "srp-btn-bb-75",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "BTN",
+      "stack_bb": 75.0,
+      "pot": 6.5,
+      "stack": 71.5,
+      "oop_range": "A6s:0.05, A3s:0.65, A2s, K9s-K2s, Q9s:0.75, Q8s-Q2s, J7s-J2s, T8s:0.7, T7s-T2s, 97s-92s, 82s+, 72s+, 62s+, 52s+, 42s+, 32s, A9o:0.15, A8o-A2o, KJo-K2o, Q5o+, J7o+, T7o+, 97o+, 86o+, 76o, 65o, 54o",
+      "ip_range": "22+, A2s+, K2s+, Q4s+, Q3s:0.95, J7s+, T7s+, 97s+, 96s:0.05, 86s+, 76s, 65s, A2o+, K5o+, K4o:0.1, Q9o+, Q8o:0.95, J9o+, T9o:0.8",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus BTN auf 2,5 BB"
+    },
+    {
+      "id": "srp-co-bb-75",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "CO",
+      "stack_bb": 75.0,
+      "pot": 6.5,
+      "stack": 71.5,
+      "oop_range": "33-22, ATs:0.4, A9s-A2s, K9s:0.25, K8s-K2s, Q9s:0.15, Q8s-Q2s, J9s-J2s, T9s:0.45, T8s-T2s, 92s+, 83s+, 82s:0.9, 73s+, 62s+, 52s+, 42s+, 32s, ATo-A2o, KQo:0.6, KJo-K5o, Q8o+, J8o+, T8o+, 97o+, 87o, 76o, 65o",
+      "ip_range": "22+, A2s+, K6s+, K5s:0.2, Q9s+, Q8s:0.65, J8s+, T8s+, 98s, 87s, A3o+, A2o:0.6, KTo+, K9o:0.65, QJo, QTo:0.95",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus CO auf 2,5 BB"
+    },
+    {
+      "id": "srp-utg-bb-75",
+      "pot_type": "srp",
+      "oop": "BB",
+      "ip": "UTG",
+      "stack_bb": 75.0,
+      "pot": 6.5,
+      "stack": 71.5,
+      "oop_range": "99-22, AQs:0.55, AJs-A6s, A5s:0.8, A4s-A2s, KQs:0.45, K8s-K4s, Q8s+, J8s+, T7s+, 96s+, 85s+, 75s+, 64s+, 53s+, 43s, AQo-A9o, KJo+, QJo:0.1",
+      "ip_range": "66+, A8s+, A7s:0.95, KTs+, QJs, QTs:0.35, JTs:0.05, ATo+, KQo, KJo:0.05",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Call aus BB gegen das Open",
+      "ip_note": "Open-Raise aus UTG auf 2,5 BB"
+    },
+    {
+      "id": "srp-sb-bb-75",
+      "pot_type": "srp",
+      "oop": "SB",
+      "ip": "BB",
+      "stack_bb": 75.0,
+      "pot": 7.0,
+      "stack": 71.0,
+      "oop_range": "33+, 22:0.5, A4s+, A3s:0.05, KTs+, K9s:0.95, K8s:0.45, K7s:0.55, K6s:0.65, Q8s+, Q7s:0.45, Q6s:0.6, J8s+, J2s:0.1, T8s+, T4s:0.05, T3s:0.8, T2s, 98s, 97s:0.05, 95s, 94s:0.05, 87s, 85s:0.9, 64s:0.55, 54s:0.9, A9o+, A8o:0.05, A6o:0.6, A4o:0.3, A3o:0.5, A2o, KQo, KJo:0.05, K8o:0.45, K7o:0.95, K6o-K2o, QJo, Q8o-Q4o, Q3o:0.55, Q2o:0.05, JTo:0.25, J8o-J7o, T8o:0.1, T7o:0.85, 98o:0.85, 97o:0.35, 87o:0.4",
+      "ip_range": "A7s:0.3, K9s-K2s, Q9s-Q2s, J7s-J2s, T7s:0.1, T6s-T2s, 95s-92s, 85s:0.8, 84s-82s, 74s-72s, 63s, 62s:0.65, 52s, 42s, 32s, A8o-A2o, KQo:0.1, KJo-K2o, Q2o+, JTo:0.7, J9o-J4o, T6o+, 96o+, 85o+, 75o+, 65o:0.8, 64o:0.85, 54o",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": [
+            60.0
+          ]
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Open-Raise aus SB auf 3 BB",
+      "ip_note": "Call aus BB gegen das Open"
+    },
+    {
+      "id": "3bp-btn-bb-75",
+      "pot_type": "three_bet",
+      "oop": "BB",
+      "ip": "BTN",
+      "stack_bb": 75.0,
+      "pot": 21.5,
+      "stack": 64.0,
+      "oop_range": "22+, A7s+, A6s:0.95, A5s-A4s, A3s:0.35, KTs+, QTs+, Q9s:0.25, J8s+, T9s, T8s:0.3, 98s, ATo+, A9o:0.85, KQo",
+      "ip_range": "88:0.6, 77-22, AQs:0.85, AJs-A2s, KQs, KJs:0.9, KTs-K5s, Q8s+, J8s+, T8s+, T7s:0.4, 97s+, 86s+, 76s, 65s, AQo:0.3, AJo-A9o, A8o:0.6, KQo:0.85, KJo:0.65, QJo, JTo:0.45",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            66.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "3-Bet aus BB auf 10 BB",
+      "ip_note": "Open-Raise aus BTN, Call gegen die 3-Bet"
+    },
+    {
+      "id": "3bp-btn-sb-75",
+      "pot_type": "three_bet",
+      "oop": "SB",
+      "ip": "BTN",
+      "stack_bb": 75.0,
+      "pot": 22.0,
+      "stack": 65.0,
+      "oop_range": "22+, A2s+, K8s+, QTs+, Q9s:0.1, JTs, T9s:0.7, A6o+, KJo+, KTo:0.1, QJo:0.9",
+      "ip_range": "77:0.8, 66-22, AJs-A2s, K4s+, K3s:0.95, K2s:0.05, Q8s+, Q7s:0.85, Q6s:0.6, Q5s:0.45, J8s+, J7s:0.95, T7s+, 97s+, 96s:0.05, 86s+, 76s, 65s, AJo-A5o, A4o:0.9, A3o:0.05, KQo:0.45, KJo, KTo:0.75, QTo+, JTo",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            66.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "3-Bet aus SB auf 10 BB",
+      "ip_note": "Open-Raise aus BTN, Call gegen die 3-Bet"
+    },
+    {
+      "id": "3bp-co-btn-75",
+      "pot_type": "three_bet",
+      "oop": "CO",
+      "ip": "BTN",
+      "stack_bb": 75.0,
+      "pot": 17.5,
+      "stack": 67.5,
+      "oop_range": "88:0.6, 77-22, AJs:0.05, ATs-A2s, KJs-K6s, K5s:0.2, Q9s+, Q8s:0.65, J8s+, T8s+, 98s, 87s, AJo:0.9, ATo-A7o, A6o:0.1, A5o:0.4, KQo:0.65, KJo-KTo, QJo, QTo:0.35",
+      "ip_range": "22+, A2s+, K8s+, Q9s+, J9s+, T9s, 98s:0.95, 87s:0.05, A8o+, A7o:0.3, KJo+, KTo:0.4",
+      "sizes": [
+        {
+          "bet": [
+            33.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            66.0
+          ],
+          "raise": []
+        },
+        {
+          "bet": [
+            75.0
+          ],
+          "raise": []
+        }
+      ],
+      "allin_threshold": 150.0,
+      "oop_note": "Open-Raise aus CO, Call gegen die 3-Bet",
+      "ip_note": "3-Bet aus BTN auf 7,5 BB"
+    }
+  ],
+  "target_pct": 0.5,
+  "max_iterations": 1000
+}

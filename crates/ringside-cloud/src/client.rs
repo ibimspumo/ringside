@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canonical::canonicalize;
-use crate::kinds::{self, Kind, Verdict};
+use crate::kinds::{self, Kind};
 
 /// Public URL of the `ringside-api` Edge Script.
 pub const DEFAULT_BASE_URL: &str = "https://ringside-api.bunny.run";
@@ -157,10 +157,9 @@ impl Client {
         }
         let solution: K::Solution =
             serde_json::from_value(served.result).map_err(|e| Error::Protocol(e.to_string()))?;
-        match kinds::verdict::<K>(input, &solution) {
-            Verdict::Verified { .. } => Ok(Some(solution)),
-            Verdict::Rejected { reason, .. } => Err(Error::Protocol(format!("served solution fails the local check: {reason}"))),
-        }
+        K::check_download(input, &solution)
+            .map(|()| Some(solution))
+            .map_err(|reason| Error::Protocol(format!("served solution fails the local check: {reason}")))
     }
 
     /// Offers a locally computed solution; only call this with the user's consent.

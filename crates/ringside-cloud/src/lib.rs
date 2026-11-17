@@ -9,6 +9,7 @@ pub mod canonical;
 pub mod client;
 pub mod kinds;
 pub mod operator;
+pub mod packs;
 
 pub use client::{Client, Error, Report, SubmitStatus};
-pub use kinds::{Kind, PushFoldHu, PushFoldMw};
+pub use kinds::{Kind, Postflop, PushFoldHu, PushFoldMw};
