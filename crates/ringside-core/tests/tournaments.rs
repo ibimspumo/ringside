@@ -147,7 +147,7 @@ fn elimination_line_in_a_hand_gives_place_and_prize() {
     let bust = split_hands(KNOCKOUT)[0]
         .replace("Astrid finished the tournament in 87th place", "Hero finished the tournament in 3rd place and received $5.40.");
     let h = parse_hand(&bust).unwrap();
-    assert_eq!((h.finishes[0].place, h.finishes[0].prize), (3, Some(540)));
+    assert_eq!((h.finishes[0].place, h.finishes[0].prize), (Some(3), Some(540)));
     let mut db = Db::open_in_memory().unwrap();
     insert(&mut db, &bust);
     let r = row(&db, 4046789300);
@@ -155,9 +155,22 @@ fn elimination_line_in_a_hand_gives_place_and_prize() {
     assert_eq!(r.profit, Some(540 + 95 - 550));
 
     let winner = bust.replace("Hero finished the tournament in 3rd place and received $5.40.", "Hero wins the tournament and receives $27.00 - congratulations!");
-    assert_eq!(parse_hand(&winner).unwrap().finishes[0].place, 1);
+    assert_eq!(parse_hand(&winner).unwrap().finishes[0].place, Some(1));
     let ticket = bust.replace("received $5.40.", "received a Tournament Ticket.");
     assert_eq!(parse_hand(&ticket).unwrap().finishes[0].prize, None);
+}
+
+/// Without summaries PokerStars often writes only "Hero finished the tournament": out of the
+/// money, place unknown. The result is still known: the buy-in is lost, bounties count.
+#[test]
+fn elimination_without_place_is_a_loss_with_unknown_place() {
+    let bust = split_hands(KNOCKOUT)[0].replace("Astrid finished the tournament in 87th place", "Hero finished the tournament");
+    let h = parse_hand(&bust).unwrap();
+    assert_eq!((h.finishes[0].player.as_str(), h.finishes[0].place, h.finishes[0].prize), ("Hero", None, None));
+    let mut db = Db::open_in_memory().unwrap();
+    insert(&mut db, &bust);
+    let r = row(&db, 4046789300);
+    assert_eq!((r.place, r.prize, r.profit), (None, Some(0), Some(95 - 550)));
 }
 
 #[test]

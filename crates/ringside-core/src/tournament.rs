@@ -204,8 +204,9 @@ pub struct TournamentRow {
     /// Everything paid in: buy-in plus re-entries; None when the buy-in is unknown.
     pub cost: Option<Amount>,
     pub entrants: Option<i64>,
-    /// None while the result is unknown (no summary and no elimination hand yet).
+    /// None while the result is unknown, or when the elimination hand names no place.
     pub place: Option<i64>,
+    /// None while the result is unknown.
     pub prize: Option<Amount>,
     pub bounties: Amount,
     /// Prize plus bounties minus cost, once both result and cost are known.

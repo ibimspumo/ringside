@@ -14,7 +14,7 @@ use crate::tournament::{BuyIn, Summary, TournamentRow};
 pub use rusqlite::Error;
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 3;
+const SCHEMA_VERSION: i32 = 4;
 
 pub struct Db {
     conn: Connection,
@@ -671,7 +671,7 @@ impl Db {
             "SELECT t.id, t.game, t.currency, t.buy_in_prize, t.buy_in_bounty, t.buy_in_fee, t.hand_place,
                     t.hand_prize, t.summary, t.entrants, t.place, t.prize, t.bounties, t.extra_cost,
                     COALESCE(t.started_at, h.first, ''), COALESCE(h.hands, 0), COALESCE(h.chips, 0),
-                    COALESCE(h.bounty, 0), t.name
+                    COALESCE(h.bounty, 0), t.name, t.hand_finish_id
              FROM tournaments t
              LEFT JOIN (SELECT tournament_id, MIN(played_at) AS first, COUNT(*) AS hands,
                                SUM(hero_net) AS chips, SUM(hero_bounty) AS bounty
@@ -694,8 +694,9 @@ impl Db {
             let has_summary = r.get::<_, i64>(8)? != 0;
             let (place, prize): (Option<i64>, Option<i64>) = match (has_summary, r.get::<_, Option<i64>>(10)?) {
                 (true, Some(place)) => (Some(place), Some(r.get::<_, Option<i64>>(11)?.unwrap_or(0))),
-                _ => match r.get::<_, Option<i64>>(6)? {
-                    Some(place) => (Some(place), Some(r.get::<_, Option<i64>>(7)?.unwrap_or(0))),
+                // The hand may name no place, but leaving without a prize is still a result.
+                _ => match r.get::<_, Option<i64>>(19)? {
+                    Some(_) => (r.get(6)?, Some(r.get::<_, Option<i64>>(7)?.unwrap_or(0))),
                     None => (None, None),
                 },
             };
@@ -829,7 +830,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
 
     tx.prepare_cached(
         "UPDATE hands SET hero_position = ?2, hero_class = ?3, hero_showdown = ?4, hero_bounty = ?5,
-             pot = ?6, board = ?7, bounty_currency = ?8 WHERE id = ?1",
+             pot = ?6, board = ?7, bounty_currency = ?8, played_at = ?9, hero_net = ?10 WHERE id = ?1",
     )?
     .execute(params![
         hand.id as i64,
@@ -840,6 +841,8 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         hand.total_pot,
         hand.board.join(" "),
         hand.bounty_currency,
+        hand.played_at,
+        hero.map(|h| hand.net(h)),
     ])?;
 
     if let Some(tid) = hand.tournament_id {

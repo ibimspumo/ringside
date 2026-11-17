@@ -135,7 +135,8 @@ pub struct Hand {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Finish {
     pub player: String,
-    pub place: i64,
+    /// None when the hand history leaves it out.
+    pub place: Option<i64>,
     /// Prize money, None outside the money.
     pub prize: Option<Amount>,
     pub currency: Option<String>,

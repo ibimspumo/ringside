@@ -254,7 +254,13 @@
                 </td>
                 <td title={buyInTitle(r)}>{buyInText(r)}</td>
                 <td>{r.entrants === null ? "–" : int(r.entrants)}</td>
-                <td>{r.place === null ? "–" : `${int(r.place)}.`}</td>
+                {#if r.place !== null}
+                  <td>{int(r.place)}.</td>
+                {:else if r.prize !== null}
+                  <td title="Ausgeschieden ohne Preisgeld; den Platz nennt nur die Turnier-Zusammenfassung.">raus</td>
+                {:else}
+                  <td>–</td>
+                {/if}
                 <td class:pos={!!r.prize}>{r.prize ? cash(r.prize, r.currency) : "–"}</td>
                 <td>{r.bounties ? cash(r.bounties, r.currency) : "–"}</td>
                 <td class={sign(r.profit)} title={resultTitle(r)}>

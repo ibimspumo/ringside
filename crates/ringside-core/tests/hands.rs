@@ -188,6 +188,52 @@ fn header_variants() {
 }
 
 #[test]
+fn single_digit_hours_are_padded() {
+    let text = "PokerStars Hand #1:  Hold'em No Limit ($0.01/$0.02 USD) - 2026/11/16 11:00:45 CET [2026/11/16 5:00:45 ET]\n\
+                Table 'T' 6-max Seat #1 is the button\nSeat 1: A ($2 in chips)\nSeat 2: B ($2 in chips)\n";
+    let early = text.replace("11:00:45 CET", "5:00:45 CET");
+    assert_eq!(parse_hand(&early).unwrap().played_at, "2026/11/16 05:00:45");
+    assert_eq!(parse_hand(text).unwrap().played_at, "2026/11/16 11:00:45");
+}
+
+/// Courchevel shows one board card before preflop betting; "raises to" still counts from the
+/// blinds already posted.
+#[test]
+fn courchevel_preflop_card_keeps_preflop_bets() {
+    let text = "PokerStars Hand #2: Tournament #9, $1.44+$1.50+$0.36 USD Courchevel Hi/Lo Pot Limit - Level VII (60/120) - 2026/11/16 5:00:45 ET
+Table '9 7' 6-max Seat #1 is the button
+Seat 1: A (3000 in chips)
+Seat 2: B (3000 in chips)
+Seat 3: C (3000 in chips)
+A: posts the ante 15
+B: posts the ante 15
+C: posts the ante 15
+B: posts small blind 60
+C: posts big blind 120
+*** HOLE CARDS ***
+Dealt to C [Kh Td Qs Ad 8d]
+*** PRE-FLOP *** [4d]
+A: calls 120
+B: folds
+C: raises 264 to 384
+A: calls 264
+*** FLOP *** [4d] [Ah Kd]
+C: bets 900
+A: folds
+Uncalled bet (900) returned to C
+C collected 873 from pot
+*** SUMMARY ***
+Total pot 873 | Rake 0
+Board [4d Ah Kd]
+";
+    let h = parse_hand(text).unwrap();
+    assert_eq!(h.board, ["4d", "Ah", "Kd"]);
+    assert_eq!((h.invested("A"), h.invested("C")), (39_900, 39_900));
+    let c = counters(&h, "C");
+    assert_eq!((c.vpip, c.pfr), (1, 1), "the raise is a preflop action");
+}
+
+#[test]
 fn preferred_seating_puts_hero_at_bottom() {
     use ringside_core::table::visual_index;
     let h = &hands(CASH)[0];

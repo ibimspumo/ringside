@@ -34,7 +34,7 @@ static VARIANT: LazyLock<Regex> = LazyLock::new(|| {
 });
 static STAKES: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\(([^\d()/]*)([\d.,]+)/[^\d()/]*([\d.,]+)(?: ([A-Z]{3}))?\)").unwrap());
-static DATE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4}/\d{2}/\d{2} \d{1,2}:\d{2}:\d{2})").unwrap());
+static DATE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4}/\d{2}/\d{2}) (\d{1,2}):(\d{2}:\d{2})").unwrap());
 static TABLE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Table '(.+)' (\d+)-max.*?Seat #(\d+) is the button").unwrap());
 static SEAT: LazyLock<Regex> =
@@ -159,7 +159,8 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         GameKind::Cash => currency_code(&stakes[1], stakes.get(4).map(|m| m.as_str())),
         GameKind::Tournament => None,
     };
-    let played_at = DATE.captures(header).map(|c| c[1].to_string()).unwrap_or_default();
+    // "5:00:45" becomes "05:00:45", so timestamps sort and slice as text.
+    let played_at = DATE.captures(header).map(|c| format!("{} {:0>2}:{}", &c[1], &c[2], &c[3])).unwrap_or_default();
 
     let table_line = lines.next().ok_or_else(|| malformed("missing table line"))?;
     let table = TABLE.captures(table_line).ok_or_else(|| malformed("table line"))?;
@@ -253,6 +254,12 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             } else if marker.starts_with("SECOND ") {
                 second_board = true;
                 None
+            } else if marker.starts_with("PRE-FLOP") {
+                // Courchevel deals the first board card before preflop betting.
+                if let Some(c) = CARDS.captures(line) {
+                    hand.board.extend(c[1].split_whitespace().map(String::from));
+                }
+                None
             } else if marker.contains("FLOP ***") {
                 Some(Street::Flop)
             } else if marker.contains("TURN ***") {
@@ -307,16 +314,17 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             hand.collected.push((name, amount));
             continue;
         }
-        if let Some((name, rest)) = find_player(line, " finished the tournament in ") {
+        // Without a place the line is just "X finished the tournament"; a paid finish always
+        // names place and prize, so that means out of the money.
+        if let Some((name, rest)) = find_player(line, " finished the tournament") {
+            let rest = rest.strip_prefix(" in ").unwrap_or("");
             let place = rest.split(|c: char| !c.is_ascii_digit()).next().and_then(|p| p.parse().ok());
             let prize = rest.split_once(" and received ").map(|(_, p)| p.trim_end_matches('.'));
-            if let Some(place) = place {
-                add_finish(&mut hand, name, place, prize);
-            }
+            add_finish(&mut hand, name, place, prize);
             continue;
         }
         if let Some((name, rest)) = find_player(line, " wins the tournament and receives ") {
-            add_finish(&mut hand, name, 1, rest.split_whitespace().next());
+            add_finish(&mut hand, name, Some(1), rest.split_whitespace().next());
             continue;
         }
         // "A, B split the $50 bounty for eliminating C"
@@ -361,7 +369,7 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
 }
 
 /// `prize` is the text after "received", e.g. "$5.40" or "2700"; a ticket counts as no money.
-fn add_finish(hand: &mut Hand, player: String, place: i64, prize: Option<&str>) {
+fn add_finish(hand: &mut Hand, player: String, place: Option<i64>, prize: Option<&str>) {
     let prize = prize.filter(|p| p.starts_with(|c: char| !c.is_ascii_alphabetic()));
     let symbol: String = prize.unwrap_or("").chars().take_while(|c| !c.is_ascii_digit()).collect();
     hand.finishes.push(Finish {
