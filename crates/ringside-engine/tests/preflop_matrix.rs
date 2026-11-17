@@ -80,3 +80,31 @@ fn embedded_file_matches_fresh_computation() {
         "data/preflop_169.bin is stale"
     );
 }
+
+#[test]
+fn equity_against_a_random_hand() {
+    let m = PreflopMatrix::embedded();
+    let aa = m.equity_vs_random(class("AA"));
+    assert!((aa - 0.852).abs() < 0.001, "AA {aa}");
+    let worst = HandClass::all()
+        .min_by(|a, b| m.equity_vs_random(*a).total_cmp(&m.equity_vs_random(*b)))
+        .unwrap();
+    assert_eq!(worst.to_string(), "32o");
+    // Over all deals the two hands share the pot evenly.
+    let mean: f64 = HandClass::all()
+        .map(|c| c.combo_count() as f64 / 1326.0 * m.equity_vs_random(c))
+        .sum();
+    assert!((mean - 0.5).abs() < 1e-6, "{mean}");
+    // An independent Monte Carlo run against the full range.
+    let players = [Range::parse("T9s").unwrap(), Range::all()];
+    let mc = equity(
+        &players,
+        CardSet::EMPTY,
+        CardSet::EMPTY,
+        Method::MonteCarlo { samples: 400_000, seed: 3 },
+    )
+    .unwrap();
+    let t9s = m.equity_vs_random(class("T9s"));
+    let got = mc.players[0].equity_pct / 100.0;
+    assert!((got - t9s).abs() < 0.004, "T9s matrix {t9s} vs MC {got}");
+}

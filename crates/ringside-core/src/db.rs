@@ -91,6 +91,20 @@ pub struct ResultPoint {
     pub non_showdown_bb: f64,
 }
 
+/// One answered learning exercise. `seed` identifies a generated exercise, `hand_id`
+/// one from the user's hands; `answer` is the answer as JSON; `at` is Unix seconds.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Attempt {
+    pub kind: String,
+    pub level: u8,
+    pub seed: Option<u64>,
+    pub hand_id: Option<u64>,
+    pub answer: String,
+    pub score: f64,
+    pub ev_loss_bb: Option<f64>,
+    pub at: i64,
+}
+
 #[derive(Debug, Clone, Copy, Serialize)]
 pub struct RebuildProgress {
     pub done: i64,
@@ -231,7 +245,19 @@ impl Db {
                  bounties INTEGER,
                  extra_cost INTEGER NOT NULL DEFAULT 0,
                  name TEXT
-             );"
+             );
+             CREATE TABLE IF NOT EXISTS learn_attempts (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 kind TEXT NOT NULL,
+                 level INTEGER NOT NULL,
+                 seed INTEGER,
+                 hand_id INTEGER,
+                 answer TEXT NOT NULL,
+                 score REAL NOT NULL,
+                 ev_loss_bb REAL,
+                 at INTEGER NOT NULL
+             );
+             CREATE INDEX IF NOT EXISTS learn_attempts_kind ON learn_attempts(kind, at);"
         ))?;
         let added: &[(&str, &str, &str)] = &[
             ("hands", "hero_position", "TEXT"),
@@ -741,6 +767,63 @@ impl Db {
             params![id as i64, name],
         )?;
         Ok(changed > 0)
+    }
+
+    pub fn add_attempt(&self, a: &Attempt) -> Result<(), Error> {
+        self.conn.execute(
+            "INSERT INTO learn_attempts (kind, level, seed, hand_id, answer, score, ev_loss_bb, at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                a.kind,
+                a.level,
+                a.seed.map(|s| s as i64),
+                a.hand_id.map(|h| h as i64),
+                a.answer,
+                a.score,
+                a.ev_loss_bb,
+                a.at
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// Every attempt, oldest first.
+    pub fn attempts(&self) -> Result<Vec<Attempt>, Error> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT kind, level, seed, hand_id, answer, score, ev_loss_bb, at FROM learn_attempts ORDER BY at, id",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            Ok(Attempt {
+                kind: r.get(0)?,
+                level: r.get(1)?,
+                seed: r.get::<_, Option<i64>>(2)?.map(|s| s as u64),
+                hand_id: r.get::<_, Option<i64>>(3)?.map(|h| h as u64),
+                answer: r.get(4)?,
+                score: r.get(5)?,
+                ev_loss_bb: r.get(6)?,
+                at: r.get(7)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Raw text of the hero's hands that may hold a learning spot (hero showed cards, or
+    /// sat in a blind), newest first.
+    pub fn learn_candidates(&self, filter: &Filter, limit: usize, offset: usize) -> Result<Vec<String>, Error> {
+        let sql = format!(
+            "SELECT h.raw FROM hands h
+             WHERE {FILTER_SQL} AND h.hero IS NOT NULL
+               AND (h.hero_position IN ('SB', 'BB', 'BTN')
+                    OR EXISTS (SELECT 1 FROM player_hands ph
+                               WHERE ph.hand_id = h.id AND ph.player = h.hero AND ph.shown != ''))
+             ORDER BY h.played_at DESC, h.id DESC LIMIT ?4 OFFSET ?5"
+        );
+        let mut stmt = self.conn.prepare_cached(&sql)?;
+        let rows = stmt.query_map(
+            params![filter.game(), filter.since, filter.tournament(), limit as i64, offset as i64],
+            |r| r.get(0),
+        )?;
+        rows.collect()
     }
 
     pub fn heroes(&self) -> Result<Vec<String>, Error> {

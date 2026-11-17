@@ -3190,6 +3190,7 @@ name = "ringside"
 version = "0.3.0"
 dependencies = [
  "ringside-core",
+ "ringside-learn",
  "serde",
  "serde_json",
  "tauri",
@@ -3221,6 +3222,18 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rayon",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "ringside-learn"
+version = "0.3.0"
+dependencies = [
+ "rand",
+ "rand_chacha",
+ "ringside-core",
+ "ringside-engine",
  "serde",
  "serde_json",
 ]

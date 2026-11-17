@@ -465,3 +465,34 @@ fn counters_limited_to_the_session() {
     assert_eq!(db.counters_in_session("Hero", cash).unwrap().hands, 2);
     assert_eq!(db.counters_in_session("Mo", ko).unwrap().hands, 0, "other tournament");
 }
+
+#[test]
+fn learning_attempts_round_trip() {
+    use ringside_core::db::Attempt;
+    let db = Db::open_in_memory().unwrap();
+    let a = Attempt {
+        kind: "outs".into(),
+        level: 2,
+        seed: Some(u64::MAX),
+        hand_id: None,
+        answer: r#"{"number":9.0}"#.into(),
+        score: 0.75,
+        ev_loss_bb: None,
+        at: 1_700_000_100,
+    };
+    let b = Attempt { kind: "push_fold_sb".into(), seed: None, hand_id: Some(42), ev_loss_bb: Some(0.3), at: 1_700_000_000, ..a.clone() };
+    db.add_attempt(&a).unwrap();
+    db.add_attempt(&b).unwrap();
+    assert_eq!(db.attempts().unwrap(), vec![b, a]);
+}
+
+#[test]
+fn learning_candidates_are_hero_hands_in_the_filter() {
+    let mut db = Db::open_in_memory().unwrap();
+    let batch: Vec<(Hand, String)> =
+        split_hands(TOURNAMENT).into_iter().map(|t| (parse_hand(t).unwrap(), t.to_string())).collect();
+    db.insert_hands(&batch).unwrap();
+    assert_eq!(db.learn_candidates(&Filter::default(), 10, 0).unwrap().len(), 1);
+    let cash = Filter { game: Some(GameKind::Cash), ..Default::default() };
+    assert!(db.learn_candidates(&cash, 10, 0).unwrap().is_empty());
+}

@@ -3,15 +3,19 @@ mod overlay;
 mod settings;
 
 use std::collections::HashSet;
+use std::hash::{BuildHasher, RandomState};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use ringside_core::db::{Db, Filter, GroupRow, HandQuery, HandSummary, Results, Session, ShownHand};
+use ringside_core::db::{Attempt, Db, Filter, GroupRow, HandQuery, HandSummary, Results, Session, ShownHand};
 use ringside_core::model::{GameKind, Hand};
 use ringside_core::notes::{Notes, NotesSource, PlayerNote};
 use ringside_core::stats::{StatValue, stat_values};
 use ringside_core::table::{REFERENCE_ASPECT, SeatPos, layout_key, normalize_layouts, to_reference, visual_index};
 use ringside_core::tournament::{Totals, TournamentRow, totals};
+use ringside_learn::own::{check_spot, parse_spot_id};
+use ringside_learn::{Answer, Exercise, Feedback, Kind, OwnSpot, Progress, detect_spots};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -448,6 +452,125 @@ async fn hand(id: u64, state: State<'_, AppState>) -> CmdResult<Option<Hand>> {
     state.db.lock().unwrap().hand(id).map_err(err)
 }
 
+/// The learning area teaches and calculates; it stays locked while the client runs.
+fn unlocked(state: &AppState) -> CmdResult<()> {
+    if state.client_running.load(Ordering::Relaxed) { Err("gesperrt".into()) } else { Ok(()) }
+}
+
+/// Runs `f` off the async runtime: exact equities and Nash solves take a while.
+async fn blocking<T: Send + 'static>(
+    app: AppHandle,
+    f: impl FnOnce(&AppState) -> CmdResult<T> + Send + 'static,
+) -> CmdResult<T> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        unlocked(&state)?;
+        f(&state)
+    })
+    .await
+    .map_err(err)?
+}
+
+fn now_secs() -> i64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+}
+
+fn parse_kind(kind: &str) -> CmdResult<Kind> {
+    Kind::parse(kind).ok_or_else(|| format!("Unbekannte Übung '{kind}'"))
+}
+
+fn record(state: &AppState, exercise: &Exercise, answer: &Answer, feedback: &Feedback) -> CmdResult<()> {
+    let attempt = Attempt {
+        kind: exercise.kind.id().into(),
+        level: exercise.level,
+        seed: exercise.hand_id.is_none().then_some(exercise.seed),
+        hand_id: exercise.hand_id,
+        answer: serde_json::to_string(answer).map_err(err)?,
+        score: feedback.score,
+        ev_loss_bb: feedback.ev_loss_bb,
+        at: now_secs(),
+    };
+    state.db.lock().unwrap().add_attempt(&attempt).map_err(err)
+}
+
+fn check_own(state: &AppState, spot_id: &str, answer: &Answer) -> CmdResult<Feedback> {
+    let (_, hand_id) = parse_spot_id(spot_id).ok_or("Ungültige Spot-ID")?;
+    let hand = state.db.lock().unwrap().hand(hand_id).map_err(err)?.ok_or("Hand nicht gefunden")?;
+    let (spot, feedback) = check_spot(&hand, spot_id, answer)?;
+    record(state, &spot.exercise, answer, &feedback)?;
+    Ok(feedback)
+}
+
+/// A generated exercise; without `seed` a fresh random one.
+#[tauri::command]
+async fn learn_exercise(kind: String, level: u8, seed: Option<u64>, app: AppHandle) -> CmdResult<Exercise> {
+    blocking(app, move |_| {
+        // 53 bits, so the seed survives a round trip through a JavaScript number.
+        let seed = seed.unwrap_or_else(|| RandomState::new().hash_one(now_secs()) >> 11);
+        ringside_learn::generate(parse_kind(&kind)?, level, seed)
+    })
+    .await
+}
+
+/// Grades and records an answer. The exercise is rebuilt from its kind, level and seed
+/// (or its hand), so only those fields of `exercise` matter.
+#[tauri::command]
+async fn learn_check(exercise: Exercise, answer: Answer, app: AppHandle) -> CmdResult<Feedback> {
+    blocking(app, move |state| match exercise.hand_id {
+        Some(hand_id) => check_own(state, &format!("{}:{hand_id}", exercise.kind.id()), &answer),
+        None => {
+            let (exercise, feedback) =
+                ringside_learn::check(exercise.kind, exercise.level, exercise.seed, &answer)?;
+            record(state, &exercise, &answer, &feedback)?;
+            Ok(feedback)
+        }
+    })
+    .await
+}
+
+/// Spots from the hero's own hands, newest first; `kind` limits them to one kind.
+#[tauri::command]
+async fn learn_own_spots(filter: Filter, kind: Option<String>, limit: usize, app: AppHandle) -> CmdResult<Vec<OwnSpot>> {
+    const PAGE: usize = 500;
+    const MAX_SCANNED: usize = 20_000;
+    blocking(app, move |state| {
+        let kind = kind.as_deref().map(parse_kind).transpose()?;
+        let mut spots = Vec::new();
+        let mut offset = 0;
+        while spots.len() < limit && offset < MAX_SCANNED {
+            let raws = state.db.lock().unwrap().learn_candidates(&filter, PAGE, offset).map_err(err)?;
+            if raws.is_empty() {
+                break;
+            }
+            offset += raws.len();
+            for hand in raws.iter().filter_map(|raw| ringside_core::parse_hand(raw).ok()) {
+                spots.extend(detect_spots(&hand, kind));
+                if spots.len() >= limit {
+                    break;
+                }
+            }
+        }
+        spots.truncate(limit);
+        Ok(spots)
+    })
+    .await
+}
+
+/// Grades and records an answer to a spot from `learn_own_spots`.
+#[tauri::command]
+async fn learn_check_own(spot_id: String, answer: Answer, app: AppHandle) -> CmdResult<Feedback> {
+    blocking(app, move |state| check_own(state, &spot_id, &answer)).await
+}
+
+#[tauri::command]
+async fn learn_progress(app: AppHandle) -> CmdResult<Progress> {
+    blocking(app, |state| {
+        let attempts = state.db.lock().unwrap().attempts().map_err(err)?;
+        Ok(ringside_learn::progress(&attempts, now_secs()))
+    })
+    .await
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -514,6 +637,11 @@ pub fn run() {
             shown_hands,
             hands,
             hand,
+            learn_exercise,
+            learn_check,
+            learn_own_spots,
+            learn_check_own,
+            learn_progress,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ringside");

@@ -121,3 +121,109 @@ fn rejects_bad_params() {
     p.small_blind_bb = 0.0;
     assert!(solve_push_fold(&p).is_err());
 }
+
+fn solve_with(stack: f64, ante: f64, dead: f64) -> PushFoldResult {
+    let mut p = PushFoldParams::new(stack);
+    p.ante_bb = ante;
+    p.dead_bb = dead;
+    solve_push_fold(&p).unwrap()
+}
+
+/// Bit patterns of the solver before dead money existed: (stack, ante, SB EV, hash of
+/// all frequencies, iterations).
+#[test]
+fn zero_dead_money_reproduces_the_previous_solver() {
+    let gold: [(f64, f64, u64, u64, u32); 4] = [
+        (10.0, 0.0, 0xbfa73ad5dc659387, 0xd57d505804f668dc, 0x5c0),
+        (10.0, 0.125, 0xbfa97752722b8801, 0xa87cc107221d315f, 0x600),
+        (6.5, 0.1, 0x3f9d69a9f0f3f680, 0x9ac90960c6d5949a, 0x780),
+        (17.0, 0.0, 0xbfc34da5cb7ea285, 0x720fe6cf326a1ab, 0xa80),
+    ];
+    for (stack, ante, ev, hash, iterations) in gold {
+        let r = solve_with(stack, ante, 0.0);
+        let h = r
+            .shove
+            .iter()
+            .chain(&r.call)
+            .fold(0u64, |h, f| h.wrapping_mul(1_000_003) ^ f.to_bits());
+        assert_eq!(r.sb_ev_bb.to_bits(), ev, "{stack}/{ante}");
+        assert_eq!(h, hash, "{stack}/{ante}");
+        assert_eq!(r.iterations, iterations, "{stack}/{ante}");
+    }
+}
+
+/// Single threshold classes may mix less as the BB's calls widen too (8 BB, 2.25 → 3
+/// dead: 42s from pure to 25 %), but the range as a whole grows.
+#[test]
+fn more_dead_money_widens_sb_shoves() {
+    for stack in [4.0, 8.0, 12.0, 16.0, 20.0] {
+        let mut last: Option<PushFoldResult> = None;
+        for dead in [0.0, 0.25, 0.5, 1.0, 1.5, 2.25, 3.0] {
+            let r = solve_with(stack, 0.1, dead);
+            assert!(r.exploitability_bb() < 1e-6, "{stack} BB, {dead} dead");
+            if let Some(prev) = &last {
+                assert!(
+                    r.shove_pct >= prev.shove_pct,
+                    "{stack} BB: {dead} dead shoves {:.3}% < {:.3}%",
+                    r.shove_pct,
+                    prev.shove_pct
+                );
+            }
+            last = Some(r);
+        }
+    }
+}
+
+#[test]
+fn dead_money_is_validated() {
+    let mut p = PushFoldParams::new(10.0);
+    p.dead_bb = -0.1;
+    assert!(solve_push_fold(&p).is_err());
+    p.dead_bb = f64::NAN;
+    assert!(solve_push_fold(&p).is_err());
+}
+
+/// The class EVs are the equilibrium's own numbers: they average to the SB's EV, every
+/// pure choice is a best response and every mixed class is indifferent.
+#[test]
+fn class_evs_explain_the_equilibrium() {
+    for (stack, ante, dead) in [(10.0, 0.0, 0.0), (7.0, 0.12, 0.84), (15.0, 0.0, 1.0), (3.0, 0.2, 1.4)] {
+        let r = solve_with(stack, ante, dead);
+        let mut total = 0.0;
+        for c in HandClass::all() {
+            let i = c.index();
+            let p = c.combo_count() as f64 / 1326.0;
+            let (sb, bb) = (r.sb_class_ev[i], r.bb_class_ev[i]);
+            assert!((sb.fold + 0.5 + ante).abs() < 1e-12, "SB fold {c}: {}", sb.fold);
+            assert!((bb.fold + 1.0 + ante).abs() < 1e-12, "BB fold {c}: {}", bb.fold);
+            total += p * (r.shove[i] * sb.act + (1.0 - r.shove[i]) * sb.fold);
+            for (f, ev) in [(r.shove[i], sb), (r.call[i], bb)] {
+                if f == 1.0 {
+                    assert!(ev.act >= ev.fold - 1e-9, "{stack}/{dead} {c}: {ev:?}");
+                } else if f == 0.0 {
+                    assert!(ev.fold >= ev.act - 1e-9, "{stack}/{dead} {c}: {ev:?}");
+                } else {
+                    assert!((ev.act - ev.fold).abs() < 1e-7, "{stack}/{dead} mixed {c}: {ev:?}");
+                }
+            }
+        }
+        assert!((total - r.sb_ev_bb).abs() < 1e-12, "{stack}/{dead}: {total} vs {}", r.sb_ev_bb);
+        let aa = freq_class("AA");
+        assert!(r.sb_class_ev[aa].loss(false) > 0.0 && r.sb_class_ev[aa].loss(true) == 0.0);
+    }
+}
+
+fn freq_class(class: &str) -> usize {
+    class.parse::<HandClass>().unwrap().index()
+}
+
+/// The BB's call EV is its showdown share of everything in the pot, dead money included.
+#[test]
+fn bb_call_ev_counts_the_dead_money() {
+    let r = solve_with(10.0, 0.0, 2.0);
+    let aa = freq_class("AA");
+    let ev = r.bb_class_ev[aa];
+    // AA wins at least 80 % against any range; pot after a call is 20 + 2 BB.
+    assert!(ev.act > 0.8 * 22.0 - 10.0, "{ev:?}");
+    assert!(ev.act < 22.0 - 10.0, "{ev:?}");
+}

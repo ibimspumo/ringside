@@ -1,6 +1,10 @@
 //! Heads-up push/fold Nash equilibrium in chip EV: the small blind shoves or folds,
 //! the big blind calls or folds.
 //!
+//! Dead money (antes of folded players, a big-blind ante) goes to whoever wins the pot,
+//! so the two results always add up to it: the game is constant-sum, which has the
+//! same equilibria as the zero-sum game the solver works with.
+//!
 //! Card removal: strategies are per class, and the joint deal probability of SB class
 //! A and BB class B is `class_pair_count(A, B) / (1326 · 1225)`, using the matrix's
 //! equity averaged over exactly those disjoint combo pairs. By suit symmetry every
@@ -36,8 +40,12 @@ pub struct PushFoldParams {
     /// Effective stack in big blinds, including blinds and ante the player posts.
     pub stack_bb: f64,
     pub small_blind_bb: f64,
-    /// Ante paid by each player.
+    /// Ante paid by each of the two players.
     pub ante_bb: f64,
+    /// Money already in the pot that neither player can lose any more: antes of the
+    /// folded players, a big-blind ante. Whoever wins the pot takes it.
+    #[serde(default)]
+    pub dead_bb: f64,
     /// CFR+ runs until the summed gain of both best responses (NashConv) is below this.
     pub target_exploitability_bb: f64,
     pub max_iterations: u32,
@@ -49,6 +57,7 @@ impl PushFoldParams {
             stack_bb,
             small_blind_bb: 0.5,
             ante_bb: 0.0,
+            dead_bb: 0.0,
             target_exploitability_bb: 1e-6,
             max_iterations: 100_000,
         }
@@ -74,6 +83,27 @@ pub struct PushFoldResult {
     /// Whether the mixed frequencies were solved exactly (else CFR+ averages).
     pub exact: bool,
     pub iterations: u32,
+    /// SB result of shoving (`act`) and folding per class against the BB's calls, in BB
+    /// per hand of that class, counted from before the blinds and antes were posted.
+    pub sb_class_ev: Vec<ClassEv>,
+    /// BB result of calling (`act`) and folding per class once the SB has shoved, in BB,
+    /// counted like `sb_class_ev`. Zero for classes the SB's shoves never meet.
+    pub bb_class_ev: Vec<ClassEv>,
+}
+
+/// Expected results of a class's two options, in BB.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ClassEv {
+    pub act: f64,
+    pub fold: f64,
+}
+
+impl ClassEv {
+    /// What choosing `act` (shove/call) or not costs against the better option, ≥ 0.
+    pub fn loss(&self, act: bool) -> f64 {
+        let chosen = if act { self.act } else { self.fold };
+        (self.act.max(self.fold) - chosen).max(0.0)
+    }
 }
 
 impl PushFoldResult {
@@ -120,6 +150,7 @@ struct Game {
     class_prob: Vec<f64>,
     fold_loss: f64,
     steal: f64,
+    dead: f64,
 }
 
 /// (act, pass) values per class for one player: shove/fold or call/fold.
@@ -127,14 +158,15 @@ type Values = Vec<(f64, f64)>;
 
 impl Game {
     fn new(p: &PushFoldParams, matrix: &PreflopMatrix) -> Game {
-        let steal = 1.0 + p.ante_bb;
+        let steal = 1.0 + p.ante_bb + p.dead_bb;
         let mut joint = vec![0.0; N * N];
         let mut call_delta = vec![0.0; N * N];
         for a in HandClass::all() {
             for b in HandClass::all() {
                 let i = a.index() * N + b.index();
                 joint[i] = class_pair_count(a, b) as f64 / (1326.0 * 1225.0);
-                let showdown = (2.0 * matrix.equity(a, b) - 1.0) * p.stack_bb;
+                let eq = matrix.equity(a, b);
+                let showdown = (2.0 * eq - 1.0) * p.stack_bb + eq * p.dead_bb;
                 call_delta[i] = joint[i] * (showdown - steal);
             }
         }
@@ -146,6 +178,7 @@ impl Game {
                 .collect(),
             fold_loss: p.small_blind_bb + p.ante_bb,
             steal,
+            dead: p.dead_bb,
         }
     }
 
@@ -163,7 +196,7 @@ impl Game {
     }
 
     /// BB (call, fold) values against shove frequencies, from the BB's point of view,
-    /// leaving out the SB-folds part the BB can't influence.
+    /// leaving out the SB-folds part and the dead money the BB can't influence.
     fn bb_values(&self, shove: &[f64], out: &mut Values) {
         out.fill((0.0, 0.0));
         for (a, &s) in shove.iter().enumerate() {
@@ -194,6 +227,31 @@ impl Game {
         let best = |v: &Values| -> f64 { v.iter().map(|v| v.0.max(v.1)).sum() };
         let ev = mix(&sb, shove);
         (ev, best(&sb) - ev, best(&bb) - mix(&bb, call))
+    }
+
+    /// Per-class EVs of both players, see [`PushFoldResult::sb_class_ev`].
+    fn class_evs(&self, shove: &[f64], call: &[f64]) -> (Vec<ClassEv>, Vec<ClassEv>) {
+        let (mut sb, mut bb) = (vec![(0.0, 0.0); N], vec![(0.0, 0.0); N]);
+        self.sb_values(call, &mut sb);
+        self.bb_values(shove, &mut bb);
+        let sb = sb
+            .iter()
+            .zip(&self.class_prob)
+            .map(|(v, p)| ClassEv { act: v.0 / p, fold: v.1 / p })
+            .collect();
+        let bb = bb
+            .iter()
+            .enumerate()
+            .map(|(b, v)| {
+                let reach: f64 = (0..N).map(|a| shove[a] * self.joint[a * N + b]).sum();
+                if reach > 0.0 {
+                    ClassEv { act: v.0 / reach + self.dead, fold: v.1 / reach + self.dead }
+                } else {
+                    ClassEv { act: 0.0, fold: 0.0 }
+                }
+            })
+            .collect();
+        (sb, bb)
     }
 
     /// Exact equilibrium with the `k` classes closest to indifference mixed, if that
@@ -367,12 +425,16 @@ pub fn solve_with_matrix(
         p.stack_bb,
         p.small_blind_bb,
         p.ante_bb,
+        p.dead_bb,
         p.target_exploitability_bb,
     ];
     if numbers.iter().any(|x| !x.is_finite()) || p.small_blind_bb <= 0.0 || p.small_blind_bb > 1.0 {
         return Err(Error::InvalidInput(
             "small blind must be in (0, 1] BB".into(),
         ));
+    }
+    if p.dead_bb < 0.0 {
+        return Err(Error::InvalidInput("dead money must not be negative".into()));
     }
     if p.ante_bb < 0.0 || p.stack_bb < 1.0 + p.ante_bb {
         return Err(Error::InvalidInput(
@@ -404,6 +466,7 @@ pub fn solve_with_matrix(
         None => (snap(&avg_shove), snap(&avg_call), false),
     };
     let (ev, sb_gain, bb_gain) = game.evaluate(&shove, &call);
+    let (sb_class_ev, bb_class_ev) = game.class_evs(&shove, &call);
     let pct = |f: &[f64]| {
         100.0
             * f.iter()
@@ -421,6 +484,8 @@ pub fn solve_with_matrix(
         bb_gain_bb: bb_gain.max(0.0),
         exact,
         iterations,
+        sb_class_ev,
+        bb_class_ev,
     })
 }
 

@@ -14,6 +14,7 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 ringside-core = { path = "../crates/ringside-core" }
+ringside-learn = { path = "../crates/ringside-learn" }
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 tauri-plugin-dialog = "2"

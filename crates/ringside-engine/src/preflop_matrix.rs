@@ -44,6 +44,17 @@ impl PreflopMatrix {
         self.eq[a.index() * N + b.index()] as f64
     }
 
+    /// All-in pot share of `a` against a random hand that shares no card with it.
+    pub fn equity_vs_random(&self, a: HandClass) -> f64 {
+        let (mut sum, mut pairs) = (0.0, 0.0);
+        for b in HandClass::all() {
+            let n = class_pair_count(a, b) as f64;
+            sum += n * self.equity(a, b);
+            pairs += n;
+        }
+        sum / pairs
+    }
+
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(12 + 4 * N * N);
         out.extend_from_slice(MAGIC);

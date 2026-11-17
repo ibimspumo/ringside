@@ -5,6 +5,7 @@ pub mod cards;
 pub mod equity;
 pub mod eval;
 pub mod icm;
+pub mod outs;
 pub mod preflop_matrix;
 pub mod pushfold;
 pub mod range;
@@ -15,8 +16,9 @@ pub use cards::{Card, CardSet};
 pub use equity::{EquityResult, Method, PlayerEquity, equity};
 pub use eval::{Hand, HandCategory, HandRank, evaluate};
 pub use icm::{IcmResult, icm};
+pub use outs::{OutsResult, outs, outs_to};
 pub use preflop_matrix::PreflopMatrix;
-pub use pushfold::{PushFoldParams, PushFoldResult, solve_push_fold};
+pub use pushfold::{ClassEv, PushFoldParams, PushFoldResult, solve_push_fold};
 pub use range::{Combo, HandClass, Range};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
