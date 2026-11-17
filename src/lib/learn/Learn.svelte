@@ -168,7 +168,6 @@
   .learn {
     display: grid;
     gap: 22px;
-    max-width: 1180px;
     scroll-margin-top: 0;
   }
   .tabs {

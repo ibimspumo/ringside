@@ -35,7 +35,7 @@
   <section class="weak" aria-labelledby="weak-title">
     <header>
       <h2 id="weak-title">Deine Schwachstellen</h2>
-      <span class="faint small">Aus deinen Coach-Berichten. Hier lohnt sich Üben gerade am meisten.</span>
+      <span class="dim small">Aus deinen Coach-Berichten. Hier lohnt sich Üben gerade am meisten.</span>
     </header>
     <ol>
       {#each shown as c, i (c.id)}

@@ -212,7 +212,7 @@
                     <SkillBadge kind={g.kind} skill={byKind.get(g.kind)} size={34} />
                     <span class="pname">
                       <b>{SKILLS[g.kind].short}</b>
-                      <span class="faint">{g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}</span>
+                      <span class="dim">{g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}</span>
                     </span>
                   </li>
                 {/each}
@@ -225,13 +225,13 @@
             Runde starten
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </button>
-          <span class="faint small">Fehler kosten nichts. Was danebengeht, kommt bald zur Übung wieder.</span>
+          <span class="dim small">Fehler kosten nichts. Was danebengeht, kommt bald zur Übung wieder.</span>
         </div>
       </div>
       <aside class="week" aria-label="Wochenziel">
         <Ring value={xpWeek / goal} size={128} stroke={10} tone={xpWeek >= goal ? "var(--pos)" : "var(--text)"} label="{xpWeek} von {goal} Antworten diese Woche">
           <b class="num big">{xpWeek}</b>
-          <span class="faint small">von {goal}</span>
+          <span class="dim small">von {goal}</span>
         </Ring>
         <div class="week-text">
           <b>Antworten diese Woche</b>
@@ -241,7 +241,7 @@
           </span>
         </div>
         <div class="goal">
-          <span class="faint small">Ziel</span>
+          <span class="dim small">Ziel</span>
           <div class="seg" role="group" aria-label="Wochenziel in Antworten">
             {#each GOALS as g (g)}
               <button class:on={goal === g} onclick={() => setGoal(g)}>{g}</button>
@@ -378,6 +378,15 @@
     display: grid;
     gap: 14px;
   }
+  @container (min-width: 1500px) {
+    .start {
+      grid-template-columns: minmax(0, 1fr) 360px;
+      align-items: start;
+    }
+    .doors {
+      grid-column: 1 / -1;
+    }
+  }
   .hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 260px;
@@ -450,7 +459,7 @@
     font-size: 13.5px;
     font-weight: 600;
   }
-  .pname .faint {
+  .pname .dim {
     font-size: 11.5px;
   }
   .cta {

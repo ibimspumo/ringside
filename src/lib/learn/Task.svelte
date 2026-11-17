@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import type { Exercise, Feedback, LearnAnswer } from "../types";
   import CardPicker from "./CardPicker.svelte";
-  import { GRADING, SKILLS, errorText } from "./catalog";
+  import { GRADING, SKILLS, errorText, fmtPct } from "./catalog";
   import FeedbackView from "./FeedbackView.svelte";
   import Stage from "./Stage.svelte";
   import { preview, previewAnswer } from "./preview";
@@ -159,17 +159,28 @@
     {:else if spec.type === "number"}
       <div class="number" class:pct={isPct}>
         {#if isPct}
-          <input
-            type="range"
-            min={spec.min}
-            max={spec.max}
-            step={spec.step}
-            value={value ?? (spec.min + spec.max) / 2}
-            class:unset={value === null}
-            disabled={!!feedback}
-            aria-label="Schätzung in Prozent"
-            oninput={(e) => (value = Number(e.currentTarget.value))}
-          />
+          <div class="rail">
+            <span class="end num">{spec.min} %</span>
+            <div class="track">
+              <input
+                type="range"
+                min={spec.min}
+                max={spec.max}
+                step={spec.step}
+                value={value ?? (spec.min + spec.max) / 2}
+                class:unset={value === null}
+                disabled={!!feedback}
+                aria-label="Schätzung in Prozent"
+                oninput={(e) => (value = Number(e.currentTarget.value))}
+              />
+              {#if feedback && "number" in feedback.truth}
+                {@const t = feedback.truth.number}
+                <span class="mark truth" style="left:{(t / spec.max) * 100}%"><b class="num">Lösung {fmtPct(t, 1)}</b></span>
+                {#if value !== null}<span class="mark you" style="left:{(value / spec.max) * 100}%"><b class="num">Du {fmtPct(value, 1)}</b></span>{/if}
+              {/if}
+            </div>
+            <span class="end num">{spec.max} %</span>
+          </div>
         {/if}
         <label class="field-wrap">
           <input
@@ -190,13 +201,6 @@
           />
           <span class="unit-label">{unit}</span>
         </label>
-        {#if isPct && feedback && "number" in feedback.truth}
-          {@const t = feedback.truth.number}
-          <div class="compare" aria-hidden="true">
-            <span class="mark truth" style="left:{(t / spec.max) * 100}%"><b>Lösung</b></span>
-            {#if value !== null}<span class="mark you" style="left:{(value / spec.max) * 100}%"><b>Du</b></span>{/if}
-          </div>
-        {/if}
       </div>
     {:else if spec.type === "choice"}
       <div class="choices" class:decision role="group" aria-label="Antworten">
@@ -316,16 +320,36 @@
     min-width: 0;
   }
   .number {
-    display: grid;
-    gap: 12px;
-    max-width: 560px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 18px;
+    max-width: 760px;
   }
   .number:not(.pct) {
     max-width: 220px;
   }
+  .rail {
+    flex: 1 1 360px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .end {
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .track {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
   input[type="range"] {
+    display: block;
     width: 100%;
     height: 28px;
+    margin: 0;
   }
   input[type="range"].unset {
     opacity: 0.55;
@@ -333,12 +357,12 @@
   .field-wrap {
     position: relative;
     display: block;
-    width: 180px;
+    width: 150px;
   }
   .field-wrap .field {
     width: 100%;
     height: 44px;
-    padding-right: 64px;
+    padding-right: 40px;
     font-size: 22px;
     font-weight: 600;
   }
@@ -347,41 +371,33 @@
     right: 12px;
     top: 50%;
     transform: translateY(-50%);
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 14px;
     pointer-events: none;
   }
-  .compare {
-    position: relative;
-    height: 44px;
-    margin: 0 8px;
-  }
-  .compare::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    right: 0;
-    top: 20px;
-    border-top: 2px solid var(--surface-3);
-  }
   .mark {
     position: absolute;
-    top: 15px;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     display: grid;
     justify-items: center;
+    pointer-events: none;
     animation: drop 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
   }
   .mark::before {
     content: "";
-    width: 12px;
-    height: 12px;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     background: var(--c);
+    box-shadow: 0 0 0 3px var(--surface);
   }
   .mark b {
-    font-size: 11.5px;
+    position: absolute;
+    top: 20px;
+    font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
     color: var(--c);
   }
   .mark.truth {
@@ -389,16 +405,19 @@
   }
   .mark.you {
     --c: var(--text);
-    top: 0;
     animation-delay: 0.08s;
   }
   .mark.you b {
-    order: -1;
+    top: auto;
+    bottom: 20px;
+  }
+  .number.pct:has(.mark) {
+    padding: 18px 0 14px;
   }
   @keyframes drop {
     from {
       opacity: 0;
-      transform: translate(-50%, -8px);
+      transform: translate(-50%, -80%);
     }
   }
   .choices {

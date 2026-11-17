@@ -69,7 +69,7 @@
     </div>
   {/if}
 
-  {#if facts.length}
+  {#snippet factList()}
     <dl class="facts">
       {#each facts as f, i (i)}
         <div class="fact" style="--i:{i}">
@@ -79,6 +79,14 @@
         </div>
       {/each}
     </dl>
+  {/snippet}
+  {#if facts.length && evSentence}
+    <details class="more">
+      <summary>Details zur Lösung <span class="faint">{facts.map((f) => f.label).join(" · ")}</span></summary>
+      {@render factList()}
+    </details>
+  {:else if facts.length}
+    {@render factList()}
   {/if}
 
   {@render children?.()}
@@ -180,6 +188,39 @@
   }
   .ev.none b {
     color: var(--pos);
+  }
+  .more summary {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 2px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+  .more summary::-webkit-details-marker {
+    display: none;
+  }
+  .more summary::before {
+    content: "";
+    align-self: center;
+    width: 6px;
+    height: 6px;
+    border-right: 1.6px solid currentColor;
+    border-bottom: 1.6px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.15s;
+  }
+  .more[open] summary::before {
+    transform: rotate(45deg);
+  }
+  .more summary .faint {
+    font-weight: 400;
+    font-size: 12.5px;
+  }
+  .more[open] .facts {
+    margin-top: 10px;
   }
   .facts {
     display: grid;

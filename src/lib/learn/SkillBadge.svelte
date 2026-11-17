@@ -3,9 +3,14 @@
   import { LEVEL_HINT, LEVEL_TEXT, SKILLS } from "./catalog";
 
   /** A skill's icon inside a four-segment ring: one segment per mastery level, all green once confirmed. */
-  let { kind, skill, size = 40 }: { kind: LearnKind; skill: SkillProgress | undefined; size?: number } = $props();
+  let {
+    kind = null,
+    skill = undefined,
+    level: fixed = null,
+    size = 40,
+  }: { kind?: LearnKind | null; skill?: SkillProgress | undefined; level?: number | null; size?: number } = $props();
 
-  const level = $derived(skill?.level ?? 0);
+  const level = $derived(fixed ?? skill?.level ?? 0);
   const stroke = $derived(Math.max(2.5, size / 13));
   const r = $derived((size - stroke) / 2);
   const c = $derived(size / 2);
@@ -23,7 +28,7 @@
   class:top={level === 4}
   style="--s:{size}px"
   role="img"
-  aria-label="{SKILLS[kind].short}: {LEVEL_TEXT[level]}"
+  aria-label={kind ? `${SKILLS[kind].short}: ${LEVEL_TEXT[level]}` : LEVEL_TEXT[level]}
   title="{LEVEL_TEXT[level]}: {LEVEL_HINT[level]}"
 >
   <svg class="ring" width={size} height={size} viewBox="0 0 {size} {size}" aria-hidden="true">
@@ -31,7 +36,9 @@
       <path d={arc(i)} stroke-width={stroke} class:on={i < level} style="--d:{i * 70}ms" />
     {/each}
   </svg>
-  <svg class="ico" viewBox="0 0 24 24" width={size * 0.44} height={size * 0.44} aria-hidden="true"><path d={SKILLS[kind].icon} /></svg>
+  {#if kind}
+    <svg class="ico" viewBox="0 0 24 24" width={size * 0.44} height={size * 0.44} aria-hidden="true"><path d={SKILLS[kind].icon} /></svg>
+  {/if}
 </span>
 
 <style>

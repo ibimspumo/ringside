@@ -413,6 +413,18 @@
     min-height: 0;
     overflow-y: auto;
   }
+  /* Low windows: the whole menu stays visible above the footer. */
+  @media (max-height: 760px) {
+    .brand {
+      margin-bottom: 10px;
+    }
+    nav {
+      gap: 8px;
+    }
+    nav button {
+      height: 30px;
+    }
+  }
   .group {
     display: flex;
     flex-direction: column;

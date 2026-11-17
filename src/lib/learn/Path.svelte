@@ -50,9 +50,20 @@
         <span class="dim">Fertigkeiten sitzen</span>
       </div>
       <span class="sum-bar" aria-hidden="true"><i style="width:{total.length ? (solid / total.length) * 100 : 0}%"></i></span>
-      <span class="faint tiny">Sitzt heißt: 8 Antworten mit 80 % im Schnitt, an 2 Tagen</span>
     </div>
   </header>
+
+  <div class="ladder" aria-label="So wächst eine Fertigkeit">
+    <span class="ladder-title">So wächst eine Fertigkeit</span>
+    <ol>
+      {#each [1, 2, 3, 4] as l (l)}
+        <li title={LEVEL_HINT[l]}>
+          <SkillBadge level={l} size={22} />
+          <span><b>{LEVEL_TEXT[l]}</b><span class="dim">{LEVEL_HINT[l]}</span></span>
+        </li>
+      {/each}
+    </ol>
+  </div>
 
   <Weaknesses {concepts} {progress} limit={6} {onTrain} {onRead} />
 
@@ -83,8 +94,8 @@
                 <li>
                   <SkillBadge kind={k} skill={s} size={38} />
                   <span class="sname">
-                    <b>{s?.name_de ?? SKILLS[k].short}</b>
-                    <span class="faint small">
+                    <b>{SKILLS[k].short}</b>
+                    <span class="dim small">
                       {#if s && s.attempts}
                         {s.attempts} {s.attempts === 1 ? "Antwort" : "Antworten"}{s.mean_score !== null ? ` · ${fmtPct(s.mean_score * 100)} im Schnitt` : ""}
                       {:else}
@@ -103,7 +114,7 @@
 
           {#if u.articles.length}
             <div class="reads">
-              <span class="faint small">Wissen</span>
+              <span class="dim small">Wissen</span>
               {#each u.articles as id (id)}
                 {@const a = ARTICLE_BY_ID[id]}
                 {#if a}
@@ -117,7 +128,7 @@
           {/if}
 
           {#if u.next.length}
-            <p class="next faint small">Kommt noch: {u.next.join(", ")}</p>
+            <p class="next dim small">Kommt noch: {u.next.join(", ")}</p>
           {/if}
         </div>
       </li>
@@ -176,8 +187,41 @@
     border-radius: inherit;
     background: var(--text);
   }
-  .tiny {
-    font-size: 11.5px;
+  .ladder {
+    display: grid;
+    gap: 8px;
+    padding: 12px 16px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+  }
+  .ladder-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .ladder ol {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px 18px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+  }
+  .ladder li {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .ladder li > span {
+    display: grid;
+  }
+  @container (max-width: 760px) {
+    .ladder ol {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
   .check {
     color: var(--pos);

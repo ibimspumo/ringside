@@ -101,7 +101,7 @@
       <div class="title">
         <SkillBadge {kind} skill={byKind.get(kind)} size={46} />
         <div class="tt">
-          <h1>{byKind.get(kind)?.name_de ?? meta.short}</h1>
+          <h1>{meta.short}</h1>
           <span class="session">
             {#if count}
               Diese Sitzung: <b class="num">{count}</b> {count === 1 ? "Aufgabe" : "Aufgaben"} · <b class="num">{right}</b> richtig · <b class="num"
