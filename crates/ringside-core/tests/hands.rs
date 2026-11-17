@@ -380,7 +380,7 @@ Total pot 30 | Rake 0
 
 #[test]
 fn split_bounty_with_commas_in_names() {
-    let text = KNOCKOUT.split("\n\n\n\n").nth(1).unwrap().trim_start().replace("Lee Ann: KO", "Lee, Ann");
+    let text = split_hands(KNOCKOUT)[1].replace("Lee Ann: KO", "Lee, Ann");
     let h = parse_hand(&text).unwrap();
     assert_eq!(h.bounties_won, [("Lee, Ann".to_string(), 500), ("Mo".to_string(), 500)]);
 }
