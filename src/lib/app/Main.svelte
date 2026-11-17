@@ -676,4 +676,13 @@
   .content.fill {
     overflow: hidden;
   }
+  /* Short windows (700 px at the minimum size): every nav item stays visible above the footer. */
+  @media (max-height: 760px) {
+    nav {
+      gap: 10px;
+    }
+    nav button {
+      height: 30px;
+    }
+  }
 </style>

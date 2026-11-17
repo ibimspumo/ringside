@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { STAT_META, fill, fmt, moneyShort, stat, toneColor } from "../stats";
+  import { STAT_META, fill, fmt, moneyShort, stat, toneColor, unit } from "../stats";
   import type { GameKind, HudConfig, Point, SeatView, StatId } from "../types";
   import { draggable } from "./drag";
   import { AVATAR_RADIUS, PLATE, RING, defaultPlate, type Side } from "./geometry";
@@ -105,7 +105,7 @@
     <div class="cols">
       {#each plateStats as p, i (i)}
         <div class="col" title={STAT_META[p.id].help}>
-          <b class="num" style="color:{toneColor(hud, p.s, 'var(--text-3)')}">{fmt(p.s)}</b>
+          <b class="num" style="color:{toneColor(hud, p.s, 'var(--text-3)')}">{fmt(p.s)}<small>{unit(p.s)}</small></b>
           <i>{STAT_META[p.id].short}</i>
         </div>
       {/each}
@@ -117,7 +117,7 @@
   <div
     class="ring hit"
     style="left:{ring.x}px; top:{ring.y}px"
-    title="{segTitle} · Klick zeigt alle Werte"
+    title="{segTitle} · {fmt(hands)} gemeinsame Hände · Klick zeigt alle Werte"
     use:draggable={{ origin: () => ring, onMove: onRingMove, onTap }}
   >
     <svg viewBox="0 0 100 100" aria-hidden="true">
@@ -202,7 +202,7 @@
     line-height: 1.35;
   }
   .stack {
-    margin-top: calc(2px * var(--s));
+    margin-top: calc(1px * var(--s));
     font-size: calc(17px * var(--s));
   }
   .stack b {
@@ -220,7 +220,8 @@
   }
   .cols {
     display: flex;
-    margin-top: calc(5px * var(--s));
+    margin-top: calc(3px * var(--s));
+    padding-bottom: calc(2px * var(--s));
   }
   .col {
     flex: 1;
@@ -236,6 +237,12 @@
     font-size: calc(19px * var(--s));
     font-weight: 700;
     line-height: 1;
+  }
+  .col b small {
+    margin-left: calc(1px * var(--s));
+    font-size: 0.5em;
+    font-weight: 600;
+    opacity: 0.75;
   }
   .col i {
     margin-top: calc(2px * var(--s));
