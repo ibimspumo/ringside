@@ -92,8 +92,8 @@
     return null;
   }
 
-  /** The all-in bars below show these three, so the fact list leaves them out. */
-  const IN_BARS = new Set(["Erwartet (EV)", "Tatsächlich", "Glück"]);
+  /** The all-in block below shows these, so the fact list leaves them out. */
+  const IN_BARS = new Set(["Erwartet (EV)", "Tatsächlich", "Glück", "Pot"]);
 
   async function checkOwn(s: OwnSpot, a: LearnAnswer): Promise<Feedback> {
     const fb = await api.learnCheckOwn(s.id, a);
