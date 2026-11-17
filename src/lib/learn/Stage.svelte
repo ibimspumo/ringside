@@ -29,6 +29,9 @@
   let width = $state(700);
   const big = $derived(width < 460 ? 38 : 50);
 
+  /** Hole cards in the order their name is read: "K5o" shows the king first. */
+  const highFirst = (cards: string[]) => [...cards].sort((a, b) => "23456789TJQKA".indexOf(b[0]) - "23456789TJQKA".indexOf(a[0]));
+
   /** "65s" → what the s or o means; pairs need no hint. */
   function handHint(cls: string): string {
     return cls.endsWith("s") ? "s: gleiche Farbe" : cls.endsWith("o") ? "o: verschiedene Farben" : "Paar";
@@ -67,7 +70,7 @@
       {/each}
       <div class="board" aria-label="Board">
         {#each prompt.board as c (c)}<PlayingCard card={c} size={big} />{/each}
-        {#if !prompt.board.length}<span class="faint small">Preflop all-in, noch kein Board</span>{/if}
+        {#if !prompt.board.length}<span class="dim small">Preflop all-in, noch kein Board</span>{/if}
       </div>
       <div class="hand">
         <span class="who hero">Du</span>
@@ -131,7 +134,7 @@
       truth={truthSeat}
       onPick={onSeat}
     />
-    {#if prompt.dead_button}<p class="note faint">Toter Button: Der Button liegt auf einem leeren Sitz.</p>{/if}
+    {#if prompt.dead_button}<p class="note dim">Toter Button: Der Button liegt auf einem leeren Sitz.</p>{/if}
   {:else if prompt.type === "showdown"}
     <div class="felt">
       <div class="board" aria-label="Board">
@@ -187,18 +190,18 @@
         </span>
       </div>
       <div class="hu-seat hero">
-        <span class="cards">{#each prompt.hand as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
+        <span class="cards">{#each highFirst(prompt.hand) as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
         <span class="hu-pos">Du · {sb ? "Small Blind" : "Big Blind"} · <span class="num">{fmtBB(prompt.stack_bb)}</span></span>
-        <span class="cls-line"><b class="num cls-sm">{prompt.class}</b> <span class="faint">{handHint(prompt.class)}</span></span>
+        <span class="cls-line"><b class="num cls-sm">{prompt.class}</b> <span class="dim">{handHint(prompt.class)}</span></span>
       </div>
-      <span class="eff faint small"><span class="term" title={explain("Effektiver Stack")}>Effektiver Stack</span> {fmtBB(prompt.stack_bb)}</span>
+      <span class="eff dim small"><span class="term" title={explain("Effektiver Stack")}>Effektiver Stack</span> {fmtBB(prompt.stack_bb)}</span>
     </div>
   {:else if prompt.type === "push_fold_table"}
     {@const p = prompt}
     {@const pos = p.positions[p.hero]}
     <div class="pf">
       <div class="hand">
-        <span class="cards">{#each p.hand as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
+        <span class="cards">{#each highFirst(p.hand) as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
         <span class="cls num">{p.class}</span>
       </div>
       <dl class="spot">

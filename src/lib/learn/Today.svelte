@@ -323,7 +323,8 @@
           <ol class="trail" aria-label="Deine Antworten">
             {#each items.slice(0, answered) as it, i (i)}
               <li class={tone(scores[i])} style="--n:{i}" title="{SKILLS[it.kind].short}: {Math.round((scores[i] ?? 0) * 100)} Punkte">
-                <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={SKILLS[it.kind].icon} /></svg>
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d={SKILLS[it.kind].icon} /></svg>
+                <span>{SKILLS[it.kind].short}</span>
               </li>
             {/each}
           </ol>
@@ -656,15 +657,20 @@
   }
   .trail li {
     --t: var(--text-3);
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 9px;
-    color: var(--t);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 10px 0 8px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    color: var(--text);
     background: color-mix(in srgb, var(--t) 14%, var(--surface-2));
     border: 1px solid color-mix(in srgb, var(--t) 40%, transparent);
     animation: pop 0.35s calc(var(--n) * 50ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .trail li svg {
+    color: var(--t);
   }
   .trail li.ok {
     --t: var(--pos);

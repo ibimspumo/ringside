@@ -207,7 +207,7 @@
                           <b class="num" class:pos={row.v > 0.004} class:neg={row.v < -0.004}>{fmtBB(row.v, true)}</b>
                         </div>
                       {/each}
-                      <p class="faint small">
+                      <p class="dim small">
                         Equity {fmtPct(r.equity_pct, 1)} · Pot {fmtBB(r.pot_bb)}{#if r.rake_bb > 0} · Rake {fmtBB(r.rake_bb)}{/if}. Glück ist das
                         Ergebnis minus EV. Über viele Hände gleicht es sich aus.
                       </p>

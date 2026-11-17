@@ -58,11 +58,13 @@
     <ol>
       {#each [1, 2, 3, 4] as l (l)}
         <li title={LEVEL_HINT[l]}>
-          <SkillBadge level={l} size={22} />
-          <span><b>{LEVEL_TEXT[l]}</b><span class="dim">{LEVEL_HINT[l]}</span></span>
+          <SkillBadge level={l} size={20} />
+          <b>{LEVEL_TEXT[l]}</b>
+          {#if l < 4}<span class="arrow" aria-hidden="true">→</span>{/if}
         </li>
       {/each}
     </ol>
+    <span class="dim small">Zeig auf eine Stufe, um zu sehen, was sie verlangt.</span>
   </div>
 
   <Weaknesses {concepts} {progress} limit={6} {onTrain} {onRead} />
@@ -188,9 +190,11 @@
     background: var(--text);
   }
   .ladder {
-    display: grid;
-    gap: 8px;
-    padding: 12px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    padding: 10px 16px;
     border-radius: var(--r);
     border: 1px solid var(--line);
   }
@@ -200,9 +204,9 @@
     color: var(--text-2);
   }
   .ladder ol {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px 18px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
     margin: 0;
     padding: 0;
     list-style: none;
@@ -210,18 +214,14 @@
   }
   .ladder li {
     display: flex;
-    align-items: flex-start;
-    gap: 9px;
+    align-items: center;
+    gap: 7px;
     font-size: 12.5px;
-    line-height: 1.35;
+    cursor: help;
   }
-  .ladder li > span {
-    display: grid;
-  }
-  @container (max-width: 760px) {
-    .ladder ol {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
+  .arrow {
+    margin-left: 5px;
+    color: var(--text-3);
   }
   .check {
     color: var(--pos);

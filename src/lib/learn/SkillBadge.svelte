@@ -62,7 +62,7 @@
     transition: stroke 0.4s var(--d);
   }
   .ring path.on {
-    stroke: var(--text-2);
+    stroke: var(--text);
   }
   .top .ring path.on {
     stroke: var(--pos);

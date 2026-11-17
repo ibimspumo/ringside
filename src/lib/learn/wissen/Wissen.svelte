@@ -5,6 +5,7 @@
   import ArticleView from "./Article.svelte";
   import { ARTICLE_BY_ID, ARTICLES, LEVELS, UNITS, fold, searchText, type Article } from "./articles";
   import { loadRead, storeRead } from "./read";
+  import { SKILLS } from "../catalog";
 
   let {
     openId = null,
@@ -45,6 +46,10 @@
   const hits = $derived(terms.length ? INDEX.filter((x) => terms.every((t) => x.text.includes(t))).map((x) => x.a) : ARTICLES);
   const groups = $derived(UNITS.map((u) => ({ ...u, items: hits.filter((a) => a.unit === u.id) })).filter((g) => g.items.length));
   const readCount = $derived(ARTICLES.filter((a) => read.has(a.id)).length);
+
+  /** A skill's main article shows that skill's icon, as in trainer and path. */
+  const SKILL_ICON = new Map<string, string>();
+  for (const k of Object.values(SKILLS)) if (k.articles[0] && !SKILL_ICON.has(k.articles[0])) SKILL_ICON.set(k.articles[0], k.icon);
 
   /** A small glyph that hints at the page's main picture. */
   function glyph(a: Article): string {
@@ -140,7 +145,7 @@
                 {#if a.stat}
                   <b>{STAT_META[a.stat].short}</b>
                 {:else}
-                  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[kind] ?? ICONS.formula} /></svg>
+                  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d={SKILL_ICON.get(a.id) ?? ICONS[kind] ?? ICONS.formula} /></svg>
                 {/if}
               </span>
               <span class="txt">
@@ -207,7 +212,7 @@
   .progress {
     display: grid;
     grid-template-columns: max-content max-content;
-    justify-content: start;
+    justify-content: end;
     align-items: baseline;
     gap: 2px 8px;
     min-width: 150px;
@@ -274,7 +279,7 @@
   }
   .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(max(260px, calc((100% - 30px) / 4)), 1fr));
     gap: 10px;
   }
   .tile {
@@ -361,6 +366,7 @@
     margin-right: 4px;
   }
   .tag {
+    white-space: nowrap;
     padding: 0 7px;
     border-radius: 99px;
     border: 1px solid var(--line-2);
