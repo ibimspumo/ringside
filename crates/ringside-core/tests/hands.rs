@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
 
-use ringside_core::db::Db;
+use ringside_core::db::{Db, Filter, HandQuery};
 use ringside_core::import::import_file;
 use ringside_core::model::{ActionKind, GameKind, Hand};
 use ringside_core::stats::{Counters, StatId, analyze};
@@ -9,6 +9,7 @@ use ringside_core::{parse_hand, split_hands};
 
 const CASH: &str = include_str!("fixtures/cash.txt");
 const TOURNAMENT: &str = include_str!("fixtures/tournament.txt");
+const KNOCKOUT: &str = include_str!("fixtures/knockout.txt");
 
 fn hands(text: &str) -> Vec<Hand> {
     split_hands(text).into_iter().map(|h| parse_hand(h).expect("parses")).collect()
@@ -21,7 +22,7 @@ fn counters(hand: &Hand, player: &str) -> Counters {
 /// Money invariants: what goes in comes out (minus rake), for every fixture hand.
 #[test]
 fn chips_are_conserved() {
-    for hand in hands(CASH).iter().chain(hands(TOURNAMENT).iter()) {
+    for hand in hands(CASH).iter().chain(hands(TOURNAMENT).iter()).chain(hands(KNOCKOUT).iter()) {
         let invested: i64 = hand.seats.iter().map(|s| hand.invested(&s.name)).sum();
         let collected: i64 = hand.collected.iter().map(|(_, a)| a).sum();
         assert_eq!(invested, hand.total_pot, "hand {} invested", hand.id);
@@ -142,9 +143,9 @@ fn database_aggregates_and_dedupes() {
 
     let latest = db.latest_hand_for_table("c:Aquila II").unwrap().unwrap();
     assert_eq!(latest.id, 250000000002);
-    assert_eq!(db.players(None, "eve: the", 10).unwrap().len(), 1);
-    assert_eq!(db.players(None, "%", 10).unwrap().len(), 0);
-    assert_eq!(db.hero_results(None).unwrap().len(), 2);
+    assert_eq!(db.players(&Filter::default(), "eve: the", 10).unwrap().len(), 1);
+    assert_eq!(db.players(&Filter::default(), "%", 10).unwrap().len(), 0);
+    assert_eq!(db.hero_results(&Filter::default(), 100).unwrap().hands, 2);
 }
 
 #[test]
@@ -211,4 +212,197 @@ fn reopened_database_keeps_hands_and_file_offsets() {
     let mut db = Db::open(&db_path).unwrap();
     assert_eq!(db.hand_count().unwrap(), 2);
     assert_eq!(import_file(&mut db, &hh).unwrap().new_hands.len(), 0);
+}
+
+#[test]
+fn knockout_bounties_on_seats_and_eliminations() {
+    let [pko, split]: [Hand; 2] = hands(KNOCKOUT).try_into().unwrap();
+    assert_eq!(pko.seats[0].bounty, Some(250));
+    assert_eq!(pko.seats[2].bounty, Some(190));
+    assert_eq!(pko.bounty_currency.as_deref(), Some("USD"));
+    assert_eq!(pko.bounties_won, [("Hero".to_string(), 95)]);
+    assert_eq!(pko.net("Hero"), 2412 * 100 - 1200 * 100);
+
+    assert_eq!(split.seats[0].name, "Lee Ann: KO");
+    assert_eq!(split.bounties_won, [("Lee Ann: KO".to_string(), 500), ("Mo".to_string(), 500)]);
+
+    let cash = &hands(CASH)[0];
+    assert!(cash.seats.iter().all(|s| s.bounty.is_none()) && cash.bounty_currency.is_none());
+}
+
+#[test]
+fn positions_and_hand_classes() {
+    use ringside_core::stats::{hand_class, position_labels};
+    let h = &hands(CASH)[0]; // button seat 3 (Carol), six players
+    let labels: Vec<(String, &str)> = position_labels(h);
+    let of = |n: &str| labels.iter().find(|(p, _)| p == n).unwrap().1;
+    assert_eq!(
+        [of("Carol"), of("Dave"), of("Hero"), of("Eve: The Great"), of("Alice"), of("Bob")],
+        ["BTN", "SB", "BB", "LJ", "HJ", "CO"]
+    );
+    let heads_up = &hands(KNOCKOUT)[0];
+    assert_eq!(position_labels(heads_up).len(), 3);
+
+    let c = |a: &str, b: &str| hand_class(&[a.to_string(), b.to_string()]);
+    assert_eq!(c("Kc", "Ah").as_deref(), Some("AKo"));
+    assert_eq!(c("9s", "Ts").as_deref(), Some("T9s"));
+    assert_eq!(c("Qd", "Qh").as_deref(), Some("QQ"));
+    assert_eq!(hand_class(&["Ah".into(), "Kh".into(), "Qh".into(), "Jh".into()]), None);
+}
+
+fn db_with(texts: &[&str]) -> Db {
+    let mut db = Db::open_in_memory().unwrap();
+    let parsed: Vec<(Hand, String)> = texts
+        .iter()
+        .flat_map(|t| split_hands(t))
+        .map(|t| (parse_hand(t).unwrap(), t.to_string()))
+        .collect();
+    db.insert_hands(&parsed).unwrap();
+    db
+}
+
+#[test]
+fn reports_by_position_hand_and_session() {
+    let db = db_with(&[CASH, KNOCKOUT]);
+    let cash = Filter { game: Some(GameKind::Cash), since: None };
+
+    let by_pos = db.hero_groups(&cash, false).unwrap();
+    let pos = |k: &str| by_pos.iter().find(|r| r.key == k).unwrap();
+    assert_eq!((pos("BB").counters.hands, pos("BB").net), (1, 107));
+    assert_eq!((pos("SB").counters.hands, pos("SB").net), (1, -1000));
+
+    let by_hand = db.hero_groups(&cash, true).unwrap();
+    assert!(by_hand.iter().any(|r| r.key == "AKo" && (r.net_bb - 10.7).abs() < 1e-9));
+    assert!(by_hand.iter().any(|r| r.key == "99"));
+
+    let results = db.hero_results(&cash, 100).unwrap();
+    assert_eq!((results.hands, results.net), (2, 107 - 1000));
+    assert!((results.non_showdown_bb - 10.7).abs() < 1e-9 && (results.showdown_bb + 100.0).abs() < 1e-9);
+    assert_eq!(results.points.len(), 2);
+    assert_eq!(db.hero_results(&cash, 1).unwrap().points.len(), 1, "thinned, last point kept");
+
+    let ko = db.hero_results(&Filter { game: Some(GameKind::Tournament), since: None }, 100).unwrap();
+    assert_eq!(ko.bounties, std::collections::BTreeMap::from([("USD".to_string(), 95)]));
+
+    let sessions = db.sessions(&Filter::default(), 30.0).unwrap();
+    assert_eq!(sessions.len(), 2, "2024 cash and 2026 knockout are separate sessions");
+    assert_eq!((sessions[1].hands, sessions[1].net), (2, 107 - 1000));
+
+    let since = Filter { game: None, since: Some("2026/01/01".into()) };
+    assert!(db.hero_results(&since, 100).unwrap().points.iter().all(|r| r.played_at.starts_with("2026")));
+    assert_eq!(db.players(&since, "", 10).unwrap().len(), 6, "date filter reads per-hand rows");
+    assert_eq!(db.players(&Filter::default(), "", 100).unwrap().len(), 11, "totals cover all players (Hero plays both)");
+}
+
+#[test]
+fn hand_filters_and_shown_cards() {
+    let db = db_with(&[CASH]);
+    let q = |showdown_only, result: Option<&str>, min_pot_bb| HandQuery {
+        showdown_only,
+        result: result.map(String::from),
+        min_pot_bb,
+        limit: 50,
+        ..Default::default()
+    };
+    assert_eq!(db.hands(&q(false, None, None)).unwrap().len(), 2);
+    assert_eq!(db.hands(&q(true, None, None)).unwrap()[0].id, 250000000002);
+    assert_eq!(db.hands(&q(false, Some("won"), None)).unwrap()[0].id, 250000000001);
+    assert_eq!(db.hands(&q(false, None, Some(100.0))).unwrap().len(), 1);
+
+    let shown = db.shown_hands("Alice", 10).unwrap();
+    assert_eq!((shown[0].cards.as_str(), shown[0].board.as_str()), ("Ah 5c", "9c 4h 2s Kd 3c"));
+}
+
+/// A database written by v0.1.x gains the new columns and gets them filled from raw hands.
+#[test]
+fn old_database_is_upgraded_in_place() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("old.sqlite");
+    {
+        let conn = rusqlite_conn(&path);
+        conn.execute_batch(
+            "CREATE TABLE hands (id INTEGER PRIMARY KEY, game TEXT NOT NULL, tournament_id INTEGER,
+                table_key TEXT NOT NULL, table_name TEXT NOT NULL, played_at TEXT NOT NULL,
+                small_blind INTEGER NOT NULL, big_blind INTEGER NOT NULL, currency TEXT, hero TEXT,
+                hero_cards TEXT NOT NULL DEFAULT '', hero_net INTEGER, raw TEXT NOT NULL);",
+        )
+        .unwrap();
+        for raw in split_hands(KNOCKOUT) {
+            let h = parse_hand(raw).unwrap();
+            conn.execute(
+                "INSERT INTO hands (id, game, table_key, table_name, played_at, small_blind, big_blind, raw)
+                 VALUES (?1, 'tournament', ?2, ?3, ?4, 0, ?5, ?6)",
+                (h.id as i64, h.table_key(), &h.table_name, &h.played_at, h.big_blind, raw),
+            )
+            .unwrap();
+        }
+    }
+    let mut db = Db::open(&path).unwrap();
+    assert!(db.needs_rebuild().unwrap());
+    let first = db.rebuild_step(1).unwrap();
+    assert_eq!((first.done, first.total), (1, 2));
+    drop(db);
+    // Closing in the middle of the upgrade and reopening resumes where it stopped.
+    let mut db = Db::open(&path).unwrap();
+    db.rebuild_all().unwrap();
+    assert!(!db.needs_rebuild().unwrap());
+    assert_eq!(db.hand_count().unwrap(), 2);
+    assert_eq!(db.counters_for(&["Mo".into()], None).unwrap()[0].counters.hands, 1);
+    assert_eq!(db.shown_hands("Short", 5).unwrap()[0].cards, "Ac Kc");
+}
+
+fn rusqlite_conn(path: &std::path::Path) -> rusqlite::Connection {
+    rusqlite::Connection::open(path).unwrap()
+}
+
+#[test]
+fn dead_button_positions_follow_the_blinds() {
+    use ringside_core::stats::position_labels;
+    let text = "PokerStars Hand #9: Tournament #1, $1+$0.10 USD Hold'em No Limit - Level I (10/20) - 2026/01/01 10:00:00 CET
+Table '1 1' 9-max Seat #8 is the button
+Seat 1: A (1500 in chips)
+Seat 2: B (1500 in chips)
+Seat 3: C (1500 in chips)
+Seat 5: D (1500 in chips)
+A: posts small blind 10
+B: posts big blind 20
+*** HOLE CARDS ***
+C: folds
+D: folds
+A: folds
+*** SUMMARY ***
+Total pot 30 | Rake 0
+";
+    let labels = position_labels(&parse_hand(text).unwrap());
+    let of = |n: &str| labels.iter().find(|(p, _)| p == n).unwrap().1;
+    assert_eq!([of("A"), of("B"), of("C"), of("D")], ["SB", "BB", "CO", "BTN"]);
+}
+
+#[test]
+fn split_bounty_with_commas_in_names() {
+    let text = KNOCKOUT.split("\n\n\n\n").nth(1).unwrap().trim_start().replace("Lee Ann: KO", "Lee, Ann");
+    let h = parse_hand(&text).unwrap();
+    assert_eq!(h.bounties_won, [("Lee, Ann".to_string(), 500), ("Mo".to_string(), 500)]);
+}
+
+/// Overlays keep showing real numbers while an upgrade is still rebuilding the totals.
+#[test]
+fn counters_during_an_upgrade_come_from_hand_rows() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("db.sqlite");
+    {
+        let mut db = Db::open(&path).unwrap();
+        let parsed: Vec<(Hand, String)> =
+            split_hands(CASH).into_iter().map(|t| (parse_hand(t).unwrap(), t.to_string())).collect();
+        db.insert_hands(&parsed).unwrap();
+    }
+    {
+        let conn = rusqlite_conn(&path);
+        conn.execute_batch("PRAGMA user_version = 1; DELETE FROM player_totals;").unwrap();
+    }
+    let mut db = Db::open(&path).unwrap();
+    assert!(db.needs_rebuild().unwrap());
+    assert_eq!(db.counters_for(&["Hero".into()], None).unwrap()[0].counters.hands, 2);
+    db.rebuild_all().unwrap();
+    assert_eq!(db.counters_for(&["Hero".into()], None).unwrap()[0].counters.hands, 2);
 }

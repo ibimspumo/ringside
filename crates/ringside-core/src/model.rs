@@ -82,6 +82,9 @@ pub struct Seat {
     pub seat: u8,
     pub name: String,
     pub stack: Amount,
+    /// Bounty on this player's head in knockout tournaments, in `Hand::bounty_currency`.
+    #[serde(default)]
+    pub bounty: Option<Amount>,
     pub sitting_out: bool,
 }
 
@@ -114,6 +117,11 @@ pub struct Hand {
     pub showdown: bool,
     pub total_pot: Amount,
     pub rake: Amount,
+    /// Knockout money won in this hand, per player.
+    #[serde(default)]
+    pub bounties_won: Vec<(String, Amount)>,
+    #[serde(default)]
+    pub bounty_currency: Option<String>,
 }
 
 impl Hand {

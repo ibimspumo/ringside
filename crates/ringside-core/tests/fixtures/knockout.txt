@@ -1,0 +1,70 @@
+PokerStars Hand #260000000001: Tournament #4046789300, $5+$0.50 USD Hold'em No Limit - Level V (50/100) - 2026/11/16 20:10:00 CET [2026/11/16 14:10:00 ET]
+Table '4046789300 10' 8-max Seat #2 is the button
+Seat 1: Hero (8725 in chips, $2.50 bounty)
+Seat 2: Jorge (4618 in chips, $1.25 bounty)
+Seat 3: Astrid (1200 in chips, $1.90 bounty)
+Hero: posts the ante 12
+Jorge: posts the ante 12
+Astrid: posts the ante 12
+Astrid: posts small blind 50
+Hero: posts big blind 100
+*** HOLE CARDS ***
+Dealt to Hero [Ah Ad]
+Jorge: folds
+Astrid: raises 1088 to 1188 and is all-in
+Hero: calls 1088
+*** FLOP *** [2c 7d Jh]
+*** TURN *** [2c 7d Jh] [Qs]
+*** RIVER *** [2c 7d Jh Qs] [3d]
+*** SHOW DOWN ***
+Astrid: shows [Kc Kd] (a pair of Kings)
+Hero: shows [Ah Ad] (a pair of Aces)
+Hero collected 2412 from pot
+Hero wins $0.95 for eliminating Astrid and their own bounty increases by $0.95 to $3.45
+Astrid finished the tournament in 87th place
+*** SUMMARY ***
+Total pot 2412 | Rake 0
+Board [2c 7d Jh Qs 3d]
+Seat 1: Hero (big blind) showed [Ah Ad] and won (2412) with a pair of Aces
+Seat 2: Jorge (button) folded before Flop (didn't bet)
+Seat 3: Astrid (small blind) showed [Kc Kd] and lost with a pair of Kings
+
+
+
+PokerStars Hand #260000000002: Tournament #4046789301, $10+$10+$2 USD Hold'em No Limit - Level IX (300/600) - 2026/11/16 21:00:00 CET [2026/11/16 15:00:00 ET]
+Table '4046789301 3' 9-max Seat #1 is the button
+Seat 1: Lee Ann: KO (9000 in chips, $10 bounty)
+Seat 2: Mo (9000 in chips, $10 bounty)
+Seat 3: Short (1500 in chips, $10 bounty)
+Lee Ann: KO: posts small blind 300
+Mo: posts big blind 600
+*** HOLE CARDS ***
+Short: raises 900 to 1500 and is all-in
+Lee Ann: KO: calls 1200
+Mo: calls 900
+*** FLOP *** [Td 9d 2s]
+Lee Ann: KO: checks
+Mo: checks
+*** TURN *** [Td 9d 2s] [4c]
+Lee Ann: KO: checks
+Mo: checks
+*** RIVER *** [Td 9d 2s 4c] [8h]
+Lee Ann: KO: checks
+Mo: checks
+*** SHOW DOWN ***
+Short: shows [Ac Kc] (high card Ace)
+Lee Ann: KO: shows [Qs Jh] (a straight, Eight to Queen)
+Mo: shows [Qd Jc] (a straight, Eight to Queen)
+Lee Ann: KO collected 2250 from pot
+Mo collected 2250 from pot
+Lee Ann: KO, Mo split the $10 bounty for eliminating Short
+Short finished the tournament in 12th place
+*** SUMMARY ***
+Total pot 4500 | Rake 0
+Board [Td 9d 2s 4c 8h]
+Seat 1: Lee Ann: KO (button) (small blind) showed [Qs Jh] and won (2250) with a straight, Eight to Queen
+Seat 2: Mo (big blind) showed [Qd Jc] and won (2250) with a straight, Eight to Queen
+Seat 3: Short showed [Ac Kc] and lost with high card Ace
+
+
+

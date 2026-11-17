@@ -37,7 +37,7 @@ static DATE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4}/\d{2}/\d{2} 
 static TABLE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Table '(.+)' (\d+)-max.*?Seat #(\d+) is the button").unwrap());
 static SEAT: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^Seat (\d+): (.+) \(([^()]*?) in chips[^()]*\)(.*)$").unwrap());
+    LazyLock::new(|| Regex::new(r"^Seat (\d+): (.+) \(([^()]*?) in chips(?:, ([^()]*?) bounty)?[^()]*\)(.*)$").unwrap());
 static CARDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]*)\]").unwrap());
 static UNCALLED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Uncalled bet \(([^)]+)\) returned to (.+)$").unwrap());
@@ -112,7 +112,7 @@ pub fn parse_amount(raw: &str) -> Option<Amount> {
         1 => frac.parse::<i64>().ok()? * 10,
         _ => frac[..2].parse::<i64>().ok()?,
     };
-    Some(int * 100 + frac)
+    int.checked_mul(100)?.checked_add(frac)
 }
 
 fn currency_code(symbol: &str, code: Option<&str>) -> Option<String> {
@@ -168,7 +168,8 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
                 seat: c[1].parse().map_err(|_| malformed("seat number"))?,
                 name: c[2].to_string(),
                 stack: parse_amount(&c[3]).ok_or_else(|| malformed("stack"))?,
-                sitting_out: c[4].contains("sitting out") || c[4].contains("out of hand"),
+                bounty: c.get(4).and_then(|b| parse_amount(b.as_str())),
+                sitting_out: c[5].contains("sitting out") || c[5].contains("out of hand"),
             }),
             None => {
                 rest.push(line);
@@ -180,10 +181,15 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         return Err(malformed("no seats"));
     }
     rest.extend(lines);
+    let bounty_currency = text
+        .lines()
+        .find_map(|l| SEAT.captures(l).and_then(|c| c.get(4).map(|b| b.as_str().to_string())))
+        .and_then(|b| currency_code(b.trim_end_matches(|ch: char| ch.is_ascii_digit() || ch == '.' || ch == ','), None));
 
     // Longest names first so "Bob 2" is not matched as "Bob".
     let mut names: Vec<String> = seats.iter().map(|s| s.name.clone()).collect();
     names.sort_by_key(|n| std::cmp::Reverse(n.len()));
+    let names_by_length = names.clone();
     let find_player = |line: &str, sep: &str| -> Option<(String, String)> {
         names.iter().find_map(|n| {
             line.strip_prefix(n.as_str())
@@ -215,6 +221,8 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         showdown: false,
         total_pot: 0,
         rake: 0,
+        bounties_won: Vec::new(),
+        bounty_currency,
     };
 
     let mut street = Street::Preflop;
@@ -290,6 +298,32 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             hand.collected.push((name, amount));
             continue;
         }
+        // "A, B split the $50 bounty for eliminating C"
+        if let Some((names, rest)) = line.split_once(" split the ")
+            && rest.contains(" bounty for eliminating ")
+            && let Some(amount) = rest.split_whitespace().next().and_then(parse_amount)
+        {
+            // Names may themselves contain ", ", so match against the seated players.
+            if let Some(winners) = split_names(names, &names_by_length) {
+                let share = amount / winners.len() as Amount;
+                let remainder = amount - share * winners.len() as Amount;
+                for (i, w) in winners.iter().enumerate() {
+                    hand.bounties_won.push((w.to_string(), share + if i == 0 { remainder } else { 0 }));
+                }
+            }
+            continue;
+        }
+        // "A wins $0.31 for eliminating B and their own bounty increases ..." (progressive)
+        // "A wins the $5 bounty for eliminating B" (classic knockout)
+        if let Some((name, rest)) = find_player(line, " wins ")
+            && rest.contains(" for eliminating ")
+        {
+            let amount = rest.trim_start_matches("the ").split_whitespace().next().and_then(parse_amount);
+            if let Some(amount) = amount {
+                hand.bounties_won.push((name, amount));
+            }
+            continue;
+        }
         let Some((player, rest)) = find_player(line, ": ") else {
             continue;
         };
@@ -303,6 +337,20 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
     }
 
     Ok(hand)
+}
+
+/// Splits "A, B, C" into seated player names, longest match first.
+fn split_names<'a>(list: &str, names: &'a [String]) -> Option<Vec<&'a str>> {
+    let mut out = Vec::new();
+    let mut rest = list;
+    while !rest.is_empty() {
+        let name = names.iter().find(|n| {
+            rest.strip_prefix(n.as_str()).is_some_and(|after| after.is_empty() || after.starts_with(", "))
+        })?;
+        out.push(name.as_str());
+        rest = rest[name.len()..].strip_prefix(", ").unwrap_or("");
+    }
+    Some(out)
 }
 
 fn summary_seat_name(hand: &Hand, line: &str) -> Option<String> {
@@ -380,6 +428,10 @@ mod tests {
         assert_eq!(parse_amount("1500"), Some(150000));
         assert_eq!(parse_amount("$1"), Some(100));
         assert_eq!(parse_amount("chips"), None);
+        assert_eq!(parse_amount("99999999999999999999"), None, "too large for i64");
+        assert_eq!(parse_amount("92233720368547758.07"), Some(i64::MAX));
+        assert_eq!(parse_amount("92233720368547758.08"), None, "overflows when adding cents");
+        assert_eq!(parse_amount("92233720368547759"), None, "overflows when scaling");
     }
 
     #[test]

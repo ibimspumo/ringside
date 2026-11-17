@@ -322,3 +322,60 @@ pub fn analyze(hand: &Hand) -> Vec<(String, Counters)> {
 
     out
 }
+
+/// Table position names ("UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB") for every player dealt in.
+///
+/// Anchored on who actually posted the blinds, so a dead button (an empty button seat) or a
+/// dead small blind does not shift every position by one.
+pub fn position_labels(hand: &Hand) -> Vec<(String, &'static str)> {
+    let active: Vec<&crate::model::Seat> = hand.active_players().collect();
+    let n = active.len();
+    if n < 2 {
+        return Vec::new();
+    }
+    let posted = |kind: ActionKind| {
+        hand.actions
+            .iter()
+            .find(|a| a.street == Street::Preflop && a.kind == kind)
+            .map(|a| a.player.as_str())
+    };
+    let index_of = |name: &str| active.iter().position(|s| s.name == name);
+    let big_blind = match posted(ActionKind::PostBigBlind).and_then(index_of) {
+        Some(i) => i,
+        // No big blind posted (rare): two seats after the button.
+        None => (active.iter().position(|s| s.seat >= hand.button_seat).unwrap_or(0) + 2) % n,
+    };
+    // Clockwise, starting after the big blind and ending with it.
+    let order: Vec<&str> = (1..=n).map(|k| active[(big_blind + k) % n].name.as_str()).collect();
+    if n == 2 {
+        return vec![(order[0].to_string(), "BTN"), (order[1].to_string(), "BB")];
+    }
+    let mut tail = vec!["BTN"];
+    if posted(ActionKind::PostSmallBlind) == Some(order[n - 2]) {
+        tail.push("SB");
+    }
+    tail.push("BB");
+    const LATE: [&str; 3] = ["LJ", "HJ", "CO"];
+    const EARLY: [&str; 5] = ["UTG", "UTG+1", "UTG+2", "UTG+3", "UTG+4"];
+    let rest = n - tail.len();
+    let early = rest.saturating_sub(LATE.len());
+    let mut labels: Vec<&'static str> = EARLY.iter().take(early).copied().collect();
+    labels.extend(&LATE[LATE.len() - (rest - early)..]);
+    labels.extend(tail);
+    order.into_iter().zip(labels).map(|(name, label)| (name.to_string(), label)).collect()
+}
+
+/// Starting hand class like "AA", "AKs" or "72o"; `None` for anything but two cards.
+pub fn hand_class(cards: &[String]) -> Option<String> {
+    const RANKS: &str = "AKQJT98765432";
+    let [a, b] = cards else { return None };
+    let (ra, sa) = (a.chars().next()?, a.chars().nth(1)?);
+    let (rb, sb) = (b.chars().next()?, b.chars().nth(1)?);
+    let (ia, ib) = (RANKS.find(ra)?, RANKS.find(rb)?);
+    let (hi, lo) = if ia <= ib { (ra, rb) } else { (rb, ra) };
+    Some(match (hi == lo, sa == sb) {
+        (true, _) => format!("{hi}{lo}"),
+        (false, true) => format!("{hi}{lo}s"),
+        (false, false) => format!("{hi}{lo}o"),
+    })
+}
