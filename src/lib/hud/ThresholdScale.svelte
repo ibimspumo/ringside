@@ -24,7 +24,7 @@
   const base = untrack(() => (STAT_META[id].ratio ? 6 : Math.min(100, Math.max(30, Math.ceil((t.high * 2.2) / 10) * 10))));
   const max = $derived(Math.max(base, t.high * 1.1));
   const pct = (v: number) => `${(Math.min(Math.max(v, 0), max) / max) * 100}%`;
-  const show = (v: number) => (ratio ? v.toLocaleString("de-DE", { maximumFractionDigits: 1 }) : Math.round(v).toString());
+  const show = (v: number) => (ratio ? `${v.toLocaleString("de-DE", { maximumFractionDigits: 1 })}×` : `${Math.round(v)} %`);
 
   function setLow(v: number) {
     t.low = Math.min(v, t.high);
