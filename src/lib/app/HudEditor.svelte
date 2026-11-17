@@ -286,7 +286,7 @@
         </div>
 
         <div class="stage-wrap">
-          <div class="stage" style="aspect-ratio:{aspect}; width:min(100%, calc((100vh - 250px) * {aspect}))" bind:clientWidth={stageW} bind:clientHeight={stageH}>
+          <div class="stage" style="aspect-ratio:{aspect}; --aspect:{aspect}; width:min(100%, calc((100vh - 250px) * {aspect}))" bind:clientWidth={stageW} bind:clientHeight={stageH}>
             {#if shot && shape === "screenshot"}
               <img class="shot" src={shot.url} alt="Tisch-Screenshot" style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%" />
             {:else}
@@ -315,11 +315,14 @@
               <li><kbd>Doppelklick</kbd>legt die Box zurück an den Avatar</li>
             {/if}
             <li><kbd>Klick auf den Spieler</kbd>zeigt alle seine Werte</li>
+            {#if hud.mode === "graphic"}
+              <li><kbd class="num">233</kbd>im Ring: gemeinsame Hände – je mehr, desto verlässlicher die Farben</li>
+            {/if}
           </ul>
           <div class="row actions">
             <span class="state faint">{customised ? "Eigene Positionen" : "Standard-Positionen"}</span>
             <button class="btn ghost" onclick={resetLayout} disabled={!customised}>Zurücksetzen</button>
-            <label class="btn">
+            <label class="btn" title="Screenshot eines PokerStars-Tischs als Hintergrund, um Ring, Zahlenfeld oder Box genau auf die Avatare zu ziehen.">
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7.5h3l1.5-2h7L17 7.5h3v11H4zM12 16a3 3 0 1 0 0-6 3 3 0 0 0 0 6" /></svg>
               {shot ? "Anderen Screenshot" : "Tisch-Screenshot laden"}
               <input type="file" accept="image/*" onchange={loadShot} hidden />
@@ -557,7 +560,7 @@
           <section class="sec">
             <header class="sec-head">
               <h3>Farben</h3>
-              <p>Die Farbe zeigt auf einen Blick, ob ein Wert niedrig, normal oder hoch ist.</p>
+              <p>Die Farbe zeigt auf einen Blick, ob ein Spieler etwas selten, normal oft oder oft tut – nicht, ob das gut oder schlecht ist.</p>
             </header>
             <div class="palettes">
               {#each Object.entries(PALETTES) as [id, p] (id)}
@@ -764,7 +767,7 @@
     margin: 0;
     font-size: 12.5px;
     line-height: 1.55;
-    color: var(--text-3);
+    color: var(--text-2);
     max-width: 720px;
   }
 
@@ -824,7 +827,7 @@
     margin: 3px 0 0;
     font-size: 12.5px;
     line-height: 1.45;
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   .modes,
@@ -1166,8 +1169,12 @@
     .stage-col {
       position: static;
     }
+    .hint {
+      display: none;
+    }
+    /* Keep the inspector's tabs in the first screen when it moves below the table. */
     .stage {
-      width: 100% !important;
+      width: min(100%, calc((100vh - 360px) * var(--aspect))) !important;
     }
   }
 </style>

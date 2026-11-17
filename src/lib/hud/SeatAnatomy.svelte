@@ -114,6 +114,8 @@
       </button>
     {/each}
 
+    <span class="hands" style="left:{ring.x}px; top:{ring.y + r + 15}px">Hände</span>
+
     {#each cols as c, i (i)}
       <button
         class="col-hit"
@@ -182,6 +184,13 @@
     background: var(--text);
     border-color: var(--text);
     color: var(--bg);
+  }
+  .hands {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    font-size: 11px;
+    color: var(--text-3);
+    pointer-events: none;
   }
   .col-hit {
     position: absolute;

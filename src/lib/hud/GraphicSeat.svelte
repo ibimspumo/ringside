@@ -117,7 +117,7 @@
   <div
     class="ring hit"
     style="left:{ring.x}px; top:{ring.y}px"
-    title="{segTitle} · Klick zeigt alle Werte"
+    title="{segTitle} · {fmt(hands)} gemeinsame Hände · Klick zeigt alle Werte"
     use:draggable={{ origin: () => ring, onMove: onRingMove, onTap }}
   >
     <svg viewBox="0 0 100 100" aria-hidden="true">
