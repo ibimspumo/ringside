@@ -39,6 +39,8 @@
     afq: ["passiv nach dem Flop", "aggressiv nach dem Flop"],
   };
   const QUARTER = ["oben links", "oben rechts", "unten rechts", "unten links"];
+  /** Picker names where the stat's own name is only the abbreviation. */
+  const PICK_NAME: Partial<Record<StatId, string>> = { vpip: "Freiwillig gespielt" };
 
   const params = new URLSearchParams(window.location.search);
   let pane = $state<Pane>((!inTauri && (params.get("pane") as Pane)) || "look");
@@ -58,6 +60,8 @@
   let slot = $state<Slot>({ kind: "ring", i: 0 });
   let platePage = $state(0);
   let exact = $state(false);
+  /** Narrow windows: a smaller table leaves more of the settings in view. */
+  let smallStage = $state(false);
 
   /** A table screenshot to calibrate against; `crop` removes the window title bar. */
   let shot = $state<{ url: string; w: number; h: number; crop: number } | null>(null);
@@ -279,13 +283,20 @@
               {/if}
             </div>
           </div>
-          <label class="check toggle" title="Nach jeder Hand zeigt das HUD kurz die Karten aller Spieler und das Board.">
+          <div class="group size-toggle">
+            <span class="lbl">Vorschau</span>
+            <div class="seg">
+              <button class:on={!smallStage} onclick={() => (smallStage = false)}>Groß</button>
+              <button class:on={smallStage} onclick={() => (smallStage = true)}>Klein</button>
+            </div>
+          </div>
+          <label class="check toggle" title="Zeigt hier die Karten der letzten Hand und das Board, damit du sie verschieben kannst. Wie lange der Rückblick am Tisch steht, stellst du unter „Aussehen“ ein.">
             <input type="checkbox" bind:checked={showRecap} />
-            <span>Rückblick zeigen</span>
+            <span>Rückblick in der Vorschau</span>
           </label>
         </div>
 
-        <div class="stage-wrap">
+        <div class="stage-wrap" class:small={smallStage}>
           <div class="stage" style="aspect-ratio:{aspect}; --aspect:{aspect}; width:min(100%, calc((100vh - 250px) * {aspect}))" bind:clientWidth={stageW} bind:clientHeight={stageH}>
             {#if shot && shape === "screenshot"}
               <img class="shot" src={shot.url} alt="Tisch-Screenshot" style="top:{(-shot.crop / Math.max(shot.h - shot.crop, 1)) * 100}%" />
@@ -317,6 +328,9 @@
             <li><kbd>Klick auf den Spieler</kbd>zeigt alle seine Werte</li>
             {#if hud.mode === "graphic"}
               <li><kbd class="num">233</kbd>im Ring: gemeinsame Hände – je mehr, desto verlässlicher die Farben</li>
+            {/if}
+            {#if view.seats.some((s) => s.note?.label)}
+              <li><kbd class="frame">Farbiger Rahmen</kbd>deine eigene Spieler-Markierung aus PokerStars</li>
             {/if}
           </ul>
           <div class="row actions">
@@ -453,8 +467,8 @@
               <div class="picker">
                 {#each RATED_STATS as id (id)}
                   <button class="stat" class:on={slotStat === id} title={STAT_META[id].help} onclick={() => assign(id)}>
-                    <b>{STAT_META[id].name}</b>
-                    {#if STAT_META[id].short !== STAT_META[id].name}<i class="num">{STAT_META[id].short}</i>{/if}
+                    <b>{PICK_NAME[id] ?? STAT_META[id].name}</b>
+                    {#if STAT_META[id].short !== (PICK_NAME[id] ?? STAT_META[id].name)}<i class="num">{STAT_META[id].short}</i>{/if}
                   </button>
                 {/each}
               </div>
@@ -696,6 +710,9 @@
     min-width: 28px;
     padding: 0 6px;
   }
+  .size-toggle {
+    display: none;
+  }
   .toggle {
     margin-left: auto;
     align-items: center;
@@ -742,6 +759,9 @@
     display: flex;
     align-items: center;
     gap: 6px;
+  }
+  kbd.frame {
+    border-color: var(--sd);
   }
   kbd {
     padding: 1px 6px;
@@ -1202,6 +1222,12 @@
   @media (max-width: 1240px) {
     .layout {
       grid-template-columns: 1fr;
+    }
+    .size-toggle {
+      display: flex;
+    }
+    .stage-wrap.small .stage {
+      width: min(100%, calc((100vh - 460px) * var(--aspect))) !important;
     }
     /* Table, then the settings, then the how-to: the settings start in the first screen. */
     .stage-col {

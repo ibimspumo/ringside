@@ -202,7 +202,7 @@
     line-height: 1.35;
   }
   .stack {
-    margin-top: calc(2px * var(--s));
+    margin-top: calc(1px * var(--s));
     font-size: calc(17px * var(--s));
   }
   .stack b {
@@ -220,8 +220,8 @@
   }
   .cols {
     display: flex;
-    margin-top: calc(4px * var(--s));
-    padding-bottom: calc(3px * var(--s));
+    margin-top: calc(3px * var(--s));
+    padding-bottom: calc(2px * var(--s));
   }
   .col {
     flex: 1;
