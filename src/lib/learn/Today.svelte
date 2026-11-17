@@ -133,6 +133,7 @@
     ahead = new Map();
     items = plan;
     before = new Map(byKind);
+    xpBefore = progress?.xp_week ?? 0;
     scores = items.map(() => null);
     correct = items.map(() => false);
     index = 0;
@@ -158,7 +159,16 @@
   const mean = $derived(answered ? scores.reduce((a: number, s) => a + (s ?? 0), 0) / answered : 0);
   const rights = $derived(correct.filter(Boolean).length);
   const practiced = $derived([...new Set(items.slice(0, Math.max(answered, 1)).map((x) => x.kind))]);
-  const xpWeek = $derived(progress?.xp_week ?? 0);
+  /** Progress reloads after a round; until it has, this round's answers still count toward the week. */
+  let xpBefore = $state(0);
+  const xpWeek = $derived(Math.max(progress?.xp_week ?? 0, phase === "done" ? xpBefore + answered : 0));
+  /** This round's answers grouped by skill, in the order they came. */
+  const trail = $derived(
+    [...new Set(items.slice(0, answered).map((x) => x.kind))].map((kind) => ({
+      kind,
+      at: items.slice(0, answered).flatMap((x, i) => (x.kind === kind ? [i] : [])),
+    })),
+  );
 
   const previewSession = preview("session");
   $effect(() => {
@@ -334,14 +344,17 @@
       <div class="numbers">
         <h1>{answered === 0 ? "Runde beendet" : mean >= 0.8 ? "Starke Runde!" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h1>
         {#if answered}
-          <ol class="trail" aria-label="Deine Antworten">
-            {#each items.slice(0, answered) as it, i (i)}
-              <li class={tone(scores[i])} style="--n:{i}" title="{SKILLS[it.kind].short}: {Math.round((scores[i] ?? 0) * 100)} Punkte">
-                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d={SKILLS[it.kind].icon} /></svg>
-                <span>{SKILLS[it.kind].short}</span>
+          <ul class="trail" aria-label="Deine Antworten nach Fertigkeit">
+            {#each trail as t, n (t.kind)}
+              <li style="--n:{n}">
+                <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d={SKILLS[t.kind].icon} /></svg>
+                <span>{SKILLS[t.kind].short}</span>
+                <span class="dots">
+                  {#each t.at as i (i)}<i class={tone(scores[i])} title="{Math.round((scores[i] ?? 0) * 100)} Punkte"></i>{/each}
+                </span>
               </li>
             {/each}
-          </ol>
+          </ul>
           <div class="legend" aria-hidden="true">
             <span class="ok">richtig</span><span class="close">teilweise richtig</span><span class="miss">daneben</span>
           </div>
@@ -375,7 +388,7 @@
                 {:else}
                   <span class="dim">{LEVEL_TEXT[a?.level ?? 0]}</span>
                 {/if}
-                <span class="faint">+{items.slice(0, answered).filter((x) => x.kind === k).length} geübt in dieser Runde</span>
+                <span class="dim">+{items.slice(0, answered).filter((x) => x.kind === k).length} geübt in dieser Runde</span>
               </span>
             </li>
           {/each}
@@ -679,29 +692,36 @@
     list-style: none;
   }
   .trail li {
-    --t: var(--text-3);
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 7px;
     height: 30px;
-    padding: 0 10px 0 8px;
+    padding: 0 10px 0 9px;
     border-radius: 8px;
     font-size: 12.5px;
-    color: var(--text);
-    background: color-mix(in srgb, var(--t) 14%, var(--surface-2));
-    border: 1px solid color-mix(in srgb, var(--t) 40%, transparent);
-    animation: pop 0.35s calc(var(--n) * 50ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    animation: pop 0.35s calc(var(--n) * 60ms) cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
-  .trail li svg {
-    color: var(--t);
+  .dots {
+    display: inline-flex;
+    gap: 3px;
+    margin-left: 2px;
   }
-  .trail li.ok {
+  .dots i {
+    --t: var(--text-3);
+    width: 9px;
+    height: 9px;
+    border-radius: 3px;
+    background: var(--t);
+  }
+  .dots i.ok {
     --t: var(--pos);
   }
-  .trail li.close {
+  .dots i.close {
     --t: var(--amber);
   }
-  .trail li.miss {
+  .dots i.miss {
     --t: var(--neg);
   }
   @keyframes pop {

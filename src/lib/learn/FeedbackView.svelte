@@ -25,9 +25,14 @@
   const g = $derived(GRADING[feedback.grading]);
   /** "EV All-in", "EV Fold": spelled out as one sentence instead of separate tiles. */
   const evFacts = $derived(feedback.facts.filter((f) => /^EV [^-]/.test(f.label)));
-  const evSentence = $derived(
-    evFacts.length >= 2 ? evFacts.map((f) => `${f.label.slice(3)} bringt im Schnitt ${f.value}`).join(", ") + "." : "",
-  );
+  const bbValue = (v: string) => Number.parseFloat(v.replace("−", "-").replace(",", "."));
+  const evSentence = $derived.by(() => {
+    if (evFacts.length < 2) return "";
+    const said = evFacts.map((f) => `${f.label.slice(3)} bringt im Schnitt ${f.value}`).join(", ") + ".";
+    // Short stacks often lose either way; say so, or "best" reads like winning.
+    const allLose = evFacts.every((f) => bbValue(f.value) < 0);
+    return allLose ? `${said} Beide Wege kosten Chips, ${feedback.truth_text} kostet weniger.` : said;
+  });
   const truthNumber = $derived("number" in feedback.truth ? feedback.truth.number : null);
   const gapSentence = $derived.by(() => {
     if (estimate === null || truthNumber === null) return "";

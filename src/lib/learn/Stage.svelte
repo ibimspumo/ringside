@@ -501,6 +501,7 @@
   .hu-pos {
     font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
   }
   .hu-stack {
     font-size: 15px;

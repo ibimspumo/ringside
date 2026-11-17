@@ -157,7 +157,8 @@
                   <span class="dim">{stack(s)}</span>
                   <span class="dim">{when(s.played_at)}</span>
                 {:else}
-                  <span class="dim">{when(s.played_at)}{stack(s) ? ` · ${stack(s)}` : ""}</span>
+                  {#if stack(s)}<span class="dim">{stack(s)}</span>{/if}
+                  <span class="dim">{when(s.played_at)}</span>
                 {/if}
               </span>
               <span class="state {tone(results[s.id])}" title={results[s.id] ? `${Math.round(results[s.id].score * 100)} Punkte` : "Noch offen"}></span>
@@ -334,7 +335,7 @@
   }
   .replay {
     display: flex;
-    height: clamp(460px, 72vh, 760px);
+    height: clamp(400px, 58vh, 620px);
     padding: 12px;
     min-width: 0;
   }

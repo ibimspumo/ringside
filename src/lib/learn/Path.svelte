@@ -279,7 +279,7 @@
       0 10px 30px -18px rgba(0, 0, 0, 0.8);
   }
   .stop:not(.here) .card {
-    background: color-mix(in srgb, var(--surface) 60%, transparent);
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
   }
   .reading .card {
     background: transparent;
