@@ -34,10 +34,11 @@
 </div>
 
 <style>
+  /* Top right, below the page head: the main actions of a page sit at the bottom. */
   .toasts {
     position: fixed;
     right: 20px;
-    bottom: 18px;
+    top: 64px;
     z-index: 70;
     display: flex;
     flex-direction: column;
@@ -61,7 +62,7 @@
   @keyframes in {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(-8px);
     }
   }
   @media (prefers-reduced-motion: reduce) {

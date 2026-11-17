@@ -270,6 +270,8 @@ step("Cloud-Hinweis erscheint, Cloud aus", async () => {
   if (TAURI) {
     // Before anything could solve push/fold, so no request can reach the cloud.
     await invoke("cloud_save_settings", { cloud: { fetch: false, share: false, notice_seen: true } });
+    // A runner without input counts as idle; a background solve would only slow the run.
+    await invoke("library_set_mode", { mode: "off" });
   } else {
     await click("main button", "Verstanden");
   }
