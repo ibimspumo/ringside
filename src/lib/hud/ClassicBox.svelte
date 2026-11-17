@@ -53,8 +53,9 @@
   bind:this={el}
   class="box hit"
   class:hero={seat.is_hero}
+  class:labelled={seat.note?.label}
   class:words={layout.words}
-  style="{style}; --s:{s}; opacity:{hud.opacity}"
+  style="{style}; --s:{s}; opacity:{hud.opacity}; --label:{seat.note?.label?.color ?? 'transparent'}"
   title="Ziehen verschiebt die Box · Doppelklick legt sie zurück · Klick zeigt alle Werte"
   use:draggable={{ origin, onMove, onTap, onDouble: onReset }}
 >
@@ -105,6 +106,11 @@
   }
   .box:active {
     cursor: grabbing;
+  }
+  .labelled {
+    box-shadow:
+      0 0 0 calc(2px * var(--s)) var(--label) inset,
+      0 calc(3px * var(--s)) calc(10px * var(--s)) rgba(0, 0, 0, 0.45);
   }
   .hero {
     box-shadow:

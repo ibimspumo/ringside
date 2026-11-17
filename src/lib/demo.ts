@@ -1,9 +1,14 @@
 // Sample data so the UI can be designed and previewed in a plain browser without Tauri.
 import type {
   Dashboard,
+  Filter,
   GroupView,
   Hand,
+  HandQuery,
   HandSummary,
+  LiveTable,
+  NotesSource,
+  PlayerNote,
   PlayerView,
   Reports,
   SeatPos,
@@ -12,6 +17,9 @@ import type {
   StatId,
   StatValue,
   TableView,
+  TournamentRow,
+  TournamentTotals,
+  Tournaments,
 } from "./types";
 
 /** Mirrors `default_layout` in ringside-core (measured PokerStars 8-seat table, else an oval). */
@@ -41,7 +49,14 @@ export const demoSettings: Settings = {
     mode: "graphic",
     palette: "traffic",
     classic: { preset: "beginner", custom: ["vpip", "pfr", "three_bet", "af", "hands"] },
-    graphic: { segments: ["vpip", "pfr", "af", "three_bet"], plate_stats: ["three_bet", "fold_to_three_bet", "steal"], cover_plate: true, plate_width: 1 },
+    graphic: { segments: ["vpip", "pfr", "af", "three_bet"], plate_pages: [
+        ["vpip", "pfr", "three_bet"],
+        ["fold_to_three_bet", "steal", "fold_to_steal"],
+        ["cbet", "fold_to_cbet", "af"],
+      ],
+      cover_plate: true,
+      plate_width: 1,
+    },
     thresholds: {
       vpip: { low: 20, high: 35 },
       pfr: { low: 12, high: 25 },
@@ -93,6 +108,22 @@ const PLAYERS: Demo[] = [
   ["Rüdiger", 96, { vpip: 32, pfr: 3, three_bet: 1, steal: 9, fold_to_steal: 62, cbet: 31, fold_to_cbet: 52, wtsd: 39, wsd: 41, af: 1.0, afq: 22 }],
 ];
 
+/** The user's PokerStars notes in the demo, by player. */
+const NOTES: Record<string, PlayerNote> = {
+  Kestrel: { label: { name: "Reg", color: "#FF304E" }, text: "3-bettet light aus den Blinds" },
+  "Lee Ann": { label: { name: "Fisch", color: "#30DBFF" }, text: "" },
+  Rüdiger: { label: { name: "Calling Station", color: "#F5C542" }, text: "Callt jeden Flop, foldet am River gegen Druck." },
+  marlowe_77: { label: null, text: "Limpt viel, zahlt Value-Bets aus." },
+};
+
+export function demoNote(player: string): PlayerNote | null {
+  return NOTES[player] ?? null;
+}
+
+export function demoNotesSources(): NotesSource[] {
+  return [{ path: "C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\notes.Hero.xml", players: Object.keys(NOTES).length, error: null }];
+}
+
 export function demoTable(maxSeats = 8): TableView {
   const seats = PLAYERS.slice(0, maxSeats).map(([name, hands, v], i) => {
     const stackBb = [61, 40, 66, 47, 82, 46, 78, 114][i];
@@ -105,6 +136,7 @@ export function demoTable(maxSeats = 8): TableView {
       bounty: [345, 125, 250, 190, 125, 470, 125, 250][i],
       is_hero: i === 0,
       stats: stats(hands, v),
+      note: demoNote(name),
     };
   });
   return {
@@ -134,8 +166,13 @@ export function demoTable(maxSeats = 8): TableView {
   };
 }
 
-export function demoPlayers(): PlayerView[] {
-  return PLAYERS.map(([name, hands, v], i) => ({ name, net: [0, 920, -1830, 4210, -310, -2650, 330, -1200][i], stats: stats(hands, v) }));
+/** With a tournament chosen, the demo shows a smaller slice of the same players. */
+const inTournament = (f: Filter) => f.tournament_id !== null && f.tournament_id !== undefined;
+
+export function demoPlayers(filter?: Filter): PlayerView[] {
+  const all = PLAYERS.map(([name, hands, v], i) => ({ name, net: [0, 920, -1830, 4210, -310, -2650, 330, -1200][i], stats: stats(hands, v) }));
+  if (!filter || !inTournament(filter)) return all;
+  return PLAYERS.slice(0, 6).map(([name, , v], i) => ({ name, net: [0, 410, -980, 1250, -60, -2650][i], stats: stats([212, 27, 33, 140, 25, 8][i], v) }));
 }
 
 function series(n: number, drift: number, seed: number) {
@@ -158,29 +195,32 @@ function series(n: number, drift: number, seed: number) {
   return { total, sd, points };
 }
 
-export function demoDashboard(): Dashboard {
-  const s = series(6124, 0.06, 11);
+export function demoDashboard(filter?: Filter): Dashboard {
+  const one = !!filter && inTournament(filter);
+  const hands = one ? 212 : 6124;
+  const s = series(hands, one ? 0.15 : 0.06, one ? (filter.tournament_id ?? 1) % 997 : 11);
   return {
     hand_count: 6431,
     heroes: ["Hero"],
     results: {
-      hands: 6124,
+      hands,
       net: Math.round(s.total * 100),
       net_bb: s.total,
       showdown_bb: s.sd,
       non_showdown_bb: s.total - s.sd,
-      bounties: { USD: 3745 },
+      bounties: { USD: one ? 250 : 3745 },
       points: s.points,
     },
-    hero: demoPlayers()[0],
+    hero: demoPlayers(filter)[0],
   };
 }
 
 const RANKS = "AKQJT98765432";
 
-export function demoReports(): Reports {
+export function demoReports(filter?: Filter): Reports {
+  const one = !!filter && inTournament(filter);
   const positions: GroupView[] = ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"].map((key, i) => {
-    const hands = [690, 512, 701, 745, 768, 790, 801, 817][i];
+    const hands = Math.round([690, 512, 701, 745, 768, 790, 801, 817][i] / (one ? 28 : 1));
     const netBb = [-12, 4, 18, 35, 61, 120, -88, -150][i];
     return { key, net: netBb * 100, net_bb: netBb, stats: stats(hands, { vpip: [12, 14, 17, 21, 27, 38, 30, 34][i], pfr: [11, 12, 15, 18, 23, 31, 18, 9][i], steal: i >= 4 && i <= 6 ? [32, 44, 30][i - 4] : undefined }) };
   });
@@ -205,7 +245,7 @@ export function demoReports(): Reports {
     bounties: Object.fromEntries([["USD", [375, 0, 250, 845, 125, 0, 0, 500, 0][i]]].filter(([, a]) => a)) as Record<string, number>,
     tables: [3, 4, 2, 4, 3, 2, 1, 4, 2][i],
   }));
-  return { positions, starting_hands, sessions };
+  return { positions, starting_hands, sessions: one ? sessions.slice(0, 1) : sessions };
 }
 
 export function demoShown(): ShownHand[] {
@@ -273,15 +313,24 @@ export const demoHand: Hand = {
   bounty_currency: null,
 };
 
-export function demoHands(): HandSummary[] {
-  return Array.from({ length: 40 }, (_, i) => ({
-    id: 250000000002 - i,
-    game: i % 3 === 2 ? "cash" : "tournament",
+/** Hands listed for a chosen tournament carry its id (see `demoHands`). */
+export function demoHandById(id: number): Hand {
+  if (id < 1e12) return demoHand;
+  const tournament = Math.floor(id / 1000);
+  return { ...demoHand, id, game: "tournament", tournament_id: tournament, table_name: `${tournament} 10`, currency: null };
+}
+
+export function demoHands(query?: HandQuery): HandSummary[] {
+  const tournament = query?.tournament_id ?? null;
+  const cashAt = (i: number) => tournament === null && i % 3 === 2;
+  return Array.from({ length: tournament === null ? 40 : 18 }, (_, i) => ({
+    id: tournament === null ? 250000000002 - i : tournament * 1000 + 999 - i,
+    game: cashAt(i) ? "cash" : "tournament",
     played_at: `2026/11/16 ${String(22 - Math.floor(i / 6)).padStart(2, "0")}:${String(59 - ((i * 7) % 60)).padStart(2, "0")}:10`,
-    table_name: i % 3 === 2 ? "Aquila II" : "4046789300 10",
+    table_name: cashAt(i) ? "Aquila II" : `${tournament ?? 4046789300} 10`,
     small_blind: 5,
     big_blind: 10,
-    currency: i % 3 === 2 ? "USD" : null,
+    currency: cashAt(i) ? "USD" : null,
     hero_cards: ["9s 9d", "Ah Kc", "7c 2d", "Qs Qh", "Jd Td", "As 5s", "8h 6h"][i % 7],
     hero_position: ["BTN", "CO", "BB", "SB", "UTG", "HJ", "LJ"][i % 7],
     hero_net: [-1000, 107, -5, 0, 245, -30, 60][i % 7],
@@ -289,4 +338,93 @@ export function demoHands(): HandSummary[] {
     pot: [2030, 225, 15, 30, 510, 60, 120][i % 7],
     board: ["9c 4h 2s Kd 3c", "2c 7d Jh", "", "", "Td 9d 2s 4c 8h", "Kh 3s 3d", "Qc Jc 5d 2h"][i % 7],
   }));
+}
+
+export function demoLiveTables(): LiveTable[] {
+  if (new URLSearchParams(window.location.search).get("tables") === "0") return [];
+  const mtt = demoTable();
+  const cash = demoTable(6);
+  cash.table_key = "c:Aquila II";
+  cash.title = "Aquila II - $0.05/$0.10 USD - No Limit Hold'em";
+  cash.game = "cash";
+  cash.big_blind = 10;
+  cash.currency = "USD";
+  cash.bounty_currency = null;
+  cash.seats = cash.seats.map((seat, i) => {
+    const name = i === 0 ? "Hero" : ["Ondine", "Kestrel", "Rüdiger", "Nadir", "marlowe_77"][i - 1];
+    return { ...seat, stack: seat.stack_bb * 10, bounty: null, name, note: demoNote(name) };
+  });
+  return [
+    { title: "$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10", table_key: mtt.table_key, table: mtt },
+    { title: cash.title, table_key: cash.table_key, table: cash },
+    { title: "$11 Bounty Hunters - Turnier 4046799120 Tisch 4", table_key: "t:4046799120:4", table: null },
+  ];
+}
+
+/** Mirrors `totals` in ringside-core (tournament.rs) for the browser demo. */
+function demoTotals(rows: TournamentRow[]): TournamentTotals[] {
+  const by = new Map<string, TournamentTotals>();
+  for (const r of rows) {
+    const key = r.currency ?? "";
+    const t = by.get(key) ?? { currency: key, tournaments: 0, finished: 0, cashes: 0, cost: 0, prizes: 0, bounties: 0, profit: 0, roi: null, itm: null };
+    by.set(key, t);
+    t.tournaments++;
+    if (r.cost === null || r.prize === null || r.profit === null) continue;
+    t.finished++;
+    t.cashes += r.prize > 0 ? 1 : 0;
+    t.cost += r.cost;
+    t.prizes += r.prize;
+    t.bounties += r.bounties;
+    t.profit += r.profit;
+  }
+  return [...by.values()]
+    .map((t) => ({ ...t, roi: t.cost > 0 ? (t.profit / t.cost) * 100 : null, itm: t.finished > 0 ? (t.cashes / t.finished) * 100 : null }))
+    .sort((a, b) => Number(a.currency === "") - Number(b.currency === "") || b.tournaments - a.tournaments);
+}
+
+export function demoTournaments(): Tournaments {
+  const kinds = [
+    { game: "NL Hold'em", buy: [500, 0, 50], cur: "USD", name: "$5.50 Mini Early Battle [Progressive KO], $1.5K Gtd" },
+    { game: "NL Hold'em", buy: [1000, 1000, 200], cur: "USD", name: "Bounty Builder $22, $10K Gtd" },
+    { game: "NL Hold'em", buy: [300, 0, 30], cur: "USD", name: "Hot $3.30, $1.5K Gtd" },
+    { game: "PL Omaha", buy: [460, 0, 40], cur: "EUR", name: "PLO Turbo €5" },
+    { game: "NL Hold'em", buy: [200, 200, 40], cur: "USD", name: "Sunday Million - Day 1" },
+    { game: "NL Hold'em", buy: [180, 0, 20], cur: "EUR", name: "Sit & Go 9-Max Hyper" },
+  ];
+  let s = 7;
+  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const rows: TournamentRow[] = Array.from({ length: 34 }, (_, i) => {
+    const k = kinds[Math.floor(rnd() * kinds.length)];
+    const freeroll = i === 9;
+    const [prizePart, bountyPart, fee] = freeroll ? [0, 0, 0] : k.buy;
+    const entrants = Math.round(18 + rnd() * 700);
+    const known = i >= 2 && i !== 5;
+    const place = known ? (i === 12 ? 3 : Math.max(1, Math.round(rnd() * entrants))) : null;
+    const reentry = !freeroll && rnd() > 0.85 ? prizePart + bountyPart + fee : 0;
+    const paid = Math.ceil(entrants * 0.15);
+    const pool = (prizePart || 20) * entrants;
+    const prize = place === null ? null : place <= paid ? Math.round(Math.max(pool * 0.22 * place ** -1.15, (prizePart || 20) * 1.6)) : 0;
+    const bounties = bountyPart ? Math.round(rnd() * 3) * Math.round(bountyPart / 2) : 0;
+    const cost = prizePart + bountyPart + fee + reentry;
+    const day = 16 - Math.floor(i / 2.4);
+    return {
+      id: 4046789300 - i * 731,
+      game: k.game,
+      currency: k.cur,
+      buy_in: { prize: prizePart, bounty: bountyPart, fee, currency: freeroll ? null : k.cur },
+      cost,
+      entrants: known ? entrants : null,
+      place,
+      prize,
+      bounties,
+      profit: prize === null ? null : prize + bounties - cost,
+      started_at: `2026/11/${String(day).padStart(2, "0")} ${String(18 + (i % 5)).padStart(2, "0")}:${String((i * 13) % 60).padStart(2, "0")}:00`,
+      hands: Math.round(40 + rnd() * 260),
+      chips: Math.round((rnd() - 0.55) * 800000),
+      has_summary: known && i % 7 !== 3,
+      // Names come from table windows; tournaments played before Ringside ran have none.
+      name: i % 4 === 3 ? null : k.name,
+    };
+  });
+  return { rows, totals: demoTotals(rows) };
 }

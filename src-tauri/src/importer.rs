@@ -2,14 +2,41 @@
 
 use std::collections::BTreeSet;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, Instant, SystemTime};
 
 use ringside_core::db::RebuildProgress;
-use ringside_core::import::{Scanner, default_dirs, import_file};
+use ringside_core::import::{Scanner, default_dirs, import_file, import_summary, summary_dirs};
+use ringside_core::notes::{load_all, notes_files};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::AppState;
+use crate::{AppState, NotesState};
+
+/// How often the client's notes files are checked for changes.
+const NOTES_EVERY: Duration = Duration::from_secs(5);
+
+type NotesStamp = Vec<(PathBuf, Option<SystemTime>, u64)>;
+
+/// Reloads the notes when a notes file appeared, vanished or was rewritten. Returns true when
+/// they were reloaded.
+fn refresh_notes(state: &AppState, last: &mut Option<NotesStamp>) -> bool {
+    let files =
+        std::env::var_os("LOCALAPPDATA").map(|d| notes_files(&PathBuf::from(d))).unwrap_or_default();
+    let stamp: NotesStamp = files
+        .iter()
+        .map(|f| {
+            let meta = std::fs::metadata(f).ok();
+            (f.clone(), meta.as_ref().and_then(|m| m.modified().ok()), meta.map_or(0, |m| m.len()))
+        })
+        .collect();
+    if last.as_ref() == Some(&stamp) {
+        return false;
+    }
+    *last = Some(stamp);
+    let (notes, sources) = load_all(&files);
+    *state.notes.lock().unwrap() = NotesState { notes, sources };
+    true
+}
 
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ImportStatus {
@@ -35,10 +62,19 @@ pub fn effective_dirs(configured: &[String]) -> Vec<PathBuf> {
 pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
         let mut scanner = Scanner::default();
+        let mut summaries = Scanner::default();
         let mut last_dirs = Vec::new();
         let mut first = true;
+        let mut notes_stamp = None;
+        let mut notes_checked: Option<Instant> = None;
         loop {
             let state = app.state::<AppState>();
+            if notes_checked.is_none_or(|t| t.elapsed() >= NOTES_EVERY) {
+                notes_checked = Some(Instant::now());
+                if refresh_notes(&state, &mut notes_stamp) {
+                    let _ = app.emit("notes-changed", ());
+                }
+            }
             // Finish a database upgrade first, in small steps so overlays and the app stay usable.
             let step = {
                 let mut db = state.db.lock().unwrap();
@@ -73,6 +109,7 @@ pub fn spawn(app: AppHandle) {
             let dirs = effective_dirs(&state.settings.lock().unwrap().hand_history_dirs);
             if dirs != last_dirs {
                 scanner = Scanner::default();
+                summaries = Scanner::default();
                 last_dirs = dirs.clone();
             }
 
@@ -96,7 +133,18 @@ pub fn spawn(app: AppHandle) {
                     Err(e) => status.last_error = Some(format!("{}: {e}", path.display())),
                 }
             }
-            let refresh = first || !changed.is_empty();
+            let mut tournaments = 0;
+            for path in summaries.changed(&summary_dirs(&dirs)) {
+                let result = {
+                    let mut db = state.db.lock().unwrap();
+                    import_summary(&mut db, &path)
+                };
+                match result {
+                    Ok(n) => tournaments += n,
+                    Err(e) => status.last_error = Some(format!("{}: {e}", path.display())),
+                }
+            }
+            let refresh = first || !changed.is_empty() || tournaments > 0;
             if refresh && let Ok(total) = state.db.lock().unwrap().hand_count() {
                 status.total_hands = total;
             }

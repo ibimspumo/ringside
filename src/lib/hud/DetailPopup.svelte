@@ -38,6 +38,12 @@
     <strong>{seat.name}</strong>
     <span class="num">{fmt(stat(seat.stats, "hands"))} Hände</span>
   </header>
+  {#if seat.note}
+    <div class="note">
+      {#if seat.note.label}<span class="tag" style="--c:{seat.note.label.color}">{seat.note.label.name || "Label"}</span>{/if}
+      {#if seat.note.text}<p>{seat.note.text}</p>{/if}
+    </div>
+  {/if}
   {#each details as s (s.id)}
     <div class="line" title={STAT_META[s.id].help}>
       <span class="label">{STAT_META[s.id].name}</span>
@@ -80,6 +86,28 @@
   header span {
     flex-shrink: 0;
     color: var(--text-2);
+  }
+  .note {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 2px 0 6px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--line-2);
+  }
+  .note p {
+    margin: 0;
+    color: var(--text-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .tag {
+    align-self: flex-start;
+    padding: 0 6px;
+    border-radius: 4px;
+    border-left: 3px solid var(--c);
+    background: var(--surface-2);
+    font-size: 11.5px;
   }
   .line {
     display: grid;

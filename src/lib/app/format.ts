@@ -77,15 +77,15 @@ export function since(period: Period, now = new Date()): string | null {
 }
 
 export type Anchor = { left: number; top: number; right: number; bottom: number };
-export type FloatOptions = { anchor: Anchor; side?: "top" | "right" };
+export type FloatOptions = { anchor: Anchor; side?: "top" | "right" | "bottom" };
 
 const EDGE = 8;
 const GAP = 6;
 
 /**
- * Svelte action for hover cards: moves the node to <body> so no scrolling or contained ancestor
- * can clip it, places it above (or right of) the anchor in viewport coordinates, flips to the
- * other side when there is no room and clamps it 8 px inside the window.
+ * Svelte action for hover cards and popovers: moves the node to <body> so no scrolling or
+ * contained ancestor can clip it, places it above, below or right of the anchor in viewport
+ * coordinates, flips to the other side when there is no room and clamps it 8 px inside the window.
  */
 export function floating(node: HTMLElement, options: FloatOptions) {
   document.body.appendChild(node);
@@ -102,6 +102,10 @@ export function floating(node: HTMLElement, options: FloatOptions) {
       x = (a.left + a.right) / 2 - w / 2;
       y = a.top - GAP - h;
       if (y < EDGE && vh - a.bottom > a.top) y = a.bottom + GAP;
+    } else if (side === "bottom") {
+      x = (a.left + a.right) / 2 - w / 2;
+      y = a.bottom + GAP;
+      if (y + h > vh - EDGE && a.top > vh - a.bottom) y = a.top - GAP - h;
     } else {
       x = a.right + GAP;
       if (x + w > vw - EDGE && a.left > vw - a.right) x = a.left - GAP - w;
@@ -112,8 +116,11 @@ export function floating(node: HTMLElement, options: FloatOptions) {
     node.style.visibility = "";
   }
 
-  // The anchor moves with the page, the card does not; hide it until the next hover.
-  const hide = () => (node.style.visibility = "hidden");
+  // The anchor moves with the page, the card does not; hide it until the next hover. Scrolling
+  // inside the node itself (a long list) moves nothing.
+  const hide = (e: Event) => {
+    if (!(e.target instanceof Node && node.contains(e.target))) node.style.visibility = "hidden";
+  };
   window.addEventListener("scroll", hide, { capture: true, passive: true });
   place(options);
   return {

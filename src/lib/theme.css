@@ -425,7 +425,8 @@ input[type="range"] {
 }
 
 /* Hover cards placed by the `floating` action live on <body> in viewport coordinates. */
-.tip.float {
+.tip.float,
+.popover.float {
   position: fixed;
   z-index: 40;
 }

@@ -65,6 +65,7 @@
       unlisten.push(on<string>("table-updated", (key) => (!view || view.table_key === key) && load()));
       unlisten.push(on("settings-changed", load));
       unlisten.push(on("stats-rebuilt", load));
+      unlisten.push(on("notes-changed", load));
       load();
     })();
 

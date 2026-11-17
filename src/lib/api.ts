@@ -9,12 +9,16 @@ import type {
   HandQuery,
   HandSummary,
   ImportStatus,
+  LiveTable,
+  NotesSource,
+  PlayerNote,
   PlayerView,
   Reports,
   SeatPos,
   Settings,
   ShownHand,
   TableView,
+  Tournaments,
 } from "./types";
 
 /** False when the UI runs in a normal browser (design work, screenshots). */
@@ -83,16 +87,22 @@ export const api = {
       },
       { title: "PokerStars Lobby", class: "PokerStarsLobbyClass", table_key: null, has_hands: false },
     ]),
+  liveTables: () => call<LiveTable[]>("live_tables", {}, demo.demoLiveTables),
+  pokerClientRunning: () =>
+    call<boolean>("poker_client_running", {}, () => new URLSearchParams(window.location.search).get("locked") === "1"),
+  tournaments: (filter: Filter) => call<Tournaments>("tournaments", { filter }, demo.demoTournaments),
+  playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
+  notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
-  dashboard: (filter: Filter) => call<Dashboard>("dashboard", { filter }, demo.demoDashboard),
-  reports: (filter: Filter) => call<Reports>("reports", { filter }, demo.demoReports),
+  dashboard: (filter: Filter) => call<Dashboard>("dashboard", { filter }, () => demo.demoDashboard(filter)),
+  reports: (filter: Filter) => call<Reports>("reports", { filter }, () => demo.demoReports(filter)),
   players: (filter: Filter, search: string, limit = 300) =>
     call<PlayerView[]>("players", { filter, search, limit }, () =>
-      demo.demoPlayers().filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
+      demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
     ),
   shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
-  hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, demo.demoHands),
-  hand: (id: number) => call<Hand | null>("hand", { id }, () => demo.demoHand),
+  hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, () => demo.demoHands(query)),
+  hand: (id: number) => call<Hand | null>("hand", { id }, () => demo.demoHandById(id)),
 };
 
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {

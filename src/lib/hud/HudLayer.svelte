@@ -27,6 +27,8 @@
   /** Positions in px while something is being dragged. */
   let draft = $state<Record<string, Point>>({});
   let openSeat = $state<number | null>(null);
+  /** Plate page shown at this table; every plate switches together, like Jivaro. */
+  let platePage = $state(0);
 
   const s = $derived(view.hud.scale * stageScale(width, height));
 
@@ -113,6 +115,8 @@
       currency={view.currency}
       bountyCurrency={view.bounty_currency}
       onRingMove={(p, done) => move(seat.visual, "ring", p, done)}
+      page={platePage}
+      onNextPage={() => (platePage = (platePage + 1) % Math.max(view.hud.graphic.plate_pages?.length ?? 1, 1))}
       onTap={() => tap(seat.seat)}
     />
   {:else}

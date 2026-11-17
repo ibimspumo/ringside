@@ -1,26 +1,46 @@
-<script lang="ts">
-  import type { ResultPoint } from "../types";
+<script lang="ts" module>
+  export type ChartPoint = { n: number; played_at: string };
+  export type Series<P> = { key: keyof P & string; label: string; color: string; width: number };
+</script>
+
+<script lang="ts" generics="P extends ChartPoint">
   import { date, floating, int, signed } from "./format";
 
-  let { points, height = 300 }: { points: ResultPoint[]; height?: number } = $props();
+  /** Cumulative series over `n` (hands, tournaments, …); each curve starts at zero. */
+  let {
+    points,
+    series,
+    height = 300,
+    unit = "BB",
+    xLabel = "Hände",
+    pointLabel = "Hand",
+    format = (v: number) => `${signed(v)} BB`,
+    tick = (v: number, step: number) => (v === 0 ? "0" : signed(v, step < 1 ? 1 : 0)),
+    empty = "Noch keine Hände in diesem Zeitraum. Spiel ein paar Hände oder wähle oben einen längeren Zeitraum.",
+  }: {
+    points: P[];
+    series: Series<P>[];
+    height?: number;
+    unit?: string;
+    xLabel?: string;
+    pointLabel?: string;
+    format?: (v: number) => string;
+    tick?: (v: number, step: number) => string;
+    empty?: string;
+  } = $props();
 
   const M = { top: 24, right: 16, bottom: 28, left: 56 };
-  const SERIES = [
-    { key: "net_bb", label: "Gesamt", color: "var(--text)", width: 2 },
-    { key: "showdown_bb", label: "Mit Showdown", color: "var(--sd)", width: 1.5 },
-    { key: "non_showdown_bb", label: "Ohne Showdown", color: "var(--neg)", width: 1.5 },
-  ] as const;
+  const val = (p: P, key: keyof P) => p[key] as number;
 
   let width = $state(0);
   let hover = $state<number | null>(null);
   /** Viewport position of the plot, taken on each move so the hover card can sit beside the crosshair. */
   let origin = $state({ left: 0, top: 0 });
 
-  /** Cumulative curves start at zero before the first hand. */
-  const data = $derived<ResultPoint[]>(
+  const data = $derived<P[]>(
     points.length === 0
       ? []
-      : [{ n: 0, played_at: points[0].played_at, net_bb: 0, showdown_bb: 0, non_showdown_bb: 0 }, ...points],
+      : [{ ...points[0], n: 0, ...Object.fromEntries(series.map((s) => [s.key, 0])) } as P, ...points],
   );
 
   function niceStep(span: number, count: number): number {
@@ -37,8 +57,10 @@
     let lo = 0;
     let hi = 0;
     for (const p of data) {
-      lo = Math.min(lo, p.net_bb, p.showdown_bb, p.non_showdown_bb);
-      hi = Math.max(hi, p.net_bb, p.showdown_bb, p.non_showdown_bb);
+      for (const s of series) {
+        lo = Math.min(lo, val(p, s.key));
+        hi = Math.max(hi, val(p, s.key));
+      }
     }
     if (hi - lo < 1) {
       hi += 1;
@@ -48,7 +70,8 @@
     lo = Math.floor(lo / yStep) * yStep;
     hi = Math.ceil(hi / yStep) * yStep;
     const maxN = Math.max(data[data.length - 1].n, 1);
-    const xStep = niceStep(maxN, Math.max(2, Math.round(w / 110)));
+    // Hands and tournaments are counted in whole numbers.
+    const xStep = Math.max(1, Math.ceil(niceStep(maxN, Math.max(2, Math.round(w / 110)))));
 
     const x = (n: number) => M.left + (n / maxN) * w;
     const y = (v: number) => M.top + h - ((v - lo) / (hi - lo)) * h;
@@ -58,17 +81,12 @@
     const xTicks: number[] = [];
     for (let n = 0; n <= maxN; n += xStep) xTicks.push(n);
 
-    const lines = SERIES.map((s) => ({
+    const lines = series.map((s) => ({
       ...s,
-      d: data.map((p, i) => `${i ? "L" : "M"}${x(p.n).toFixed(1)},${y(p[s.key]).toFixed(1)}`).join(""),
+      d: data.map((p, i) => `${i ? "L" : "M"}${x(p.n).toFixed(1)},${y(val(p, s.key)).toFixed(1)}`).join(""),
     }));
     return { x, y, w, h, yTicks, xTicks, lines, yStep };
   });
-
-  function tick(v: number, step: number): string {
-    const digits = step < 1 ? 1 : 0;
-    return v === 0 ? "0" : signed(v, digits);
-  }
 
   function move(e: PointerEvent) {
     if (!chart || data.length === 0) return;
@@ -96,13 +114,13 @@
 
 <div class="chart" bind:clientWidth={width} style="height:{height}px">
   {#if data.length === 0}
-    <div class="none">Noch keine Hände in diesem Zeitraum. Spiel ein paar Hände oder wähle oben einen längeren Zeitraum.</div>
+    <div class="none">{empty}</div>
   {:else if chart}
     <svg
       {width}
       {height}
       role="img"
-      aria-label="Ergebnis-Verlauf in Big Blinds"
+      aria-label="Ergebnis-Verlauf in {unit}"
       onpointermove={move}
       onpointerleave={() => (hover = null)}
     >
@@ -118,8 +136,8 @@
           text-anchor={n === 0 ? "start" : "middle"}>{int(n)}</text
         >
       {/each}
-      <text class="axis" x={M.left - 10} y={M.top + chart.h + 18} text-anchor="end">Hände</text>
-      <text class="axis" x={M.left - 10} y={M.top - 14} dominant-baseline="central" text-anchor="end">BB</text>
+      <text class="axis" x={M.left - 10} y={M.top + chart.h + 18} text-anchor="end">{xLabel}</text>
+      <text class="axis" x={M.left - 10} y={M.top - 14} dominant-baseline="central" text-anchor="end">{unit}</text>
 
       {#each [...chart.lines].reverse() as l (l.key)}
         <path d={l.d} stroke={l.color} stroke-width={l.width} fill="none" stroke-linejoin="round" />
@@ -127,14 +145,14 @@
 
       {#if data.length === 2}
         {#each chart.lines as l (l.key)}
-          <circle cx={chart.x(data[1].n)} cy={chart.y(data[1][l.key])} r="3" fill={l.color} />
+          <circle cx={chart.x(data[1].n)} cy={chart.y(val(data[1], l.key))} r="3" fill={l.color} />
         {/each}
       {/if}
 
       {#if hovered}
         <line class="cross" x1={chart.x(hovered.n)} x2={chart.x(hovered.n)} y1={M.top} y2={M.top + chart.h} />
         {#each chart.lines as l (l.key)}
-          <circle class="dot" cx={chart.x(hovered.n)} cy={chart.y(hovered[l.key])} r="3.5" fill={l.color} />
+          <circle class="dot" cx={chart.x(hovered.n)} cy={chart.y(val(hovered, l.key))} r="3.5" fill={l.color} />
         {/each}
       {/if}
     </svg>
@@ -143,11 +161,12 @@
       {@const x = origin.left + chart.x(hovered.n)}
       {@const y = origin.top + M.top + 6}
       <div class="tip" use:floating={{ anchor: { left: x - 6, right: x + 6, top: y, bottom: y }, side: "right" }}>
-        <header>Hand <span class="num">{int(hovered.n)}</span> · {date(hovered.played_at)}</header>
-        {#each SERIES as s (s.key)}
+        <header>{pointLabel} <span class="num">{int(hovered.n)}</span> · {date(hovered.played_at)}</header>
+        {#each series as s (s.key)}
+          {@const v = val(hovered, s.key)}
           <div class="row">
             <span><i style="background:{s.color}"></i>{s.label}</span>
-            <b class:pos={hovered[s.key] > 0} class:neg={hovered[s.key] < 0}>{signed(hovered[s.key])} BB</b>
+            <b class:pos={v > 0} class:neg={v < 0}>{format(v)}</b>
           </div>
         {/each}
       </div>

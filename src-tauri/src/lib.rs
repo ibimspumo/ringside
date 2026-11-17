@@ -2,12 +2,16 @@ mod importer;
 mod overlay;
 mod settings;
 
+use std::collections::HashSet;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use ringside_core::db::{Db, Filter, GroupRow, HandQuery, HandSummary, Results, Session, ShownHand};
 use ringside_core::model::{GameKind, Hand};
+use ringside_core::notes::{Notes, NotesSource, PlayerNote};
 use ringside_core::stats::{StatValue, stat_values};
-use ringside_core::table::{SeatPos, layout_key, normalize_layouts, to_reference, visual_index};
+use ringside_core::table::{REFERENCE_ASPECT, SeatPos, layout_key, normalize_layouts, to_reference, visual_index};
+use ringside_core::tournament::{Totals, TournamentRow, totals};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -20,6 +24,16 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub import: Mutex<ImportStatus>,
     pub overlays: Overlays,
+    /// The PokerStars client is open; advice features stay locked meanwhile.
+    pub client_running: AtomicBool,
+    pub notes: Mutex<NotesState>,
+}
+
+/// The user's player notes from the client, merged from every notes file found.
+#[derive(Default)]
+pub struct NotesState {
+    pub notes: Notes,
+    pub sources: Vec<NotesSource>,
 }
 
 type CmdResult<T> = Result<T, String>;
@@ -38,6 +52,7 @@ struct SeatView {
     bounty: Option<i64>,
     is_hero: bool,
     stats: Vec<StatValue>,
+    note: Option<PlayerNote>,
 }
 
 /// The hand that just ended, shown briefly on the table.
@@ -70,7 +85,14 @@ struct TableView {
     recap: Recap,
 }
 
-fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String, aspect: f64) -> CmdResult<TableView> {
+fn build_view(
+    db: &Db,
+    settings: &Settings,
+    notes: &Notes,
+    hand: &Hand,
+    title: String,
+    aspect: f64,
+) -> CmdResult<TableView> {
     let names: Vec<String> = hand.active_players().map(|s| s.name.clone()).collect();
     let game = settings.hud.split_by_game.then_some(hand.game);
     let rows = db.counters_for(&names, game).map_err(err)?;
@@ -95,6 +117,7 @@ fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String, aspect: 
                 bounty: seat.bounty,
                 is_hero,
                 stats: stat_values(&counters),
+                note: notes.get(&seat.name).cloned(),
             }
         })
         .collect();
@@ -141,7 +164,8 @@ async fn overlay_view(label: String, aspect: f64, state: State<'_, AppState>) ->
     let db = state.db.lock().unwrap();
     let Some(hand) = db.latest_hand_for_table(&key).map_err(err)? else { return Ok(None) };
     let settings = state.settings.lock().unwrap();
-    build_view(&db, &settings, &hand, info.title, aspect).map(Some)
+    let notes = state.notes.lock().unwrap();
+    build_view(&db, &settings, &notes.notes, &hand, info.title, aspect).map(Some)
 }
 
 /// The most recent real hand, for the HUD editor's preview.
@@ -152,7 +176,8 @@ async fn preview_view(aspect: f64, state: State<'_, AppState>) -> CmdResult<Opti
     let Some(latest) = db.hands(&q).map_err(err)?.into_iter().next() else { return Ok(None) };
     let Some(hand) = db.hand(latest.id).map_err(err)? else { return Ok(None) };
     let settings = state.settings.lock().unwrap();
-    build_view(&db, &settings, &hand, hand.table_name.clone(), aspect).map(Some)
+    let notes = state.notes.lock().unwrap();
+    build_view(&db, &settings, &notes.notes, &hand, hand.table_name.clone(), aspect).map(Some)
 }
 
 #[derive(Serialize)]
@@ -265,6 +290,64 @@ async fn client_windows(state: State<'_, AppState>) -> CmdResult<Vec<ClientWindo
             Ok(ClientWindowView { window, has_hands })
         })
         .collect()
+}
+
+#[derive(Serialize)]
+struct LiveTable {
+    title: String,
+    table_key: String,
+    /// None until a hand of this table has been imported.
+    table: Option<TableView>,
+}
+
+/// Tables the tracker currently sees, each with the players of its latest hand.
+#[tauri::command]
+async fn live_tables(state: State<'_, AppState>) -> CmdResult<Vec<LiveTable>> {
+    let windows = state.overlays.client_windows.lock().unwrap().clone();
+    let db = state.db.lock().unwrap();
+    let settings = state.settings.lock().unwrap();
+    let notes = state.notes.lock().unwrap();
+    let mut seen = HashSet::new();
+    windows
+        .into_iter()
+        .filter_map(|w| Some((w.title, w.table_key?)))
+        .filter(|(_, key)| seen.insert(key.clone()))
+        .map(|(title, table_key)| {
+            let table = match db.latest_hand_for_table(&table_key).map_err(err)? {
+                Some(hand) => Some(build_view(&db, &settings, &notes.notes, &hand, title.clone(), REFERENCE_ASPECT)?),
+                None => None,
+            };
+            Ok(LiveTable { title, table_key, table })
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn poker_client_running(state: State<'_, AppState>) -> bool {
+    state.client_running.load(Ordering::Relaxed)
+}
+
+#[derive(Serialize)]
+struct TournamentsView {
+    rows: Vec<TournamentRow>,
+    totals: Vec<Totals>,
+}
+
+#[tauri::command]
+async fn tournaments(filter: Filter, state: State<'_, AppState>) -> CmdResult<TournamentsView> {
+    let rows = state.db.lock().unwrap().tournaments(&filter).map_err(err)?;
+    Ok(TournamentsView { totals: totals(&rows), rows })
+}
+
+#[tauri::command]
+fn player_note(player: String, state: State<'_, AppState>) -> Option<PlayerNote> {
+    state.notes.lock().unwrap().notes.get(&player).cloned()
+}
+
+/// The notes files found, for the settings page.
+#[tauri::command]
+fn notes_sources(state: State<'_, AppState>) -> Vec<NotesSource> {
+    state.notes.lock().unwrap().sources.clone()
 }
 
 #[tauri::command]
@@ -392,6 +475,8 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 import: Mutex::new(ImportStatus::default()),
                 overlays: Overlays::default(),
+                client_running: AtomicBool::new(false),
+                notes: Mutex::new(NotesState::default()),
             });
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
@@ -417,9 +502,14 @@ pub fn run() {
             reset_profile,
             import_status,
             client_windows,
+            live_tables,
+            poker_client_running,
             detected_dirs,
             dashboard,
             reports,
+            tournaments,
+            player_note,
+            notes_sources,
             players,
             shown_hands,
             hands,

@@ -6,9 +6,11 @@
 pub mod db;
 pub mod import;
 pub mod model;
+pub mod notes;
 pub mod parser;
 pub mod stats;
 pub mod table;
+pub mod tournament;
 
 pub use db::Db;
 pub use model::Hand;

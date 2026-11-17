@@ -9,26 +9,32 @@ use serde::{Deserialize, Serialize};
 use crate::model::{GameKind, Hand};
 use crate::parser::parse_hand;
 use crate::stats::{Counters, analyze, hand_class, position_labels};
+use crate::tournament::{BuyIn, Summary, TournamentRow};
 
 pub use rusqlite::Error;
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 2;
+const SCHEMA_VERSION: i32 = 3;
 
 pub struct Db {
     conn: Connection,
 }
 
-/// Restricts reports to a kind of game and a start date ("YYYY/MM/DD").
+/// Restricts reports to a kind of game, a start date ("YYYY/MM/DD") and one tournament.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Filter {
     pub game: Option<GameKind>,
     pub since: Option<String>,
+    pub tournament_id: Option<u64>,
 }
 
 impl Filter {
     fn game(&self) -> Option<&'static str> {
         self.game.map(GameKind::as_str)
+    }
+
+    fn tournament(&self) -> Option<i64> {
+        self.tournament_id.map(|t| t as i64)
     }
 }
 
@@ -140,14 +146,19 @@ fn counters_at(row: &rusqlite::Row, first: usize) -> rusqlite::Result<Counters> 
     Ok(Counters::from_slice(&values))
 }
 
-/// Joined `hands h` / `player_hands ph` restriction shared by reports; binds ?1 game, ?2 since.
-const FILTER_SQL: &str = "(?1 IS NULL OR h.game = ?1) AND (?2 IS NULL OR h.played_at >= ?2)";
+/// Joined `hands h` / `player_hands ph` restriction shared by reports; binds ?1 game, ?2 since,
+/// ?3 tournament id. Queries number their own parameters from ?4 on.
+const FILTER_SQL: &str =
+    "(?1 IS NULL OR h.game = ?1) AND (?2 IS NULL OR h.played_at >= ?2) AND (?3 IS NULL OR h.tournament_id = ?3)";
 
-/// Lets a date filter range-scan `player_hands` by hand id instead of reading every row. The
-/// smallest id played since the date is a lower bound however ids relate to time, so this
-/// only narrows the scan; `FILTER_SQL` still decides which hands count.
-const SINCE_RANGE_SQL: &str =
-    "(?2 IS NULL OR ph.hand_id >= (SELECT COALESCE(MIN(id), 0) FROM hands WHERE played_at >= ?2))";
+/// Lets a date or tournament filter range-scan `player_hands` by hand id instead of reading
+/// every row. The bounds only narrow the scan, however ids relate to time; `FILTER_SQL` still
+/// decides which hands count. Written without `OR`, which would stop SQLite from using the key.
+const HAND_RANGE_SQL: &str = "ph.hand_id BETWEEN
+    MAX(CASE WHEN ?2 IS NULL THEN 0 ELSE COALESCE((SELECT MIN(id) FROM hands WHERE played_at >= ?2), 0) END,
+        CASE WHEN ?3 IS NULL THEN 0 ELSE COALESCE((SELECT MIN(id) FROM hands WHERE tournament_id = ?3), 0) END)
+    AND CASE WHEN ?3 IS NULL THEN 9223372036854775807
+             ELSE COALESCE((SELECT MAX(id) FROM hands WHERE tournament_id = ?3), -1) END";
 
 impl Db {
     pub fn open(path: &Path) -> Result<Self, Error> {
@@ -201,7 +212,26 @@ impl Db {
              );
              CREATE INDEX IF NOT EXISTS player_totals_hands ON player_totals(hands);
              CREATE TABLE IF NOT EXISTS files (path TEXT PRIMARY KEY, offset INTEGER NOT NULL);
-             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);"
+             CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+             CREATE TABLE IF NOT EXISTS tournaments (
+                 id INTEGER PRIMARY KEY,
+                 game TEXT NOT NULL DEFAULT '',
+                 currency TEXT,
+                 buy_in_prize INTEGER,
+                 buy_in_bounty INTEGER,
+                 buy_in_fee INTEGER,
+                 hand_place INTEGER,
+                 hand_prize INTEGER,
+                 hand_finish_id INTEGER,
+                 summary INTEGER NOT NULL DEFAULT 0,
+                 entrants INTEGER,
+                 started_at TEXT,
+                 place INTEGER,
+                 prize INTEGER,
+                 bounties INTEGER,
+                 extra_cost INTEGER NOT NULL DEFAULT 0,
+                 name TEXT
+             );"
         ))?;
         let added: &[(&str, &str, &str)] = &[
             ("hands", "hero_position", "TEXT"),
@@ -214,6 +244,7 @@ impl Db {
             ("player_hands", "position", "TEXT"),
             ("player_hands", "shown", "TEXT NOT NULL DEFAULT ''"),
             ("player_hands", "bounty", "INTEGER NOT NULL DEFAULT 0"),
+            ("tournaments", "name", "TEXT"),
         ];
         for (table, column, decl) in added {
             let exists: bool = conn.query_row(
@@ -320,7 +351,7 @@ impl Db {
     /// upgrade is still rebuilding the totals, they are summed from the per-hand rows instead.
     pub fn counters_for(&self, players: &[String], game: Option<GameKind>) -> Result<Vec<PlayerRow>, Error> {
         if self.needs_rebuild()? {
-            let filter = Filter { game, since: None };
+            let filter = Filter { game, ..Default::default() };
             return players
                 .iter()
                 .map(|p| {
@@ -369,15 +400,15 @@ impl Db {
     }
 
     /// Players ordered by hands played, optionally filtered by a name substring. Without a date
-    /// filter this reads the running totals, so it stays fast with millions of hands.
+    /// or tournament filter this reads the running totals, so it stays fast with millions of hands.
     pub fn players(&self, filter: &Filter, search: &str, limit: usize) -> Result<Vec<PlayerRow>, Error> {
-        if filter.since.is_some() {
+        if filter.since.is_some() || filter.tournament_id.is_some() {
             return self.player_rows(None, filter, limit, search);
         }
         let sql = format!(
             "SELECT player, SUM(net), {} FROM player_totals
              WHERE (?1 IS NULL OR game = ?1) AND player LIKE ?2 ESCAPE '\\'
-             GROUP BY player ORDER BY SUM(hands) DESC LIMIT ?3",
+             GROUP BY player ORDER BY SUM(hands) DESC, player LIMIT ?3",
             Counters::FIELDS.iter().map(|f| format!("SUM({f})")).collect::<Vec<_>>().join(", ")
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
@@ -396,14 +427,14 @@ impl Db {
     ) -> Result<Vec<PlayerRow>, Error> {
         let sql = format!(
             "SELECT ph.player, SUM(ph.net), {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE {FILTER_SQL} AND {SINCE_RANGE_SQL}
-               AND (?3 IS NULL OR ph.player = ?3) AND ph.player LIKE ?4 ESCAPE '\\'
-             GROUP BY ph.player ORDER BY SUM(ph.hands) DESC LIMIT ?5",
+             WHERE {FILTER_SQL} AND {HAND_RANGE_SQL}
+               AND (?4 IS NULL OR ph.player = ?4) AND ph.player LIKE ?5 ESCAPE '\\'
+             GROUP BY ph.player ORDER BY SUM(ph.hands) DESC, ph.player LIMIT ?6",
             sums()
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = stmt.query_map(
-            params![filter.game(), filter.since, player, like_pattern(search), limit as i64],
+            params![filter.game(), filter.since, filter.tournament(), player, like_pattern(search), limit as i64],
             |row| Ok(PlayerRow { name: row.get(0)?, net: row.get(1)?, counters: counters_at(row, 2)? }),
         )?;
         rows.collect()
@@ -415,12 +446,12 @@ impl Db {
         let sql = format!(
             "SELECT {key}, SUM(ph.net), SUM(CAST(ph.net AS REAL) / ph.big_blind), {}
              FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE ph.player = h.hero AND {key} IS NOT NULL AND {FILTER_SQL}
+             WHERE ph.player = h.hero AND {key} IS NOT NULL AND {FILTER_SQL} AND {HAND_RANGE_SQL}
              GROUP BY {key}",
             sums()
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params![filter.game(), filter.since], |row| {
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |row| {
             Ok(GroupRow { key: row.get(0)?, net: row.get(1)?, net_bb: row.get(2)?, counters: counters_at(row, 3)? })
         })?;
         rows.collect()
@@ -430,7 +461,7 @@ impl Db {
     pub fn hero_results(&self, filter: &Filter, max_points: usize) -> Result<Results, Error> {
         let count: i64 = self.conn.query_row(
             &format!("SELECT COUNT(*) FROM hands h WHERE h.hero_net IS NOT NULL AND {FILTER_SQL}"),
-            params![filter.game(), filter.since],
+            params![filter.game(), filter.since, filter.tournament()],
             |r| r.get(0),
         )?;
         let every = (count as usize).div_ceil(max_points.max(1)).max(1) as i64;
@@ -439,7 +470,7 @@ impl Db {
              WHERE h.hero_net IS NOT NULL AND {FILTER_SQL} ORDER BY h.played_at, h.id"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let mut rows = stmt.query(params![filter.game(), filter.since])?;
+        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament()])?;
         let mut out = Results::default();
         while let Some(r) = rows.next()? {
             let net: i64 = r.get(1)?;
@@ -476,7 +507,7 @@ impl Db {
              FROM hands h WHERE h.hero_net IS NOT NULL AND {FILTER_SQL} ORDER BY h.played_at, h.id"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let mut rows = stmt.query(params![filter.game(), filter.since])?;
+        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament()])?;
         let mut sessions: Vec<Session> = Vec::new();
         let mut tables: Vec<std::collections::BTreeSet<String>> = Vec::new();
         let mut last_day: Option<f64> = None;
@@ -558,23 +589,24 @@ impl Db {
                     h.hero_position, h.hero_net, h.hero_showdown, h.pot, h.board
              FROM hands h
              WHERE {FILTER_SQL}
-               AND (?3 IS NULL OR h.id IN (SELECT hand_id FROM player_hands WHERE player = ?3))
-               AND (?4 = 0 OR h.hero_showdown = 1)
-               AND (?5 IS NULL OR (?5 = 'won' AND h.hero_net > 0) OR (?5 = 'lost' AND h.hero_net < 0))
-               AND (?6 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?6)
-             ORDER BY h.played_at DESC, h.id DESC LIMIT ?7 OFFSET ?8"
+               AND (?4 IS NULL OR h.id IN (SELECT hand_id FROM player_hands WHERE player = ?4))
+               AND (?5 = 0 OR h.hero_showdown = 1)
+               AND (?6 IS NULL OR (?6 = 'won' AND h.hero_net > 0) OR (?6 = 'lost' AND h.hero_net < 0))
+               AND (?7 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?7)
+             ORDER BY h.played_at DESC, h.id DESC LIMIT ?8 OFFSET ?9"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = stmt.query_map(
             params![
                 q.filter.game(),
                 q.filter.since,
+                q.filter.tournament(),
                 q.player,
                 q.showdown_only as i64,
                 q.result,
                 q.min_pot_bb,
                 q.limit as i64,
-                q.offset as i64
+                q.offset as i64,
             ],
             |r| {
                 let game: String = r.get(1)?;
@@ -596,6 +628,118 @@ impl Db {
             },
         )?;
         rows.collect()
+    }
+
+    /// Stores a parsed summary file. The client rewrites the file while the tournament runs, so
+    /// a later version replaces the earlier one instead of adding to it.
+    pub fn upsert_summary(&self, s: &Summary) -> Result<(), Error> {
+        let b = s.buy_in.as_ref();
+        self.conn.execute(
+            "INSERT INTO tournaments (id, game, currency, buy_in_prize, buy_in_bounty, buy_in_fee, summary,
+                 entrants, started_at, place, prize, bounties, extra_cost)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9, ?10, ?11, ?12)
+             ON CONFLICT(id) DO UPDATE SET
+                 game = excluded.game, currency = COALESCE(excluded.currency, currency),
+                 buy_in_prize = COALESCE(excluded.buy_in_prize, buy_in_prize),
+                 buy_in_bounty = COALESCE(excluded.buy_in_bounty, buy_in_bounty),
+                 buy_in_fee = COALESCE(excluded.buy_in_fee, buy_in_fee),
+                 summary = 1, entrants = excluded.entrants, started_at = excluded.started_at,
+                 place = excluded.place, prize = excluded.prize, bounties = excluded.bounties,
+                 extra_cost = excluded.extra_cost",
+            params![
+                s.id as i64,
+                s.game,
+                s.currency,
+                b.map(|b| b.prize),
+                b.map(|b| b.bounty),
+                b.map(|b| b.fee),
+                s.entrants,
+                s.started_at,
+                s.place,
+                s.prize,
+                s.bounties,
+                s.extra_cost,
+            ],
+        )?;
+        Ok(())
+    }
+
+    /// The hero's tournaments, newest first. A summary file decides place, prize and bounties;
+    /// without one, the hand in which the hero left the tournament does, if it was imported.
+    pub fn tournaments(&self, filter: &Filter) -> Result<Vec<TournamentRow>, Error> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT t.id, t.game, t.currency, t.buy_in_prize, t.buy_in_bounty, t.buy_in_fee, t.hand_place,
+                    t.hand_prize, t.summary, t.entrants, t.place, t.prize, t.bounties, t.extra_cost,
+                    COALESCE(t.started_at, h.first, ''), COALESCE(h.hands, 0), COALESCE(h.chips, 0),
+                    COALESCE(h.bounty, 0), t.name
+             FROM tournaments t
+             LEFT JOIN (SELECT tournament_id, MIN(played_at) AS first, COUNT(*) AS hands,
+                               SUM(hero_net) AS chips, SUM(hero_bounty) AS bounty
+                        FROM hands WHERE tournament_id IS NOT NULL AND hero_net IS NOT NULL
+                        GROUP BY tournament_id) h ON h.tournament_id = t.id
+             WHERE (t.game != '' OR t.summary = 1)
+               AND (?1 IS NULL OR COALESCE(t.started_at, h.first, '') >= ?1)
+             ORDER BY 15 DESC, t.id DESC",
+        )?;
+        let rows = stmt.query_map(params![filter.since], |r| {
+            let buy_in = match (r.get::<_, Option<i64>>(3)?, r.get::<_, Option<i64>>(4)?, r.get::<_, Option<i64>>(5)?) {
+                (Some(prize), bounty, fee) => Some(BuyIn {
+                    prize,
+                    bounty: bounty.unwrap_or(0),
+                    fee: fee.unwrap_or(0),
+                    currency: r.get(2)?,
+                }),
+                _ => None,
+            };
+            let has_summary = r.get::<_, i64>(8)? != 0;
+            let (place, prize): (Option<i64>, Option<i64>) = match (has_summary, r.get::<_, Option<i64>>(10)?) {
+                (true, Some(place)) => (Some(place), Some(r.get::<_, Option<i64>>(11)?.unwrap_or(0))),
+                _ => match r.get::<_, Option<i64>>(6)? {
+                    Some(place) => (Some(place), Some(r.get::<_, Option<i64>>(7)?.unwrap_or(0))),
+                    None => (None, None),
+                },
+            };
+            let bounties = r.get::<_, Option<i64>>(12)?.unwrap_or(r.get(17)?);
+            let extra_cost: i64 = r.get(13)?;
+            let cost = buy_in.as_ref().map(|b| b.total() + extra_cost);
+            Ok(TournamentRow {
+                id: r.get::<_, i64>(0)? as u64,
+                game: r.get(1)?,
+                currency: r.get(2)?,
+                buy_in,
+                cost,
+                entrants: r.get(9)?,
+                place,
+                prize,
+                bounties,
+                profit: match (cost, prize) {
+                    (Some(c), Some(p)) => Some(p + bounties - c),
+                    _ => None,
+                },
+                started_at: r.get(14)?,
+                hands: r.get(15)?,
+                chips: r.get(16)?,
+                has_summary,
+                name: r.get(18)?,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Remembers a tournament's name as shown in its table window title. Returns true when it
+    /// changed. A tournament not yet known from hands gets a row, so the name is there once
+    /// its first hand arrives.
+    pub fn set_tournament_name(&self, id: u64, name: &str) -> Result<bool, Error> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Ok(false);
+        }
+        let changed = self.conn.execute(
+            "INSERT INTO tournaments (id, name) VALUES (?1, ?2)
+             ON CONFLICT(id) DO UPDATE SET name = excluded.name WHERE name IS NOT excluded.name",
+            params![id as i64, name],
+        )?;
+        Ok(changed > 0)
     }
 
     pub fn heroes(&self) -> Result<Vec<String>, Error> {
@@ -698,6 +842,10 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         hand.bounty_currency,
     ])?;
 
+    if let Some(tid) = hand.tournament_id {
+        write_tournament(tx, tid, hand)?;
+    }
+
     let placeholders = vec!["?"; Counters::FIELDS.len() + 8].join(", ");
     let mut stmt = tx.prepare_cached(&format!(
         "INSERT OR REPLACE INTO player_hands (hand_id, player, game, net, big_blind, position, shown, bounty, {})
@@ -732,6 +880,41 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
             values.extend(c.to_vec().into_iter().map(Into::into));
             totals.execute(params_from_iter(values))?;
         }
+    }
+    Ok(())
+}
+
+/// What a tournament hand tells about its tournament. Idempotent, so rebuilding or importing a
+/// hand twice changes nothing; values from a summary file are never overwritten.
+fn write_tournament(tx: &Transaction, tid: u64, hand: &Hand) -> Result<(), Error> {
+    let b = hand.buy_in.as_ref();
+    tx.prepare_cached(
+        "INSERT INTO tournaments (id, game, currency, buy_in_prize, buy_in_bounty, buy_in_fee)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+         ON CONFLICT(id) DO UPDATE SET
+             game = CASE WHEN game = '' THEN excluded.game ELSE game END,
+             currency = COALESCE(currency, excluded.currency),
+             buy_in_prize = COALESCE(buy_in_prize, excluded.buy_in_prize),
+             buy_in_bounty = COALESCE(buy_in_bounty, excluded.buy_in_bounty),
+             buy_in_fee = COALESCE(buy_in_fee, excluded.buy_in_fee)",
+    )?
+    .execute(params![
+        tid as i64,
+        crate::tournament::game_label(&hand.variant),
+        b.and_then(|b| b.currency.clone()),
+        b.map(|b| b.prize),
+        b.map(|b| b.bounty),
+        b.map(|b| b.fee),
+    ])?;
+    let hero = hand.hero.as_deref();
+    if let Some(f) = hand.finishes.iter().find(|f| Some(f.player.as_str()) == hero) {
+        // After a re-entry the hero can leave twice; the later hand has the final place.
+        tx.prepare_cached(
+            "UPDATE tournaments SET hand_place = ?2, hand_prize = ?3, hand_finish_id = ?4,
+                 currency = COALESCE(currency, ?5)
+             WHERE id = ?1 AND (hand_finish_id IS NULL OR hand_finish_id <= ?4)",
+        )?
+        .execute(params![tid as i64, f.place, f.prize, hand.id as i64, f.currency])?;
     }
     Ok(())
 }

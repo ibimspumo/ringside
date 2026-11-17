@@ -21,7 +21,14 @@ export const AVATAR_RADIUS = 33;
  * Graphic plate, sized to cover the client's name plate (195 × 60 at 953 px) and the bounty
  * badge under the avatar. `compact` is the stats-only strip used when not covering.
  */
-export const PLATE = { width: 212, height: 82, offsetY: 3, behindAvatar: 37, compact: { width: 150, height: 34 } };
+export const PLATE = {
+  width: 212,
+  // As tall as the ring and ending in a half circle around it: a fixed unit like the original.
+  height: RING.size,
+  offsetY: 0,
+  behindAvatar: RING.size / 2,
+  compact: { width: 150, height: 34 },
+};
 
 export type Side = "left" | "right";
 

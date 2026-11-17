@@ -46,8 +46,8 @@ impl Default for ClassicConfig {
 pub struct GraphicConfig {
     /// Ring segments clockwise from the top left.
     pub segments: Vec<StatId>,
-    /// The three big numbers on the plate.
-    pub plate_stats: Vec<StatId>,
+    /// Pages of three big numbers on the plate; a click on a plate shows the next page.
+    pub plate_pages: Vec<Vec<StatId>>,
     /// Lay the plate over the client's name plate (hides its action text and timer).
     pub cover_plate: bool,
     /// Plate width as a multiple of the default, for client themes with wider name plates.
@@ -58,7 +58,11 @@ impl Default for GraphicConfig {
     fn default() -> Self {
         GraphicConfig {
             segments: vec![StatId::Vpip, StatId::Pfr, StatId::Af, StatId::ThreeBet],
-            plate_stats: vec![StatId::ThreeBet, StatId::FoldToThreeBet, StatId::Steal],
+            plate_pages: vec![
+                vec![StatId::Vpip, StatId::Pfr, StatId::ThreeBet],
+                vec![StatId::FoldToThreeBet, StatId::Steal, StatId::FoldToSteal],
+                vec![StatId::Cbet, StatId::FoldToCbet, StatId::Af],
+            ],
             cover_plate: true,
             plate_width: 1.0,
         }
@@ -234,7 +238,13 @@ impl Profile {
         hud.recap_seconds = hud.recap_seconds.clamp(0.0, 15.0);
         hud.graphic.plate_width = hud.graphic.plate_width.clamp(0.8, 1.5);
         hud.graphic.segments.resize(4, defaults.graphic.segments[0]);
-        hud.graphic.plate_stats.resize(3, defaults.graphic.plate_stats[0]);
+        hud.graphic.plate_pages.truncate(5);
+        if hud.graphic.plate_pages.is_empty() {
+            hud.graphic.plate_pages = defaults.graphic.plate_pages.clone();
+        }
+        for page in &mut hud.graphic.plate_pages {
+            page.resize(3, StatId::Vpip);
+        }
         hud.thresholds.retain(|_, t| t.low.is_finite() && t.high.is_finite() && t.low <= t.high);
         Ok(p)
     }

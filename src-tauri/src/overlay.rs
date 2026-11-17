@@ -50,9 +50,10 @@ pub fn spawn(_app: tauri::AppHandle) {}
 #[cfg(windows)]
 mod win {
     use std::collections::HashMap;
+    use std::sync::atomic::Ordering;
     use std::time::Duration;
 
-    use ringside_core::table::key_from_title;
+    use ringside_core::table::{key_from_title, tournament_from_title};
     use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
     use windows::Win32::Foundation::{CloseHandle, HWND, POINT, RECT};
     use windows::Win32::Graphics::Gdi::ClientToScreen;
@@ -121,8 +122,9 @@ mod win {
         utf16(&buf, len)
     }
 
-    /// Visible windows of the poker client, and the ones among them that are tables.
-    fn scan() -> (Vec<isize>, Vec<ClientWindow>) {
+    /// Visible windows of the poker client, the ones among them that are tables, and whether
+    /// the client runs at all (minimised to the tray it only has hidden windows).
+    fn scan() -> (Vec<isize>, Vec<ClientWindow>, bool) {
         let mut clients: HashMap<u32, bool> = HashMap::new();
         let mut tables = Vec::new();
         let mut seen = Vec::new();
@@ -133,12 +135,12 @@ mod win {
                 break;
             }
             after = Some(h);
-            if !unsafe { IsWindowVisible(h) }.as_bool() {
-                continue;
-            }
             let mut pid = 0u32;
             unsafe { GetWindowThreadProcessId(h, Some(&mut pid)) };
             if !*clients.entry(pid).or_insert_with(|| is_poker_client(pid)) {
+                continue;
+            }
+            if !unsafe { IsWindowVisible(h) }.as_bool() {
                 continue;
             }
             let title = window_title(h);
@@ -149,7 +151,8 @@ mod win {
             }
             seen.push(ClientWindow { title, class, table_key });
         }
-        (tables, seen)
+        let running = clients.values().any(|&poker| poker);
+        (tables, seen, running)
     }
 
     fn describe(h: HWND) -> Option<Table> {
@@ -204,9 +207,12 @@ mod win {
             loop {
                 let state = app.state::<AppState>();
                 if tick.is_multiple_of(SCAN_EVERY) {
-                    let (found, seen) = scan();
+                    let (found, seen, running) = scan();
                     table_hwnds = found;
                     *state.overlays.client_windows.lock().unwrap() = seen;
+                    if state.client_running.swap(running, Ordering::Relaxed) != running {
+                        let _ = app.emit("poker-client", running);
+                    }
                 }
                 tick = tick.wrapping_add(1);
                 let tables: Vec<Table> = table_hwnds.iter().filter_map(|&h| describe(hwnd(h))).collect();
@@ -237,6 +243,11 @@ mod win {
                             info.table_key = key.clone();
                         }
                         let _ = app.emit_to(label.as_str(), "overlay-table", key);
+                        if let Some((id, name)) = tournament_from_title(&table.title)
+                            && let Ok(true) = state.db.lock().unwrap().set_tournament_name(id, &name)
+                        {
+                            let _ = app.emit("tournament-named", id);
+                        }
                     }
 
                     if !table.minimized && t.rect != table.rect {

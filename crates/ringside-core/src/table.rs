@@ -29,6 +29,29 @@ pub fn key_from_title(title: &str) -> Option<String> {
     (!name.is_empty() && title.contains(" - ")).then(|| table_key(GameKind::Cash, None, name))
 }
 
+/// A title segment holding the blinds: "50/100", "50/100 Ante 12", "Blinds 1,000/2,000 Ante 250".
+static BLINDS_SEGMENT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^(?:\p{L}+\s+)*[\d.,]+/[\d.,]+(?:\s+\p{L}+\s+[\d.,]+)?$").unwrap());
+
+/// Tournament id and name from a tournament table's window title. The title is
+/// "<name> - <blinds> - <Tournament id Table n> - <Logged in as …>", and the name itself may
+/// contain " - ", so the name is everything before the blinds segment closest to the id. When
+/// no blinds segment is found, everything before the id segment is the name; it may be empty.
+pub fn tournament_from_title(title: &str) -> Option<(u64, String)> {
+    if title.starts_with("PokerStars") {
+        return None;
+    }
+    let c = TOURNAMENT_TITLE.captures(title)?;
+    let id: u64 = c[1].parse().ok()?;
+    let start = c.get(0)?.start();
+    let before: Vec<&str> = title[..start].split(" - ").collect();
+    // The id segment itself: whatever precedes the match inside it is not part of the name.
+    let named = &before[..before.len() - 1];
+    let end = named.iter().rposition(|s| BLINDS_SEGMENT.is_match(s.trim())).unwrap_or(named.len());
+    let name = named[..end].join(" - ").trim().to_string();
+    Some((id, name))
+}
+
 /// Normalised (0..1) point inside the table's client area.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct Point {
@@ -230,6 +253,37 @@ mod tests {
         );
         assert_eq!(key_from_title("PokerStars Lobby"), None);
         assert_eq!(key_from_title("PokerStars.EU Lobby - Eingeloggt als x"), None);
+    }
+
+    #[test]
+    fn tournament_names_from_titles() {
+        let name = tournament_from_title;
+        assert_eq!(
+            name("$5.50 Mini Early Battle [Progressive KO], $1.5K Gtd - 50/100 Ante 12 - Turnier 4046789300 Tisch 10 - Eingeloggt als X"),
+            Some((4046789300, "$5.50 Mini Early Battle [Progressive KO], $1.5K Gtd".into()))
+        );
+        assert_eq!(
+            name("$10+$1 NLHE 9-Max - Blinds 50/100 Ante 10 - Tournament 3500000001 Table 12 - Logged In as Hero"),
+            Some((3500000001, "$10+$1 NLHE 9-Max".into()))
+        );
+        assert_eq!(
+            name("Sunday Million - Day 1 - 1,000/2,000 Ante 250 - Tournament 3500000002 Table 7 - Logged In as Hero"),
+            Some((3500000002, "Sunday Million - Day 1".into())),
+            "a name with \" - \" stays whole"
+        );
+        assert_eq!(
+            name("Hot $1/$2 Turbo - 1/2 Price Special - 15/30 - Turnier 4046791618 Tisch 3 - Eingeloggt als x"),
+            Some((4046791618, "Hot $1/$2 Turbo - 1/2 Price Special".into())),
+            "slashes in the name are not blinds"
+        );
+        assert_eq!(
+            name("Freeroll - Turnier 4046791619 Tisch 1 - Eingeloggt als x"),
+            Some((4046791619, "Freeroll".into())),
+            "no blinds segment"
+        );
+        assert_eq!(name("Turnier 4046791620 Tisch 1"), Some((4046791620, String::new())));
+        assert_eq!(name("Aquila II - $0.05/$0.10 USD - No Limit Hold'em - Logged In as Hero"), None);
+        assert_eq!(name("PokerStars Lobby"), None);
     }
 
     #[test]

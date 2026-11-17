@@ -6,7 +6,8 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
-use crate::model::{Action, ActionKind, Amount, GameKind, Hand, Seat, Street};
+use crate::model::{Action, ActionKind, Amount, Finish, GameKind, Hand, Seat, Street};
+use crate::tournament::parse_buy_in;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
@@ -115,7 +116,7 @@ pub fn parse_amount(raw: &str) -> Option<Amount> {
     int.checked_mul(100)?.checked_add(frac)
 }
 
-fn currency_code(symbol: &str, code: Option<&str>) -> Option<String> {
+pub(crate) fn currency_code(symbol: &str, code: Option<&str>) -> Option<String> {
     if let Some(code) = code {
         return Some(code.to_string());
     }
@@ -123,6 +124,8 @@ fn currency_code(symbol: &str, code: Option<&str>) -> Option<String> {
         "$" => Some("USD".into()),
         "€" => Some("EUR".into()),
         "£" => Some("GBP".into()),
+        "₹" => Some("INR".into()),
+        "¥" => Some("CNY".into()),
         _ => None,
     }
 }
@@ -139,12 +142,16 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         .captures(header)
         .and_then(|c| c[1].parse().ok())
         .ok_or_else(|| malformed("missing hand id"))?;
-    let tournament_id: Option<u64> = TOURNAMENT_ID.captures(header).and_then(|c| c[1].parse().ok());
+    let tournament = TOURNAMENT_ID.captures(header);
+    let tournament_id: Option<u64> = tournament.as_ref().and_then(|c| c[1].parse().ok());
     let game = if tournament_id.is_some() { GameKind::Tournament } else { GameKind::Cash };
-    let variant = VARIANT
-        .captures(header)
-        .map(|c| format!("{} {}", &c[1], &c[2]))
-        .ok_or_else(|| ParseError::Unsupported(header.to_string()))?;
+    let variant_match = VARIANT.captures(header).ok_or_else(|| ParseError::Unsupported(header.to_string()))?;
+    let variant = format!("{} {}", &variant_match[1], &variant_match[2]);
+    // "Tournament #123, $10+$10+$2 USD Hold'em No Limit": the buy-in sits between id and game.
+    let buy_in = tournament.and_then(|c| {
+        let (from, to) = (c.get(0)?.end(), variant_match.get(0)?.start());
+        header.get(from..to)?.strip_prefix(',').and_then(parse_buy_in)
+    });
     let stakes = STAKES.captures(header).ok_or_else(|| malformed("missing stakes"))?;
     let small_blind = parse_amount(&stakes[2]).ok_or_else(|| malformed("small blind"))?;
     let big_blind = parse_amount(&stakes[3]).ok_or_else(|| malformed("big blind"))?;
@@ -223,6 +230,8 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         rake: 0,
         bounties_won: Vec::new(),
         bounty_currency,
+        buy_in,
+        finishes: Vec::new(),
     };
 
     let mut street = Street::Preflop;
@@ -298,6 +307,18 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             hand.collected.push((name, amount));
             continue;
         }
+        if let Some((name, rest)) = find_player(line, " finished the tournament in ") {
+            let place = rest.split(|c: char| !c.is_ascii_digit()).next().and_then(|p| p.parse().ok());
+            let prize = rest.split_once(" and received ").map(|(_, p)| p.trim_end_matches('.'));
+            if let Some(place) = place {
+                add_finish(&mut hand, name, place, prize);
+            }
+            continue;
+        }
+        if let Some((name, rest)) = find_player(line, " wins the tournament and receives ") {
+            add_finish(&mut hand, name, 1, rest.split_whitespace().next());
+            continue;
+        }
         // "A, B split the $50 bounty for eliminating C"
         if let Some((names, rest)) = line.split_once(" split the ")
             && rest.contains(" bounty for eliminating ")
@@ -337,6 +358,18 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
     }
 
     Ok(hand)
+}
+
+/// `prize` is the text after "received", e.g. "$5.40" or "2700"; a ticket counts as no money.
+fn add_finish(hand: &mut Hand, player: String, place: i64, prize: Option<&str>) {
+    let prize = prize.filter(|p| p.starts_with(|c: char| !c.is_ascii_alphabetic()));
+    let symbol: String = prize.unwrap_or("").chars().take_while(|c| !c.is_ascii_digit()).collect();
+    hand.finishes.push(Finish {
+        player,
+        place,
+        prize: prize.and_then(parse_amount),
+        currency: currency_code(&symbol, None),
+    });
 }
 
 /// Splits "A, B, C" into seated player names, longest match first.

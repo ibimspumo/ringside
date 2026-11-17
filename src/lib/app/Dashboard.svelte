@@ -1,10 +1,16 @@
 <script lang="ts">
   import { api } from "../api";
   import { PALETTES, RATED_STATS, STAT_META, bountyText, compact, fmt, stat } from "../stats";
-  import type { Dashboard, Filter, HudConfig, StatId } from "../types";
+  import type { Dashboard, Filter, HudConfig, ResultPoint, StatId } from "../types";
   import { int, sign, signed } from "./format";
-  import ResultsChart from "./ResultsChart.svelte";
+  import ResultsChart, { type Series } from "./ResultsChart.svelte";
   import Wheel from "./Wheel.svelte";
+
+  const SERIES: Series<ResultPoint>[] = [
+    { key: "net_bb", label: "Gesamt", color: "var(--text)", width: 2 },
+    { key: "showdown_bb", label: "Mit Showdown", color: "var(--sd)", width: 1.5 },
+    { key: "non_showdown_bb", label: "Ohne Showdown", color: "var(--neg)", width: 1.5 },
+  ];
 
   let { filter, hud, refresh }: { filter: Filter; hud: HudConfig | null; refresh: number } = $props();
 
@@ -99,7 +105,7 @@
         </div>
       </div>
       <div class="chart">
-        <ResultsChart points={r.points} />
+        <ResultsChart points={r.points} series={SERIES} />
       </div>
     </section>
 

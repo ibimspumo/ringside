@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::tournament::BuyIn;
+
 /// Money and chips in hundredths, so cash ($0.05 → 5) and tournament chips (1500 → 150000)
 /// share one exact integer type.
 pub type Amount = i64;
@@ -122,6 +124,21 @@ pub struct Hand {
     pub bounties_won: Vec<(String, Amount)>,
     #[serde(default)]
     pub bounty_currency: Option<String>,
+    /// Tournament buy-in from the header.
+    #[serde(default)]
+    pub buy_in: Option<BuyIn>,
+    /// Players who left the tournament in this hand.
+    #[serde(default)]
+    pub finishes: Vec<Finish>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Finish {
+    pub player: String,
+    pub place: i64,
+    /// Prize money, None outside the money.
+    pub prize: Option<Amount>,
+    pub currency: Option<String>,
 }
 
 impl Hand {

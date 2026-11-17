@@ -1,4 +1,4 @@
-import type { ClassicPreset, GameKind, HudConfig, Palette, StatId, StatValue } from "./types";
+import type { ClassicPreset, GameKind, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
 
 /** `plain` + value + `after` reads as a sentence in the "Klartext" preset. */
 export const STAT_META: Record<StatId, { short: string; name: string; plain: string; after?: string; help: string; ratio?: boolean }> = {
@@ -74,6 +74,13 @@ export function fmtUnit(s: StatValue | undefined): string {
   return u === "%" ? `${fmt(s)} %` : `${fmt(s)}${u}`;
 }
 
+/** How full a ring segment is: percent of 100, AF on a 0–5 scale. 0 without a sample. */
+export function fill(s: StatValue | undefined): number {
+  if (!s || s.value === null) return 0;
+  if (STAT_META[s.id].ratio) return Math.min(s.value / 5, 1);
+  return Math.min(Math.max(s.value / 100, 0), 1);
+}
+
 export function compact(n: number): string {
   if (n >= 10000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${de1(n / 1000)}k`;
@@ -95,6 +102,25 @@ export function moneyShort(amount: number, currency: string | null): string {
   const v = amount / 100;
   const text = v.toLocaleString("de-DE", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
   return `${SYMBOL[currency ?? ""] ?? ""}${text}`;
+}
+
+/** Tournament money in hundredths; play chips and points have no decimals. */
+export function cash(amount: number, currency: string | null): string {
+  const whole = Math.round(amount / 100).toLocaleString("de-DE");
+  if (!currency || currency === "PLAY") return whole;
+  if (currency === "FPP" || currency === "SC") return `${whole} ${currency}`;
+  return money(amount, currency);
+}
+
+/** The name from the table window, else the game: "NL Hold'em #4046789300". */
+export function tournamentName(t: Pick<TournamentRow, "id" | "game" | "name">): string {
+  return t.name || `${t.game || "Turnier"} #${t.id}`;
+}
+
+/** Buy-in as paid, "Freeroll", or "–" while unknown. */
+export function buyInText(t: Pick<TournamentRow, "buy_in" | "cost" | "currency">): string {
+  if (!t.buy_in) return "–";
+  return t.buy_in.currency ? cash(t.cost ?? 0, t.currency) : "Freeroll";
 }
 
 /** Bounty totals per currency as one string: "$37,45 · €5". Empty when nothing was won. */

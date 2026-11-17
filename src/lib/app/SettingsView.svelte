@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, inTauri } from "../api";
-  import type { ClientWindow, ImportStatus, Settings } from "../types";
+  import { api, inTauri, on } from "../api";
+  import type { ClientWindow, ImportStatus, NotesSource, Settings } from "../types";
 
   let { status }: { status: ImportStatus | null } = $props();
 
@@ -10,6 +10,7 @@
   let settings = $state<Settings | null>(null);
   let detected = $state<string[]>([]);
   let windows = $state<ClientWindow[]>([]);
+  let notes = $state<NotesSource[] | null>(null);
 
   async function loadWindows() {
     windows = await api.clientWindows();
@@ -20,10 +21,22 @@
   });
   let pending: import("@tauri-apps/plugin-updater").Update | null = null;
 
+  const loadNotes = () => api.notesSources().then((n) => (notes = n));
+  /** "…\PokerStars.EU\notes.Hero.xml": the folder tells which client it belongs to. */
+  const shortPath = (p: string) => `…\\${p.split(/[\\/]/).slice(-2).join("\\")}`;
+
+  onMount(() => {
+    const sub = on("notes-changed", loadNotes);
+    return () => {
+      sub.then((f) => f());
+    };
+  });
+
   onMount(async () => {
     settings = await api.getSettings();
     detected = await api.detectedDirs();
     loadWindows();
+    loadNotes();
     if (inTauri) version = await (await import("@tauri-apps/api/app")).getVersion();
   });
 
@@ -148,6 +161,26 @@
             {:else}
               <p class="hint">Kein PokerStars-Fenster gefunden. Läuft der Client?</p>
             {/each}
+          </div>
+          <div class="notes">
+            <span class="sub">Spieler-Notizen aus PokerStars</span>
+            {#if notes === null}
+              <p class="hint">Lädt …</p>
+            {:else}
+              {#each notes as n (n.path)}
+                <p class="note-file" title={n.path}>
+                  Notizen: <code>{shortPath(n.path)}</code>,
+                  {#if n.error}<span class="error">nicht lesbar ({n.error})</span>{:else}<span class="num"
+                      >{n.players.toLocaleString("de-DE")}</span
+                    > Spieler{/if}
+                </p>
+              {:else}
+                <p class="hint">
+                  Keine Notizdatei gefunden. PokerStars legt <code>notes.&lt;Name&gt;.xml</code> an, sobald du einem
+                  Spieler eine Notiz oder ein Farb-Label gibst.
+                </p>
+              {/each}
+            {/if}
           </div>
         </div>
       </section>
@@ -308,6 +341,20 @@
   .wm {
     font-size: 11.5px;
     color: var(--text-faint);
+  }
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+  }
+  .note-file {
+    margin: 0;
+    font-size: 13px;
+    color: var(--text-2);
+    overflow-wrap: anywhere;
   }
   .version {
     margin: 0;

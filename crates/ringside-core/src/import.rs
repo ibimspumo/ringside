@@ -9,6 +9,7 @@ use std::time::SystemTime;
 use crate::db::Db;
 use crate::model::Hand;
 use crate::parser::{ParseError, complete_prefix_len, parse_hand, split_hands};
+use crate::tournament::parse_summaries;
 
 #[derive(Debug)]
 pub enum ImportError {
@@ -60,6 +61,23 @@ pub fn default_dirs(local_app_data: &Path) -> Vec<PathBuf> {
     dirs
 }
 
+/// `TournSummary` folders the client keeps next to the given `HandHistory` folders. A configured
+/// folder may also be a player folder inside `HandHistory`.
+pub fn summary_dirs(hand_dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = Vec::new();
+    for dir in hand_dirs {
+        let base = dir
+            .ancestors()
+            .find(|a| a.file_name().is_some_and(|n| n.eq_ignore_ascii_case("HandHistory")))
+            .unwrap_or(dir);
+        let candidate = base.with_file_name("TournSummary");
+        if candidate.is_dir() && !out.contains(&candidate) {
+            out.push(candidate);
+        }
+    }
+    out
+}
+
 fn is_history_file(path: &Path) -> bool {
     path.extension().is_some_and(|e| e.eq_ignore_ascii_case("txt"))
 }
@@ -106,6 +124,36 @@ impl Scanner {
 fn decode_utf16(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
     String::from_utf16_lossy(&units)
+}
+
+/// Summary files are UTF-8 (with or without BOM), UTF-16 or, from older clients, Windows-1252.
+fn decode_text(bytes: &[u8]) -> String {
+    if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+        return decode_utf16(rest);
+    }
+    match std::str::from_utf8(bytes) {
+        Ok(s) => s.to_string(),
+        Err(_) => bytes.iter().map(|&b| if b == 0x80 { '€' } else { b as char }).collect(),
+    }
+}
+
+/// Imports a tournament summary file if it changed since the last import. Returns the number
+/// of tournaments in it. The file is replaced while the tournament runs, so it is read whole
+/// and stored over the previous version.
+pub fn import_summary(db: &mut Db, path: &Path) -> Result<usize, ImportError> {
+    let key = path.to_string_lossy().to_string();
+    let bytes = fs::read(path)?;
+    // Rewrites can keep the length, so the files table stores a content hash for summaries.
+    let stamp = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ b as u64).wrapping_mul(0x100_0000_01b3)) >> 1;
+    if db.file_offset(&key)? == stamp {
+        return Ok(0);
+    }
+    let summaries = parse_summaries(&decode_text(&bytes));
+    for s in &summaries {
+        db.upsert_summary(s)?;
+    }
+    db.set_file_offset(&key, stamp)?;
+    Ok(summaries.len())
 }
 
 /// Imports the complete hands appended to `path` since the last import.

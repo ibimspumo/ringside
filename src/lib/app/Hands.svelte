@@ -10,14 +10,19 @@
     filter,
     refresh,
     player,
+    tournamentNames,
     openId,
     onClearPlayer,
+    onClearTournament,
   }: {
     filter: Filter;
     refresh: number;
     player: string | null;
+    /** Names known from table windows, by tournament id. */
+    tournamentNames: Map<number, string>;
     openId: number | null;
     onClearPlayer: () => void;
+    onClearTournament: () => void;
   } = $props();
 
   const PAGE = 100;
@@ -30,6 +35,7 @@
   let more = $state(false);
   let selected = $state<Hand | null>(null);
 
+  const tournament = $derived(filter.tournament_id);
   const query = $derived<HandQuery>({
     ...filter,
     player,
@@ -49,7 +55,8 @@
       list = r;
       loaded = true;
       more = r.length === PAGE;
-      if (!selected && openId === null && r[0]) open(r[0].id);
+      const stale = !selected || (tournament !== null && selected.tournament_id !== tournament);
+      if (openId === null && r[0] && stale) open(r[0].id);
     });
     return () => (live = false);
   });
@@ -93,6 +100,15 @@
       <input class="field num" type="number" min="0" step="5" placeholder="0" bind:value={minPot} />
       BB
     </label>
+    {#if tournament !== null}
+      {@const name = tournamentNames.get(tournament)}
+      <span class="chip" title={name ? `Turnier #${tournament}` : undefined}>
+        {#if name}<span class="chip-name">{name}</span>{:else}Turnier <span class="num">#{tournament}</span>{/if}
+        <button onclick={onClearTournament} aria-label="Turnierfilter entfernen" title="Turnierfilter entfernen">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+        </button>
+      </span>
+    {/if}
     {#if player}
       <span class="chip">
         mit {player}
@@ -138,8 +154,10 @@
     <div class="stage">
       {#if selected}
         <Replayer hand={selected}>
+          {@const name = selected.tournament_id === null ? undefined : tournamentNames.get(selected.tournament_id)}
           <div class="info">
-            <h2 title={selected.table_name}>{selected.table_name}</h2>
+            <h2 title={name ? `${name} · Tisch ${selected.table_name}` : selected.table_name}>{name ?? selected.table_name}</h2>
+            {#if name}<span>Tisch {selected.table_name.split(" ").at(-1)}</span>{/if}
             <span>{stakes(selected)}</span>
             <span>{dateTime(selected.played_at)}</span>
             <span class="faint num">#{selected.id}</span>
@@ -292,6 +310,11 @@
     min-height: 26px;
     color: var(--text-2);
     font-size: 13px;
+  }
+  .chip-name {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .info h2 {
     max-width: 100%;

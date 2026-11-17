@@ -2,27 +2,56 @@
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
   import Logo from "../Logo.svelte";
-  import type { Filter, GameKind, HudConfig, ImportStatus } from "../types";
+  import type { Filter, GameKind, HudConfig, ImportStatus, TournamentRow } from "../types";
   import Dashboard from "./Dashboard.svelte";
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
   import HudEditor from "./HudEditor.svelte";
+  import LiveTables from "./LiveTables.svelte";
   import Players from "./Players.svelte";
   import Reports from "./Reports.svelte";
   import SettingsView from "./SettingsView.svelte";
+  import TournamentPicker from "./TournamentPicker.svelte";
+  import Tournaments from "./Tournaments.svelte";
+  import Training from "./Training.svelte";
 
-  type Tab = "dashboard" | "reports" | "players" | "hands" | "hud" | "settings";
-  const NAV: { id: Tab; label: string; icon: string }[] = [
-    { id: "dashboard", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
-    { id: "reports", label: "Berichte", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
-    { id: "players", label: "Spieler", icon: "M12 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5zM5 20a7 7 0 0 1 14 0" },
-    { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
-    { id: "hud", label: "HUD", icon: "" },
-    { id: "settings", label: "Einstellungen", icon: "M4 7.5h9M17 7.5h3M4 16.5h3M11 16.5h9M15 5.5v4M9 14.5v4" },
+  type Tab = "dashboard" | "reports" | "tournaments" | "hands" | "players" | "live" | "training" | "hud" | "settings";
+  type NavItem = { id: Tab; label: string; icon: string };
+  const GROUPS: { label: string; items: NavItem[] }[] = [
+    {
+      label: "Analyse",
+      items: [
+        { id: "dashboard", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
+        { id: "reports", label: "Berichte", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
+        { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
+        { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
+      ],
+    },
+    {
+      label: "Gegner",
+      items: [
+        { id: "players", label: "Spieler", icon: "M12 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5zM5 20a7 7 0 0 1 14 0" },
+        { id: "live", label: "Live-Tische", icon: "M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5zM12 9.5c2.8 0 5 1.1 5 2.5s-2.2 2.5-5 2.5-5-1.1-5-2.5 2.2-2.5 5-2.5z" },
+      ],
+    },
+    {
+      label: "Lernen",
+      items: [{ id: "training", label: "Training", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" }],
+    },
+    {
+      label: "Einrichten",
+      items: [
+        { id: "hud", label: "HUD", icon: "" },
+        { id: "settings", label: "Einstellungen", icon: "M4 7.5h9M17 7.5h3M4 16.5h3M11 16.5h9M15 5.5v4M9 14.5v4" },
+      ],
+    },
   ];
-  /** Tabs that read hand data get the game and period filters in the top bar. */
-  const DATA_TABS: Tab[] = ["dashboard", "reports", "players", "hands"];
+  const NAV = GROUPS.flatMap((g) => g.items);
+  /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
+  const DATA_TABS: Tab[] = ["dashboard", "reports", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
+    tournaments: "Klick auf ein Turnier filtert alle Ansichten darauf und zeigt seine Hände.",
+    live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings: "Ringside arbeitet komplett lokal. Ins Internet geht es nur, wenn du nach Updates suchst.",
   };
@@ -42,9 +71,22 @@
 
   let game = $state<GameKind | null>(null);
   let period = $state<Period>("all");
-  const filter = $derived<Filter>({ game, since: since(period) });
+  /** One tournament for every data view; game and period do not apply while it is set. */
+  let tournament = $state<number | null>(null);
+  const filter = $derived<Filter>(
+    tournament === null
+      ? { game, since: since(period), tournament_id: null }
+      : { game: null, since: null, tournament_id: tournament },
+  );
+  const tournamentFilter = $derived<Filter>({
+    game: "tournament",
+    since: tournament === null ? since(period) : null,
+    tournament_id: null,
+  });
+  /** All tournaments, for the picker and for names. */
+  let tournamentList = $state<TournamentRow[]>([]);
 
-  /** Hands tab: optional player filter and a hand to open, set from the player drawer. */
+  /** Hands tab: optional player filter and a hand to open, set from other views. */
   let handsPlayer = $state<string | null>(null);
   let handToOpen = $state<number | null>(null);
 
@@ -52,12 +94,13 @@
     const saved = JSON.parse(localStorage.getItem(STORE) ?? "null");
     if (saved && GAMES.some(([g]) => g === saved.game)) game = saved.game;
     if (saved && PERIODS.some(([p]) => p === saved.period)) period = saved.period;
+    if (saved && Number.isSafeInteger(saved.tournament)) tournament = saved.tournament;
   } catch {
     // Storage may be unavailable; the defaults are fine.
   }
 
   $effect(() => {
-    const value = JSON.stringify({ game, period });
+    const value = JSON.stringify({ game, period, tournament });
     try {
       localStorage.setItem(STORE, value);
     } catch {
@@ -71,10 +114,30 @@
     api.getSettings().then((s) => (hud = s.hud));
   });
 
+  $effect(() => {
+    void refresh;
+    let live = true;
+    api.tournaments({ game: "tournament", since: null, tournament_id: null }).then((t) => live && (tournamentList = t.rows));
+    return () => (live = false);
+  });
+
+  const tournamentNames = $derived(new Map(tournamentList.filter((t) => t.name).map((t) => [t.id, t.name as string])));
+
   function showHands(player: string | null, handId: number | null = null) {
     handsPlayer = player;
     handToOpen = handId;
     tab = "hands";
+  }
+
+  /** Game and period stay visible while a tournament is chosen; picking one of them drops it. */
+  function setGame(g: GameKind | null) {
+    game = g;
+    tournament = null;
+  }
+
+  function setPeriod(p: Period) {
+    period = p;
+    tournament = null;
   }
 
   /** Current state from the backend; events only report changes. */
@@ -104,6 +167,7 @@
         refresh++;
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
+      on("tournament-named", () => refresh++),
     ];
     // Listen first, then read the state, so nothing sent at startup is missed.
     Promise.all(subs).then(sync);
@@ -124,17 +188,22 @@
       <strong>Ringside</strong>
     </div>
     <nav>
-      {#each NAV as item (item.id)}
-        <button class:on={tab === item.id} aria-current={tab === item.id ? "page" : undefined} onclick={() => (tab = item.id)}>
-          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-            {#if item.id === "hud"}
-              <circle cx="12" cy="12" r="7.5" stroke-dasharray="9.8 2" stroke-dashoffset="-1" stroke-linecap="butt" />
-            {:else}
-              <path d={item.icon} />
-            {/if}
-          </svg>
-          {item.label}
-        </button>
+      {#each GROUPS as group (group.label)}
+        <div class="group" role="group" aria-labelledby="nav-{group.label}">
+          <span class="group-label" id="nav-{group.label}">{group.label}</span>
+          {#each group.items as item (item.id)}
+            <button class:on={tab === item.id} aria-current={tab === item.id ? "page" : undefined} onclick={() => (tab = item.id)}>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                {#if item.id === "hud"}
+                  <circle cx="12" cy="12" r="7.5" stroke-dasharray="9.8 2" stroke-dashoffset="-1" stroke-linecap="butt" />
+                {:else}
+                  <path d={item.icon} />
+                {/if}
+              </svg>
+              {item.label}
+            </button>
+          {/each}
+        </div>
       {/each}
     </nav>
 
@@ -167,15 +236,20 @@
         {#if NOTES[tab]}<p>{NOTES[tab]}</p>{/if}
       </div>
       {#if DATA_TABS.includes(tab)}
+        {@const off = tournament !== null}
+        {@const offTitle = off ? "Gilt nicht, solange ein Turnier gewählt ist. Klick hebt die Turnierauswahl auf." : undefined}
         <div class="filters">
-          <div class="seg" role="group" aria-label="Spielart">
-            {#each GAMES as [id, label] (label)}
-              <button class:on={game === id} onclick={() => (game = id)}>{label}</button>
-            {/each}
-          </div>
-          <div class="seg" role="group" aria-label="Zeitraum">
+          <TournamentPicker tournaments={tournamentList} selected={tournament} onSelect={(id) => (tournament = id)} />
+          {#if tab !== "tournaments"}
+            <div class="seg" class:off role="group" aria-label="Spielart" title={offTitle}>
+              {#each GAMES as [id, label] (label)}
+                <button class:on={!off && game === id} onclick={() => setGame(id)}>{label}</button>
+              {/each}
+            </div>
+          {/if}
+          <div class="seg" class:off role="group" aria-label="Zeitraum" title={offTitle}>
             {#each PERIODS as [id, label] (id)}
-              <button class:on={period === id} onclick={() => (period = id)}>{label}</button>
+              <button class:on={!off && period === id} onclick={() => setPeriod(id)}>{label}</button>
             {/each}
           </div>
         </div>
@@ -187,15 +261,31 @@
         <Dashboard {filter} {hud} {refresh} />
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
+      {:else if tab === "tournaments"}
+        <Tournaments
+          filter={tournamentFilter}
+          {refresh}
+          selected={tournament}
+          onHands={(id) => {
+            tournament = id;
+            showHands(null);
+          }}
+        />
       {:else if tab === "players"}
         <Players {filter} {hud} {refresh} onHands={(name, id) => showHands(name, id ?? null)} />
+      {:else if tab === "live"}
+        <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
+      {:else if tab === "training"}
+        <Training />
       {:else if tab === "hands"}
         <Hands
           {filter}
           {refresh}
           player={handsPlayer}
+          {tournamentNames}
           openId={handToOpen}
           onClearPlayer={() => (handsPlayer = null)}
+          onClearTournament={() => (tournament = null)}
         />
       {:else if tab === "hud"}
         <HudEditor />
@@ -237,7 +327,21 @@
   nav {
     display: flex;
     flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    overflow-y: auto;
+  }
+  .group {
+    display: flex;
+    flex-direction: column;
     gap: 1px;
+  }
+  .group-label {
+    padding: 0 10px 4px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--text-3);
   }
   nav button {
     display: flex;
@@ -386,7 +490,14 @@
   .filters {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+  }
+  .seg.off {
+    opacity: 0.45;
+  }
+  .seg.off:hover {
+    opacity: 0.8;
   }
   .content {
     flex: 1;

@@ -50,7 +50,8 @@ export interface HudConfig {
   mode: OverlayMode;
   palette: Palette;
   classic: { preset: ClassicPreset; custom: StatId[] };
-  graphic: { segments: StatId[]; plate_stats: StatId[]; cover_plate: boolean; plate_width: number };
+  /** `plate_pages`: pages of three numbers; a click on a plate shows the next page. */
+  graphic: { segments: StatId[]; plate_pages: StatId[][]; cover_plate: boolean; plate_width: number };
   thresholds: Record<string, Threshold>;
   scale: number;
   opacity: number;
@@ -89,6 +90,13 @@ export interface SeatView {
   bounty: number | null;
   is_hero: boolean;
   stats: StatValue[];
+  /** The user's own note and colour label from the PokerStars client, if any. */
+  note?: PlayerNote | null;
+}
+
+export interface PlayerNote {
+  label: { name: string; color: string } | null;
+  text: string;
 }
 
 export interface Recap {
@@ -143,6 +151,7 @@ export interface Filter {
   game: GameKind | null;
   /** "YYYY/MM/DD" */
   since: string | null;
+  tournament_id: number | null;
 }
 
 export interface ResultPoint {
@@ -282,4 +291,67 @@ export interface Hand {
   rake: number;
   bounties_won: [string, number][];
   bounty_currency: string | null;
+}
+
+export interface BuyIn {
+  prize: number;
+  bounty: number;
+  fee: number;
+  /** "USD", "EUR", …, "FPP"/"SC" for points, "PLAY" for play chips, null for freerolls. */
+  currency: string | null;
+}
+
+export interface TournamentRow {
+  id: number;
+  game: string;
+  currency: string | null;
+  buy_in: BuyIn | null;
+  /** Buy-in plus re-entries; null when the buy-in is unknown. */
+  cost: number | null;
+  entrants: number | null;
+  /** null while the result is unknown. */
+  place: number | null;
+  prize: number | null;
+  bounties: number;
+  profit: number | null;
+  started_at: string;
+  hands: number;
+  /** Hero's chip change over the imported hands. */
+  chips: number;
+  has_summary: boolean;
+  /** From the table window title, once a table of this tournament was open. */
+  name: string | null;
+}
+
+/** Results in one currency; money only from tournaments with a known result. */
+export interface TournamentTotals {
+  currency: string;
+  tournaments: number;
+  finished: number;
+  cashes: number;
+  cost: number;
+  prizes: number;
+  bounties: number;
+  profit: number;
+  roi: number | null;
+  itm: number | null;
+}
+
+export interface Tournaments {
+  rows: TournamentRow[];
+  totals: TournamentTotals[];
+}
+
+/** A notes file of the PokerStars client. */
+export interface NotesSource {
+  path: string;
+  players: number;
+  error: string | null;
+}
+
+export interface LiveTable {
+  title: string;
+  table_key: string;
+  /** null until a hand of this table has been imported. */
+  table: TableView | null;
 }

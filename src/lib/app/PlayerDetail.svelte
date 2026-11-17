@@ -2,7 +2,7 @@
   import { api } from "../api";
   import PlayingCard from "../PlayingCard.svelte";
   import { RATED_STATS, STAT_META, compact, fmt, stat, toneColor } from "../stats";
-  import type { HudConfig, PlayerView, ShownHand } from "../types";
+  import type { HudConfig, PlayerNote, PlayerView, ShownHand } from "../types";
   import { dateTime, int, sign, signed } from "./format";
   import Wheel from "./Wheel.svelte";
 
@@ -19,13 +19,16 @@
   } = $props();
 
   let shown = $state<ShownHand[] | null>(null);
+  let note = $state<PlayerNote | null>(null);
   let panel = $state<HTMLElement>();
 
   $effect(() => {
     const name = player.name;
     let live = true;
     shown = null;
+    note = null;
     api.shownHands(name).then((r) => live && (shown = r));
+    api.playerNote(name).then((n) => live && (note = n));
     panel?.focus();
     return () => (live = false);
   });
@@ -54,6 +57,15 @@
   </header>
 
   <div class="body">
+    {#if note}
+      <div class="note" style="--c:{note.label?.color ?? 'var(--line-2)'}">
+        <span class="note-head">
+          {#if note.label}<i class="dot" aria-hidden="true"></i>{note.label.name || "Label"}{:else}Notiz{/if}
+          <small>aus PokerStars</small>
+        </span>
+        {#if note.text}<p>{note.text}</p>{/if}
+      </div>
+    {/if}
     <button class="btn all" onclick={() => onHands(player.name)}>Alle Hände mit {player.name} anzeigen</button>
 
     <h3 class="panel-title">Werte</h3>
@@ -156,6 +168,36 @@
   }
   .all {
     width: 100%;
+  }
+  .note {
+    margin-bottom: 14px;
+    padding: 9px 12px 10px;
+    border-radius: var(--r-sm);
+    border-left: 3px solid var(--c);
+    background: var(--surface-2);
+    font-size: 13.5px;
+  }
+  .note-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .note-head small {
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--text-3);
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--c);
+  }
+  .note p {
+    margin: 5px 0 0;
+    color: var(--text-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   h3 {
     margin: 22px 0 8px;

@@ -264,7 +264,7 @@ fn db_with(texts: &[&str]) -> Db {
 #[test]
 fn reports_by_position_hand_and_session() {
     let db = db_with(&[CASH, KNOCKOUT]);
-    let cash = Filter { game: Some(GameKind::Cash), since: None };
+    let cash = Filter { game: Some(GameKind::Cash), ..Default::default() };
 
     let by_pos = db.hero_groups(&cash, false).unwrap();
     let pos = |k: &str| by_pos.iter().find(|r| r.key == k).unwrap();
@@ -281,14 +281,14 @@ fn reports_by_position_hand_and_session() {
     assert_eq!(results.points.len(), 2);
     assert_eq!(db.hero_results(&cash, 1).unwrap().points.len(), 1, "thinned, last point kept");
 
-    let ko = db.hero_results(&Filter { game: Some(GameKind::Tournament), since: None }, 100).unwrap();
+    let ko = db.hero_results(&Filter { game: Some(GameKind::Tournament), ..Default::default() }, 100).unwrap();
     assert_eq!(ko.bounties, std::collections::BTreeMap::from([("USD".to_string(), 95)]));
 
     let sessions = db.sessions(&Filter::default(), 30.0).unwrap();
     assert_eq!(sessions.len(), 2, "2024 cash and 2026 knockout are separate sessions");
     assert_eq!((sessions[1].hands, sessions[1].net), (2, 107 - 1000));
 
-    let since = Filter { game: None, since: Some("2026/01/01".into()) };
+    let since = Filter { since: Some("2026/01/01".into()), ..Default::default() };
     assert!(db.hero_results(&since, 100).unwrap().points.iter().all(|r| r.played_at.starts_with("2026")));
     assert_eq!(db.players(&since, "", 10).unwrap().len(), 6, "date filter reads per-hand rows");
     assert_eq!(db.players(&Filter::default(), "", 100).unwrap().len(), 11, "totals cover all players (Hero plays both)");
@@ -349,6 +349,7 @@ fn old_database_is_upgraded_in_place() {
     assert_eq!(db.hand_count().unwrap(), 2);
     assert_eq!(db.counters_for(&["Mo".into()], None).unwrap()[0].counters.hands, 1);
     assert_eq!(db.shown_hands("Short", 5).unwrap()[0].cards, "Ac Kc");
+    assert_eq!(db.tournaments(&Filter::default()).unwrap().len(), 2, "tournaments filled from old hands");
 }
 
 fn rusqlite_conn(path: &std::path::Path) -> rusqlite::Connection {

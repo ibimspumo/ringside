@@ -277,14 +277,30 @@
                   </select>
                 {/each}
               </div>
-              <div class="sub">Platte – drei große Zahlen</div>
-              <div class="grid3">
-                {#each settings.hud.graphic.plate_stats as _, i (i)}
-                  <select class="field" bind:value={settings.hud.graphic.plate_stats[i]} onchange={changed}>
-                    {#each RATED_STATS as id (id)}<option value={id}>{STAT_META[id].short}</option>{/each}
-                  </select>
-                {/each}
-              </div>
+              <div class="sub">Platte – drei Zahlen je Seite, ein Klick auf die Platte blättert</div>
+              {#each settings.hud.graphic.plate_pages as page, p (p)}
+                <div class="page-row">
+                  <span class="num faint">{p + 1}</span>
+                  {#each page as _, i (i)}
+                    <select class="field" bind:value={settings.hud.graphic.plate_pages[p][i]} onchange={changed}>
+                      {#each RATED_STATS as id (id)}<option value={id}>{STAT_META[id].short}</option>{/each}
+                    </select>
+                  {/each}
+                  <button
+                    class="btn ghost"
+                    disabled={settings.hud.graphic.plate_pages.length < 2}
+                    onclick={() => ((settings!.hud.graphic.plate_pages = settings!.hud.graphic.plate_pages.filter((_, j) => j !== p)), changed())}
+                    aria-label="Seite {p + 1} entfernen">✕</button
+                  >
+                </div>
+              {/each}
+              {#if settings.hud.graphic.plate_pages.length < 5}
+                <button
+                  class="btn ghost add"
+                  onclick={() => ((settings!.hud.graphic.plate_pages = [...settings!.hud.graphic.plate_pages, ["vpip", "pfr", "three_bet"]]), changed())}
+                  >Seite hinzufügen</button
+                >
+              {/if}
               <label class="slider">
                 <span>Breite</span>
                 <input type="range" min="0.8" max="1.5" step="0.02" bind:value={settings.hud.graphic.plate_width} oninput={changed} />
@@ -567,19 +583,29 @@
   .preset.on span {
     color: var(--text-2);
   }
-  .grid2,
-  .grid3 {
+  .grid2 {
     display: grid;
     gap: 6px;
   }
   .grid2 {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .grid3 {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  .page-row {
+    display: grid;
+    grid-template-columns: 14px repeat(3, minmax(0, 1fr)) 30px;
+    align-items: center;
+    gap: 6px;
   }
-  .grid2 select,
-  .grid3 select {
+  .page-row select {
+    min-width: 0;
+  }
+  .page-row .btn {
+    padding: 0;
+  }
+  .add {
+    align-self: flex-start;
+  }
+  .grid2 select {
     min-width: 0;
     width: 100%;
   }
