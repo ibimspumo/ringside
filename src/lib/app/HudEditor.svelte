@@ -1189,15 +1189,32 @@
     .layout {
       grid-template-columns: 1fr;
     }
+    /* Table, then the settings, then the how-to: the settings start in the first screen. */
     .stage-col {
-      position: static;
+      display: contents;
+    }
+    .inspector {
+      order: 1;
+    }
+    .stage-foot,
+    .shot-bar {
+      order: 2;
     }
     .hint {
       display: none;
     }
-    /* Keep the inspector's tabs in the first screen when it moves below the table. */
+    .mode {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      column-gap: 12px;
+      align-items: center;
+    }
+    .mode svg {
+      grid-row: span 2;
+      margin: 0;
+    }
     .stage {
-      width: min(100%, calc((100vh - 330px) * var(--aspect))) !important;
+      width: min(100%, calc((100vh - 300px) * var(--aspect))) !important;
     }
   }
 </style>
