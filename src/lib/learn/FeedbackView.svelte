@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
   import type { Feedback } from "../types";
   import { GRADING, explain, fmtBB } from "./catalog";
   import { preview } from "./preview";
@@ -9,8 +8,16 @@
     feedback,
     onNext,
     nextLabel = "Weiter",
-    children,
-  }: { feedback: Feedback; onNext?: () => void; nextLabel?: string; children?: Snippet } = $props();
+    estimate = null,
+    unit = "",
+  }: {
+    feedback: Feedback;
+    onNext?: () => void;
+    nextLabel?: string;
+    /** The number the player entered, for a plain sentence instead of answer and gap tiles. */
+    estimate?: number | null;
+    unit?: string;
+  } = $props();
 
   const verdict = $derived(feedback.correct ? "ok" : feedback.score >= 0.5 ? "close" : "miss");
   const TITLE = { ok: "Richtig", close: "Knapp daneben", miss: "Daneben" };
@@ -21,7 +28,21 @@
   const evSentence = $derived(
     evFacts.length >= 2 ? evFacts.map((f) => `${f.label.slice(3)} bringt im Schnitt ${f.value}`).join(", ") + "." : "",
   );
-  const facts = $derived(evSentence ? feedback.facts.filter((f) => !evFacts.includes(f)) : feedback.facts);
+  const truthNumber = $derived("number" in feedback.truth ? feedback.truth.number : null);
+  const gapSentence = $derived.by(() => {
+    if (estimate === null || truthNumber === null) return "";
+    const d = estimate - truthNumber;
+    const n = Math.abs(d).toLocaleString("de-DE", { maximumFractionDigits: 1 });
+    if (Math.abs(d) < 0.05) return "Genau getroffen.";
+    return `Du lagst ${unit === "%" ? `${n} Prozentpunkte` : `um ${n}`} zu ${d > 0 ? "hoch" : "niedrig"}.`;
+  });
+  /** Tiles the sentence or the slider already say. */
+  const SAID = new Set(["Deine Antwort", "Abweichung"]);
+  const facts = $derived(
+    feedback.facts.filter(
+      (f) => !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
+    ),
+  );
   let nextBtn = $state<HTMLButtonElement>();
   let root = $state<HTMLElement>();
 
@@ -48,7 +69,7 @@
     </span>
     <div class="what">
       <h3>{TITLE[verdict]}</h3>
-      <p>Lösung: <b class="num">{feedback.truth_text}</b></p>
+      <p>Lösung: <b class="num">{feedback.truth_text}</b>{#if gapSentence}<span class="gap">{gapSentence}</span>{/if}</p>
     </div>
     <Ring value={feedback.score} size={60} stroke={5} {tone} label="{Math.round(feedback.score * 100)} von 100 Punkten">
       <b class="num score">{Math.round(feedback.score * 100)}</b>
@@ -90,7 +111,6 @@
     {@render factList()}
   {/if}
 
-  {@render children?.()}
 
   <footer class="grading" title={g.text}>
     <span class="badge {feedback.grading}">{g.label}</span>
@@ -167,6 +187,10 @@
   .what b {
     color: var(--text);
     font-size: 15px;
+  }
+  .gap {
+    margin-left: 10px;
+    color: var(--text);
   }
   .score {
     font-size: 17px;

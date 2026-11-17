@@ -6,7 +6,6 @@
     import Ring from "./Ring.svelte";
   import SkillBadge from "./SkillBadge.svelte";
   import Task from "./Task.svelte";
-  import Weaknesses from "./Weaknesses.svelte";
   import { preview } from "./preview";
 
   let {
@@ -16,8 +15,6 @@
     onPath,
     onOwn,
     onTrainer,
-    onTrain,
-    onRead,
   }: {
     progress: LearnProgress | null;
     concepts: ConceptCount[];
@@ -25,8 +22,6 @@
     onPath: () => void;
     onOwn: () => void;
     onTrainer: () => void;
-    onTrain: (kind: LearnKind, level: number) => void;
-    onRead: (id: string) => void;
   } = $props();
 
   type Why = "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
@@ -184,6 +179,22 @@
   ];
   const lanes = $derived(LANES.map((l) => ({ ...l, groups: planGroups.filter((g) => g.why === l.why) })).filter((l) => l.groups.length));
   const unit = $derived(currentUnit(byKind));
+  /** Why a weak skill is in the round, from the coach concept behind it (weakest first). */
+  const weakWhy = $derived(
+    new Map(
+      weakConcepts(concepts)
+        .map((c) => [trainableKind(c), c] as const)
+        .filter((x): x is readonly [LearnKind, ConceptCount] => !!x[0])
+        .reverse(),
+    ),
+  );
+  function whyText(kind: LearnKind): string | null {
+    const c = weakWhy.get(kind);
+    if (!c) return null;
+    if (c.mistakes) return `${c.mistakes} Fehler`;
+    if (c.questionable) return `${c.questionable} ${c.questionable === 1 ? "fragliche Entscheidung" : "fragliche Entscheidungen"}`;
+    return null;
+  }
   const left = $derived(Math.max(0, goal - xpWeek));
 
   function tone(s: number | null) {
@@ -205,14 +216,19 @@
         <div class="plan" aria-label="Plan für heute">
           {#each lanes as l (l.why)}
             <div class="lane">
-              <span class="lane-label" class:weak={l.why === "Schwachstelle"}>{l.label}</span>
+              <span class="lane-label" class:weak={l.why === "Schwachstelle"}>
+                {l.label}
+                {#if l.why === "Schwachstelle"}<button class="lane-link" onclick={onPath}>alle im Lernpfad</button>{/if}
+              </span>
               <ul>
                 {#each l.groups as g (g.kind)}
                   <li>
                     <SkillBadge kind={g.kind} skill={byKind.get(g.kind)} size={34} />
                     <span class="pname">
                       <b>{SKILLS[g.kind].short}</b>
-                      <span class="dim">{g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}</span>
+                      <span class="dim"
+                        >{g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}{g.why === "Schwachstelle" && whyText(g.kind) ? ` · ${whyText(g.kind)} im Coach` : ""}</span
+                      >
                     </span>
                   </li>
                 {/each}
@@ -250,8 +266,6 @@
         </div>
       </aside>
     </section>
-
-    <Weaknesses {concepts} {progress} limit={3} {onTrain} {onRead} />
 
     <div class="doors">
       <button class="door" onclick={onOwn}>
@@ -379,15 +393,7 @@
     display: grid;
     gap: 14px;
   }
-  @container (min-width: 1500px) {
-    .start {
-      grid-template-columns: minmax(0, 1fr) 360px;
-      align-items: start;
-    }
-    .doors {
-      grid-column: 1 / -1;
-    }
-  }
+
   .hero {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 260px;
@@ -434,6 +440,22 @@
   }
   .lane-label.weak {
     color: var(--neg);
+  }
+  .lane-link {
+    margin-left: 8px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 400;
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .lane-link:hover {
+    color: var(--text);
   }
   .lane ul {
     display: flex;

@@ -236,9 +236,8 @@
   {/if}
 
   {#if feedback}
-    <FeedbackView {feedback} {onNext} {nextLabel}>
-      {@render after?.(feedback)}
-    </FeedbackView>
+    <FeedbackView {feedback} {onNext} {nextLabel} estimate={spec.type === "number" ? value : null} {unit} />
+    {@render after?.(feedback)}
   {/if}
 </div>
 
@@ -357,13 +356,13 @@
   .field-wrap {
     position: relative;
     display: block;
-    width: 150px;
+    width: 120px;
   }
   .field-wrap .field {
     width: 100%;
-    height: 44px;
-    padding-right: 40px;
-    font-size: 22px;
+    height: 40px;
+    padding-right: 34px;
+    font-size: 18px;
     font-weight: 600;
   }
   .unit-label {

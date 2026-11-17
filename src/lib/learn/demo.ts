@@ -536,7 +536,7 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       const margin = Math.abs(at - range);
       // Like the engine: the loss is the gap between the two EVs, the better one is the solution.
       const evFold = sb ? -0.5 - p.ante_bb : -1 - p.ante_bb;
-      const gap = Math.round(Math.min(3, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
+      const gap = Math.round(Math.min(1.4, 0.006 * margin * Math.sqrt(s)) * 100) / 100;
       const evAct = evFold + (play ? gap : -gap);
       const loss = ok ? 0 : gap;
       const facts = [
@@ -566,7 +566,7 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       const margin = Math.abs(at - range);
       const pos = p.positions[p.hero];
       const evFold = pos === "SB" ? -0.5 - p.ante_bb : pos === "BB" ? -1 - p.ante_bb - p.bb_ante_bb : -p.ante_bb;
-      const gap = Math.round(Math.min(3, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
+      const gap = Math.round(Math.min(1.4, 0.006 * margin * Math.sqrt(s)) * 100) / 100;
       const evAct = evFold + (play ? gap : -gap);
       const loss = ok ? 0 : gap;
       const facts = [

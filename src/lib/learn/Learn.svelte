@@ -149,8 +149,6 @@
         onPath={() => go("path")}
         onOwn={() => go("own")}
         onTrainer={() => go("trainer")}
-        onTrain={train}
-        onRead={read}
       />
     {:else if section === "path"}
       <Path {progress} {concepts} onTrain={train} onRead={read} />

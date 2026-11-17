@@ -197,7 +197,7 @@
                     {@const r = spot.all_in}
                     {@const max = Math.max(Math.abs(r.ev_bb), Math.abs(r.net_bb), Math.abs(r.luck_bb), 0.01)}
                     <div class="allin">
-                      <h4>Entscheidung gegen Ergebnis</h4>
+                      <h4>Und dein All-in damals: Entscheidung gegen Ergebnis</h4>
                       {#each [{ label: "Erwartet (EV)", v: r.ev_bb }, { label: "Tatsächlich", v: r.net_bb }, { label: "Glück", v: r.luck_bb }] as row, i (row.label)}
                         <div class="row" style="--i:{i}">
                           <span class="lbl">{row.label}</span>
@@ -215,8 +215,8 @@
                   {/if}
                   <div class="more">
                     {#if !reveal && hand}<button class="btn" onclick={() => (reveal = true)}>Hand zu Ende abspielen</button>{/if}
-                    <button class="btn ghost" onclick={() => onRead(spot.kind === "all_in" ? "entscheidung-ergebnis" : "push-fold")}>
-                      {spot.kind === "all_in" ? "Entscheidung statt Ergebnis" : "Push/Fold nachlesen"}
+                    <button class="link" onclick={() => onRead(spot.kind === "all_in" ? "entscheidung-ergebnis" : "push-fold")}>
+                      Nachlesen: {spot.kind === "all_in" ? "Entscheidung statt Ergebnis" : "Push/Fold"}
                     </button>
                   </div>
                 {/snippet}
@@ -419,7 +419,22 @@
   .more {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    gap: 8px 18px;
+  }
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-size: 13px;
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .link:hover {
+    color: var(--text);
   }
   .small {
     margin: 0;

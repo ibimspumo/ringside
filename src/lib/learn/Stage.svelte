@@ -466,8 +466,8 @@
 
   .hu {
     position: relative;
-    gap: 16px;
-    padding: 20px 14px 18px;
+    gap: 10px;
+    padding: 14px 14px 12px;
   }
   .hu-seat {
     display: grid;
