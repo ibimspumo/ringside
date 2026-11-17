@@ -17,7 +17,9 @@
 
   onMount(async () => {
     status = await coachApi.status();
-    // Whether the chosen model reasons decides if the thoroughness choice shows.
+    // Whether the chosen model reasons decides if the thoroughness choice shows. Only once
+    // a key is set: until then the coach is unused and the settings page stays offline.
+    if (!status.has_key) return;
     coachApi.models().then(
       (list) => (models ??= list),
       () => {},
