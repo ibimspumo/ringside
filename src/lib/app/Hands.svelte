@@ -2,7 +2,7 @@
   import { api } from "../api";
   import PlayingCard from "../PlayingCard.svelte";
   import { moneyShort } from "../stats";
-  import type { Filter, Hand, HandQuery, HandSummary } from "../types";
+  import type { Filter, Hand, HandQuery, HandSummary, SpotFilter } from "../types";
   import { date, dateTime, sign, signed, time } from "./format";
   import Replayer from "./Replayer.svelte";
 
@@ -12,8 +12,10 @@
     player,
     tournamentNames,
     openId,
+    spot = null,
     onClearPlayer,
     onClearTournament,
+    onClearSpot = () => {},
   }: {
     filter: Filter;
     refresh: number;
@@ -21,8 +23,11 @@
     /** Names known from table windows, by tournament id. */
     tournamentNames: Map<number, string>;
     openId: number | null;
+    /** Hands of a leak-finder spot, with a label for the chip. */
+    spot?: { filter: SpotFilter; label: string } | null;
     onClearPlayer: () => void;
     onClearTournament: () => void;
+    onClearSpot?: () => void;
   } = $props();
 
   const PAGE = 100;
@@ -42,6 +47,7 @@
     showdown_only: showdownOnly,
     result,
     min_pot_bb: minPot && minPot > 0 ? minPot : null,
+    spot: spot?.filter ?? null,
     limit: PAGE,
     offset: 0,
   });
@@ -105,6 +111,14 @@
       <span class="chip" title={name ? `Turnier #${tournament}` : undefined}>
         {#if name}<span class="chip-name">{name}</span>{:else}Turnier <span class="num">#{tournament}</span>{/if}
         <button onclick={onClearTournament} aria-label="Turnierfilter entfernen" title="Turnierfilter entfernen">
+          <svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
+        </button>
+      </span>
+    {/if}
+    {#if spot}
+      <span class="chip">
+        <span class="chip-name">{spot.label}</span>
+        <button onclick={onClearSpot} aria-label="Leak-Filter entfernen" title="Leak-Filter entfernen">
           <svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
         </button>
       </span>

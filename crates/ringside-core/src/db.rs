@@ -6,15 +6,17 @@ use std::path::Path;
 use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_iter};
 use serde::{Deserialize, Serialize};
 
+use crate::allin::hero_all_in;
 use crate::model::{GameKind, Hand};
 use crate::parser::parse_hand;
-use crate::stats::{Counters, analyze, hand_class, position_labels};
+use crate::leaks::{self, Cell};
+use crate::stats::{Counters, StatId, analyze, hand_class, position_labels};
 use crate::tournament::{BuyIn, Summary, TournamentRow};
 
 pub use rusqlite::Error;
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 4;
+const SCHEMA_VERSION: i32 = 5;
 
 pub struct Db {
     conn: Connection,
@@ -47,8 +49,38 @@ pub struct HandQuery {
     /// "won" or "lost", from the hero's point of view.
     pub result: Option<String>,
     pub min_pot_bb: Option<f64>,
+    /// Hands of one leak-finder spot.
+    #[serde(default)]
+    pub spot: Option<SpotFilter>,
     pub limit: usize,
     pub offset: usize,
+}
+
+/// Hero hands of `game` with the chance for `stat` at `positions` (empty: any) and stack `band`.
+/// `made` narrows to hands where the hero did it (`true`) or did not (`false`); for AF
+/// it picks hands with an aggressive action or with a call after the flop.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SpotFilter {
+    pub stat: StatId,
+    pub made: Option<bool>,
+    #[serde(default)]
+    pub positions: Vec<String>,
+    pub band: Option<u8>,
+    pub game: Option<GameKind>,
+}
+
+impl SpotFilter {
+    fn predicate(&self) -> Option<String> {
+        let (made, opp) = leaks::columns(self.stat)?;
+        Some(match (self.stat, self.made) {
+            (StatId::Af, Some(true)) => format!("ph.{made} > 0"),
+            (StatId::Af, Some(false)) => format!("ph.{opp} > 0"),
+            (StatId::Af, None) => format!("ph.{made} + ph.{opp} > 0"),
+            (_, Some(true)) => format!("ph.{opp} > 0 AND ph.{made} > 0"),
+            (_, Some(false)) => format!("ph.{opp} > 0 AND ph.{made} = 0"),
+            (_, None) => format!("ph.{opp} > 0"),
+        })
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -76,6 +108,11 @@ pub struct Results {
     pub net_bb: f64,
     pub showdown_bb: f64,
     pub non_showdown_bb: f64,
+    /// Result with every all-in that had all hands known counted at its expectation.
+    pub ev_bb: f64,
+    /// Those all-ins: how many, and what they paid more than expected (`net − EV`).
+    pub all_ins: i64,
+    pub luck_bb: f64,
     /// Knockout money won, per currency ("USD", "EUR", ...).
     pub bounties: BTreeMap<String, i64>,
     pub points: Vec<ResultPoint>,
@@ -89,6 +126,7 @@ pub struct ResultPoint {
     pub net_bb: f64,
     pub showdown_bb: f64,
     pub non_showdown_bb: f64,
+    pub ev_bb: f64,
 }
 
 /// One answered learning exercise. `seed` identifies a generated exercise, `hand_id`
@@ -273,6 +311,8 @@ impl Db {
             ("hands", "pot", "INTEGER NOT NULL DEFAULT 0"),
             ("hands", "board", "TEXT NOT NULL DEFAULT ''"),
             ("hands", "bounty_currency", "TEXT"),
+            ("hands", "hero_ev", "INTEGER"),
+            ("hands", "hero_stack_bb", "REAL"),
             ("player_hands", "position", "TEXT"),
             ("player_hands", "shown", "TEXT NOT NULL DEFAULT ''"),
             ("player_hands", "bounty", "INTEGER NOT NULL DEFAULT 0"),
@@ -489,6 +529,31 @@ impl Db {
         rows.collect()
     }
 
+    /// Hero hands summed per game, position and stack band, for the leak finder.
+    pub fn hero_cells(&self, filter: &Filter) -> Result<Vec<Cell>, Error> {
+        let sql = format!(
+            "SELECT h.game, ph.position, {band}, SUM(CAST(ph.net AS REAL) / ph.big_blind),
+                    SUM((CAST(ph.net AS REAL) / ph.big_blind) * (CAST(ph.net AS REAL) / ph.big_blind)), {}
+             FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
+             WHERE ph.player = h.hero AND ph.big_blind > 0 AND {FILTER_SQL} AND {HAND_RANGE_SQL}
+             GROUP BY 1, 2, 3",
+            sums(),
+            band = leaks::band_sql("h.hero_stack_bb"),
+        );
+        let mut stmt = self.conn.prepare_cached(&sql)?;
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |r| {
+            Ok(Cell {
+                game: GameKind::parse(&r.get::<_, String>(0)?),
+                position: r.get(1)?,
+                band: r.get(2)?,
+                net_bb: r.get::<_, Option<f64>>(3)?.unwrap_or(0.0),
+                net_bb_sq: r.get::<_, Option<f64>>(4)?.unwrap_or(0.0),
+                counters: counters_at(r, 5)?,
+            })
+        })?;
+        rows.collect()
+    }
+
     /// Hero results in play order, streamed so memory stays flat however many hands there are.
     pub fn hero_results(&self, filter: &Filter, max_points: usize) -> Result<Results, Error> {
         let count: i64 = self.conn.query_row(
@@ -498,7 +563,8 @@ impl Db {
         )?;
         let every = (count as usize).div_ceil(max_points.max(1)).max(1) as i64;
         let sql = format!(
-            "SELECT h.played_at, h.hero_net, h.big_blind, h.hero_showdown, h.hero_bounty, h.bounty_currency FROM hands h
+            "SELECT h.played_at, h.hero_net, h.big_blind, h.hero_showdown, h.hero_bounty, h.bounty_currency, h.hero_ev
+             FROM hands h
              WHERE h.hero_net IS NOT NULL AND {FILTER_SQL} ORDER BY h.played_at, h.id"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
@@ -517,6 +583,15 @@ impl Db {
                 out.non_showdown_bb += net_bb;
             }
             add_bounty(&mut out.bounties, r.get(4)?, r.get(5)?);
+            match r.get::<_, Option<i64>>(6)? {
+                Some(ev) if bb > 0 => {
+                    let ev_bb = ev as f64 / bb as f64;
+                    out.ev_bb += ev_bb;
+                    out.luck_bb += net_bb - ev_bb;
+                    out.all_ins += 1;
+                }
+                _ => out.ev_bb += net_bb,
+            }
             if out.hands % every == 0 || out.hands == count {
                 out.points.push(ResultPoint {
                     n: out.hands,
@@ -524,6 +599,7 @@ impl Db {
                     net_bb: out.net_bb,
                     showdown_bb: out.showdown_bb,
                     non_showdown_bb: out.non_showdown_bb,
+                    ev_bb: out.ev_bb,
                 });
             }
         }
@@ -616,6 +692,19 @@ impl Db {
     }
 
     pub fn hands(&self, q: &HandQuery) -> Result<Vec<HandSummary>, Error> {
+        let spot = match &q.spot {
+            Some(f) => match f.predicate() {
+                Some(pred) => format!(
+                    "AND EXISTS (SELECT 1 FROM player_hands ph WHERE ph.hand_id = h.id AND ph.player = h.hero AND {pred}
+                         AND (?10 = '' OR instr(?10, ',' || ph.position || ',') > 0)
+                         AND (?11 IS NULL OR {} = ?11) AND (?12 IS NULL OR h.game = ?12))",
+                    leaks::band_sql("h.hero_stack_bb")
+                ),
+                None => String::new(),
+            },
+            None => String::new(),
+        };
+        let positions = q.spot.as_ref().filter(|f| !f.positions.is_empty()).map(|f| format!(",{},", f.positions.join(",")));
         let sql = format!(
             "SELECT h.id, h.game, h.played_at, h.table_name, h.small_blind, h.big_blind, h.currency, h.hero_cards,
                     h.hero_position, h.hero_net, h.hero_showdown, h.pot, h.board
@@ -625,21 +714,23 @@ impl Db {
                AND (?5 = 0 OR h.hero_showdown = 1)
                AND (?6 IS NULL OR (?6 = 'won' AND h.hero_net > 0) OR (?6 = 'lost' AND h.hero_net < 0))
                AND (?7 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?7)
+               {spot}
              ORDER BY h.played_at DESC, h.id DESC LIMIT ?8 OFFSET ?9"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
+        let positions = positions.unwrap_or_default();
+        let band = q.spot.as_ref().and_then(|f| f.band);
+        let game = q.spot.as_ref().and_then(|f| f.game).map(GameKind::as_str);
+        let (kind, tournament) = (q.filter.game(), q.filter.tournament());
+        let (showdown, limit, offset) = (q.showdown_only as i64, q.limit as i64, q.offset as i64);
+        // ?10–?12 only appear in the SQL with a spot filter, and SQLite rejects unused bindings.
+        let mut values: Vec<&dyn rusqlite::ToSql> =
+            vec![&kind, &q.filter.since, &tournament, &q.player, &showdown, &q.result, &q.min_pot_bb, &limit, &offset];
+        if !spot.is_empty() {
+            values.extend([&positions as &dyn rusqlite::ToSql, &band, &game]);
+        }
         let rows = stmt.query_map(
-            params![
-                q.filter.game(),
-                q.filter.since,
-                q.filter.tournament(),
-                q.player,
-                q.showdown_only as i64,
-                q.result,
-                q.min_pot_bb,
-                q.limit as i64,
-                q.offset as i64,
-            ],
+            values.as_slice(),
             |r| {
                 let game: String = r.get(1)?;
                 Ok(HandSummary {
@@ -953,10 +1044,12 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
     let hero_showdown = hero
         .and_then(|h| counters.iter().find(|(n, _)| n == h))
         .is_some_and(|(_, c)| c.wtsd > 0);
+    let hero_ev = hero_all_in(hand).map(|a| a.ev.round() as i64);
 
     tx.prepare_cached(
         "UPDATE hands SET hero_position = ?2, hero_class = ?3, hero_showdown = ?4, hero_bounty = ?5,
-             pot = ?6, board = ?7, bounty_currency = ?8, played_at = ?9, hero_net = ?10 WHERE id = ?1",
+             pot = ?6, board = ?7, bounty_currency = ?8, played_at = ?9, hero_net = ?10, hero_ev = ?11,
+             hero_stack_bb = ?12 WHERE id = ?1",
     )?
     .execute(params![
         hand.id as i64,
@@ -969,6 +1062,8 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         hand.bounty_currency,
         hand.played_at,
         hero.map(|h| hand.net(h)),
+        hero_ev,
+        hero.and_then(|h| effective_stack_bb(hand, h)),
     ])?;
 
     if let Some(tid) = hand.tournament_id {
@@ -1011,6 +1106,16 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         }
     }
     Ok(())
+}
+
+/// The hero's stack against the biggest other stack dealt in, in big blinds.
+fn effective_stack_bb(hand: &Hand, hero: &str) -> Option<f64> {
+    if hand.big_blind <= 0 {
+        return None;
+    }
+    let own = hand.seats.iter().find(|s| s.name == hero)?.stack;
+    let other = hand.active_players().filter(|s| s.name != hero).map(|s| s.stack).max()?;
+    Some(own.min(other) as f64 / hand.big_blind as f64)
 }
 
 /// What a tournament hand tells about its tournament. Idempotent, so rebuilding or importing a

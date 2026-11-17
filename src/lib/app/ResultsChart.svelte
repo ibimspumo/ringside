@@ -1,6 +1,6 @@
 <script lang="ts" module>
   export type ChartPoint = { n: number; played_at: string };
-  export type Series<P> = { key: keyof P & string; label: string; color: string; width: number };
+  export type Series<P> = { key: keyof P & string; label: string; color: string; width: number; dash?: string };
 </script>
 
 <script lang="ts" generics="P extends ChartPoint">
@@ -140,7 +140,7 @@
       <text class="axis" x={M.left - 10} y={M.top - 14} dominant-baseline="central" text-anchor="end">{unit}</text>
 
       {#each [...chart.lines].reverse() as l (l.key)}
-        <path d={l.d} stroke={l.color} stroke-width={l.width} fill="none" stroke-linejoin="round" />
+        <path d={l.d} stroke={l.color} stroke-width={l.width} stroke-dasharray={l.dash} fill="none" stroke-linejoin="round" />
       {/each}
 
       {#if data.length === 2}

@@ -4,10 +4,11 @@
   import CloudNotice from "../cloud/CloudNotice.svelte";
   import Coach from "../coach/Coach.svelte";
   import Logo from "../Logo.svelte";
-  import type { Filter, GameKind, HudConfig, ImportStatus, TournamentRow } from "../types";
+  import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
   import Dashboard from "./Dashboard.svelte";
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
+  import Leaks, { type LearnTarget } from "./Leaks.svelte";
   import HudEditor from "./HudEditor.svelte";
   import LiveTables from "./LiveTables.svelte";
   import Players from "./Players.svelte";
@@ -17,10 +18,13 @@
   import Tournaments from "./Tournaments.svelte";
   import Training from "./Training.svelte";
   import PushFoldCharts from "../charts/PushFoldCharts.svelte";
+  import Solver from "../solver/Solver.svelte";
+  import { handoff } from "../solver/handoff.svelte";
 
   type Tab =
     | "dashboard"
     | "reports"
+    | "leaks"
     | "tournaments"
     | "hands"
     | "coach"
@@ -28,6 +32,7 @@
     | "live"
     | "training"
     | "charts"
+    | "solver"
     | "hud"
     | "settings";
   type NavItem = { id: Tab; label: string; icon: string };
@@ -38,6 +43,7 @@
         { id: "dashboard", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
         { id: "reports", label: "Berichte", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
         { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
+        { id: "leaks", label: "Leaks", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
         { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
         { id: "coach", label: "Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
       ],
@@ -53,7 +59,8 @@
       label: "Lernen",
       items: [
         { id: "training", label: "Training", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
-        { id: "charts", label: "Push/Fold", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
+        { id: "charts", label: "Charts", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
+        { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
       ],
     },
     {
@@ -66,15 +73,17 @@
   ];
   const NAV = GROUPS.flatMap((g) => g.items);
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
-  const DATA_TABS: Tab[] = ["dashboard", "reports", "tournaments", "players", "hands"];
+  const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
     tournaments: "Klick auf ein Turnier filtert alle Ansichten darauf und zeigt seine Hände.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
+    leaks: "Deine Werte je Position und Stacktiefe gegen veröffentlichte Richtwerte.",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
     training: "Gesperrt, solange PokerStars läuft. Dein Fortschritt bleibt auf diesem Rechner.",
+    solver: "Gesperrt, solange PokerStars läuft. Gerechnet wird nur auf diesem Rechner.",
   };
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
@@ -113,6 +122,15 @@
   /** Coach tab: a tournament to analyse, set from the tournaments page. */
   let analyzeTournament = $state<number | null>(null);
 
+  // "Diesen Spot lösen" in the replayer hands a spot over; the solver page takes it.
+  $effect(() => {
+    if (handoff.prefill) tab = "solver";
+  });
+  /** Hands tab: a leak-finder spot to list. */
+  let handsSpot = $state<{ filter: SpotFilter; label: string } | null>(null);
+  /** Training tab: an article or exercise to open, set from the leak finder. */
+  let learnOpen = $state<LearnTarget | null>(null);
+
   try {
     const saved = JSON.parse(localStorage.getItem(STORE) ?? "null");
     if (saved && GAMES.some(([g]) => g === saved.game)) game = saved.game;
@@ -148,6 +166,7 @@
 
   function showHands(player: string | null, handId: number | null = null) {
     handsPlayer = player;
+    handsSpot = null;
     handToOpen = handId;
     tab = "hands";
   }
@@ -289,6 +308,19 @@
         <Dashboard {filter} {hud} {refresh} />
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
+      {:else if tab === "leaks"}
+        <Leaks
+          {filter}
+          {refresh}
+          onHands={(spot, label) => {
+            showHands(null);
+            handsSpot = { filter: spot, label };
+          }}
+          onLearn={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
+        />
       {:else if tab === "tournaments"}
         <Tournaments
           filter={tournamentFilter}
@@ -320,9 +352,11 @@
       {:else if tab === "live"}
         <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
       {:else if tab === "training"}
-        <Training {hud} />
+        <Training {hud} open={learnOpen} onOpened={() => (learnOpen = null)} />
       {:else if tab === "charts"}
         <PushFoldCharts />
+      {:else if tab === "solver"}
+        <Solver />
       {:else if tab === "hands"}
         <Hands
           {filter}
@@ -330,6 +364,8 @@
           player={handsPlayer}
           {tournamentNames}
           openId={handToOpen}
+          spot={handsSpot}
+          onClearSpot={() => (handsSpot = null)}
           onClearPlayer={() => (handsPlayer = null)}
           onClearTournament={() => (tournament = null)}
         />

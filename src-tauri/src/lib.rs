@@ -4,6 +4,7 @@ mod coach;
 mod importer;
 mod overlay;
 mod settings;
+mod solver;
 
 use std::collections::HashSet;
 use std::hash::{BuildHasher, RandomState};
@@ -414,6 +415,12 @@ struct Reports {
 }
 
 #[tauri::command]
+async fn leaks(filter: Filter, state: State<'_, AppState>) -> CmdResult<ringside_core::leaks::LeakReport> {
+    let cells = state.db.lock().unwrap().hero_cells(&filter).map_err(err)?;
+    Ok(ringside_core::leaks::find(&cells))
+}
+
+#[tauri::command]
 async fn reports(filter: Filter, state: State<'_, AppState>) -> CmdResult<Reports> {
     let db = state.db.lock().unwrap();
     let view = |rows: Vec<GroupRow>| -> Vec<GroupView> {
@@ -649,6 +656,7 @@ pub fn run() {
             detected_dirs,
             dashboard,
             reports,
+            leaks,
             tournaments,
             player_note,
             notes_sources,
@@ -664,12 +672,21 @@ pub fn run() {
             learn_progress,
             charts::pushfold_grid,
             charts::pushfold_chart,
+            charts::preflop_grid,
+            charts::preflop_spots,
+            charts::preflop_node,
+            solver::solver_estimate,
+            solver::solver_start,
+            solver::solver_cancel,
+            solver::solver_clear,
+            solver::solver_node,
             coach::coach_status,
             coach::coach_set_key,
             coach::coach_test_key,
             coach::coach_delete_key,
             coach::coach_models,
             coach::coach_set_model,
+            coach::coach_set_effort,
             coach::coach_prepare,
             coach::coach_run,
             coach::coach_cancel,

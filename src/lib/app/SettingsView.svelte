@@ -216,7 +216,7 @@
         <div class="panel-head"><h2 class="panel-title">Über Ringside</h2></div>
         <div class="body">
           <p class="hint">
-            Open Source unter MIT-Lizenz. Ringside liest nur deine eigenen Hand-Histories und zeigt einfache
+            Open Source unter der AGPL-3.0. Ringside liest nur deine eigenen Hand-Histories und zeigt einfache
             Zahlen-Statistiken an – kein Data-Mining, keine Echtzeit-Ratschläge.
           </p>
           <div class="row"><button class="btn" onclick={openRepo}>Projekt auf GitHub</button></div>

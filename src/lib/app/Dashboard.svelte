@@ -8,9 +8,16 @@
 
   const SERIES: Series<ResultPoint>[] = [
     { key: "net_bb", label: "Gesamt", color: "var(--text)", width: 2 },
+    { key: "ev_bb", label: "All-in-EV", color: "var(--amber)", width: 1.5, dash: "5 3" },
     { key: "showdown_bb", label: "Mit Showdown", color: "var(--sd)", width: 1.5 },
     { key: "non_showdown_bb", label: "Ohne Showdown", color: "var(--neg)", width: 1.5 },
   ];
+
+  const EV_HELP =
+    "All-in-EV: dein Ergebnis, wenn jedes All-in mit offenen Karten so ausgegangen wäre, wie es im Schnitt ausgeht. " +
+    "Ringside rechnet je Side Pot die exakte Equity × Pot nach Rake − deinen Einsatz. Bounties zählen nicht mit.";
+  const LUCK_HELP =
+    "Glück: tatsächliches Ergebnis − EV in diesen All-ins. Positiv heißt, du hast öfter gewonnen, als die Karten erwarten ließen.";
 
   let { filter, hud, refresh }: { filter: Filter; hud: HudConfig | null; refresh: number } = $props();
 
@@ -82,6 +89,11 @@
           <small>aus Knockouts</small>
         </div>
       {/if}
+      <div class="kpi" title="{LUCK_HELP} {EV_HELP}">
+        <span class="label">Glück</span>
+        <strong class="num {sign(r.luck_bb)}">{r.all_ins ? signed(r.luck_bb) : "–"}<span class="unit">BB</span></strong>
+        <small>{r.all_ins ? `aus ${int(r.all_ins)} All-ins` : "kein All-in mit offenen Karten"}</small>
+      </div>
       <div class="kpi split">
         <span class="label">Showdown</span>
         <div class="pair">
@@ -100,6 +112,7 @@
         <h2 class="panel-title">Ergebnis-Verlauf</h2>
         <div class="legend">
           <span><i class="sw total"></i>Gesamt</span>
+          <span class="help" title={EV_HELP}><i class="sw ev"></i>All-in-EV</span>
           <span><i class="sw sd"></i>Mit Showdown</span>
           <span><i class="sw nsd"></i>Ohne Showdown</span>
         </div>
@@ -217,6 +230,12 @@
   }
   .sw.nsd {
     background: var(--neg);
+  }
+  .sw.ev {
+    background: repeating-linear-gradient(90deg, var(--amber) 0 5px, transparent 5px 8px);
+  }
+  .help {
+    cursor: help;
   }
   .legend {
     display: flex;

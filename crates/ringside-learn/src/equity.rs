@@ -4,6 +4,7 @@
 use std::sync::LazyLock;
 
 use rand::Rng;
+use ringside_engine::allin::{SidePot, pot_shares};
 use ringside_engine::{Card, CardSet, Combo, HandClass, Method, PreflopMatrix, Range, equity};
 
 use crate::deal::{self, Rng8};
@@ -21,13 +22,6 @@ fn estimate() -> AnswerSpec {
 
 fn combo(cards: &[Card]) -> Combo {
     Combo::new(cards[0], cards[1])
-}
-
-/// Exact all-in equity of each player in percent.
-pub fn exact_equity(players: &[Vec<Card>], board: &[Card], dead: CardSet) -> Result<Vec<f64>, String> {
-    let ranges: Vec<Range> = players.iter().map(|p| Range::single(combo(p))).collect();
-    let r = equity(&ranges, CardSet::from_cards(board), dead, Method::Exact).map_err(|e| e.to_string())?;
-    Ok(r.players.iter().map(|p| p.equity_pct).collect())
 }
 
 /// Two hands of a classic preflop matchup.
@@ -212,28 +206,9 @@ pub fn grade_range(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {
 
 /// Hero's expected share of all pots, in percent, and per pot.
 pub fn all_in_shares(hero: &[Card], opponents: &[Vec<Card>], board: &[Card], pots: &[PotView]) -> Result<(f64, Vec<f64>), String> {
-    let players: Vec<Vec<Card>> = std::iter::once(hero.to_vec()).chain(opponents.iter().cloned()).collect();
-    let total: f64 = pots.iter().map(|p| p.amount_bb).sum();
-    let mut won = 0.0;
-    let mut per_pot = Vec::new();
-    for pot in pots {
-        let share = if !pot.players.contains(&0) {
-            0.0
-        } else if pot.players.len() == 1 {
-            100.0
-        } else {
-            let in_pot: Vec<Vec<Card>> = pot.players.iter().map(|&i| players[i].clone()).collect();
-            let dead: Vec<Card> = (0..players.len())
-                .filter(|i| !pot.players.contains(i))
-                .flat_map(|i| players[i].clone())
-                .collect();
-            let eq = exact_equity(&in_pot, board, CardSet::from_cards(&dead))?;
-            eq[pot.players.iter().position(|&i| i == 0).expect("hero in pot")]
-        };
-        won += share / 100.0 * pot.amount_bb;
-        per_pot.push(share);
-    }
-    Ok((100.0 * won / total, per_pot))
+    let holdings: Vec<Vec<Card>> = std::iter::once(hero.to_vec()).chain(opponents.iter().cloned()).collect();
+    let pots: Vec<SidePot> = pots.iter().map(|p| SidePot { amount: p.amount_bb, players: p.players.clone() }).collect();
+    pot_shares(&holdings, board, &pots, 0).map_err(|e| e.to_string())
 }
 
 pub fn grade_all_in(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {

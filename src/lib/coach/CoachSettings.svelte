@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { coachApi, errorText, usd } from "./api";
-  import type { CoachStatus, KeyInfo, ModelInfo } from "./types";
+  import { EFFORTS, coachApi, errorText, usd } from "./api";
+  import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
 
   let status = $state<CoachStatus | null>(null);
   let key = $state("");
@@ -17,7 +17,17 @@
 
   onMount(async () => {
     status = await coachApi.status();
+    // Whether the chosen model reasons decides if the thoroughness choice shows.
+    coachApi.models().then(
+      (list) => (models ??= list),
+      () => {},
+    );
   });
+
+  async function setEffort(e: Effort) {
+    await coachApi.setEffort(e);
+    if (status) status.effort = e;
+  }
 
   async function act(f: () => Promise<KeyInfo | void>, ok: string) {
     busy = true;
@@ -67,6 +77,7 @@
       .filter((m) => !q || m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q));
   });
   const current = $derived(models?.find((m) => m.id === status?.model) ?? null);
+  const reasons = $derived(current?.reasoning ?? true);
   const perM = (v: number | null) => (v == null ? "–" : usd(v, v < 1 ? 3 : 2));
   const ctx = (n: number | null) => (n == null ? "–" : n >= 1e6 ? `${(n / 1e6).toLocaleString("de-DE")} Mio.` : `${Math.round(n / 1000)} Tsd.`);
 </script>
@@ -128,6 +139,27 @@
       </div>
       {#if !open}<button class="btn" onclick={loadModels}>Modell wählen</button>{/if}
     </div>
+
+    {#if status}
+      <div class="effort">
+        <span class="label" id="effort-label">Gründlichkeit</span>
+        {#if reasons}
+          <div class="seg" role="radiogroup" aria-labelledby="effort-label">
+            {#each EFFORTS as e (e.id)}
+              <button
+                role="radio"
+                aria-checked={status.effort === e.id}
+                class:on={status.effort === e.id}
+                onclick={() => setEffort(e.id)}>{e.name}</button
+              >
+            {/each}
+          </div>
+          <span class="dim small">{EFFORTS.find((e) => e.id === status?.effort)?.hint}</span>
+        {:else}
+          <span class="dim small">Dieses Modell denkt nicht gesondert nach, deshalb gibt es hier nichts zu wählen.</span>
+        {/if}
+      </div>
+    {/if}
 
     {#if open}
       <div class="picker">
@@ -246,6 +278,12 @@
   }
   .chosen .dim {
     font-size: 12.5px;
+  }
+  .effort {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
   }
   .picker {
     display: flex;

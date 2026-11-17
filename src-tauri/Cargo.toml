@@ -18,6 +18,7 @@ ringside-coach = { path = "../crates/ringside-coach" }
 ringside-core = { path = "../crates/ringside-core" }
 ringside-engine = { path = "../crates/ringside-engine" }
 ringside-learn = { path = "../crates/ringside-learn" }
+ringside-solver = { path = "../crates/ringside-solver" }
 # The OpenRouter key lives in the OS vault: Credential Manager on Windows, Keychain on macOS.
 keyring = { version = "3.6", features = ["apple-native", "windows-native"] }
 tauri = { version = "2", features = [] }

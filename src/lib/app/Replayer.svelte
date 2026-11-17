@@ -3,6 +3,8 @@
   import Felt from "../Felt.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
   import PlayingCard from "../PlayingCard.svelte";
+  import { openInSolver } from "../solver/handoff.svelte";
+  import { spotFromHand } from "../solver/presets";
   import { money, moneyShort } from "../stats";
   import type { Action, Hand, Street } from "../types";
 
@@ -196,6 +198,8 @@
 
   const heroSeat = $derived(hand.seats.find((s) => s.name === hand.hero)?.seat ?? 1);
   const done = $derived(step >= events.length);
+  /** The heads-up spot at the start of the street on screen, for the solver. */
+  const solveSpot = $derived(table.street === "preflop" ? null : spotFromHand(hand, table.street, positions));
 
   /** Actions grouped by street, each with its index in `events` so the log can follow the replay. */
   const log = $derived.by(() => {
@@ -368,6 +372,16 @@
           <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
           <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
         </div>
+        {#if solveSpot}
+          <button
+            class="btn solve"
+            disabled={"reason" in solveSpot}
+            title={"reason" in solveSpot ? solveSpot.reason : "Board, Pot und Stack dieser Straße im Solver öffnen; die Ranges sind ein Vorschlag."}
+            onclick={() => "prefill" in solveSpot && openInSolver(solveSpot.prefill)}
+          >
+            Diesen Spot lösen
+          </button>
+        {/if}
       </div>
 
     </div>
@@ -667,6 +681,11 @@
     min-width: 36px;
     text-align: right;
     color: var(--text-2);
+  }
+  .solve {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
   }
 
   .bounties {

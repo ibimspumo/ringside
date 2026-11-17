@@ -3,6 +3,7 @@
   import { api } from "../api";
   import { coachApi } from "../coach/api";
   import type { ConceptCount } from "../coach/types";
+  import type { LearnTarget } from "../app/Leaks.svelte";
   import type { HudConfig, LearnKind, LearnProgress } from "../types";
   import { errorText } from "./catalog";
   import OwnHands from "./OwnHands.svelte";
@@ -11,7 +12,16 @@
   import Trainer from "./Trainer.svelte";
   import Wissen from "./wissen/Wissen.svelte";
 
-  let { hud = null }: { hud?: HudConfig | null } = $props();
+  let {
+    hud = null,
+    open = null,
+    onOpened = () => {},
+  }: {
+    hud?: HudConfig | null;
+    /** An article or exercise to show first, e.g. from the leak finder. */
+    open?: LearnTarget | null;
+    onOpened?: () => void;
+  } = $props();
 
   type Section = "today" | "path" | "own" | "trainer" | "wissen";
   const SECTIONS: { id: Section; label: string; icon: string }[] = [
@@ -85,6 +95,13 @@
     article = id;
     go("wissen");
   }
+
+  $effect(() => {
+    if (!open) return;
+    if ("article" in open) read(open.article);
+    else train(open.kind, open.level);
+    onOpened();
+  });
 
   function tabKey(e: KeyboardEvent) {
     const i = SECTIONS.findIndex((s) => s.id === section);

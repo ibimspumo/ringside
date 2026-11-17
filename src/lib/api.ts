@@ -3,6 +3,9 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
 import * as chartsDemo from "./charts/demo";
+import type { PreflopGrid, PreflopNode, PreflopSpots } from "./charts/preflop-types";
+import * as solverDemo from "./solver/demo";
+import type { SolverDone, SolverEstimate, SolverNode, SolverProgress, SolverSettings, SolverSpot, SolverStep } from "./solver/types";
 import type {
   Exercise,
   Feedback,
@@ -17,6 +20,7 @@ import type {
   HandQuery,
   HandSummary,
   ImportStatus,
+  LeakReport,
   LiveTable,
   NotesSource,
   PlayerNote,
@@ -110,6 +114,7 @@ export const api = {
   detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
   dashboard: (filter: Filter) => call<Dashboard>("dashboard", { filter }, () => demo.demoDashboard(filter)),
   reports: (filter: Filter) => call<Reports>("reports", { filter }, () => demo.demoReports(filter)),
+  leaks: (filter: Filter) => call<LeakReport>("leaks", { filter }, () => demo.demoLeaks(filter)),
   players: (filter: Filter, search: string, limit = 300) =>
     call<PlayerView[]>("players", { filter, search, limit }, () =>
       demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
@@ -131,7 +136,34 @@ export const api = {
   pushfoldGrid: () => call<PushFoldGrid>("pushfold_grid", {}, chartsDemo.demoGrid),
   pushfoldChart: (ante: PushFoldAnte, players: number, stackBb: number) =>
     call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, chartsDemo.demoChart),
+  // The preview sample is large, so the browser loads it only when asked.
+  preflopGrid: () =>
+    inTauri ? invoke<PreflopGrid>("preflop_grid") : import("./charts/preflop-demo").then((d) => d.demoGrid()),
+  preflopSpots: (players: number, stackBb: number) =>
+    inTauri
+      ? invoke<PreflopSpots>("preflop_spots", { players, stackBb })
+      : import("./charts/preflop-demo").then((d) => d.demoSpots(players, stackBb)),
+  preflopNode: (players: number, stackBb: number, node: number) =>
+    inTauri
+      ? invoke<PreflopNode>("preflop_node", { players, stackBb, node })
+      : import("./charts/preflop-demo").then((d) => d.demoNode(players, stackBb, node)),
+  solverEstimate: (spot: SolverSpot, threads: number) =>
+    call<SolverEstimate>("solver_estimate", { spot, threads }, () => solverDemo.demoEstimate(spot, threads)),
+  /** Progress and result arrive via `onSolverProgress`/`onSolverDone`, tagged with `run`. */
+  solverStart: (spot: SolverSpot, settings: SolverSettings, run: number) =>
+    call<void>("solver_start", { spot, settings, run }, () => solverDemo.demoStart(spot, settings, run)),
+  solverCancel: () => call<void>("solver_cancel", {}, solverDemo.demoCancel),
+  solverClear: () => call<void>("solver_clear", {}, solverDemo.demoClear),
+  solverNode: (path: SolverStep[]) => call<SolverNode>("solver_node", { path }, () => solverDemo.demoNode(path)),
 };
+
+export function onSolverProgress(handler: (p: SolverProgress) => void): Promise<UnlistenFn> {
+  return inTauri ? on("solver-progress", handler) : Promise.resolve(solverDemo.onProgress(handler));
+}
+
+export function onSolverDone(handler: (d: SolverDone) => void): Promise<UnlistenFn> {
+  return inTauri ? on("solver-done", handler) : Promise.resolve(solverDemo.onDone(handler));
+}
 
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {
   if (!inTauri) return () => {};

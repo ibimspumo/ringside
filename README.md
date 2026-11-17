@@ -16,8 +16,9 @@
 - **Mehrere Tische**, jede Größe und Fensterform: Positionen werden je Tischgröße gespeichert und passen sich jedem Fenster an.
 
 **In der App**
-- Übersicht mit Gewinnkurve (gesamt, mit und ohne Showdown), Winrate, Bounties und deinem Spielstil.
+- Übersicht mit Gewinnkurve (gesamt, mit und ohne Showdown, All-in-EV), Winrate, Bounties, Glück bei All-ins und deinem Spielstil.
 - Berichte: Ergebnis nach Position, 13×13-Starthand-Matrix, Sitzungen.
+- Leaks: deine Werte je Position und Stacktiefe neben veröffentlichten Richtwerten (mit Quelle), mit Sicherheit je Befund und direktem Weg zu den Händen, zur Erklärung und zur Übung.
 - Turniere: Buy-ins, Preisgeld, Bounties, ROI und ITM je Währung. Ein Klick filtert alle Ansichten auf ein Turnier.
 - Live-Tische: deine Gegner an allen offenen Tischen mit HUD-Werten und PokerStars-Notizen.
 - Spieler mit Detailansicht und allen Händen, die sie gezeigt haben.
@@ -30,7 +31,9 @@
 - *Deine Hände:* eigene All-ins und Push/Fold-Spots noch einmal entscheiden – danach EV, Ergebnis und Glück in BB.
 - *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold aus jeder Position an Tischen mit 2–9 Spielern und mehr, in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
 - *Deine Schwachstellen:* Themen aus den Coach-Berichten fließen in die tägliche Auswahl ein.
-- *Push/Fold-Charts:* Gleichgewicht für 2–9 Spieler, jede Position, Shove oder Call gegen Shove, ohne Ante, mit Ante oder BB-Ante. 720 Tabellen sind vorgerechnet, alles andere rechnet die App live.
+- *Charts:* Push/Fold-Gleichgewicht für 2–9 Spieler, jede Position, Shove oder Call gegen Shove, ohne Ante, mit Ante oder BB-Ante (720 Tabellen vorgerechnet, alles andere live). Dazu Preflop-Charts für 15–100 BB an 6-, 8- und 9-max-Tischen mit Open, 3-Bet, 4-Bet und All-in – als *Modell*, weil das Spiel nach dem Flop über Equity-Realisierung geschätzt wird.
+- *Solver:* Heads-up-Postflop-Solver für Flop, Turn und River mit eigenem Range-Editor; im Replayer startet „Diesen Spot lösen“ mit Board, Pot und Stacks der Hand. Die Lösung gilt für die gewählten Ranges und Einsatzgrößen.
+- *Solver:* Heads-up-Spots ab Flop, Turn oder River lösen – mit eigenen Ranges (13×13-Editor mit Gewichten und Vorlagen), Pot, Stack und Einsatzgrößen. Vorher schätzt Ringside Speicher und Zeit. Das Ergebnis zeigt die Strategie je Hand, Equity und EV in jedem Knoten. „Diesen Spot lösen“ im Replayer übernimmt Board, Pot und Stack einer Hand.
 - *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
 
 **KI-Coach** (optional, mit eigenem [OpenRouter](https://openrouter.ai)-Key)
@@ -95,6 +98,7 @@ RINGSIDE_SCALE_HANDS=1000000 cargo test --release -p ringside-core --test scale 
 ```
 
 - `crates/ringside-core` – Hand-History-Parser, Statistik-Zähler, Positionen, SQLite mit laufenden Summen und fortsetzbarem Upgrade, inkrementeller Import, Tisch-Layouts.
+- `crates/ringside-solver` – Heads-up-Postflop-Solver: Spot aus Ranges und Einsatzgrößen, Speicherschätzung, Lösen mit Fortschritt und Abbruch, Navigation durch den Baum. Rechnet mit `crates/postflop-solver` (Kopie von b-inary/postflop-solver, AGPL).
 - `src-tauri` – Tauri-App: Import-Thread, Tisch-Erkennung (Win32), Overlay-Fenster, Einstellungen und Profile, Updater.
 - `src` – Svelte-Oberfläche: Overlay (`src/lib/hud`) und Statistik-App (`src/lib/app`).
 
@@ -110,4 +114,8 @@ Der Workflow baut den Windows-Installer, signiert das Update und veröffentlicht
 
 ## Lizenz
 
-MIT
+Ringside steht unter der GNU Affero General Public License, Version 3 oder neuer (AGPL-3.0-or-later, siehe `LICENSE`). Versionen bis 0.5.0 sind unter MIT erschienen und bleiben es.
+
+**Warum AGPL:** Der Postflop-Solver nutzt [postflop-solver](https://github.com/b-inary/postflop-solver) von Wataru Inariba, das unter der AGPL steht. Ein eigener Solver auf diesem Niveau wäre ein Projekt für sich. Wer AGPL-Code einbaut, muss das ganze Programm unter die AGPL stellen. Eine Kopie liegt in `crates/postflop-solver`; Herkunft, Commit und Änderungen stehen in dessen `Cargo.toml`.
+
+**Was das bedeutet:** Für die Nutzung ändert sich nichts – Ringside bleibt kostenlos und läuft lokal. Wer Ringside verändert und weitergibt, muss den vollständigen Quellcode seiner Fassung unter derselben Lizenz mitgeben. Das gilt auch, wenn eine veränderte Fassung über ein Netzwerk angeboten wird, etwa als Web-Dienst. Forks können also nicht mehr geschlossen oder unter einer freizügigeren Lizenz weitergegeben werden.

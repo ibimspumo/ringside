@@ -62,10 +62,15 @@ export interface ReportListItem {
   started_at: string;
 }
 
+/** OpenRouter's reasoning effort: how long the model may think in each step. */
+export type Effort = "high" | "medium" | "low";
+
 export interface Estimate {
   token: string;
   tournament_id: number;
   model: string;
+  /** Null when the model does not reason. */
+  effort: Effort | null;
   hands_total: number;
   hands_sent: number;
   hands_without_decision: number;
@@ -86,13 +91,26 @@ export interface CoachProgress {
   tournament_id: number;
   step: number;
   max_steps: number;
-  stage: "thinking" | "tool" | "retry" | "fixing";
+  /** thinking, writing and calling come from the model's stream; tool is Ringside calculating. */
+  stage: "thinking" | "writing" | "calling" | "tool" | "retry" | "fixing";
   message: string;
   tool: string | null;
   tool_calls: number;
+  /** Billed so far, from OpenRouter after each step. */
   prompt_tokens: number;
   completion_tokens: number;
+  /** Part of completion_tokens spent reasoning. */
+  reasoning_tokens: number;
   cost_usd: number;
+  /** Counted in the current step's stream, roughly; hidden reasoning is only billed afterwards. */
+  live_reasoning_tokens: number;
+  live_output_tokens: number;
+  step_seconds: number;
+  total_seconds: number;
+  /** Seconds since the last packet of the stream. */
+  idle_seconds: number;
+  /** The step fails after this many seconds without data; null when the model answers in one piece. */
+  idle_limit: number | null;
 }
 
 export interface ModelInfo {
@@ -116,6 +134,7 @@ export interface KeyInfo {
 export interface CoachStatus {
   has_key: boolean;
   model: string;
+  effort: Effort;
   running: boolean;
 }
 

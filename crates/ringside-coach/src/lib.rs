@@ -17,4 +17,6 @@ pub mod tools;
 pub use concepts::{CONCEPTS, Concept};
 pub use openrouter::{ApiError, Client, KeyInfo, ModelInfo};
 pub use report::{Report, ReportInfo};
-pub use session::{CoachError, ConceptCount, Confirmed, Estimate, Prepared, Progress, concept_counts, prepare, run};
+pub use session::{
+    CoachError, ConceptCount, Confirmed, Effort, Estimate, Prepared, Progress, concept_counts, prepare, run,
+};

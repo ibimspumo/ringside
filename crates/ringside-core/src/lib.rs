@@ -3,8 +3,10 @@
 //! Data flow: hand history text → [`parser`] → [`model::Hand`] → [`stats::analyze`]
 //! → per-player counters stored by [`db::Db`] → aggregated [`stats::StatId`] values.
 
+pub mod allin;
 pub mod db;
 pub mod import;
+pub mod leaks;
 pub mod model;
 pub mod notes;
 pub mod parser;

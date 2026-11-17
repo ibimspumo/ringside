@@ -160,6 +160,8 @@ export interface ResultPoint {
   net_bb: number;
   showdown_bb: number;
   non_showdown_bb: number;
+  /** Result with all-ins that had every hand shown counted at their expectation. */
+  ev_bb: number;
 }
 
 export interface Results {
@@ -168,6 +170,10 @@ export interface Results {
   net_bb: number;
   showdown_bb: number;
   non_showdown_bb: number;
+  ev_bb: number;
+  /** All-ins with every hand shown, and what they paid above their EV. */
+  all_ins: number;
+  luck_bb: number;
   /** Knockout money won per currency, e.g. { USD: 3745 }. */
   bounties: Record<string, number>;
   points: ResultPoint[];
@@ -225,6 +231,8 @@ export interface HandQuery extends Filter {
   showdown_only: boolean;
   result: "won" | "lost" | null;
   min_pot_bb: number | null;
+  /** Hands of one leak-finder spot. */
+  spot?: SpotFilter | null;
   limit: number;
   offset: number;
 }
@@ -569,4 +577,64 @@ export interface PushFoldNode {
   /** Shove/call EV per hand class and fold EV, in hundredths of a BB. */
   ev_act: number[];
   ev_fold: number;
+}
+
+/** Hero hands with the chance for `stat` at `positions` (empty: any) and stack `band`; `made`
+ *  narrows to hands where the hero did it or not (AF: aggressive action or postflop call). */
+export interface SpotFilter {
+  stat: StatId;
+  made: boolean | null;
+  positions: string[];
+  band: number | null;
+  game: GameKind | null;
+}
+
+export interface LeakSource {
+  id: string;
+  title: string;
+  publisher: string;
+  url: string | null;
+  scope: string;
+}
+
+export interface LeakCost {
+  hands: number;
+  spot_bb100: number;
+  base_bb100: number;
+  margin_bb100: number;
+  total_bb: number;
+}
+
+/** One stat in one spot against its guide range. */
+export interface LeakCheck {
+  stat: StatId;
+  game: GameKind;
+  /** Empty for all positions. */
+  positions: string[];
+  band: number;
+  made: number;
+  opp: number;
+  /** Percent, or the plain ratio for AF; same unit for the interval, range and deviation. */
+  value: number;
+  ci_low: number;
+  ci_high: number;
+  low: number;
+  high: number;
+  direction: "too_high" | "too_low" | null;
+  deviation: number;
+  /** One-sided probability that the true value lies outside the range on this side. */
+  confidence: number;
+  uncertain: boolean;
+  score: number;
+  cost: LeakCost | null;
+  cites: { source: string; says: string }[];
+  note: string | null;
+}
+
+export interface LeakReport {
+  leaks: LeakCheck[];
+  fine: LeakCheck[];
+  too_small: number;
+  bands: string[];
+  sources: LeakSource[];
 }

@@ -7,6 +7,7 @@ import type {
   CoachReport,
   CoachStatus,
   ConceptCount,
+  Effort,
   Estimate,
   KeyInfo,
   ModelInfo,
@@ -20,6 +21,7 @@ export const coachApi = {
   deleteKey: () => call<void>("coach_delete_key", {}, demo.deleteKey),
   models: () => call<ModelInfo[]>("coach_models", {}, demo.models),
   setModel: (model: string) => call<void>("coach_set_model", { model }, () => demo.setModel(model)),
+  setEffort: (effort: Effort) => call<void>("coach_set_effort", { effort }, () => demo.setEffort(effort)),
   /** Picks the hands and estimates the cost; nothing is sent. */
   prepare: (tournamentId: number) => call<Estimate>("coach_prepare", { tournamentId }, () => demo.estimate(tournamentId)),
   /** Sends the analysis of the estimate that carried `token`. */
@@ -37,6 +39,20 @@ export const coachApi = {
 export async function onProgress(handler: (p: CoachProgress) => void): Promise<() => void> {
   return inTauri ? on<CoachProgress>("coach-progress", handler) : demo.onProgress(handler);
 }
+
+export const EFFORTS: { id: Effort; name: string; hint: string }[] = [
+  { id: "high", name: "Gründlich", hint: "Denkt am längsten nach. Ein Schritt kann mehrere Minuten dauern." },
+  { id: "medium", name: "Ausgewogen", hint: "Etwa halb so viel Nachdenken, spürbar schneller." },
+  { id: "low", name: "Schnell", hint: "Kurzes Nachdenken: am schnellsten und günstigsten, dafür weniger tief." },
+];
+
+export const effortName = (e: Effort) => EFFORTS.find((x) => x.id === e)?.name ?? e;
+
+/** 45 s, 2:05 min. */
+export const duration = (seconds: number) => {
+  const s = Math.max(0, Math.floor(seconds));
+  return s < 60 ? `${s} s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} min`;
+};
 
 /** Tauri rejects with the command's error string. */
 export const errorText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "Unbekannter Fehler.");

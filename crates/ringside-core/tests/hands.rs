@@ -510,3 +510,36 @@ fn learning_candidates_are_hero_hands_in_the_filter() {
     let cash = Filter { game: Some(GameKind::Cash), ..Default::default() };
     assert!(db.learn_candidates(&cash, 10, 0).unwrap().is_empty());
 }
+
+/// The leak finder's cells and its link to the hands list: in the first cash hand Hero
+/// 3-bets from the big blind with 100 BB effective.
+#[test]
+fn leak_cells_and_spot_filter() {
+    use ringside_core::db::SpotFilter;
+
+    let mut db = Db::open_in_memory().unwrap();
+    let rows: Vec<(Hand, String)> =
+        split_hands(CASH).into_iter().map(|raw| (parse_hand(raw).unwrap(), raw.to_string())).collect();
+    db.insert_hands(&rows).unwrap();
+    let cells = db.hero_cells(&Filter::default()).unwrap();
+    let bb = cells.iter().find(|c| c.position.as_deref() == Some("BB")).expect("big blind cell");
+    assert_eq!((bb.game, bb.band, bb.counters.three_bet, bb.counters.three_bet_opp), (Some(GameKind::Cash), Some(3), 1, 1));
+    assert_eq!(cells.iter().map(|c| c.counters.hands).sum::<i64>(), 2);
+
+    let ids = |spot: SpotFilter| -> Vec<u64> {
+        db.hands(&HandQuery { spot: Some(spot), limit: 10, ..Default::default() }).unwrap().iter().map(|h| h.id).collect()
+    };
+    let spot = |made, positions: &[&str], band| SpotFilter {
+        stat: StatId::ThreeBet,
+        made,
+        positions: positions.iter().map(|p| p.to_string()).collect(),
+        band,
+        game: Some(GameKind::Cash),
+    };
+    assert_eq!(ids(spot(Some(true), &["BB"], Some(3))), [250000000001]);
+    assert_eq!(ids(spot(None, &[], None)), [250000000001]);
+    assert!(ids(spot(Some(false), &["BB"], Some(3))).is_empty());
+    assert!(ids(spot(Some(true), &["SB"], None)).is_empty());
+    assert!(ids(spot(Some(true), &["BB"], Some(2))).is_empty());
+    assert_eq!(db.hands(&HandQuery { limit: 10, ..Default::default() }).unwrap().len(), 2);
+}

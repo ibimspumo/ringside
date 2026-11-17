@@ -1,16 +1,13 @@
 //! Exercises from the user's own hands: all-ins with every hand known, and push/fold
 //! decisions from any seat (open shoves and calls against a shove) at the real table.
 //!
-//! All-in EV is exact for any number of players: every side pot gets its own exact
-//! equity among the players who can win it, with the other known hands removed from
-//! the deck. Rake is taken from each pot in proportion to its size, and bounties are
-//! left out (chips only).
+//! All-in EV comes from [`hero_all_in`], the same calculation the results graph uses.
 
+use ringside_core::allin::hero_all_in;
 use ringside_core::model::{Action, ActionKind, GameKind, Hand, Seat, Street};
 use ringside_engine::Card;
 use serde::{Deserialize, Serialize};
 
-use crate::equity::all_in_shares;
 use crate::fmt::{self, pct};
 use crate::multiway::{self, TableSpot};
 use crate::{Answer, Exercise, Fact, Feedback, Grading, Kind, PotView, Prompt, grade};
@@ -138,76 +135,25 @@ pub fn prepare_spot(hand: &Hand, id: &str) -> Result<(), String> {
 }
 
 fn all_in(hand: &Hand) -> Option<OwnSpot> {
-    let hero = hand.hero.as_deref()?;
-    let hero_cards = cards(&hand.hero_cards)?;
     let bb = hand.big_blind as f64;
     if bb <= 0.0 {
         return None;
     }
-    let folded = |name: &str| hand.actions.iter().any(|a| a.player == name && a.kind == ActionKind::Fold);
-    let remaining: Vec<&str> =
-        hand.active_players().map(|s| s.name.as_str()).filter(|n| !folded(n)).collect();
-    if remaining.len() < 2 || !remaining.contains(&hero) {
-        return None;
-    }
-    let stack = |name: &str| hand.seats.iter().find(|s| s.name == name).map(|s| s.stack).unwrap_or(0);
-    let all_in_player = remaining
-        .iter()
-        .any(|&p| hand.actions.iter().any(|a| a.player == p && a.all_in) || hand.invested(p) >= stack(p));
-    if !all_in_player {
-        return None;
-    }
-    let last = hand.actions.iter().rposition(|a| !a.kind.is_post())?;
-    let board_len = match hand.actions[last].street {
-        Street::Preflop => 0,
-        Street::Flop => 3,
-        Street::Turn => 4,
-        Street::River => return None,
-    };
-    if hand.board.len() < board_len {
-        return None;
-    }
-    let board: Vec<Card> = hand.board[..board_len].iter().map(|c| c.parse().ok()).collect::<Option<_>>()?;
-    let opponents: Vec<&str> = remaining.iter().copied().filter(|&p| p != hero).collect();
-    let opp_cards: Vec<Vec<Card>> = opponents
-        .iter()
-        .map(|p| hand.shown.iter().find(|(n, _)| n == p).and_then(|(_, c)| cards(c)))
-        .collect::<Option<_>>()?;
-    let stop = hand.actions.iter().rposition(|a| a.player == hero && !a.kind.is_post())?;
-
-    // Side pots by contribution level of the players still in.
-    let order: Vec<&str> = std::iter::once(hero).chain(opponents.iter().copied()).collect();
-    let contrib = |name: &str| hand.invested(name);
-    let mut levels: Vec<i64> = order.iter().map(|p| contrib(p)).collect();
-    levels.sort_unstable();
-    levels.dedup();
-    let mut pots = Vec::new();
-    let mut prev = 0;
-    for &level in &levels {
-        let amount: i64 = hand.seats.iter().map(|s| contrib(&s.name).clamp(prev, level) - prev).sum();
-        let players: Vec<usize> = (0..order.len()).filter(|&i| contrib(order[i]) >= level).collect();
-        if amount > 0 {
-            pots.push(PotView { amount_bb: amount as f64 / bb, players });
-        }
-        prev = level;
-    }
-    let total: i64 = hand.seats.iter().map(|s| contrib(&s.name)).sum();
-    if prev < hand.seats.iter().map(|s| contrib(&s.name)).max().unwrap_or(0) || total <= 0 {
-        return None;
-    }
-    let (share, _) = all_in_shares(&hero_cards, &opp_cards, &board, &pots).ok()?;
-    let pot_bb = total as f64 / bb;
-    let rake_bb = hand.rake as f64 / bb;
-    let ev_bb = share / 100.0 * (pot_bb - rake_bb) - contrib(hero) as f64 / bb;
-    let net_bb = hand.net(hero) as f64 / bb;
-    let when = match board_len {
+    let a = hero_all_in(hand)?;
+    let pots: Vec<PotView> =
+        a.pots.iter().map(|p| PotView { amount_bb: p.amount / bb, players: p.players.clone() }).collect();
+    let pot_bb = a.pot as f64 / bb;
+    let rake_bb = a.rake as f64 / bb;
+    let ev_bb = a.ev / bb;
+    let net_bb = a.net as f64 / bb;
+    let when = match a.board.len() {
         0 => "vor dem Flop",
         3 => "am Flop",
         _ => "am Turn",
     };
     let task = crate::Task {
         question: format!("Du warst in dieser Hand {when} all-in, alle Karten liegen offen. Wie viel Equity hattest du?"),
-        prompt: Prompt::AllIn { hero: hero_cards, opponents: opp_cards, board, pots },
+        prompt: Prompt::AllIn { hero: a.hero_cards, opponents: a.opponents, board: a.board, pots },
         answer: crate::AnswerSpec::Number { unit: "%".into(), min: 0.0, max: 100.0, step: 0.1 },
         grading: Grading::Exakt,
         model_note: (hand.rake > 0).then(|| "Rake ist anteilig von jedem Pot abgezogen.".to_string()),
@@ -217,10 +163,10 @@ fn all_in(hand: &Hand) -> Option<OwnSpot> {
         kind: Kind::AllIn,
         hand_id: hand.id,
         played_at: hand.played_at.clone(),
-        stop_before_action: stop,
+        stop_before_action: a.last_hero_action,
         exercise: exercise(Kind::AllIn, 1, hand, task),
         played: None,
-        all_in: Some(AllInResult { equity_pct: share, pot_bb, ev_bb, net_bb, luck_bb: net_bb - ev_bb, rake_bb }),
+        all_in: Some(AllInResult { equity_pct: a.share_pct, pot_bb, ev_bb, net_bb, luck_bb: net_bb - ev_bb, rake_bb }),
     })
 }
 

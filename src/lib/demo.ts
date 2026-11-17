@@ -6,6 +6,8 @@ import type {
   Hand,
   HandQuery,
   HandSummary,
+  LeakCheck,
+  LeakReport,
   LiveTable,
   NotesSource,
   PlayerNote,
@@ -181,6 +183,8 @@ function series(n: number, drift: number, seed: number) {
   let total = 0;
   let sd = 0;
   let nsd = 0;
+  let luck = 0;
+  let allIns = 0;
   const points = [];
   const every = Math.ceil(n / 1500);
   for (let i = 1; i <= n; i++) {
@@ -188,11 +192,23 @@ function series(n: number, drift: number, seed: number) {
     total += net;
     if (rnd() > 0.3) sd += net * 1.6;
     else nsd += net - net * 1.6 * 0.7;
+    // About one all-in with every hand shown in 40 hands; its result swings around the EV.
+    if (rnd() > 0.475) {
+      allIns++;
+      luck += rnd() * 30 + 0.4;
+    }
     if (i % every === 0 || i === n)
-      points.push({ n: i, played_at: `2026/11/${String(1 + Math.floor((i / n) * 16)).padStart(2, "0")} 20:00:00`, net_bb: total, showdown_bb: sd, non_showdown_bb: total - sd });
+      points.push({
+        n: i,
+        played_at: `2026/11/${String(1 + Math.floor((i / n) * 16)).padStart(2, "0")} 20:00:00`,
+        net_bb: total,
+        showdown_bb: sd,
+        non_showdown_bb: total - sd,
+        ev_bb: total - luck,
+      });
   }
   void nsd;
-  return { total, sd, points };
+  return { total, sd, points, luck, allIns };
 }
 
 export function demoDashboard(filter?: Filter): Dashboard {
@@ -208,6 +224,9 @@ export function demoDashboard(filter?: Filter): Dashboard {
       net_bb: s.total,
       showdown_bb: s.sd,
       non_showdown_bb: s.total - s.sd,
+      ev_bb: s.total - s.luck,
+      all_ins: s.allIns,
+      luck_bb: s.luck,
       bounties: { USD: one ? 250 : 3745 },
       points: s.points,
     },
@@ -429,4 +448,72 @@ export function demoTournaments(): Tournaments {
     };
   });
   return { rows, totals: demoTotals(rows) };
+}
+
+const DEMO_SOURCES: LeakReport["sources"] = [
+  { id: "pcg", title: "HUD Stats Glossary: VPIP, PFR, 3-Bet% and 20 More Explained", publisher: "Poker Club Games", url: "https://pokerclubgames.com/poker-news/hud-stats-glossary-vpip-pfr-3-bet-and-20-more-explained/", scope: "Grobe Richtwerte für einen soliden Regular, Online 6-max No-Limit Cash" },
+  { id: "pokercoaching", title: "How to Use Poker HUD Stats to Exploit Weak Players", publisher: "PokerCoaching.com", url: "https://pokercoaching.com/blog/poker-stats/", scope: "Typische Werte guter Spieler, 6-max und Full Ring; VPIP auch für 6-max-Turniere" },
+  { id: "rangerpro", title: "Short stack MTT strategy: push-fold and open ranges", publisher: "RangerPro", url: "https://rangerpro.fr/poker-guide/short-stack", scope: "Eröffnungsbreite je Position bei 15–25 BB im Turnier" },
+  { id: "nash", title: "Push/Fold-Gleichgewicht (Chip-EV)", publisher: "Ringside-Push/Fold-Tabellen", url: null, scope: "Nash-Gleichgewicht für 8 Spieler mit Big-Blind-Ante bei 5, 7,5 und 10 BB; im Bereich Push/Fold nachrechenbar" },
+];
+
+function demoCheck(c: Partial<LeakCheck> & Pick<LeakCheck, "stat" | "made" | "opp" | "low" | "high">): LeakCheck {
+  const value = (100 * c.made) / c.opp;
+  const direction = value > c.high ? "too_high" : value < c.low ? "too_low" : null;
+  const spread = 196 * Math.sqrt((value / 100) * (1 - value / 100) / c.opp);
+  return {
+    game: "tournament",
+    positions: [],
+    band: 2,
+    value,
+    ci_low: Math.max(0, value - spread),
+    ci_high: Math.min(100, value + spread),
+    direction,
+    deviation: direction === "too_high" ? value - c.high : direction === "too_low" ? c.low - value : 0,
+    confidence: 0,
+    uncertain: false,
+    score: 0,
+    cost: null,
+    cites: [{ source: "pokercoaching", says: "um 60" }],
+    note: null,
+    ...c,
+  };
+}
+
+export function demoLeaks(filter?: Filter): LeakReport {
+  const cash = filter?.game === "cash";
+  if (cash) return { leaks: [], fine: [], too_small: 11, bands: ["unter 10 BB", "10–20 BB", "20–40 BB", "ab 40 BB"], sources: DEMO_SOURCES };
+  return {
+    leaks: [
+      demoCheck({
+        stat: "fold_to_steal", positions: ["SB", "BB"], band: 1, made: 141, opp: 182, low: 50, high: 70,
+        confidence: 0.996, score: 0.37,
+        cost: { hands: 1240, spot_bb100: -21.4, base_bb100: -9.8, margin_bb100: 8.1, total_bb: 143.8 },
+        cites: [{ source: "pokercoaching", says: "um 60 (Turnier-Wert)" }],
+        note: "Eine Angabe „um X“ ist hier als X ± 10 Punkte gelesen.",
+      }),
+      demoCheck({
+        stat: "steal", positions: ["BTN"], band: 1, made: 38, opp: 141, low: 33, high: 48, confidence: 0.93, score: 0.33,
+        cites: [{ source: "rangerpro", says: "Button ~36 % bei 15 BB, ~45 % bei 20 BB" }],
+        note: "Chartwerte sind Eröffnungen, wenn alle vor dir gefoldet haben; der Bereich lässt einige Punkte Spiel.",
+      }),
+      demoCheck({
+        stat: "wtsd", band: 2, made: 118, opp: 352, low: 24, high: 30, confidence: 0.91, score: 0.5,
+        cites: [{ source: "pcg", says: "24–30 %" }, { source: "pokercoaching", says: "um 30" }],
+        note: "Aus Cash-Quellen übernommen; im Turnier erst ab 20 BB geprüft.",
+      }),
+      demoCheck({
+        stat: "steal", positions: ["SB"], band: 0, made: 9, opp: 17, low: 68, high: 86, confidence: 0.86, score: 0.6, uncertain: true,
+        cites: [{ source: "nash", says: "Shove 72 % bei 10 BB, 77 % bei 7,5 BB, 84 % bei 5 BB" }],
+      }),
+    ],
+    fine: [
+      demoCheck({ stat: "vpip", band: 2, made: 512, opp: 2210, low: 15, high: 30 }),
+      demoCheck({ stat: "pfr", band: 2, made: 371, opp: 2210, low: 10, high: 22 }),
+      demoCheck({ stat: "cbet", band: 3, made: 61, opp: 98, low: 50, high: 70 }),
+    ],
+    too_small: 14,
+    bands: ["unter 10 BB", "10–20 BB", "20–40 BB", "ab 40 BB"],
+    sources: DEMO_SOURCES,
+  };
 }

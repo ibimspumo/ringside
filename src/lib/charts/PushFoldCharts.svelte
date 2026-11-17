@@ -4,9 +4,12 @@
   import ClientLock from "../app/ClientLock.svelte";
   import type { PushFoldAnte, PushFoldChart as Chart, PushFoldGrid, PushFoldNode } from "../types";
   import PushFoldChart from "./PushFoldChart.svelte";
+  import PreflopCharts from "./PreflopCharts.svelte";
 
   const ANTE_LABEL: Record<PushFoldAnte, string> = { none: "Ohne Ante", classic: "Ante", big_blind: "BB-Ante" };
 
+  /** Push/fold for short stacks, the preflop model for deeper ones. */
+  let mode = $state<"pushfold" | "preflop">("pushfold");
   let grid = $state<PushFoldGrid | null>(null);
   let ante = $state<PushFoldAnte>("big_blind");
   let players = $state(6);
@@ -106,16 +109,26 @@
   });
 </script>
 
-<ClientLock feature="Push/Fold-Charts">
+<ClientLock feature="Die Chart-Seite">
   <div class="page">
     <div class="page-head">
       <div>
-        <h1>Push/Fold-Charts</h1>
-        <p>Wann du all-in gehst oder einen Shove callst – im Gleichgewicht für alle Positionen.</p>
+        <h1>Charts</h1>
+        {#if mode === "pushfold"}
+          <p>Wann du all-in gehst oder einen Shove callst – im Gleichgewicht für alle Positionen.</p>
+        {:else}
+          <p>Open, Call, 3-Bet, 4-Bet und All-in mit 15 bis 100 BB – gelöst in einem vereinfachten Modell.</p>
+        {/if}
+      </div>
+      <div class="seg mode" role="group" aria-label="Art der Charts">
+        <button class:on={mode === "pushfold"} onclick={() => (mode = "pushfold")}>Push/Fold</button>
+        <button class:on={mode === "preflop"} onclick={() => (mode = "preflop")}>Preflop</button>
       </div>
     </div>
 
-    {#if grid}
+    {#if mode === "preflop"}
+      <PreflopCharts />
+    {:else if grid}
       <section class="panel controls">
         <div class="ctl">
           <span class="lbl">Spieler</span>
@@ -268,6 +281,9 @@
 </ClientLock>
 
 <style>
+  .mode {
+    flex-shrink: 0;
+  }
   .controls {
     display: flex;
     flex-wrap: wrap;

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 use ringside_coach::openrouter::{BASE_URL, DEFAULT_MODEL};
 use ringside_coach::session::MAX_HANDS;
 use ringside_coach::{
-    ApiError, Client, CoachError, ConceptCount, Estimate, KeyInfo, ModelInfo, Prepared, Report, ReportInfo,
+    ApiError, Client, CoachError, ConceptCount, Effort, Estimate, KeyInfo, ModelInfo, Prepared, Report, ReportInfo,
     concept_counts, prepare, run,
 };
 use ringside_core::db::Filter;
@@ -37,17 +37,25 @@ pub struct CoachState {
 #[serde(default)]
 struct CoachSettings {
     model: String,
+    effort: Effort,
 }
 
 impl Default for CoachSettings {
     fn default() -> Self {
-        CoachSettings { model: DEFAULT_MODEL.into() }
+        CoachSettings { model: DEFAULT_MODEL.into(), effort: Effort::default() }
     }
 }
 
 fn settings(state: &AppState) -> CoachSettings {
     let json = state.db.lock().unwrap().setting(SETTINGS_KEY).ok().flatten();
     json.and_then(|j| serde_json::from_str(&j).ok()).unwrap_or_default()
+}
+
+fn save_settings(state: &AppState, change: impl FnOnce(&mut CoachSettings)) -> CmdResult<()> {
+    let mut s = settings(state);
+    change(&mut s);
+    let json = serde_json::to_string(&s).map_err(err)?;
+    state.db.lock().unwrap().set_setting(SETTINGS_KEY, &json).map_err(err)
 }
 
 fn vault() -> CmdResult<keyring::Entry> {
@@ -93,15 +101,18 @@ async fn off_thread<T: Send + 'static>(f: impl FnOnce() -> CmdResult<T> + Send +
 pub struct CoachStatus {
     has_key: bool,
     model: String,
+    effort: Effort,
     running: bool,
 }
 
 #[tauri::command]
 pub async fn coach_status(app: AppHandle) -> CmdResult<CoachStatus> {
     off_thread(move || {
+        let CoachSettings { model, effort } = settings(&app.state::<AppState>());
         Ok(CoachStatus {
             has_key: stored_key()?.is_some(),
-            model: settings(&app.state::<AppState>()).model,
+            model,
+            effort,
             running: app.state::<CoachState>().running.load(Ordering::Relaxed),
         })
     })
@@ -147,8 +158,12 @@ pub async fn coach_set_model(model: String, app: AppHandle) -> CmdResult<()> {
     if model.is_empty() {
         return Err("Kein Modell gewählt.".into());
     }
-    let json = serde_json::to_string(&CoachSettings { model }).map_err(err)?;
-    app.state::<AppState>().db.lock().unwrap().set_setting(SETTINGS_KEY, &json).map_err(err)
+    save_settings(&app.state::<AppState>(), |s| s.model = model)
+}
+
+#[tauri::command]
+pub async fn coach_set_effort(effort: Effort, app: AppHandle) -> CmdResult<()> {
+    save_settings(&app.state::<AppState>(), |s| s.effort = effort)
 }
 
 /// Picks the hands of a tournament and estimates the cost. Nothing is sent yet.
@@ -157,7 +172,7 @@ pub async fn coach_prepare(tournament_id: u64, app: AppHandle) -> CmdResult<Esti
     let handle = app.clone();
     blocking(app, move |state| {
         required_key()?;
-        let model = settings(state).model;
+        let CoachSettings { model, effort } = settings(state);
         let (row, raws) = {
             let db = state.db.lock().unwrap();
             let row = db.tournaments(&Filter::default()).map_err(err)?.into_iter().find(|t| t.id == tournament_id);
@@ -167,7 +182,7 @@ pub async fn coach_prepare(tournament_id: u64, app: AppHandle) -> CmdResult<Esti
         // Without the model list the estimate has no price; the run then has no cost limit.
         let list = models(&handle).unwrap_or_default();
         let info = list.iter().find(|m| m.id == model);
-        let prepared = prepare(&row, hands, &model, info, MAX_HANDS).map_err(err)?;
+        let prepared = prepare(&row, hands, &model, info, MAX_HANDS, effort).map_err(err)?;
         let estimate = prepared.estimate().clone();
         *handle.state::<CoachState>().pending.lock().unwrap() = Some(prepared);
         Ok(estimate)

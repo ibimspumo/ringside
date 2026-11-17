@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { coachApi, cost, errorText, onProgress, tokens } from "./api";
+  import { EFFORTS, coachApi, cost, duration, errorText, onProgress, tokens } from "./api";
   import type { CoachProgress, CoachReport, Estimate } from "./types";
 
   let {
@@ -60,7 +60,7 @@
     const sub = onProgress((p) => {
       if (st.kind !== "running" || p.tournament_id !== tournamentId) return;
       st.progress = p;
-      if (p.tool && !used.includes(p.tool)) used = [...used, p.tool];
+      if (p.stage === "tool" && p.tool && !used.includes(p.tool)) used = [...used, p.tool];
     });
     return () => {
       sub.then((f) => f());
@@ -107,6 +107,13 @@
           <small>{e.max_cost_usd == null ? "Preis des Modells nicht geladen" : `höchstens ${cost(e.max_cost_usd)}, dann bricht Ringside ab`}</small>
         </div>
       </div>
+      {#if e.effort}
+        {@const effort = EFFORTS.find((x) => x.id === e.effort)}
+        <p class="effort">
+          Gründlichkeit <b>{effort?.name}</b>: {effort?.hint}
+          <button class="link" onclick={onSettings}>Ändern</button>
+        </p>
+      {/if}
       <p class="privacy">
         Gesendet werden an OpenRouter und das Modell <b class="num">{e.model}</b>: deine Hände ohne Namen (du bist „Du“, die
         Gegner „Spieler 1“, „Spieler 2“ …), Beträge in Big Blinds, Buy-in und Platz. Keine Spielernamen, keine Hand- oder
@@ -118,6 +125,7 @@
       </div>
     {:else if st.kind === "running"}
       {@const p = st.progress}
+      {@const live = p && (p.stage === "thinking" || p.stage === "writing" || p.stage === "calling")}
       <div class="progress">
         <div class="line">
           <span class="spinner" aria-hidden="true"></span>
@@ -126,16 +134,50 @@
         <div class="bar"><i style="width:{p ? Math.min(100, (p.step / 4) * 100) : 4}%"></i></div>
         <div class="stats">
           <span>Schritt <b class="num">{p?.step ?? 0}</b> von höchstens {p?.max_steps ?? 12}</span>
-          <span><b class="num">{tokens((p?.prompt_tokens ?? 0) + (p?.completion_tokens ?? 0))}</b> Tokens</span>
+          <span>Schritt läuft seit <b class="num">{duration(p?.step_seconds ?? 0)}</b></span>
+          <span>Analyse läuft seit <b class="num">{duration(p?.total_seconds ?? 0)}</b></span>
+        </div>
+        {#if live && p}
+          <div class="stats now">
+            <span>In diesem Schritt</span>
+            {#if p.live_reasoning_tokens || p.live_output_tokens}
+              <span>ca. <b class="num">{tokens(p.live_reasoning_tokens)}</b> Tokens Nachdenken</span>
+              <span>ca. <b class="num">{tokens(p.live_output_tokens)}</b> Tokens Antwort</span>
+            {:else}
+              <span class="faint">Das Modell zeigt sein Nachdenken nicht; die Tokens dafür stehen erst nach dem Schritt fest.</span>
+            {/if}
+          </div>
+        {/if}
+        <div class="stats">
+          <span><b class="num">{tokens((p?.prompt_tokens ?? 0) + (p?.completion_tokens ?? 0))}</b> Tokens abgerechnet</span>
+          {#if p?.reasoning_tokens}
+            <span>davon <b class="num">{tokens(p.reasoning_tokens)}</b> Nachdenken</span>
+          {/if}
           <span><b class="num">{cost(p?.cost_usd ?? 0)}</b> bisher</span>
           <span><b class="num">{p?.tool_calls ?? 0}</b> {p?.tool_calls === 1 ? "Rechnung" : "Rechnungen"}</span>
         </div>
         {#if used.length}
           <div class="tools">
-            {#each used as t (t)}<span class="tool" class:now={p?.tool === t}>{TOOLS[t] ?? t}</span>{/each}
+            {#each used as t (t)}<span class="tool" class:now={p?.stage === "tool" && p.tool === t}>{TOOLS[t] ?? t}</span>{/each}
           </div>
         {/if}
-        <p class="faint">Das dauert meist zwei bis vier Minuten. Ringside rechnet jede Zahl selbst nach.</p>
+        {#if p?.idle_limit != null && p.idle_seconds >= 15}
+          <p class="wait">
+            Seit <span class="num">{duration(p.idle_seconds)}</span> keine Daten von OpenRouter. Nach
+            <span class="num">{p.idle_limit} s</span> ohne Daten bricht Ringside den Schritt ab und versucht es neu.
+          </p>
+        {/if}
+        <p class="faint">
+          Jeder Schritt ist eine Anfrage an das Modell. Bei gründlichem Nachdenken kann ein Schritt mehrere Minuten
+          dauern.
+          {#if p?.idle_limit != null}
+            Solange OpenRouter Daten schickt, wartet Ringside; erst nach {p.idle_limit} s ohne Daten bricht der Schritt
+            ab.
+          {:else if p}
+            Dieses Modell liefert seine Antwort am Stück; Ringside wartet bis zu 10 Minuten je Schritt.
+          {/if}
+          Ringside rechnet jede Zahl selbst nach.
+        </p>
       </div>
       <div class="row">
         <button
@@ -208,6 +250,32 @@
   .fact > small {
     font-size: 12px;
     color: var(--text-3);
+  }
+  .effort {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .effort b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .link {
+    margin-left: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .stats.now {
+    color: var(--text-3);
+  }
+  .wait {
+    font-size: 13px;
+    color: var(--text);
   }
   .privacy {
     font-size: 13px;
