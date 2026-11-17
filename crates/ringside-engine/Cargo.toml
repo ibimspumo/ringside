@@ -7,6 +7,7 @@ description = "Hand evaluation, equity, ICM and push/fold Nash calculations for 
 
 [dependencies]
 rand = { version = "0.9", default-features = false }
+miniz_oxide = "0.8"
 rand_chacha = "0.9"
 rayon = "1"
 serde = { version = "1", features = ["derive"] }

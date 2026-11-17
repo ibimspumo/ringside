@@ -9,6 +9,7 @@ pub mod multiway;
 pub mod outs;
 pub mod preflop_matrix;
 pub mod pushfold;
+pub mod pushfold_table;
 pub mod range;
 
 use std::fmt;

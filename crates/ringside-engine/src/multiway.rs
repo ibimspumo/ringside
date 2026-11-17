@@ -265,6 +265,25 @@ pub fn solve(params: &Params) -> Result<Solution, Error> {
     Ok(solver.run())
 }
 
+/// Measures someone else's strategy: `act[v][c]` is the shove or call frequency at
+/// node `v` (in the order of [`Solution::nodes`]) for class `c`. One best-response pass
+/// per seat, so checking a downloaded solution costs a fraction of solving it.
+/// `iterations` is 0 and `converged` says whether it is within the target.
+pub fn evaluate(params: &Params, act: &[Vec<f64>]) -> Result<Solution, Error> {
+    let money = Money::new(params)?;
+    let mut solver = Solver::new(params, money);
+    let bad = |m: String| Err(Error::InvalidInput(m));
+    if act.len() != solver.tree.nodes.len() {
+        return bad(format!("{} nodes given, the tree has {}", act.len(), solver.tree.nodes.len()));
+    }
+    if let Some(v) = act.iter().position(|a| a.len() != C || a.iter().any(|x| !(0.0..=1.0).contains(x))) {
+        return bad(format!("node {v}: needs {C} frequencies between 0 and 1"));
+    }
+    let checked = solver.evaluate(solver.profile(act.to_vec()));
+    let converged = checked.gain.iter().sum::<f64>() < params.target_exploitability;
+    Ok(solver.solution(checked, 0, converged))
+}
+
 // ---------------------------------------------------------------------------------
 // Money: posting, side pots, utilities.
 
@@ -1674,7 +1693,13 @@ impl<'p> Solver<'p> {
                 }
             }
         }
-        let Checked { prof, ev, gain, outs } = best.expect("at least one iteration, and the last one is checked");
+        let checked = best.expect("at least one iteration, and the last one is checked");
+        self.solution(checked, iterations, converged)
+    }
+
+    fn solution(&self, checked: Checked, iterations: u32, converged: bool) -> Solution {
+        let Checked { prof, ev, gain, outs } = checked;
+        let n = self.money.n;
         let exploitability = gain.iter().sum();
         let nodes = self.report_nodes(&prof, &outs);
         let approximation = self.approximation(&prof, &ev);

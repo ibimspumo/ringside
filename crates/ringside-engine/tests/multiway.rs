@@ -1,4 +1,4 @@
-use ringside_engine::multiway::{Params, Solution, seat_name, solve};
+use ringside_engine::multiway::{Params, Solution, evaluate, seat_name, solve};
 use ringside_engine::{PushFoldParams, solve_push_fold};
 
 fn open_pct(s: &Solution, seat: usize) -> f64 {
@@ -261,4 +261,28 @@ fn rejects_bad_params() {
     assert!(solve(&p).is_err());
     let p = Params::equal(3, 10.0).with_payouts(vec![1.0; 4]);
     assert!(solve(&p).is_err());
+}
+
+/// Checking a strategy from elsewhere: the solver's own answer passes with the same
+/// exploitability, a tampered one shows the loss, malformed input is refused.
+#[test]
+fn evaluate_measures_a_given_strategy() {
+    let p = Params::equal(4, 10.0);
+    let s = solve(&p).unwrap();
+    let act: Vec<Vec<f64>> = s.nodes.iter().map(|n| n.act.clone()).collect();
+    let same = evaluate(&p, &act).unwrap();
+    assert!((same.exploitability - s.exploitability).abs() < 1e-9, "{} vs {}", same.exploitability, s.exploitability);
+    assert_eq!((same.iterations, same.converged), (0, true));
+
+    let mut tampered = act.clone();
+    let aa = ringside_engine::range::HandClass::all().position(|c| c.to_string() == "AA").unwrap();
+    tampered[0][aa] = 0.0; // the first seat folds aces
+    let worse = evaluate(&p, &tampered).unwrap();
+    assert!(worse.exploitability > s.exploitability + 1e-3, "{}", worse.exploitability);
+    assert!(!worse.converged);
+
+    assert!(evaluate(&p, &act[1..]).is_err());
+    let mut out_of_range = act;
+    out_of_range[0][0] = 1.5;
+    assert!(evaluate(&p, &out_of_range).is_err());
 }
