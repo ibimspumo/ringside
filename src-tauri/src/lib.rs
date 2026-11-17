@@ -7,7 +7,7 @@ use std::sync::Mutex;
 use ringside_core::db::{Db, Filter, GroupRow, HandQuery, HandSummary, Results, Session, ShownHand};
 use ringside_core::model::{GameKind, Hand};
 use ringside_core::stats::{StatValue, stat_values};
-use ringside_core::table::{SeatPos, layout_key, visual_index};
+use ringside_core::table::{SeatPos, layout_key, normalize_layouts, to_reference, visual_index};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -79,6 +79,12 @@ fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String, aspect: 
         .active_players()
         .zip(rows)
         .map(|(seat, row)| {
+            let is_hero = hand.hero.as_deref() == Some(seat.name.as_str());
+            let counters = if is_hero && settings.hud.hero_session_only {
+                db.counters_in_session(&seat.name, hand).unwrap_or(row.counters)
+            } else {
+                row.counters
+            };
             let stack = seat.stack + hand.net(&seat.name);
             SeatView {
                 seat: seat.seat,
@@ -87,8 +93,8 @@ fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String, aspect: 
                 stack,
                 stack_bb: if hand.big_blind > 0 { stack as f64 / hand.big_blind as f64 } else { 0.0 },
                 bounty: seat.bounty,
-                is_hero: hand.hero.as_deref() == Some(seat.name.as_str()),
-                stats: stat_values(&row.counters),
+                is_hero,
+                stats: stat_values(&counters),
             }
         })
         .collect();
@@ -113,7 +119,7 @@ fn build_view(db: &Db, settings: &Settings, hand: &Hand, title: String, aspect: 
         bounty_currency: hand.bounty_currency.clone(),
         hand_id: hand.id,
         seats,
-        layout_key: layout_key(hand.max_seats, aspect),
+        layout_key: layout_key(hand.max_seats),
         layout: settings.layout(hand.max_seats, aspect),
         hud: settings.hud.clone(),
         recap: Recap {
@@ -158,7 +164,7 @@ struct LayoutView {
 #[tauri::command]
 fn layout_for(max_seats: u8, aspect: f64, state: State<'_, AppState>) -> LayoutView {
     let settings = state.settings.lock().unwrap();
-    LayoutView { key: layout_key(max_seats, aspect), layout: settings.layout(max_seats, aspect) }
+    LayoutView { key: layout_key(max_seats), layout: settings.layout(max_seats, aspect) }
 }
 
 #[tauri::command]
@@ -185,14 +191,22 @@ async fn save_settings(settings: Settings, app: AppHandle, state: State<'_, AppS
     store_settings(&app, &state, settings)
 }
 
-/// Saves one seat of the layout stored under `key` (see [`layout_key`]).
+/// Saves one seat dragged in a window of shape `aspect`. The table size's layout is stored
+/// once, so the change shows on every table of that size and in the editor.
 #[tauri::command]
-async fn save_seat(key: String, visual: usize, pos: SeatPos, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
-    let (max_seats, aspect) = parse_layout_key(&key)?;
+async fn save_seat(
+    key: String,
+    visual: usize,
+    pos: SeatPos,
+    aspect: f64,
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CmdResult<()> {
+    let max_seats: u8 = key.parse().map_err(|_| "invalid layout key")?;
     let mut settings = state.settings.lock().unwrap().clone();
-    let mut layout = settings.layout(max_seats, aspect);
+    let mut layout = settings.layout(max_seats, ringside_core::table::REFERENCE_ASPECT);
     let slot = layout.get_mut(visual).ok_or("seat outside the table")?;
-    *slot = pos.clamped();
+    *slot = to_reference(pos.clamped(), aspect);
     settings.layouts.insert(key, layout);
     store_settings(&app, &state, settings)
 }
@@ -202,11 +216,6 @@ async fn reset_layout(key: String, app: AppHandle, state: State<'_, AppState>) -
     let mut settings = state.settings.lock().unwrap().clone();
     settings.layouts.remove(&key);
     store_settings(&app, &state, settings)
-}
-
-fn parse_layout_key(key: &str) -> CmdResult<(u8, f64)> {
-    let (max, aspect) = key.split_once('@').ok_or("invalid layout key")?;
-    Ok((max.parse().map_err(err)?, aspect.parse().map_err(err)?))
 }
 
 #[tauri::command]
@@ -373,10 +382,11 @@ pub fn run() {
             let dir = app.path().app_data_dir()?;
             std::fs::create_dir_all(&dir)?;
             let db = Db::open(&dir.join("ringside.sqlite"))?;
-            let settings = db
+            let mut settings: Settings = db
                 .setting("settings")?
                 .and_then(|json| serde_json::from_str(&json).ok())
                 .unwrap_or_default();
+            normalize_layouts(&mut settings.layouts);
             app.manage(AppState {
                 db: Mutex::new(db),
                 settings: Mutex::new(settings),

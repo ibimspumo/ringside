@@ -41,7 +41,7 @@ export const demoSettings: Settings = {
     mode: "graphic",
     palette: "traffic",
     classic: { preset: "beginner", custom: ["vpip", "pfr", "three_bet", "af", "hands"] },
-    graphic: { segments: ["vpip", "pfr", "af", "three_bet"], plate_stats: ["three_bet", "fold_to_three_bet", "steal"], cover_plate: true },
+    graphic: { segments: ["vpip", "pfr", "af", "three_bet"], plate_stats: ["three_bet", "fold_to_three_bet", "steal"], cover_plate: true, plate_width: 1 },
     thresholds: {
       vpip: { low: 20, high: 35 },
       pfr: { low: 12, high: 25 },
@@ -62,8 +62,11 @@ export const demoSettings: Settings = {
     show_stack: true,
     show_bounty: true,
     recap_seconds: 4,
+    hero_session_only: true,
+    recap_board: null,
   },
   layouts: {},
+  presets: [],
 };
 
 const IDS: StatId[] = ["hands", "vpip", "pfr", "three_bet", "fold_to_three_bet", "steal", "fold_to_steal", "cbet", "fold_to_cbet", "wtsd", "wsd", "af", "afq"];
@@ -114,7 +117,7 @@ export function demoTable(maxSeats = 8): TableView {
     bounty_currency: "USD",
     hand_id: 2,
     seats,
-    layout_key: `${maxSeats}@1.45`,
+    layout_key: `${maxSeats}`,
     layout: defaultLayout(maxSeats),
     hud: structuredClone(demoSettings.hud),
     recap: {

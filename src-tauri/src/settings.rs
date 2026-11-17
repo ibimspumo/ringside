@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use ringside_core::stats::StatId;
-use ringside_core::table::{SeatPos, resolve_layout};
+use ringside_core::table::{REFERENCE_ASPECT, SeatPos, normalize_layouts, resolve_layout};
 use serde::{Deserialize, Serialize};
 
 /// A stat shows the palette's "low" colour below `low`, "high" above `high` and "mid" in
@@ -50,6 +50,8 @@ pub struct GraphicConfig {
     pub plate_stats: Vec<StatId>,
     /// Lay the plate over the client's name plate (hides its action text and timer).
     pub cover_plate: bool,
+    /// Plate width as a multiple of the default, for client themes with wider name plates.
+    pub plate_width: f64,
 }
 
 impl Default for GraphicConfig {
@@ -58,6 +60,7 @@ impl Default for GraphicConfig {
             segments: vec![StatId::Vpip, StatId::Pfr, StatId::Af, StatId::ThreeBet],
             plate_stats: vec![StatId::ThreeBet, StatId::FoldToThreeBet, StatId::Steal],
             cover_plate: true,
+            plate_width: 1.0,
         }
     }
 }
@@ -79,6 +82,10 @@ pub struct HudConfig {
     pub show_bounty: bool,
     /// How long the previous hand stays on screen after it ended; 0 turns it off.
     pub recap_seconds: f64,
+    /// Your own numbers from this tournament (cash: this table today) instead of all hands.
+    pub hero_session_only: bool,
+    /// Top-left of the recap's board panel, as a fraction of the table window; `None` = default.
+    pub recap_board: Option<ringside_core::table::Point>,
 }
 
 impl Default for HudConfig {
@@ -109,6 +116,8 @@ impl Default for HudConfig {
             show_stack: true,
             show_bounty: true,
             recap_seconds: 4.0,
+            hero_session_only: true,
+            recap_board: None,
         }
     }
 }
@@ -123,7 +132,19 @@ pub struct Settings {
     pub hand_history_dirs: Vec<String>,
     pub preferred_seating: bool,
     pub hud: HudConfig,
-    /// Seat positions per table size and window shape ("8@1.45"), indexed by visual seat.
+    /// Seat positions per table size ("8"), indexed by visual seat, in the coordinates of a
+    /// window with the reference shape (see `ringside_core::table::layout_key`).
+    pub layouts: BTreeMap<String, Vec<SeatPos>>,
+    /// Saved looks and layouts the user can switch between.
+    pub presets: Vec<Preset>,
+}
+
+/// A named snapshot of the HUD look and all layouts.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Preset {
+    pub name: String,
+    pub preferred_seating: bool,
+    pub hud: HudConfig,
     pub layouts: BTreeMap<String, Vec<SeatPos>>,
 }
 
@@ -135,6 +156,7 @@ impl Default for Settings {
             preferred_seating: builtin.preferred_seating,
             hud: builtin.hud.clone(),
             layouts: BTreeMap::new(),
+            presets: Vec::new(),
         }
     }
 }
@@ -188,27 +210,29 @@ impl Profile {
             None => return Err("Das ist keine Ringside-Profildatei.".into()),
         }
         let mut p: Profile = serde_json::from_value(value).map_err(|e| format!("Profil unvollständig: {e}"))?;
-        for (key, layout) in &mut p.layouts {
-            let (max, aspect) = key
-                .split_once('@')
-                .and_then(|(m, a)| Some((m.parse::<usize>().ok()?, a.parse::<f64>().ok()?)))
-                .ok_or_else(|| format!("Ungültiger Layout-Name „{key}“"))?;
+        for (key, layout) in &p.layouts {
+            // "8", or "8@1.45" as written by v0.2.0.
+            let (max, aspect) = match key.split_once('@') {
+                Some((m, a)) => (m.parse::<usize>().ok(), a.parse::<f64>().ok()),
+                None => (key.parse::<usize>().ok(), Some(REFERENCE_ASPECT)),
+            };
+            let (Some(max), Some(aspect)) = (max, aspect) else {
+                return Err(format!("Ungültiger Layout-Name „{key}“"));
+            };
             if !(2..=10).contains(&max) || !(0.5..=4.0).contains(&aspect) || layout.len() != max {
                 return Err(format!("Layout „{key}“ passt nicht zu seiner Tischgröße."));
             }
-            let finite = |x: f64| x.is_finite();
-            if layout.iter().any(|s| !finite(s.x) || !finite(s.y)) {
+            if layout.iter().any(|s| !s.x.is_finite() || !s.y.is_finite()) {
                 return Err(format!("Layout „{key}“ enthält ungültige Koordinaten."));
             }
-            for seat in layout.iter_mut() {
-                *seat = seat.clamped();
-            }
         }
+        normalize_layouts(&mut p.layouts);
         let defaults = HudConfig::default();
         let hud = &mut p.hud;
         hud.scale = hud.scale.clamp(0.5, 2.0);
         hud.opacity = hud.opacity.clamp(0.3, 1.0);
         hud.recap_seconds = hud.recap_seconds.clamp(0.0, 15.0);
+        hud.graphic.plate_width = hud.graphic.plate_width.clamp(0.8, 1.5);
         hud.graphic.segments.resize(4, defaults.graphic.segments[0]);
         hud.graphic.plate_stats.resize(3, defaults.graphic.plate_stats[0]);
         hud.thresholds.retain(|_, t| t.low.is_finite() && t.high.is_finite() && t.low <= t.high);
@@ -256,14 +280,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!((p.hud.scale, p.hud.opacity, p.hud.graphic.segments.len()), (2.0, 0.3, 4));
-        assert_eq!((p.layouts["2@1.45"][0].x, p.layouts["2@1.45"][1].y), (1.0, 0.0));
+        assert!(p.layouts.contains_key("2"), "v0.2.0 shape keys are folded per table size");
     }
 
     #[test]
     fn profile_round_trip() {
         let mut s = Settings::default();
         s.hud.mode = OverlayMode::Classic;
-        s.layouts.insert("6@1.45".into(), vec![SeatPos::at(0.5, 0.5); 6]);
+        s.layouts.insert("6".into(), vec![SeatPos::at(0.5, 0.5); 6]);
         let json = serde_json::to_string(&Profile::from_settings(&s)).unwrap();
         let mut other = Settings { hand_history_dirs: vec!["keep".into()], ..Settings::default() };
         Profile::parse(&json).unwrap().apply_to(&mut other);

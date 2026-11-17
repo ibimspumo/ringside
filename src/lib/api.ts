@@ -36,8 +36,8 @@ export const api = {
   previewView: (aspect: number) => call<TableView | null>("preview_view", { aspect }, () => null),
   layoutFor: (maxSeats: number, aspect: number) =>
     call<{ key: string; layout: SeatPos[] }>("layout_for", { maxSeats, aspect }, () => {
-      const key = `${maxSeats}@${(Math.round(aspect * 20) / 20).toFixed(2)}`;
-      return { key, layout: demoStore.layouts[key] ?? demo.defaultLayout(maxSeats) };
+      const key = `${maxSeats}`;
+      return { key, layout: structuredClone(demoStore.layouts[key] ?? demo.defaultLayout(maxSeats)) };
     }),
   setHitRegions: (label: string, regions: { x: number; y: number; w: number; h: number }[]) =>
     call<void>("set_hit_regions", { label, regions }, () => undefined),
@@ -46,9 +46,9 @@ export const api = {
     call<void>("save_settings", { settings }, () => {
       demoStore = structuredClone(settings);
     }),
-  saveSeat: (key: string, visual: number, pos: SeatPos) =>
-    call<void>("save_seat", { key, visual, pos }, () => {
-      const max = Number(key.split("@")[0]);
+  saveSeat: (key: string, visual: number, pos: SeatPos, aspect: number) =>
+    call<void>("save_seat", { key, visual, pos, aspect }, () => {
+      const max = Number(key);
       const layout = demoStore.layouts[key] ?? demo.defaultLayout(max);
       layout[visual] = pos;
       demoStore.layouts[key] = layout;

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, on } from "../api";
+  import { api, inTauri, on } from "../api";
   import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus } from "../types";
   import Dashboard from "./Dashboard.svelte";
@@ -77,10 +77,27 @@
     tab = "hands";
   }
 
-  onMount(() => {
-    document.body.className = "app";
+  /** Current state from the backend; events only report changes. */
+  function sync() {
     api.importStatus().then((s) => (status = s));
     api.clientWindows().then((w) => (tables = w.filter((x) => x.table_key).length));
+  }
+
+  async function chooseFolder() {
+    if (!inTauri) return;
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const dir = await open({ directory: true, title: "Hand-History-Ordner wählen" });
+    if (typeof dir !== "string") return;
+    const settings = await api.getSettings();
+    if (!settings.hand_history_dirs.includes(dir)) {
+      settings.hand_history_dirs = [...settings.hand_history_dirs, dir];
+      await api.saveSettings(settings);
+    }
+    sync();
+  }
+
+  onMount(() => {
+    document.body.className = "app";
     const subs = [
       on<ImportStatus>("import-status", (s) => {
         status = s;
@@ -88,7 +105,13 @@
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
     ];
-    return () => subs.forEach((s) => s.then((f) => f()));
+    // Listen first, then read the state, so nothing sent at startup is missed.
+    Promise.all(subs).then(sync);
+    const poll = setInterval(sync, 5000);
+    return () => {
+      clearInterval(poll);
+      subs.forEach((s) => s.then((f) => f()));
+    };
   });
 
   const upgrade = $derived(status?.upgrade ?? null);
@@ -126,8 +149,8 @@
           <small class="num">{int(upgrade.done)} von {int(upgrade.total)} Händen</small>
         </div>
       {/if}
-      {#if status && status.dirs.length === 0}
-        <button class="warn" onclick={() => (tab = "settings")}>Kein Hand-History-Ordner gefunden. Ordner wählen</button>
+      {#if status && !upgrade && status.dirs.length === 0}
+        <button class="warn" onclick={chooseFolder}>Kein Hand-History-Ordner gefunden. Ordner wählen</button>
       {/if}
       <div class="live" class:active={tables > 0}>
         <span class="dot"></span>

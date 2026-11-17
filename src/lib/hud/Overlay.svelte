@@ -93,6 +93,9 @@
   {:else if !inTauri}
     <Felt />
   {/if}
+  {#if !view && inTauri}
+    <div class="waiting">Ringside · wartet auf die erste Hand an diesem Tisch</div>
+  {/if}
   {#if view}
     <HudLayer
       {view}
@@ -111,6 +114,17 @@
   .root {
     position: fixed;
     inset: 0;
+  }
+  .waiting {
+    position: absolute;
+    left: 10px;
+    bottom: 10px;
+    padding: 4px 9px;
+    border-radius: 6px;
+    background: #14161a;
+    color: #a4a7ad;
+    font-size: 11.5px;
+    pointer-events: none;
   }
   .backdrop {
     position: absolute;

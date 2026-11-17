@@ -1,12 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, inTauri } from "../api";
+  import { api, inTauri, on } from "../api";
   import { demoTable } from "../demo";
   import Felt from "../Felt.svelte";
   import HudLayer from "../hud/HudLayer.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
   import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META } from "../stats";
-  import type { ClassicPreset, HudConfig, Palette, Settings, StatId, TableView } from "../types";
+  import type { ClassicPreset, HudConfig, Palette, Preset, Settings, StatId, TableView } from "../types";
 
   const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
   const SHAPES = [
@@ -19,7 +19,7 @@
   let view = $state<TableView | null>(null);
   let maxSeats = $state(8);
   let shape = $state("standard");
-  let showRecap = $state(false);
+  let showRecap = $state(true);
   let stageW = $state(0);
   let stageH = $state(0);
   let message = $state<{ ok: boolean; text: string } | null>(null);
@@ -33,10 +33,19 @@
   );
   const customised = $derived(!!view && !!settings?.layouts[view.layout_key]);
 
-  onMount(async () => {
-    settings = await api.getSettings();
-    base = await api.previewView(REFERENCE_ASPECT);
-    if (base) maxSeats = base.max_seats;
+  let presetName = $state("");
+
+  onMount(() => {
+    // Positions dragged at a table (or anything saved elsewhere) show up here live.
+    const sub = on<Settings>("settings-changed", (s) => {
+      if (!saveTimer) settings = s;
+    });
+    (async () => {
+      settings = await api.getSettings();
+      base = await api.previewView(REFERENCE_ASPECT);
+      if (base) maxSeats = base.max_seats;
+    })();
+    return () => sub.then((f) => f());
   });
 
   // Rebuild the preview whenever the table size or window shape changes.
@@ -56,7 +65,40 @@
     if (view) view.hud = $state.snapshot(settings.hud) as HudConfig;
     clearTimeout(saveTimer);
     const snapshot = $state.snapshot(settings) as Settings;
-    saveTimer = setTimeout(() => api.saveSettings(snapshot), 250);
+    saveTimer = setTimeout(() => {
+      saveTimer = undefined;
+      api.saveSettings(snapshot);
+    }, 250);
+  }
+
+  async function savePreset() {
+    if (!settings) return;
+    const name = presetName.trim() || `Preset ${settings.presets.length + 1}`;
+    const preset: Preset = $state.snapshot({
+      name,
+      preferred_seating: settings.preferred_seating,
+      hud: settings.hud,
+      layouts: settings.layouts,
+    }) as Preset;
+    settings.presets = [...settings.presets.filter((p) => p.name !== name), preset];
+    presetName = "";
+    await api.saveSettings($state.snapshot(settings) as Settings);
+    message = { ok: true, text: `Preset „${name}“ gespeichert.` };
+  }
+
+  async function applyPreset(p: Preset) {
+    if (!settings) return;
+    settings.hud = structuredClone(p.hud);
+    settings.layouts = structuredClone(p.layouts);
+    settings.preferred_seating = p.preferred_seating;
+    await api.saveSettings($state.snapshot(settings) as Settings);
+    message = { ok: true, text: `Preset „${p.name}“ gilt jetzt an allen Tischen.` };
+  }
+
+  async function deletePreset(p: Preset) {
+    if (!settings) return;
+    settings.presets = settings.presets.filter((x) => x.name !== p.name);
+    await api.saveSettings($state.snapshot(settings) as Settings);
   }
 
   function setMode(mode: HudConfig["mode"]) {
@@ -178,6 +220,7 @@
               width={stageW}
               height={stageH}
               {showRecap}
+              editRecap
               preview={!(shot && shape === "screenshot")}
               onLayoutChange={() => api.getSettings().then((s) => (settings = s))}
             />
@@ -207,7 +250,7 @@
         </div>
         <p class="hint">
           Tipp: Screenshot eines PokerStars-Tischs laden, die Titelleiste wegschneiden und Ring, Platte oder Box auf die
-          Avatare ziehen. Gespeichert wird je Tischgröße und Fensterform. Doppelklick auf Platte oder Box legt sie wieder an
+          Avatare ziehen. Gespeichert wird einmal je Tischgröße und gilt für jede Fenstergröße, am Tisch wie hier. Mit „Rückblick zeigen“ lassen sich auch die Karten jedes Spielers und das Board verschieben. Im grafischen Modus bewegen sich Ring und Platte gemeinsam; im klassischen Modus legt ein Doppelklick die Box wieder an
           den Avatar.
         </p>
       </section>
@@ -242,6 +285,11 @@
                   </select>
                 {/each}
               </div>
+              <label class="slider">
+                <span>Breite</span>
+                <input type="range" min="0.8" max="1.5" step="0.02" bind:value={settings.hud.graphic.plate_width} oninput={changed} />
+                <em class="num">{Math.round(settings.hud.graphic.plate_width * 100)} %</em>
+              </label>
               <label class="check">
                 <input type="checkbox" bind:checked={settings.hud.graphic.cover_plate} onchange={changed} />
                 <span>
@@ -282,11 +330,13 @@
               <input type="range" min="0.6" max="1.6" step="0.05" bind:value={settings.hud.scale} oninput={changed} />
               <em class="num">{Math.round(settings.hud.scale * 100)} %</em>
             </label>
-            <label class="slider">
-              <span>Deckkraft</span>
-              <input type="range" min="0.5" max="1" step="0.01" bind:value={settings.hud.opacity} oninput={changed} />
-              <em class="num">{Math.round(settings.hud.opacity * 100)} %</em>
-            </label>
+            {#if settings.hud.mode === "classic"}
+              <label class="slider">
+                <span>Deckkraft</span>
+                <input type="range" min="0.5" max="1" step="0.01" bind:value={settings.hud.opacity} oninput={changed} />
+                <em class="num">{Math.round(settings.hud.opacity * 100)} %</em>
+              </label>
+            {/if}
             <label class="slider">
               <span>Rückblick</span>
               <input type="range" min="0" max="10" step="1" bind:value={settings.hud.recap_seconds} oninput={changed} />
@@ -299,6 +349,10 @@
             <label class="check">
               <input type="checkbox" bind:checked={settings.hud.show_bounty} onchange={changed} />
               <span>Bounty zeigen <small>bei Knockout-Turnieren</small></span>
+            </label>
+            <label class="check">
+              <input type="checkbox" bind:checked={settings.hud.hero_session_only} onchange={changed} />
+              <span>Eigene Werte nur aus diesem Turnier <small>bei Cash Games: dieser Tisch heute</small></span>
             </label>
             <label class="check">
               <input type="checkbox" bind:checked={settings.hud.split_by_game} onchange={changed} />
@@ -336,11 +390,30 @@
         </section>
 
         <section class="panel">
-          <div class="panel-head"><h2 class="panel-title">Profil</h2></div>
+          <div class="panel-head"><h2 class="panel-title">Presets</h2></div>
           <div class="body">
             <p class="note">
-              Ein Profil enthält Darstellung, Farben und alle Positionen. Exportieren, um es zu sichern oder weiterzugeben.
+              Ein Preset merkt sich Darstellung, Farben und alle Positionen. Was du am Tisch oder hier verschiebst, gilt sofort
+              für alle Tische gleicher Größe.
             </p>
+            {#each settings.presets as p (p.name)}
+              <div class="preset-row">
+                <span>{p.name}</span>
+                <button class="btn" onclick={() => applyPreset(p)}>Anwenden</button>
+                <button class="btn ghost" onclick={() => deletePreset(p)} aria-label="Preset {p.name} löschen">Löschen</button>
+              </div>
+            {/each}
+            <div class="row">
+              <input class="field grow" placeholder="Name, z. B. Turniere" bind:value={presetName} />
+              <button class="btn primary" onclick={savePreset}>Als Preset speichern</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2 class="panel-title">Datei</h2></div>
+          <div class="body">
+            <p class="note">Als Datei sichern oder weitergeben, etwa um sie als Standard in eine neue Version zu übernehmen.</p>
             <div class="row">
               <button class="btn" onclick={exportProfile} disabled={!inTauri}>Exportieren</button>
               <button class="btn" onclick={importProfile} disabled={!inTauri}>Importieren</button>
@@ -606,6 +679,22 @@
     font-size: 12px;
     line-height: 1.5;
     color: var(--text-3);
+  }
+  .preset-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .preset-row span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .grow {
+    flex: 1;
+    min-width: 0;
   }
   .msg {
     margin: 0;

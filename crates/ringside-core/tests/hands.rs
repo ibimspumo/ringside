@@ -406,3 +406,15 @@ fn counters_during_an_upgrade_come_from_hand_rows() {
     db.rebuild_all().unwrap();
     assert_eq!(db.counters_for(&["Hero".into()], None).unwrap()[0].counters.hands, 2);
 }
+
+/// The hero's HUD can show only the current tournament, or the current cash table today.
+#[test]
+fn counters_limited_to_the_session() {
+    let db = db_with(&[CASH, KNOCKOUT]);
+    let ko = &hands(KNOCKOUT)[0];
+    let cash = &hands(CASH)[1];
+    assert_eq!(db.counters_for(&["Hero".into()], None).unwrap()[0].counters.hands, 3);
+    assert_eq!(db.counters_in_session("Hero", ko).unwrap().hands, 1);
+    assert_eq!(db.counters_in_session("Hero", cash).unwrap().hands, 2);
+    assert_eq!(db.counters_in_session("Mo", ko).unwrap().hands, 0, "other tournament");
+}

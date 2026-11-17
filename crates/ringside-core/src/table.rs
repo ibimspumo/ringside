@@ -53,21 +53,30 @@ pub struct SeatPos {
     pub card: Option<Point>,
     #[serde(default)]
     pub plate: Option<Point>,
+    /// Where this seat's cards appear in the recap of the last hand, once moved.
+    #[serde(default)]
+    pub recap: Option<Point>,
 }
 
 impl SeatPos {
     pub const fn at(x: f64, y: f64) -> Self {
-        SeatPos { x, y, card: None, plate: None }
+        SeatPos { x, y, card: None, plate: None, recap: None }
     }
 
     pub fn clamped(self) -> Self {
         let ring = Point { x: self.x, y: self.y }.clamped();
-        SeatPos { x: ring.x, y: ring.y, card: self.card.map(Point::clamped), plate: self.plate.map(Point::clamped) }
+        SeatPos {
+            x: ring.x,
+            y: ring.y,
+            card: self.card.map(Point::clamped),
+            plate: self.plate.map(Point::clamped),
+            recap: self.recap.map(Point::clamped),
+        }
     }
 
     fn map(self, f: impl Fn(Point) -> Point) -> Self {
         let ring = f(Point { x: self.x, y: self.y });
-        SeatPos { x: ring.x, y: ring.y, card: self.card.map(&f), plate: self.plate.map(&f) }
+        SeatPos { x: ring.x, y: ring.y, card: self.card.map(&f), plate: self.plate.map(&f), recap: self.recap.map(&f) }
     }
 }
 
@@ -114,17 +123,37 @@ pub fn visual_index(hand: &Hand, seat: u8, preferred_seating: bool) -> usize {
 /// Width / height of the client area the default layouts were measured in.
 pub const REFERENCE_ASPECT: f64 = 953.0 / 657.0;
 
-/// Layouts are stored per table size and window shape, e.g. "8@1.45" or "8@1.80".
-pub fn layout_key(max_seats: u8, aspect: f64) -> String {
-    format!("{max_seats}@{:.2}", (aspect * 20.0).round() / 20.0)
+/// Layouts are stored once per table size ("8"), in coordinates of a window with
+/// [`REFERENCE_ASPECT`]; every table window converts them to its own shape with [`adapt`].
+/// The client scales its table scene to fit the window and centres it, so one layout fits
+/// every window size and shape.
+pub fn layout_key(max_seats: u8) -> String {
+    max_seats.to_string()
 }
 
 fn parse_key(key: &str) -> Option<(u8, f64)> {
     match key.split_once('@') {
+        // Saved per window shape by v0.2.0.
         Some((max, aspect)) => Some((max.parse().ok()?, aspect.parse().ok()?)),
-        // Saved by versions that did not know about window shapes.
         None => Some((key.parse().ok()?, REFERENCE_ASPECT)),
     }
+}
+
+/// Folds layouts saved per window shape ("8@1.80", v0.2.0) into one per table size. Where a
+/// size has several, the one closest to the reference shape wins.
+pub fn normalize_layouts(layouts: &mut BTreeMap<String, Vec<SeatPos>>) {
+    let mut best: BTreeMap<u8, (f64, Vec<SeatPos>)> = BTreeMap::new();
+    for (key, layout) in layouts.iter() {
+        let Some((max, aspect)) = parse_key(key) else { continue };
+        if layout.len() != max as usize {
+            continue;
+        }
+        let distance = (aspect - REFERENCE_ASPECT).abs();
+        if best.get(&max).is_none_or(|(d, _)| distance < *d) {
+            best.insert(max, (distance, adapt(layout, aspect, REFERENCE_ASPECT)));
+        }
+    }
+    *layouts = best.into_iter().map(|(max, (_, l))| (layout_key(max), l)).collect();
 }
 
 /// Moves positions from one window shape to another, assuming the client draws the table
@@ -150,29 +179,26 @@ pub fn adapt(layout: &[SeatPos], from_aspect: f64, to_aspect: f64) -> Vec<SeatPo
         .collect()
 }
 
-/// The layout to use for a table: saved by the user for exactly this shape, else shipped with
-/// the app for this shape, else the nearest shape of either converted, else the measured default.
+/// The layout for a table of `max_seats` in a window of the given shape: the user's own,
+/// else the one shipped with the app, else the measured default.
 pub fn resolve_layout(
     saved: &BTreeMap<String, Vec<SeatPos>>,
     builtin: &BTreeMap<String, Vec<SeatPos>>,
     max_seats: u8,
     aspect: f64,
 ) -> Vec<SeatPos> {
-    let key = layout_key(max_seats, aspect);
+    let key = layout_key(max_seats);
     let fits = |l: &&Vec<SeatPos>| l.len() == max_seats as usize;
-    if let Some(l) = saved.get(&key).filter(fits).or_else(|| builtin.get(&key).filter(fits)) {
-        return l.clone();
-    }
-    let nearest = saved
-        .iter()
-        .chain(builtin.iter())
-        .filter_map(|(k, l)| parse_key(k).filter(|(m, _)| *m == max_seats).map(|(_, a)| (a, l)))
-        .filter(|(_, l)| fits(l))
-        .min_by(|a, b| (a.0 - aspect).abs().total_cmp(&(b.0 - aspect).abs()));
-    match nearest {
-        Some((from, l)) => adapt(l, from, aspect),
+    let stored = saved.get(&key).filter(fits).or_else(|| builtin.get(&key).filter(fits));
+    match stored {
+        Some(l) => adapt(l, REFERENCE_ASPECT, aspect),
         None => adapt(&default_layout(max_seats), REFERENCE_ASPECT, aspect),
     }
+}
+
+/// A position dragged in a window of shape `aspect`, in stored (reference) coordinates.
+pub fn to_reference(pos: SeatPos, aspect: f64) -> SeatPos {
+    adapt(&[pos], aspect, REFERENCE_ASPECT)[0]
 }
 
 #[cfg(test)]
@@ -218,10 +244,7 @@ mod tests {
     }
 
     #[test]
-    fn window_shapes() {
-        assert_eq!(layout_key(8, 953.0 / 657.0), "8@1.45");
-        assert_eq!(layout_key(9, 1920.0 / 1050.0), "9@1.85");
-
+    fn one_layout_fits_every_window_shape() {
         let l = default_layout(8);
         let same = adapt(&l, REFERENCE_ASPECT, REFERENCE_ASPECT);
         assert!((same[2].x - l[2].x).abs() < 1e-9 && (same[2].y - l[2].y).abs() < 1e-9);
@@ -231,15 +254,38 @@ mod tests {
         let back = adapt(&wide, 16.0 / 9.0, REFERENCE_ASPECT);
         assert!((back[2].x - l[2].x).abs() < 1e-9);
 
-        let mut saved = BTreeMap::new();
-        let mut moved = l.clone();
-        moved[0].x = 0.4;
-        saved.insert("8".to_string(), moved.clone());
+        // Dragged in a wide window, saved once, shown correctly in every shape.
+        let mut moved = wide[0];
+        moved.x += 0.05;
+        let stored = to_reference(moved, 16.0 / 9.0);
+        let mut saved = BTreeMap::from([(layout_key(8), l.clone())]);
+        saved.get_mut("8").unwrap()[0] = stored;
         let none = BTreeMap::new();
-        assert_eq!(resolve_layout(&saved, &none, 8, REFERENCE_ASPECT), moved, "legacy key is the reference shape");
-        let builtin = BTreeMap::from([("8@1.80".to_string(), l.clone())]);
-        assert_eq!(resolve_layout(&saved, &builtin, 8, 1.8), l, "exact shipped shape beats converting");
-        assert_eq!(resolve_layout(&none, &none, 6, REFERENCE_ASPECT), default_layout(6));
+        let in_wide = resolve_layout(&saved, &none, 8, 16.0 / 9.0);
+        assert!((in_wide[0].x - moved.x).abs() < 1e-9);
+        let in_standard = resolve_layout(&saved, &none, 8, REFERENCE_ASPECT);
+        assert!((in_standard[0].x - stored.x).abs() < 1e-9);
+
+        let close = |a: &[SeatPos], b: &[SeatPos]| a.iter().zip(b).all(|(p, q)| (p.x - q.x).abs() < 1e-9 && (p.y - q.y).abs() < 1e-9);
+        assert!(close(&resolve_layout(&none, &none, 6, REFERENCE_ASPECT), &default_layout(6)));
+        let builtin = BTreeMap::from([(layout_key(8), wide.clone())]);
+        assert!(close(&resolve_layout(&none, &builtin, 8, REFERENCE_ASPECT), &wide), "shipped layout beats the default");
+    }
+
+    #[test]
+    fn layouts_from_v0_2_0_are_folded_per_table_size() {
+        let l = default_layout(8);
+        let wide = adapt(&l, REFERENCE_ASPECT, 1.8);
+        let mut layouts = BTreeMap::from([
+            ("8@1.80".to_string(), wide),
+            ("8@1.45".to_string(), l.clone()),
+            ("6".to_string(), default_layout(6)),
+            ("9@1.45".to_string(), vec![SeatPos::at(0.5, 0.5)]),
+        ]);
+        normalize_layouts(&mut layouts);
+        assert_eq!(layouts.keys().collect::<Vec<_>>(), ["6", "8"], "broken 9-seat layout dropped");
+        let eight = &layouts["8"];
+        assert!((eight[2].x - adapt(&l, 1.45, REFERENCE_ASPECT)[2].x).abs() < 1e-9, "closest shape wins");
     }
 
     #[test]

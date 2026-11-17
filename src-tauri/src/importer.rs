@@ -53,8 +53,10 @@ pub fn spawn(app: AppHandle) {
                     Ok(progress) => {
                         status.upgrade = Some(progress);
                         if progress.done >= progress.total {
-                            // Totals are complete now; open overlays reload their numbers.
+                            // Totals are complete now; open overlays reload their numbers and
+                            // the next pass reports the normal import state again.
                             let _ = app.emit("stats-rebuilt", ());
+                            first = true;
                         }
                         20
                     }

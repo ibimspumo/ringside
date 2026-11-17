@@ -21,7 +21,7 @@ export const AVATAR_RADIUS = 33;
  * Graphic plate, sized to cover the client's name plate (195 × 60 at 953 px) and the bounty
  * badge under the avatar. `compact` is the stats-only strip used when not covering.
  */
-export const PLATE = { width: 204, height: 82, offsetY: 3, behindAvatar: 37, compact: { width: 150, height: 34 } };
+export const PLATE = { width: 212, height: 82, offsetY: 3, behindAvatar: 37, compact: { width: 150, height: 34 } };
 
 export type Side = "left" | "right";
 
@@ -65,10 +65,11 @@ export function classicAnchor(cx: number, cy: number, s: number, width: number, 
 }
 
 /** Default top-left of the graphic plate for an avatar at (cx, cy). */
-export function defaultPlate(cx: number, cy: number, s: number, side: Side, cover: boolean) {
+export function defaultPlate(cx: number, cy: number, s: number, side: Side, cover: boolean, widthFactor = 1) {
   if (cover) {
-    const left = side === "left" ? cx - (PLATE.width - PLATE.behindAvatar) * s : cx - PLATE.behindAvatar * s;
-    return { x: left, y: cy - (PLATE.height / 2 - PLATE.offsetY) * s, width: PLATE.width * s, height: PLATE.height * s };
+    const w = PLATE.width * widthFactor;
+    const left = side === "left" ? cx - (w - PLATE.behindAvatar) * s : cx - PLATE.behindAvatar * s;
+    return { x: left, y: cy - (PLATE.height / 2 - PLATE.offsetY) * s, width: w * s, height: PLATE.height * s };
   }
   // Not covering: a stats strip right under the client's name plate.
   const w = PLATE.compact.width * s;

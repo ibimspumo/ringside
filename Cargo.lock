@@ -3187,7 +3187,7 @@ dependencies = [
 
 [[package]]
 name = "ringside"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "ringside-core",
  "serde",
@@ -3204,7 +3204,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-core"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "regex",
  "rusqlite",
@@ -3215,7 +3215,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-engine"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "rand",
  "rand_chacha",

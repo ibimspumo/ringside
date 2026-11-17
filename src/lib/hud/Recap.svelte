@@ -3,17 +3,27 @@
   import { money, moneyShort } from "../stats";
   import { RING, other, plateSide } from "./geometry";
   import type { Point, TableView } from "../types";
+  import { draggable } from "./drag";
 
   interface Props {
     view: TableView;
     /** Avatar centre per visual seat, in px. */
     seatAt: (visual: number) => Point;
+    /** Saved top-left of a seat's cards, if the user moved them. */
+    cardsAt: (visual: number) => Point | null;
+    /** Saved top-left of the board panel, if moved. */
+    board: Point | null;
     width: number;
     height: number;
     scale: number;
+    /** Editor: cards and board can be dragged. */
+    editable?: boolean;
+    onCardsMove?: (visual: number, p: Point, done: boolean) => void;
+    onBoardMove?: (p: Point, done: boolean) => void;
   }
 
-  let { view, seatAt, width, height, scale: s }: Props = $props();
+  let { view, seatAt, cardsAt, board, width, height, scale: s, editable = false, onCardsMove, onBoardMove }: Props = $props();
+  const dockAt = $derived(board ?? { x: 24 * s, y: height * 0.8 });
 
   const recap = $derived(view.recap);
   const winners = $derived(new Map(recap.winners));
@@ -21,8 +31,22 @@
   const nameOf = (visual: number) => view.seats.find((x) => x.visual === visual)?.name ?? "";
   const amount = (a: number) => (view.game === "tournament" ? money(a, null, "tournament") : money(a, view.currency));
   const winnerText = $derived(recap.winners.map(([v, a]) => `${nameOf(v)} gewinnt ${amount(a)}`).join(" · "));
-  /** Cards go beside the ring on the side away from the client's name plate. */
-  function holeStyle(p: { x: number; y: number }) {
+  let holes: Record<number, HTMLElement> = {};
+  /** Current top-left of a seat's cards, measured, so a drag starts where they are. */
+  function topLeft(visual: number, p: Point): Point {
+    const saved = cardsAt(visual);
+    if (saved) return saved;
+    const el = holes[visual];
+    if (!el) return p;
+    const r = el.getBoundingClientRect();
+    const parent = el.offsetParent!.getBoundingClientRect();
+    return { x: r.left - parent.left, y: r.top - parent.top };
+  }
+
+  /** Cards go beside the ring on the side away from the client's name plate, unless moved. */
+  function holeStyle(visual: number, p: { x: number; y: number }) {
+    const saved = cardsAt(visual);
+    if (saved) return `left:${saved.x}px; top:${saved.y}px`;
     const free = other(plateSide(p.x, p.y, width, height));
     const gap = (RING.size / 2 + 3) * s;
     return free === "right"
@@ -32,7 +56,13 @@
 </script>
 
 <div class="recap" style="--s:{s}" aria-live="polite">
-  <div class="dock" style="left:{24 * s}px; top:{height * 0.8}px">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div
+    class="dock"
+    class:edit={editable}
+    style="left:{dockAt.x}px; top:{dockAt.y}px"
+    use:draggable={{ origin: () => dockAt, onMove: (p, done) => onBoardMove?.(p, done) }}
+  >
     <span class="label">Letzte Hand</span>
     {#if recap.board.length}
       <div class="board">
@@ -46,7 +76,15 @@
 
   {#each recap.shown as [visual, cards] (visual)}
     {@const p = seatAt(visual)}
-    <div class="hole" class:won={winners.has(visual)} style={holeStyle(p)}>
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div
+      class="hole"
+      class:edit={editable}
+      class:won={winners.has(visual)}
+      bind:this={holes[visual]}
+      style={holeStyle(visual, p)}
+      use:draggable={{ origin: () => topLeft(visual, p), onMove: (q, done) => onCardsMove?.(visual, q, done) }}
+    >
       {#each cards as c (c)}<PlayingCard card={c} size={Math.round(26 * s)} />{/each}
       {#if bounties.has(visual)}
         <span class="ko num">KO +{moneyShort(bounties.get(visual) ?? 0, view.bounty_currency ?? "USD")}</span>
@@ -56,6 +94,12 @@
 </div>
 
 <style>
+  .edit {
+    pointer-events: auto;
+    cursor: grab;
+    outline: 1px dashed rgba(236, 235, 231, 0.35);
+    outline-offset: 2px;
+  }
   .recap {
     position: absolute;
     inset: 0;

@@ -7,9 +7,8 @@
   interface Props {
     seat: SeatView;
     hud: HudConfig;
+    /** Avatar centre; ring and plate always move together. */
     ring: Point;
-    /** Plate top-left once moved on its own. */
-    plate: Point | null;
     scale: number;
     /** Where the client's own name plate is. */
     side: Side;
@@ -17,19 +16,17 @@
     currency: string | null;
     bountyCurrency: string | null;
     onRingMove: (p: Point, done: boolean) => void;
-    onPlateMove: (p: Point, done: boolean) => void;
-    onPlateReset: () => void;
     onTap: () => void;
   }
 
-  let { seat, hud, ring, plate, scale: s, side, game, currency, bountyCurrency, onRingMove, onPlateMove, onPlateReset, onTap }: Props =
+  let { seat, hud, ring, scale: s, side, game, currency, bountyCurrency, onRingMove, onTap }: Props =
     $props();
 
   const cover = $derived(hud.graphic.cover_plate);
-  const auto = $derived(defaultPlate(ring.x, ring.y, s, side, cover));
-  const at = $derived(plate ?? auto);
+  const auto = $derived(defaultPlate(ring.x, ring.y, s, side, cover, hud.graphic.plate_width ?? 1));
+  const at = $derived(auto);
   /** The ring overlaps the covering plate; keep text clear of it on that side. */
-  const ringPad = $derived(cover && !plate ? (PLATE.behindAvatar + RING.size / 2 + 2) * s : 9 * s);
+  const ringPad = $derived(cover ? (PLATE.behindAvatar + RING.size / 2 + 2) * s : 9 * s);
   /** Punch the avatar out of the plate so the client's picture stays visible inside the ring. */
   const mask = $derived.by(() => {
     const r = AVATAR_RADIUS * s;
@@ -55,17 +52,17 @@
   const segTitle = $derived(hud.graphic.segments.map((id) => `${STAT_META[id].name}: ${fmt(stat(seat.stats, id))}`).join(" · "));
 </script>
 
-<div class="seat" class:hero={seat.is_hero} style="--s:{s}; opacity:{hud.opacity}">
+<div class="seat" class:hero={seat.is_hero} style="--s:{s}">
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="plate hit"
     class:cover
     class:compact={!cover}
-    style="left:{at.x}px; top:{at.y}px; width:{auto.width}px; height:{auto.height}px; --pad-l:{side === 'right' && cover && !plate
+    style="left:{at.x}px; top:{at.y}px; width:{auto.width}px; height:{auto.height}px; --pad-l:{side === 'right' && cover
       ? ringPad
-      : 9 * s}px; --pad-r:{side === 'left' && cover && !plate ? ringPad : 9 * s}px; {mask}"
-    title="Ziehen verschiebt die Platte · Doppelklick legt sie zurück · Klick zeigt alle Werte"
-    use:draggable={{ origin: () => ({ x: at.x, y: at.y }), onMove: onPlateMove, onTap, onDouble: onPlateReset }}
+      : 9 * s}px; --pad-r:{side === 'left' && cover ? ringPad : 9 * s}px; {mask}"
+    title="Ziehen verschiebt Ring und Platte · Klick zeigt alle Werte"
+    use:draggable={{ origin: () => ring, onMove: onRingMove, onTap }}
   >
     {#if cover}
       <div class="row name">

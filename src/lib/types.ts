@@ -33,6 +33,8 @@ export interface SeatPos {
   y: number;
   card?: Point | null;
   plate?: Point | null;
+  /** Where this seat's cards show in the recap, once moved. */
+  recap?: Point | null;
 }
 
 export interface Threshold {
@@ -48,7 +50,7 @@ export interface HudConfig {
   mode: OverlayMode;
   palette: Palette;
   classic: { preset: ClassicPreset; custom: StatId[] };
-  graphic: { segments: StatId[]; plate_stats: StatId[]; cover_plate: boolean };
+  graphic: { segments: StatId[]; plate_stats: StatId[]; cover_plate: boolean; plate_width: number };
   thresholds: Record<string, Threshold>;
   scale: number;
   opacity: number;
@@ -56,13 +58,26 @@ export interface HudConfig {
   show_stack: boolean;
   show_bounty: boolean;
   recap_seconds: number;
+  /** Own numbers from this tournament (cash: this table today) instead of all hands. */
+  hero_session_only: boolean;
+  /** Top-left of the recap's board panel as a fraction of the table window. */
+  recap_board: Point | null;
+}
+
+export interface Preset {
+  name: string;
+  preferred_seating: boolean;
+  hud: HudConfig;
+  layouts: Record<string, SeatPos[]>;
 }
 
 export interface Settings {
   hand_history_dirs: string[];
   preferred_seating: boolean;
   hud: HudConfig;
+  /** One layout per table size ("8"), shared by every table window and the editor. */
   layouts: Record<string, SeatPos[]>;
+  presets: Preset[];
 }
 
 export interface SeatView {

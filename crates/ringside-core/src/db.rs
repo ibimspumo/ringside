@@ -181,6 +181,7 @@ impl Db {
              );
              CREATE INDEX IF NOT EXISTS hands_table ON hands(table_key, id);
              CREATE INDEX IF NOT EXISTS hands_time ON hands(played_at, id);
+             CREATE INDEX IF NOT EXISTS hands_tournament ON hands(tournament_id);
              CREATE TABLE IF NOT EXISTS player_hands (
                  hand_id INTEGER NOT NULL,
                  player TEXT NOT NULL,
@@ -348,6 +349,23 @@ impl Db {
                 })
             })
             .collect()
+    }
+
+    /// A player's counters in the session `hand` belongs to: the same tournament, or for cash
+    /// games the same table on the same day.
+    pub fn counters_in_session(&self, player: &str, hand: &Hand) -> Result<Counters, Error> {
+        let sql = format!(
+            "SELECT {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
+             WHERE ph.player = ?1
+               AND ((?2 IS NOT NULL AND h.tournament_id = ?2)
+                 OR (?2 IS NULL AND h.table_key = ?3 AND substr(h.played_at, 1, 10) = ?4))",
+            sums()
+        );
+        self.conn.query_row(
+            &sql,
+            params![player, hand.tournament_id.map(|t| t as i64), hand.table_key(), hand.played_at.get(..10).unwrap_or("")],
+            |row| counters_at(row, 0),
+        )
     }
 
     /// Players ordered by hands played, optionally filtered by a name substring. Without a date

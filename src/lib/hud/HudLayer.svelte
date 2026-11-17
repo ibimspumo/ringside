@@ -12,6 +12,8 @@
     width: number;
     height: number;
     showRecap?: boolean;
+    /** Let the recap's cards and board be dragged (the editor does this). */
+    editRecap?: boolean;
     /** Editor without a screenshot: draw stand-in avatars and name the classic boxes. */
     preview?: boolean;
     onDragging?: (dragging: boolean) => void;
@@ -19,9 +21,9 @@
     onLayoutChange?: (layout: SeatPos[]) => void;
   }
 
-  let { view, width, height, showRecap = false, preview = false, onDragging, onLayoutChange }: Props = $props();
+  let { view, width, height, showRecap = false, editRecap = false, preview = false, onDragging, onLayoutChange }: Props = $props();
 
-  type Part = "ring" | "card" | "plate";
+  type Part = "ring" | "card" | "recap";
   /** Positions in px while something is being dragged. */
   let draft = $state<Record<string, Point>>({});
   let openSeat = $state<number | null>(null);
@@ -34,9 +36,10 @@
   function ring(visual: number): Point {
     return draft[`${visual}:ring`] ?? toPx(seatPos(visual));
   }
-  function part(visual: number, which: "card" | "plate"): Point | null {
-    const saved = seatPos(visual)[which];
-    return draft[`${visual}:${which}`] ?? (saved ? toPx(saved) : null);
+  /** The classic box once moved on its own. */
+  function card(visual: number): Point | null {
+    const saved = seatPos(visual).card;
+    return draft[`${visual}:card`] ?? (saved ? toPx(saved) : null);
   }
   /** Side of the client's name plate, from the seat's default (not dragged) position. */
   function side(visual: number) {
@@ -53,13 +56,31 @@
     save(visual, which === "ring" ? { ...seatPos(visual), ...n } : { ...seatPos(visual), [which]: n });
   }
 
-  function reset(visual: number, which: "card" | "plate") {
-    save(visual, { ...seatPos(visual), [which]: null });
+  function recapCards(visual: number): Point | null {
+    const saved = seatPos(visual).recap;
+    return draft[`${visual}:recap`] ?? (saved ? toPx(saved) : null);
+  }
+
+  /** The board panel is one per table look, stored with the HUD settings. */
+  function moveBoard(p: Point, done: boolean) {
+    draft["board"] = p;
+    onDragging?.(!done);
+    if (!done) return;
+    delete draft["board"];
+    view.hud.recap_board = { x: p.x / width, y: p.y / height };
+    api.getSettings().then((settings) => {
+      settings.hud.recap_board = view.hud.recap_board;
+      api.saveSettings(settings);
+    });
+  }
+
+  function resetCard(visual: number) {
+    save(visual, { ...seatPos(visual), card: null });
   }
 
   function save(visual: number, pos: SeatPos) {
     view.layout[visual] = pos;
-    api.saveSeat(view.layout_key, visual, $state.snapshot(pos));
+    api.saveSeat(view.layout_key, visual, $state.snapshot(pos), width / Math.max(height, 1));
     onLayoutChange?.($state.snapshot(view.layout));
   }
 
@@ -86,15 +107,12 @@
       {seat}
       hud={view.hud}
       ring={r}
-      plate={part(seat.visual, "plate")}
       scale={s}
       side={side(seat.visual)}
       game={view.game}
       currency={view.currency}
       bountyCurrency={view.bounty_currency}
       onRingMove={(p, done) => move(seat.visual, "ring", p, done)}
-      onPlateMove={(p, done) => move(seat.visual, "plate", p, done)}
-      onPlateReset={() => reset(seat.visual, "plate")}
       onTap={() => tap(seat.seat)}
     />
   {:else}
@@ -102,7 +120,7 @@
       {seat}
       hud={view.hud}
       ring={r}
-      box={part(seat.visual, "card")}
+      box={card(seat.visual)}
       showName={preview}
       scale={s}
       {width}
@@ -111,19 +129,30 @@
       currency={view.currency}
       bountyCurrency={view.bounty_currency}
       onMove={(p, done) => move(seat.visual, "card", p, done)}
-      onReset={() => reset(seat.visual, "card")}
+      onReset={() => resetCard(seat.visual)}
       onTap={() => tap(seat.seat)}
     />
   {/if}
 {/each}
 
 {#if showRecap}
-  <Recap {view} seatAt={ring} {width} {height} scale={s} />
+  <Recap
+    {view}
+    seatAt={ring}
+    cardsAt={recapCards}
+    board={draft["board"] ?? (view.hud.recap_board ? toPx(view.hud.recap_board) : null)}
+    {width}
+    {height}
+    scale={s}
+    editable={preview || editRecap}
+    onCardsMove={(visual, p, done) => move(visual, "recap", p, done)}
+    onBoardMove={moveBoard}
+  />
 {/if}
 
 {#if openView}
   {@const r = ring(openView.visual)}
-  <DetailPopup seat={openView} hud={view.hud} at={{ x: r.x + (r.x > width / 2 ? -40 * s : 40 * s), y: r.y + 30 * s }} flip={r.x > width / 2} />
+  <DetailPopup seat={openView} hud={view.hud} anchor={r} gap={40 * s} {width} {height} />
 {/if}
 
 <style>
