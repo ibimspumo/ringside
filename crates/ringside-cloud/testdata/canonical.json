@@ -25,6 +25,50 @@
       "key": "21e6ce210667d0e2ee7cc706c832906a9697385f7dd0a39b170a581b1da6489b"
     },
     {
+      "kind": "pushfold-mw",
+      "engine_version": 1,
+      "input": {
+        "stacks_mbb": [
+          12500,
+          8000,
+          20000,
+          15000,
+          9750,
+          10000
+        ],
+        "sb_mbb": 500,
+        "ante_mbb": 125,
+        "bb_ante_mbb": 0,
+        "dead_mbb": 0,
+        "max_all_in": 3,
+        "payouts_ppm": []
+      },
+      "canonical": "{\"ante_mbb\":125,\"bb_ante_mbb\":0,\"dead_mbb\":0,\"max_all_in\":3,\"payouts_ppm\":[],\"sb_mbb\":500,\"stacks_mbb\":[12500,8000,20000,15000,9750,10000]}",
+      "key": "081aa9d5fa476557d2fdec1e09187979a992d1c3829d7c7ff4608a4776a12335"
+    },
+    {
+      "kind": "pushfold-mw",
+      "engine_version": 1,
+      "input": {
+        "stacks_mbb": [
+          8000,
+          15000,
+          12000
+        ],
+        "sb_mbb": 500,
+        "ante_mbb": 0,
+        "bb_ante_mbb": 1000,
+        "dead_mbb": 0,
+        "max_all_in": 2,
+        "payouts_ppm": [
+          650000,
+          350000
+        ]
+      },
+      "canonical": "{\"ante_mbb\":0,\"bb_ante_mbb\":1000,\"dead_mbb\":0,\"max_all_in\":2,\"payouts_ppm\":[650000,350000],\"sb_mbb\":500,\"stacks_mbb\":[8000,15000,12000]}",
+      "key": "876183169d71f9ed24248e78573ff1fd13cc095a6027f9eb6e4934e5ca810ec5"
+    },
+    {
       "kind": "example",
       "engine_version": 7,
       "input": {
@@ -53,7 +97,7 @@
       "A": 1
     },
     {
-      "a": "ü"
+      "a": "\u00fc"
     },
     {
       "a": 9007199254740992

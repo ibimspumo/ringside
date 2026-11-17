@@ -1,14 +1,17 @@
 //! End-to-end check against the deployed API: health, submit, hidden until verified,
-//! verify, served, manipulated solution rejected, rate limit, report. Deletes its test
-//! rows afterwards, also when a step fails.
+//! verify, served, manipulated solution rejected (for every kind), rate limit, report.
+//! Deletes its test rows afterwards, also when a step fails.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Duration;
 
 use ringside_cloud::client::{DEFAULT_BASE_URL, RetryPolicy};
-use ringside_cloud::kinds::{Kind, PushFoldHu, PushFoldHuInput, PushFoldHuSolution, Verdict};
-use ringside_cloud::operator::{Db, SqlValue, load_env, need, now, verify_pending};
+use ringside_cloud::kinds::pushfold_mw::reference;
+use ringside_cloud::kinds::{
+    Kind, PushFoldHu, PushFoldHuInput, PushFoldHuSolution, PushFoldMw, PushFoldMwInput, PushFoldMwSolution, Verdict,
+};
+use ringside_cloud::operator::{Db, SqlValue, VerifyOptions, check_here, load_env, need, now, verify_pending};
 use ringside_cloud::{Client, Error, Report, SubmitStatus};
 use ringside_engine::range::HandClass;
 use ringside_engine::solve_push_fold;
@@ -52,9 +55,10 @@ fn main() -> ExitCode {
         }
     };
     let started = now();
-    let mut keys = Vec::new();
+    let mut keys: Vec<(&'static str, String)> = Vec::new();
     let outcome = run(&base, &db, &mut keys);
-    let cleanup = clean(&db, &keys, started).and(purge(&base, &api_key, &keys));
+    let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
+    let cleanup = clean(&db, &plain, started).and(purge(&base, &api_key, &keys));
     match (&outcome, &cleanup) {
         (Ok(()), Ok(())) => {
             println!("smoke test passed, test data deleted");
@@ -81,7 +85,14 @@ fn step(name: &str, ok: bool, detail: impl std::fmt::Display) -> Result<(), Stri
     }
 }
 
-fn run(base: &str, db: &Db, keys: &mut Vec<String>) -> Result<(), String> {
+/// Checks only this run's keys, in this process.
+fn verify(db: &Db, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
+    let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
+    let opts = VerifyOptions { keys: Some(&plain), limit: 10, deadline: None, dry_run: false };
+    Ok(verify_pending(db, &opts, &check_here)?.into_iter().map(|c| (c.key, c.verdict)).collect())
+}
+
+fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
     let client = Client::new(base);
 
     let health = ureq::get(&format!("{base}/v1/health")).call().map_err(|e| e.to_string())?;
@@ -98,7 +109,7 @@ fn run(base: &str, db: &Db, keys: &mut Vec<String>) -> Result<(), String> {
     bad.shove["AA".parse::<HandClass>().map_err(|e| e.to_string())?.index()] = 0.0;
     let good_key = PushFoldHu::key(&good_input).map_err(|e| e.to_string())?;
     let bad_key = PushFoldHu::key(&bad_input).map_err(|e| e.to_string())?;
-    keys.extend([good_key.clone(), bad_key.clone()]);
+    keys.extend([(PushFoldHu::NAME, good_key.clone()), (PushFoldHu::NAME, bad_key.clone())]);
 
     let r = client.submit_solution::<PushFoldHu>(&good_input, &good).map_err(|e| e.to_string())?;
     step("submit good", r == SubmitStatus::Submitted, format!("{r:?} key {good_key}"))?;
@@ -107,8 +118,8 @@ fn run(base: &str, db: &Db, keys: &mut Vec<String>) -> Result<(), String> {
     let r = client.submit_solution::<PushFoldHu>(&bad_input, &bad).map_err(|e| e.to_string())?;
     step("submit manipulated (AA folds)", r == SubmitStatus::Submitted, format!("{r:?} key {bad_key}"))?;
 
-    let checked = verify_pending(db, Some(keys.as_slice()), 10, false)?;
-    let verdict = |k: &str| checked.iter().find(|c| c.key == k).and_then(|c| c.verdict.clone());
+    let checked = verify(db, keys)?;
+    let verdict = |k: &str| checked.iter().find(|c| c.0 == k).and_then(|c| c.1.clone());
     let v = verdict(&good_key);
     step("verifier accepts good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
     let v = verdict(&bad_key);
@@ -133,6 +144,8 @@ fn run(base: &str, db: &Db, keys: &mut Vec<String>) -> Result<(), String> {
     step("rejected stays hidden", r.is_none(), "404")?;
     let r = client.submit_solution::<PushFoldHu>(&good_input, &good).map_err(|e| e.to_string())?;
     step("resubmit verified", r == SubmitStatus::AlreadyVerified, format!("{r:?}"))?;
+
+    multiway(&client, db, keys, stack_mbb)?;
 
     let report = Report {
         app_version: SMOKE_VERSION.into(),
@@ -161,14 +174,57 @@ fn run(base: &str, db: &Db, keys: &mut Vec<String>) -> Result<(), String> {
     Ok(())
 }
 
+/// The same round for `pushfold-mw`: three players, ICM, heads-up pots, so the solve
+/// takes about a second.
+fn multiway(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, stack_mbb: u32) -> Result<(), String> {
+    let good_input = PushFoldMwInput {
+        stacks_mbb: vec![stack_mbb, 12_000, 9_000],
+        sb_mbb: 500,
+        ante_mbb: 0,
+        bb_ante_mbb: 0,
+        dead_mbb: 0,
+        max_all_in: 2,
+        payouts_ppm: vec![650_000, 350_000],
+    };
+    let bad_input = PushFoldMwInput { stacks_mbb: vec![stack_mbb + 1, 12_000, 9_000], ..good_input.clone() };
+    let good = PushFoldMwSolution::from(&*reference(&good_input)?);
+    let mut bad = PushFoldMwSolution::from(&*reference(&bad_input)?);
+    bad.act[0]["AA".parse::<HandClass>().map_err(|e| e.to_string())?.index()] = 0.0;
+    let good_key = PushFoldMw::key(&good_input).map_err(|e| e.to_string())?;
+    let bad_key = PushFoldMw::key(&bad_input).map_err(|e| e.to_string())?;
+    keys.extend([(PushFoldMw::NAME, good_key.clone()), (PushFoldMw::NAME, bad_key.clone())]);
+
+    let r = client.submit_solution::<PushFoldMw>(&good_input, &good).map_err(|e| e.to_string())?;
+    step("mw: submit good", r == SubmitStatus::Submitted, format!("{r:?} key {good_key}"))?;
+    let r = client.submit_solution::<PushFoldMw>(&bad_input, &bad).map_err(|e| e.to_string())?;
+    step("mw: submit manipulated (first seat folds AA)", r == SubmitStatus::Submitted, format!("{r:?}"))?;
+    let checked = verify(db, &keys[keys.len() - 2..])?;
+    let verdict = |k: &str| checked.iter().find(|c| c.0 == k).and_then(|c| c.1.clone());
+    let v = verdict(&good_key);
+    step("mw: verifier accepts good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
+    let v = verdict(&bad_key);
+    step("mw: verifier rejects manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
+    let mut served = None;
+    for _ in 0..15 {
+        served = client.get_solution::<PushFoldMw>(&good_input).map_err(|e| e.to_string())?;
+        if served.is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    step("mw: verified is served", served.as_ref() == Some(&good), "200, locally re-checked")?;
+    let r = client.get_solution::<PushFoldMw>(&bad_input).map_err(|e| e.to_string())?;
+    step("mw: rejected stays hidden", r.is_none(), "404")
+}
+
 /// Drops this run's solution URLs from the CDN cache; only for a ringside-* host.
-fn purge(base: &str, api_key: &str, keys: &[String]) -> Result<(), String> {
+fn purge(base: &str, api_key: &str, keys: &[(&str, String)]) -> Result<(), String> {
     let host = base.trim_start_matches("https://");
     if !host.starts_with("ringside-") || host.contains('/') {
         return Err(format!("refusing to purge {base}: not a ringside-* host"));
     }
-    for key in keys {
-        let url = format!("{base}/v1/solutions/{}/{key}", PushFoldHu::NAME);
+    for (kind, key) in keys {
+        let url = format!("{base}/v1/solutions/{kind}/{key}");
         ureq::post("https://api.bunny.net/purge")
             .set("AccessKey", api_key)
             .query("url", &url)

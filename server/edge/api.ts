@@ -8,7 +8,7 @@ import { InvalidError, KINDS, kindSpec } from "./kinds.ts";
 import { decide, hitStatements, MemoryCounter, pruneStatement, RULES, type Rule } from "./ratelimit.ts";
 
 export const API_VERSION = "1.0.0";
-const MAX_BODY = 64 * 1024;
+const MAX_BODY = 256 * 1024;
 const MAX_INPUT = 4 * 1024;
 const MAX_HAND = 20_000;
 const MAX_ERROR = 2_000;
@@ -172,7 +172,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     const input = canonicalize(body.input);
     if (input.length > MAX_INPUT) throw new InvalidError("input too large");
     spec.checkInput(body.input);
-    const result = JSON.stringify(spec.normalizeResult(body.result));
+    const result = JSON.stringify(spec.normalizeResult(body.result, body.input));
     if (result.length > spec.maxResultBytes) throw new InvalidError("result too large");
     const key = await solutionKey(kind, version, input);
     const t = now();

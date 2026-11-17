@@ -1,0 +1,36 @@
+name: Verify cloud solutions
+
+# Checks solutions clients submitted to Ringside Cloud with the engine and sets them to
+# verified or rejected; also deletes rate-limit counters, and parser reports and
+# submission log entries older than 90 days. The logs are public: ringside-verify prints
+# solution keys and verdicts only.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-cloud
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: verify
+      - run: cargo build --release --locked -p ringside-cloud --bin ringside-verify
+      # Anyone can submit: each check runs in a child process that is killed after
+      # --max-seconds, and the run starts no check after --budget-seconds.
+      - name: Verify pending solutions
+        env:
+          BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
+          BUNNY_DATABASE_AUTH_TOKEN: ${{ secrets.BUNNY_DATABASE_AUTH_TOKEN }}
+        run: ./target/release/ringside-verify --limit 50 --max-seconds 120 --budget-seconds 2400

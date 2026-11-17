@@ -59,11 +59,25 @@ pub struct RetryPolicy {
     pub base_delay: Duration,
     /// Longest single wait, also for a server's Retry-After.
     pub max_wait: Duration,
+    /// Limit for one request, connecting included.
+    pub timeout: Duration,
 }
 
 impl Default for RetryPolicy {
     fn default() -> RetryPolicy {
-        RetryPolicy { attempts: 4, base_delay: Duration::from_millis(500), max_wait: Duration::from_secs(10) }
+        RetryPolicy {
+            attempts: 4,
+            base_delay: Duration::from_millis(500),
+            max_wait: Duration::from_secs(10),
+            timeout: Duration::from_secs(20),
+        }
+    }
+}
+
+impl RetryPolicy {
+    /// For lookups someone waits for: one try, a few seconds at most.
+    pub fn impatient() -> RetryPolicy {
+        RetryPolicy { attempts: 1, timeout: Duration::from_secs(4), ..RetryPolicy::default() }
     }
 }
 
@@ -120,8 +134,8 @@ impl Client {
 
     pub fn with_policy(base_url: &str, policy: RetryPolicy) -> Client {
         let agent = ureq::AgentBuilder::new()
-            .timeout_connect(Duration::from_secs(5))
-            .timeout(Duration::from_secs(20))
+            .timeout_connect(policy.timeout.min(Duration::from_secs(5)))
+            .timeout(policy.timeout)
             .user_agent(concat!("ringside/", env!("CARGO_PKG_VERSION")))
             .build();
         Client { base: base_url.trim_end_matches('/').to_string(), agent, policy }
@@ -225,8 +239,12 @@ impl Client {
 mod tests {
     use super::*;
 
-    const P: RetryPolicy =
-        RetryPolicy { attempts: 4, base_delay: Duration::from_millis(500), max_wait: Duration::from_secs(10) };
+    const P: RetryPolicy = RetryPolicy {
+        attempts: 4,
+        base_delay: Duration::from_millis(500),
+        max_wait: Duration::from_secs(10),
+        timeout: Duration::from_secs(20),
+    };
 
     #[test]
     fn backs_off_exponentially_then_gives_up() {

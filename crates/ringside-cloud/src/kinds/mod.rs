@@ -3,6 +3,7 @@
 //! it in [`KINDS`] (and in the server whitelist, `server/edge/kinds.ts`).
 
 mod pushfold_hu;
+pub mod pushfold_mw;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -11,6 +12,7 @@ use serde_json::Value;
 use crate::canonical::{CanonicalError, canonicalize, solution_key};
 
 pub use pushfold_hu::{PushFoldHu, PushFoldHuInput, PushFoldHuSolution};
+pub use pushfold_mw::{PushFoldMw, PushFoldMwInput, PushFoldMwSolution};
 
 pub trait Kind {
     /// Name in URLs and the database, e.g. `pushfold-hu`.
@@ -29,14 +31,14 @@ pub trait Kind {
     fn check_input(input: &Self::Input) -> Result<(), String>;
 
     /// What best responses gain against `solution` (NashConv), or why it is malformed.
-    /// Must be much cheaper than solving: this runs on every verification and download.
+    /// Runs on every verification and download, so it should be far cheaper than solving;
+    /// `pushfold-mw` is the exception, see its module docs.
     fn exploitability(input: &Self::Input, solution: &Self::Solution) -> Result<f64, String>;
 
     fn key(input: &Self::Input) -> Result<String, CanonicalError> {
         let value = serde_json::to_value(input).map_err(|e| CanonicalError(e.to_string()))?;
         Ok(solution_key(Self::NAME, Self::ENGINE_VERSION, &canonicalize(&value)?))
     }
-
 }
 
 /// Outcome of checking a stored submission.
@@ -54,7 +56,7 @@ pub struct KindEntry {
     pub check: fn(&str, &str, &str) -> Verdict,
 }
 
-pub const KINDS: &[KindEntry] = &[entry::<PushFoldHu>()];
+pub const KINDS: &[KindEntry] = &[entry::<PushFoldHu>(), entry::<PushFoldMw>()];
 
 pub fn find(name: &str, engine_version: u32) -> Option<&'static KindEntry> {
     KINDS
@@ -100,7 +102,7 @@ pub fn verdict<K: Kind>(input: &K::Input, solution: &K::Solution) -> Verdict {
         Ok(e) if e.is_finite() && e <= K::TOLERANCE => Verdict::Verified { exploitability: e },
         Ok(e) => Verdict::Rejected {
             exploitability: e.is_finite().then_some(e),
-            reason: format!("exploitability {e:.3e} above tolerance {:.0e}", K::TOLERANCE),
+            reason: format!("exploitability {e:.3e} above tolerance {:.1e}", K::TOLERANCE),
         },
         Err(e) => reject(e),
     }

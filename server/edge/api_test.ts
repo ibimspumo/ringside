@@ -2,6 +2,7 @@ import { assert, assertEquals } from "jsr:@std/assert@1";
 import { memorySql } from "../lib/sqlite_memory.ts";
 import { createHandler } from "./api.ts";
 import { canonicalize, solutionKey } from "./canonical.ts";
+import { nodeCount } from "./kinds.ts";
 import { RULES } from "./ratelimit.ts";
 
 const BASE = "https://ringside-api.test";
@@ -36,7 +37,7 @@ Deno.test("health answers without the database", async () => {
   const { handle } = setup();
   const res = await handle(get("/v1/health"));
   assertEquals(res.status, 200);
-  assertEquals((await res.json()).kinds, { "pushfold-hu": [1] });
+  assertEquals((await res.json()).kinds, { "pushfold-hu": [1], "pushfold-mw": [1] });
 });
 
 Deno.test("submitted solutions stay hidden until verified, then are cacheable", async () => {
@@ -104,7 +105,7 @@ Deno.test("malformed submissions are rejected", async () => {
   }
   const noJson = await handle(post("/v1/solutions", null, "192.0.2.50", "{nope"));
   assertEquals(noJson.status, 400);
-  const big = await handle(post("/v1/solutions", null, "192.0.2.51", " ".repeat(70_000)));
+  const big = await handle(post("/v1/solutions", null, "192.0.2.51", " ".repeat(300_000)));
   assertEquals(big.status, 413);
   const wrongType = await handle(
     new Request(BASE + "/v1/solutions", { method: "POST", headers: { "X-Real-IP": "192.0.2.52" }, body: "{}" }),
@@ -113,6 +114,48 @@ Deno.test("malformed submissions are rejected", async () => {
   assertEquals((await handle(get("/v1/solutions/pushfold-hu/ABC"))).status, 400);
   assertEquals((await handle(get("/v1/solutions/postflop/" + "a".repeat(64)))).status, 404);
   assertEquals((await handle(get("/v1/solutions"))).status, 405);
+});
+
+Deno.test("multiway submissions are checked against the tree of their input", async () => {
+  const { handle } = setup();
+  const input = {
+    stacks_mbb: [10000, 10000, 10000],
+    sb_mbb: 500,
+    ante_mbb: 0,
+    bb_ante_mbb: 0,
+    dead_mbb: 0,
+    max_all_in: 3,
+    payouts_ppm: [],
+  };
+  const act = (nodes: number) => ({ act: Array.from({ length: nodes }, () => Array(169).fill(0.5)) });
+  const mw = (over: Record<string, unknown>) => ({ kind: "pushfold-mw", engine_version: 1, input, result: act(6), ...over });
+  const ok = await handle(post("/v1/solutions", mw({})));
+  assertEquals(ok.status, 202);
+  assertEquals((await ok.json()).key, await solutionKey("pushfold-mw", 1, canonicalize(input)));
+  const nine = { ...input, stacks_mbb: Array(9).fill(20000) };
+  const big = await handle(post("/v1/solutions", mw({ input: nine, result: act(128) }), "192.0.2.90"));
+  assertEquals(big.status, 202, "a 9-player profile fits");
+  await big.body?.cancel();
+  const cases: unknown[] = [
+    mw({ result: act(5) }),
+    mw({ input: { ...input, max_all_in: 4 } }),
+    mw({ input: { ...input, stacks_mbb: Array(10).fill(10000) } }),
+    mw({ input: { ...input, payouts_ppm: [600000, 300000] } }),
+    mw({ input: { ...input, payouts_ppm: [500000, 300000, 200000, 0] } }),
+    mw({ input: { ...input, stacks_mbb: [10000, 999, 10000] } }),
+  ];
+  for (const [i, body] of cases.entries()) {
+    const res = await handle(post("/v1/solutions", body, `192.0.2.${100 + i}`));
+    assertEquals(res.status, 400, JSON.stringify(body).slice(0, 160));
+    await res.body?.cancel();
+  }
+});
+
+Deno.test("node counts match the engine's trees", () => {
+  // Counted by ringside-engine's multiway::solve, see node_count_matches_the_engine.
+  for (const [n, cap, nodes] of [[2, 2, 2], [3, 3, 6], [4, 3, 13], [6, 3, 40], [9, 3, 128]]) {
+    assertEquals(nodeCount(n, cap), nodes, `${n} players, cap ${cap}`);
+  }
 });
 
 Deno.test("reports are stored and validated", async () => {

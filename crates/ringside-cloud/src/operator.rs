@@ -1,28 +1,41 @@
-//! Operator side: runs on the maintainer's machine with the full database token from the
-//! repository's `.env`, never in the app. Verifies submitted solutions and sets their status.
+//! Operator side: runs on the maintainer's machine or in the repository's scheduled
+//! workflow with the full database token, never in the app. Verifies submitted solutions,
+//! sets their status and deletes old rows.
 
 use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 use serde_json::{Value, json};
 
-use crate::kinds::{self, Verdict};
+use crate::kinds::{self, KindEntry, Verdict};
 
 /// Largest decompressed result the verifier reads.
 const MAX_RESULT: u64 = 1 << 20;
 /// Rate-limit counters older than this are deleted (the API keeps the same horizon).
 const KEEP_RATE_LIMITS_S: i64 = 2 * 86_400;
+/// Parser reports and the submission log are deleted after this.
+pub const KEEP_LOGS_S: i64 = 90 * 86_400;
+/// Variables the operator tools read; taken from the process environment when no `.env`
+/// file exists (the scheduled workflow passes them as secrets).
+const KNOWN_VARS: [&str; 3] = ["BUNNY_DATABASE_URL", "BUNNY_DATABASE_AUTH_TOKEN", "BUNNY_API_KEY"];
 
 /// `.env` next to the nearest ancestor of the working directory that has one; variables
-/// set in the process environment win.
+/// set in the process environment win. Without a file (and without `path`) only the
+/// process environment counts.
 pub fn load_env(path: Option<&Path>) -> Result<HashMap<String, String>, String> {
     let path = match path {
-        Some(p) => p.to_path_buf(),
-        None => find_env_file().ok_or("no .env found in the working directory or above")?,
+        Some(p) => Some(p.to_path_buf()),
+        None => find_env_file(),
+    };
+    let Some(path) = path else {
+        return Ok(KNOWN_VARS
+            .iter()
+            .filter_map(|k| std::env::var(k).ok().map(|v| (k.to_string(), v)))
+            .collect());
     };
     let text = std::fs::read_to_string(&path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut env = HashMap::new();
@@ -185,7 +198,9 @@ impl Db {
             .send_string(&json!({ "requests": requests }).to_string())
             .map_err(|e| match e {
                 ureq::Error::Status(code, r) => format!("database HTTP {code}: {}", r.into_string().unwrap_or_default()),
-                ureq::Error::Transport(t) => format!("database unreachable: {t}"),
+                // Only the kind: the message names the database URL, and the verifier's
+                // logs are public.
+                ureq::Error::Transport(t) => format!("database unreachable: {}", t.kind()),
             })?;
         let body: Value = serde_json::from_str(&resp.into_string().map_err(|e| e.to_string())?)
             .map_err(|e| e.to_string())?;
@@ -237,9 +252,29 @@ fn gunzip(bytes: &[u8]) -> Result<String, String> {
     Ok(out)
 }
 
-/// Checks up to `limit` pending solutions (only `keys` if given), oldest first, and stores
-/// each verdict unless `dry_run`.
-pub fn verify_pending(db: &Db, keys: Option<&[String]>, limit: u32, dry_run: bool) -> Result<Vec<Checked>, String> {
+/// Checks a stored row: (kind, key, canonical input JSON, result JSON) → verdict.
+pub type Check<'a> = &'a dyn Fn(&KindEntry, &str, &str, &str) -> Verdict;
+
+/// Runs a kind's check in this process.
+pub fn check_here(entry: &KindEntry, key: &str, input: &str, result: &str) -> Verdict {
+    (entry.check)(key, input, result)
+}
+
+pub struct VerifyOptions<'a> {
+    /// Only these keys, if given.
+    pub keys: Option<&'a [String]>,
+    /// Most solutions read in one run.
+    pub limit: u32,
+    /// Start no further check after this; the rest stays pending for the next run.
+    pub deadline: Option<Instant>,
+    /// Only report verdicts.
+    pub dry_run: bool,
+}
+
+/// Checks pending solutions oldest first with `check` and stores each verdict unless
+/// `dry_run`.
+pub fn verify_pending(db: &Db, opts: &VerifyOptions, check: Check) -> Result<Vec<Checked>, String> {
+    let (keys, limit, dry_run) = (opts.keys, opts.limit, opts.dry_run);
     let mut sql = String::from(
         "SELECT key, kind, engine_version, input, result, submitted_at FROM solutions WHERE status = 'submitted'",
     );
@@ -254,6 +289,9 @@ pub fn verify_pending(db: &Db, keys: Option<&[String]>, limit: u32, dry_run: boo
 
     let mut out = Vec::new();
     for i in 0..rows.rows.len() {
+        if opts.deadline.is_some_and(|d| Instant::now() >= d) {
+            break;
+        }
         let key = rows.col(i, "key").as_str().unwrap_or_default().to_string();
         let kind = rows.col(i, "kind").as_str().unwrap_or_default().to_string();
         let version = rows.col(i, "engine_version").as_i64().unwrap_or(-1);
@@ -264,7 +302,7 @@ pub fn verify_pending(db: &Db, keys: Option<&[String]>, limit: u32, dry_run: boo
         let input = rows.col(i, "input").as_str().unwrap_or_default();
         let verdict = match rows.col(i, "result") {
             SqlValue::Blob(b) => match gunzip(b) {
-                Ok(result) => (entry.check)(&key, input, &result),
+                Ok(result) => check(entry, &key, input, &result),
                 Err(reason) => Verdict::Rejected { exploitability: None, reason },
             },
             _ => Verdict::Rejected { exploitability: None, reason: "result is not a blob".into() },
@@ -292,10 +330,23 @@ pub fn verify_pending(db: &Db, keys: Option<&[String]>, limit: u32, dry_run: boo
     Ok(out)
 }
 
-/// Deletes rate-limit counters nobody looks at any more; returns how many.
-pub fn prune_rate_limits(db: &Db) -> Result<u64, String> {
-    let r = db.execute(&[("DELETE FROM rate_limits WHERE window_start < ?", vec![(now() - KEEP_RATE_LIMITS_S).into()])])?;
-    Ok(r[0].affected)
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct Pruned {
+    pub rate_limits: u64,
+    pub reports: u64,
+    pub submissions: u64,
+}
+
+/// Deletes rate-limit counters nobody looks at any more, and parser reports and
+/// submission log entries older than [`KEEP_LOGS_S`].
+pub fn prune(db: &Db) -> Result<Pruned, String> {
+    let t = now();
+    let r = db.execute(&[
+        ("DELETE FROM rate_limits WHERE window_start < ?", vec![(t - KEEP_RATE_LIMITS_S).into()]),
+        ("DELETE FROM reports WHERE received_at < ?", vec![(t - KEEP_LOGS_S).into()]),
+        ("DELETE FROM submissions WHERE received_at < ?", vec![(t - KEEP_LOGS_S).into()]),
+    ])?;
+    Ok(Pruned { rate_limits: r[0].affected, reports: r[1].affected, submissions: r[2].affected })
 }
 
 #[cfg(test)]
