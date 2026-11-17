@@ -132,7 +132,7 @@
   function resultTitle(r: TournamentRow): string {
     if (r.profit !== null) return `Preis + Bounties − Buy-in${r.has_summary ? "" : " (aus deinen Händen, ohne Zusammenfassung)"}`;
     const chips = r.hands ? ` Chips über ${int(r.hands)} Hände: ${signed(r.chips / 100, 0)}.` : "";
-    return `Ohne Turnier-Zusammenfassung ist das Ergebnis unbekannt.${chips}`;
+    return `Noch kein Ausscheiden in deinen Händen: Das Turnier läuft noch, oder die letzte Hand ist nicht importiert.${chips}`;
   }
 </script>
 
@@ -264,7 +264,7 @@
                 <td class:pos={!!r.prize}>{r.prize ? cash(r.prize, r.currency) : "–"}</td>
                 <td>{r.bounties ? cash(r.bounties, r.currency) : "–"}</td>
                 <td class={sign(r.profit)} title={resultTitle(r)}>
-                  {#if r.profit === null}<span class="unknown">unbekannt</span>{:else}{signedCash(r.profit, r.currency)}{/if}
+                  {#if r.profit === null}<span class="unknown">offen</span>{:else}{signedCash(r.profit, r.currency)}{/if}
                 </td>
                 <td>{int(r.hands)}</td>
               </tr>

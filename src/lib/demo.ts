@@ -403,7 +403,9 @@ export function demoTournaments(): Tournaments {
     const reentry = !freeroll && rnd() > 0.85 ? prizePart + bountyPart + fee : 0;
     const paid = Math.ceil(entrants * 0.15);
     const pool = (prizePart || 20) * entrants;
-    const prize = place === null ? null : place <= paid ? Math.round(Math.max(pool * 0.22 * place ** -1.15, (prizePart || 20) * 1.6)) : 0;
+    // The newest one is still running; the others without a place left without a prize.
+    const running = i === 0;
+    const prize = running ? null : place === null ? 0 : place <= paid ? Math.round(Math.max(pool * 0.22 * place ** -1.15, (prizePart || 20) * 1.6)) : 0;
     const bounties = bountyPart ? Math.round(rnd() * 3) * Math.round(bountyPart / 2) : 0;
     const cost = prizePart + bountyPart + fee + reentry;
     const day = 16 - Math.floor(i / 2.4);

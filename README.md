@@ -9,19 +9,29 @@
 ## Was es kann
 
 **Am Tisch**
-- **Zwei Overlay-Modi:** *Grafisch* legt eine Platte über das Namensschild von PokerStars (Name, Stack in BB, drei große Werte) und einen Ring aus vier farbigen Segmenten um den Avatar. *Klassisch* zeigt eine verschiebbare Textbox pro Spieler mit Presets – „Klartext“ schreibt die Werte in Worten aus („spielt 24 % · erhöht 18 %“).
-- **Rückblick:** Nach jeder Hand bleiben Board, gezeigte Karten und Gewinner ein paar Sekunden stehen.
-- **Bounties** in Knockout-Turnieren auf jeder Platte.
-- **Mehrere Tische**, jede Größe und Fensterform: Positionen werden je Tischgröße und Seitenverhältnis gespeichert und skalieren mit.
+- **Zwei Overlay-Modi:** *Grafisch* legt eine Platte über das Namensschild von PokerStars (Name, Stack in BB, drei große Werte) und einen Ring aus vier Segmenten um den Avatar, die sich je nach Wert füllen. Ein Klick auf die Platte blättert zu den nächsten drei Werten. *Klassisch* zeigt eine verschiebbare Textbox pro Spieler mit Presets – „Klartext“ schreibt die Werte in Worten aus („spielt 24 % · erhöht 18 %“).
+- **Rückblick:** Nach jeder Hand bleiben Board, gezeigte Karten und Gewinner ein paar Sekunden stehen, je Spieler verschiebbar.
+- **Notizfarben** aus PokerStars als Rahmen um die Platte, **Bounties** in Knockout-Turnieren auf jeder Platte.
+- **Eigene Werte** auf Wunsch nur aus dem laufenden Turnier.
+- **Mehrere Tische**, jede Größe und Fensterform: Positionen werden je Tischgröße gespeichert und passen sich jedem Fenster an.
 
 **In der App**
-- Übersicht mit Gewinnkurve (gesamt, mit und ohne Showdown), Winrate und Bounties.
+- Übersicht mit Gewinnkurve (gesamt, mit und ohne Showdown), Winrate, Bounties und deinem Spielstil.
 - Berichte: Ergebnis nach Position, 13×13-Starthand-Matrix, Sitzungen.
+- Turniere: Buy-ins, Preisgeld, Bounties, ROI und ITM je Währung. Ein Klick filtert alle Ansichten auf ein Turnier.
+- Live-Tische: deine Gegner an allen offenen Tischen mit HUD-Werten und PokerStars-Notizen.
 - Spieler mit Detailansicht und allen Händen, die sie gezeigt haben.
 - Hände mit Filtern und Replayer.
 - HUD-Editor: Panels direkt auf einem eigenen PokerStars-Screenshot ausrichten, Profile als JSON exportieren und importieren.
 
-**Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Internet nur für „Nach Updates suchen“.
+**Lernen** (gesperrt, solange PokerStars läuft)
+- *Heute:* kurze Sitzungen aus fälligen Wiederholungen und neuen Aufgaben, mit Wochenziel.
+- *Lernpfad:* elf Einheiten von den Grundlagen bis ICM, mit Kompetenzstufe je Fertigkeit.
+- *Deine Hände:* eigene All-ins und Push/Fold-Spots noch einmal entscheiden – danach EV, Ergebnis und Glück in BB.
+- *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold und mehr in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
+- *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
+
+**Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht (bei 10 BB identisch mit HoldemResources). Internet nur für „Nach Updates suchen“.
 
 | Grafisch | Klassisch („Klartext“) |
 | --- | --- |
@@ -30,6 +40,14 @@
 | Übersicht | Berichte |
 | --- | --- |
 | ![](docs/dashboard.png) | ![](docs/reports.png) |
+
+| Turniere | Live-Tische |
+| --- | --- |
+| ![](docs/tournaments.png) | ![](docs/live-tables.png) |
+
+| Lernen | Trainer |
+| --- | --- |
+| ![](docs/training.png) | ![](docs/trainer.png) |
 
 | Replayer | HUD-Editor |
 | --- | --- |
