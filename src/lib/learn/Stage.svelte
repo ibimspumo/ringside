@@ -1,7 +1,7 @@
 <script lang="ts">
   import PlayingCard from "../PlayingCard.svelte";
   import type { ExercisePrompt } from "../types";
-  import { fmtBB, fmtPct, parseRange } from "./catalog";
+  import { explain, fmtBB, fmtPct, parseRange } from "./catalog";
   import SeatRing from "./SeatRing.svelte";
   import Matrix from "./wissen/blocks/Matrix.svelte";
 
@@ -28,6 +28,14 @@
 
   let width = $state(700);
   const big = $derived(width < 460 ? 38 : 50);
+
+  /** Hole cards in the order their name is read: "K5o" shows the king first. */
+  const highFirst = (cards: string[]) => [...cards].sort((a, b) => "23456789TJQKA".indexOf(b[0]) - "23456789TJQKA".indexOf(a[0]));
+
+  /** "65s" → what the s or o means; pairs need no hint. */
+  function handHint(cls: string): string {
+    return cls.endsWith("s") ? "s: gleiche Farbe" : cls.endsWith("o") ? "o: verschiedene Farben" : "Paar";
+  }
   const mid = $derived(width < 460 ? 32 : 40);
 </script>
 
@@ -62,7 +70,7 @@
       {/each}
       <div class="board" aria-label="Board">
         {#each prompt.board as c (c)}<PlayingCard card={c} size={big} />{/each}
-        {#if !prompt.board.length}<span class="faint small">Preflop all-in, noch kein Board</span>{/if}
+        {#if !prompt.board.length}<span class="dim small">Preflop all-in, noch kein Board</span>{/if}
       </div>
       <div class="hand">
         <span class="who hero">Du</span>
@@ -126,7 +134,7 @@
       truth={truthSeat}
       onPick={onSeat}
     />
-    {#if prompt.dead_button}<p class="note faint">Toter Button: Der Button liegt auf einem leeren Sitz.</p>{/if}
+    {#if prompt.dead_button}<p class="note dim">Toter Button: Der Button liegt auf einem leeren Sitz.</p>{/if}
   {:else if prompt.type === "showdown"}
     <div class="felt">
       <div class="board" aria-label="Board">
@@ -166,27 +174,33 @@
     </div>
   {:else if prompt.type === "push_fold"}
     {@const sb = prompt.hero_position === "sb"}
-    <div class="pf">
-      <div class="hand">
-        <span class="cards">{#each prompt.hand as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
-        <span class="cls num">{prompt.class}</span>
+    <div class="felt hu">
+      <div class="hu-seat">
+        <span class="hu-pos">{sb ? "Big Blind" : "Small Blind"}</span>
+        <span class="num hu-stack">{fmtBB(prompt.stack_bb)}</span>
+        <span class="hu-act" class:allin={!sb}>{sb ? "wartet auf dich" : "geht all-in"}</span>
       </div>
-      <dl class="spot">
-        <div><dt>Du sitzt im</dt><dd>{sb ? "Small Blind" : "Big Blind"}</dd></div>
-        <div><dt>Situation</dt><dd>{sb ? "Alle folden zu dir" : "SB geht all-in"}</dd></div>
-        <div><dt>Effektiver Stack</dt><dd class="num">{fmtBB(prompt.stack_bb)}</dd></div>
-        <div><dt>Blinds</dt><dd class="num">{fmtBB(prompt.small_blind_bb)} / 1 bb</dd></div>
-        {#if prompt.ante_bb > 0}<div><dt>Ante</dt><dd class="num">{fmtBB(prompt.ante_bb)}</dd></div>{/if}
-        {#if prompt.dead_bb > 0}<div><dt>Totes Geld</dt><dd class="num">{fmtBB(prompt.dead_bb)}</dd></div>{/if}
-        <div><dt>Am Tisch</dt><dd class="num">{prompt.players} Spieler</dd></div>
-      </dl>
+      <div class="hu-mid">
+        <b>{sb ? "Alle anderen haben gefoldet" : "Der Small Blind schiebt all-in"}</b>
+        <span class="dim small">
+          Blinds {fmtBB(prompt.small_blind_bb)} / 1 bb{#if prompt.ante_bb > 0}{` · Ante ${fmtBB(prompt.ante_bb)}`}{/if}{#if prompt.dead_bb > 0}{` · `}<span
+              class="term"
+              title={explain("Totes Geld")}>Totes Geld</span
+            >{` ${fmtBB(prompt.dead_bb)}`}{/if} · {prompt.players === 2 ? "Heads-up: nur ihr beide" : `${prompt.players} Spieler am Tisch`}
+        </span>
+      </div>
+      <div class="hu-seat hero">
+        <span class="cards">{#each highFirst(prompt.hand) as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
+        <span class="hu-pos">Du · {sb ? "Small Blind" : "Big Blind"} · <span class="num">{fmtBB(prompt.stack_bb)}</span></span>
+        <span class="cls-line"><b class="num cls-sm">{prompt.class}</b> <span class="dim">{handHint(prompt.class)}</span></span>
+      </div>
     </div>
   {:else if prompt.type === "push_fold_table"}
     {@const p = prompt}
     {@const pos = p.positions[p.hero]}
     <div class="pf">
       <div class="hand">
-        <span class="cards">{#each p.hand as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
+        <span class="cards">{#each highFirst(p.hand) as c (c)}<PlayingCard card={c} size={big + 6} />{/each}</span>
         <span class="cls num">{p.class}</span>
       </div>
       <dl class="spot">
@@ -449,6 +463,76 @@
     min-width: 0;
   }
 
+  .hu {
+    gap: 10px;
+    padding: 14px;
+  }
+  @container (min-width: 640px) {
+    .hu {
+      grid-template-columns: auto auto auto;
+      justify-content: center;
+      align-items: center;
+      column-gap: 40px;
+      padding: 16px 24px;
+    }
+    .hu .hu-mid {
+      order: 0;
+      max-width: 260px;
+    }
+  }
+  .hu-seat {
+    display: grid;
+    justify-items: center;
+    gap: 4px;
+    padding: 8px 18px;
+    border-radius: var(--r);
+    background: rgba(18, 20, 24, 0.55);
+    border: 1px solid var(--line-2);
+  }
+  .hu-seat.hero {
+    gap: 6px;
+    padding: 12px 22px 10px;
+    border-color: rgba(236, 235, 231, 0.3);
+  }
+  .hu-pos {
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .hu-stack {
+    font-size: 15px;
+  }
+  .hu-act {
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .hu-act.allin {
+    color: var(--neg);
+    font-weight: 600;
+  }
+  .hu-mid {
+    display: grid;
+    justify-items: center;
+    gap: 2px;
+    text-align: center;
+  }
+  .hu-mid b {
+    font-size: 14px;
+  }
+  .cls-line {
+    font-size: 12.5px;
+  }
+  .cls-sm {
+    font-size: 18px;
+    font-weight: 600;
+    margin-right: 4px;
+  }
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--text-3);
+    text-underline-offset: 3px;
+    cursor: help;
+  }
   .pf {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -471,7 +555,7 @@
   }
   dt {
     font-size: 12px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   dd {
     margin: 0;

@@ -5,6 +5,7 @@
   import ArticleView from "./Article.svelte";
   import { ARTICLE_BY_ID, ARTICLES, LEVELS, UNITS, fold, searchText, type Article } from "./articles";
   import { loadRead, storeRead } from "./read";
+  import { SKILLS } from "../catalog";
 
   let {
     openId = null,
@@ -45,6 +46,10 @@
   const hits = $derived(terms.length ? INDEX.filter((x) => terms.every((t) => x.text.includes(t))).map((x) => x.a) : ARTICLES);
   const groups = $derived(UNITS.map((u) => ({ ...u, items: hits.filter((a) => a.unit === u.id) })).filter((g) => g.items.length));
   const readCount = $derived(ARTICLES.filter((a) => read.has(a.id)).length);
+
+  /** A skill's main article shows that skill's icon, as in trainer and path. */
+  const SKILL_ICON = new Map<string, string>();
+  for (const k of Object.values(SKILLS)) if (k.articles[0] && !SKILL_ICON.has(k.articles[0])) SKILL_ICON.set(k.articles[0], k.icon);
 
   /** A small glyph that hints at the page's main picture. */
   function glyph(a: Article): string {
@@ -104,7 +109,7 @@
       </div>
       <div class="progress" title="{readCount} von {ARTICLES.length} gelesen">
         <span class="num"><b>{readCount}</b> / {ARTICLES.length}</span>
-        <span class="faint">gelesen</span>
+        <span class="dim">gelesen</span>
         <span class="pbar"><span style="width:{(readCount / ARTICLES.length) * 100}%"></span></span>
       </div>
     </header>
@@ -140,7 +145,7 @@
                 {#if a.stat}
                   <b>{STAT_META[a.stat].short}</b>
                 {:else}
-                  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d={ICONS[kind] ?? ICONS.formula} /></svg>
+                  <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d={SKILL_ICON.get(a.id) ?? ICONS[kind] ?? ICONS.formula} /></svg>
                 {/if}
               </span>
               <span class="txt">
@@ -172,7 +177,6 @@
     container: wissen / inline-size;
     display: grid;
     gap: 20px;
-    max-width: 1180px;
     scroll-margin-top: 20px;
   }
   svg {
@@ -207,7 +211,8 @@
   }
   .progress {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: max-content max-content;
+    justify-content: end;
     align-items: baseline;
     gap: 2px 8px;
     min-width: 150px;
@@ -274,7 +279,7 @@
   }
   .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(max(260px, calc((100% - 30px) / 4)), 1fr));
     gap: 10px;
   }
   .tile {
@@ -329,13 +334,7 @@
     font-weight: 600;
   }
   .one {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     align-self: start;
-    max-height: calc(2 * 1.4em);
     color: var(--text-2);
     font-size: 13px;
     line-height: 1.4;
@@ -346,7 +345,7 @@
     align-items: center;
     gap: 4px 10px;
     margin-top: 5px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: 11.5px;
   }
   .lvl {
@@ -367,6 +366,7 @@
     margin-right: 4px;
   }
   .tag {
+    white-space: nowrap;
     padding: 0 7px;
     border-radius: 99px;
     border: 1px solid var(--line-2);

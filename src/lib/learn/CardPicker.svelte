@@ -150,14 +150,14 @@
     opacity: 1;
     animation: pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
   }
-  .out {
+  .slot.out {
     box-shadow: 0 0 0 2.5px var(--pos);
   }
   .slot.missed {
     box-shadow: 0 0 0 2.5px var(--amber);
     animation-name: pulse;
   }
-  .half_out {
+  .slot.half_out {
     box-shadow:
       0 0 0 2.5px var(--amber),
       inset 0 -999px 0 rgba(242, 177, 46, 0.18);
@@ -166,8 +166,10 @@
     box-shadow: 0 0 0 2.5px var(--neg);
     animation-name: shake;
   }
-  .dirty {
-    box-shadow: 0 0 0 2px var(--neg);
+  .slot.dirty {
+    box-shadow: none;
+    outline: 2px dashed var(--neg);
+    outline-offset: 1px;
     filter: saturate(0.4) brightness(0.8);
   }
   .slot.sel.out,
@@ -232,5 +234,8 @@
   .key.wrong,
   .key.dirty {
     --c: var(--neg);
+  }
+  .key.dirty i {
+    border-style: dashed;
   }
 </style>

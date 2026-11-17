@@ -537,12 +537,15 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       const choice = "choice" in a ? a.choice : "";
       const ok = (choice === act) === play;
       const margin = Math.abs(at - range);
-      const loss = ok ? 0 : Math.round(Math.min(s * 0.4, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
-      const evAct = Math.round((play ? 1 : -1) * Math.min(3, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
+      // Like the engine: the loss is the gap between the two EVs, the better one is the solution.
+      const evFold = sb ? -0.5 - p.ante_bb : -1 - p.ante_bb;
+      const gap = Math.round(Math.min(1.4, 0.006 * margin * Math.sqrt(s)) * 100) / 100;
+      const evAct = evFold + (play ? gap : -gap);
+      const loss = ok ? 0 : gap;
       const facts = [
         fact("Nash-Strategie", play ? (sb ? "All-in" : "Call") : "Fold"),
         fact(`EV ${sb ? "All-in" : "Call"}`, sbb(evAct)),
-        fact("EV Fold", sbb(sb ? -0.5 - p.ante_bb : -1 - p.ante_bb)),
+        fact("EV Fold", sbb(evFold)),
         fact(sb ? "Shove-Range" : "Call-Range", `${pct(range)} aller Hände`),
         fact("Effektiver Stack", bb(s)),
       ];
@@ -564,13 +567,15 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       const choice = "choice" in a ? a.choice : "";
       const ok = (choice === act) === play;
       const margin = Math.abs(at - range);
-      const loss = ok ? 0 : Math.round(Math.min(s * 0.4, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
-      const evAct = Math.round((play ? 1 : -1) * Math.min(3, 0.02 * margin * Math.sqrt(s)) * 100) / 100;
       const pos = p.positions[p.hero];
+      const evFold = pos === "SB" ? -0.5 - p.ante_bb : pos === "BB" ? -1 - p.ante_bb - p.bb_ante_bb : -p.ante_bb;
+      const gap = Math.round(Math.min(1.4, 0.006 * margin * Math.sqrt(s)) * 100) / 100;
+      const evAct = evFold + (play ? gap : -gap);
+      const loss = ok ? 0 : gap;
       const facts = [
         fact("Nash-Strategie", play ? `${name} (immer)` : "Fold (immer)"),
         fact(`EV ${name}`, sbb(evAct)),
-        fact("EV Fold", sbb(pos === "SB" ? -0.5 - p.ante_bb : pos === "BB" ? -1 - p.ante_bb - p.bb_ante_bb : -p.ante_bb)),
+        fact("EV Fold", sbb(evFold)),
         fact(`${open ? "Shove" : "Call"}-Range ${pos}`, `${pct(range)} aller Hände`),
         fact("Effektiver Stack", bb(s)),
       ];

@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { ConceptCount } from "../coach/types";
   import type { LearnKind, LearnProgress } from "../types";
-  import { SKILLS, UNITS, fmtPct, mastery, nextLevel } from "./catalog";
-  import Mastery from "./Mastery.svelte";
-  import Ring from "./Ring.svelte";
+  import { LEVEL_HINT, LEVEL_TEXT, SKILLS, UNITS, currentUnit, fmtPct, mastery, nextLevel, trainableKind, weakConcepts } from "./catalog";
+    import Ring from "./Ring.svelte";
+  import SkillBadge from "./SkillBadge.svelte";
   import Weaknesses from "./Weaknesses.svelte";
   import { ARTICLE_BY_ID } from "./wissen/articles";
   import { loadRead } from "./wissen/read";
@@ -31,7 +31,11 @@
 
   const units = $derived(UNITS.map((u) => ({ ...u, share: unitShare(u.skills, u.articles) })));
   /** First unit with a skill that is not yet "mit Hilfe". */
-  const here = $derived(units.find((u) => u.skills.some((k) => (byKind.get(k)?.level ?? 0) < 2))?.id ?? null);
+  const here = $derived(currentUnit(byKind)?.id ?? null);
+  /** The one skill the path suggests next: the first in the current unit that is not yet "mit Hilfe". */
+  const nextKind = $derived(UNITS.find((u) => u.id === here)?.skills.find((k) => (byKind.get(k)?.level ?? 0) < 2) ?? null);
+  /** With weak spots from the coach, the first of them is the one main action on this page. */
+  const weakFirst = $derived(weakConcepts(concepts).some((c) => !!trainableKind(c)));
   const total = $derived(progress?.skills.filter((s) => s.id !== "all_in") ?? []);
   const solid = $derived(total.filter((s) => s.level >= 3).length);
 </script>
@@ -42,19 +46,41 @@
       <h1>Lernpfad</h1>
       <p class="dim">Elf Einheiten, aufeinander aufgebaut. Spring ruhig dorthin, wo du stehst – nichts ist gesperrt.</p>
     </div>
-    <div class="sum">
-      <b class="num">{solid}</b><span class="faint">/ {total.length} Fertigkeiten selbstständig</span>
+    <div class="sum" title="Selbstständig: {LEVEL_HINT[3]}">
+      <div class="sum-line">
+        <b class="num">{solid}</b><span class="faint num">/ {total.length}</span>
+        <span class="dim">Fertigkeiten sitzen</span>
+      </div>
+      <span class="sum-bar" aria-hidden="true"><i style="width:{total.length ? (solid / total.length) * 100 : 0}%"></i></span>
     </div>
   </header>
 
-  <Weaknesses {concepts} {progress} limit={6} {onTrain} {onRead} />
+  <div class="ladder" aria-label="So wächst eine Fertigkeit">
+    <span class="ladder-title">So wächst eine Fertigkeit</span>
+    <ol>
+      {#each [1, 2, 3, 4] as l (l)}
+        <li title={LEVEL_HINT[l]}>
+          <SkillBadge level={l} size={20} />
+          <b>{LEVEL_TEXT[l]}</b>
+          {#if l < 4}<span class="arrow" aria-hidden="true">→</span>{/if}
+        </li>
+      {/each}
+    </ol>
+    <span class="dim small">Zeig auf eine Stufe, um zu sehen, was sie verlangt.</span>
+  </div>
 
-  <ol class="units">
+  <Weaknesses {concepts} {progress} limit={6} primary={weakFirst} {onTrain} {onRead} />
+
+<ol class="units">
     {#each units as u (u.id)}
       <li class="stop" class:here={here === u.id} class:reading={!u.skills.length}>
         <div class="node">
-          <Ring value={u.share} size={52} stroke={4} tone={u.share >= 0.75 ? "var(--pos)" : "var(--text)"} label="Einheit {u.n}: {Math.round(u.share * 100)} %">
-            <b class="num n">{u.n}</b>
+          <Ring value={u.share} size={52} stroke={4} tone={u.share >= 0.75 ? "var(--pos)" : "var(--text)"} label="Einheit {u.n}: {Math.round(u.share * 100)} % geschafft">
+            {#if u.share >= 0.999}
+              <svg class="check" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+            {:else}
+              <b class="num n">{u.n}</b>
+            {/if}
           </Ring>
         </div>
         <div class="card panel">
@@ -70,20 +96,20 @@
               {#each u.skills as k (k)}
                 {@const s = byKind.get(k)}
                 <li>
-                  <span class="ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path d={SKILLS[k].icon} /></svg></span>
+                  <SkillBadge kind={k} skill={s} size={38} />
                   <span class="sname">
-                    <b>{s?.name_de ?? SKILLS[k].short}</b>
-                    <span class="faint small">
+                    <b>{SKILLS[k].short}</b>
+                    <span class="dim small">
                       {#if s && s.attempts}
-                        Stufe {s.max_level} · {s.attempts} Antworten{#if s.mean_score !== null} · Ø {fmtPct(s.mean_score * 100)}{/if}
+                        {s.attempts} {s.attempts === 1 ? "Antwort" : "Antworten"}{s.mean_score !== null ? ` · ${fmtPct(s.mean_score * 100)} im Schnitt` : ""}
                       {:else}
                         Noch nicht geübt
                       {/if}
                     </span>
                   </span>
-                  <Mastery skill={s} />
+                  <span class="lvl" title={LEVEL_HINT[s?.level ?? 0]}>{LEVEL_TEXT[s?.level ?? 0]}</span>
                   {#if k !== "all_in"}
-                    <button class="btn" onclick={() => onTrain(k, nextLevel(s))}>Üben</button>
+                    <button class="btn" class:primary={!weakFirst && k === nextKind} onclick={() => onTrain(k, nextLevel(s))}>Üben</button>
                   {/if}
                 </li>
               {/each}
@@ -92,7 +118,7 @@
 
           {#if u.articles.length}
             <div class="reads">
-              <span class="faint small">Wissen</span>
+              <span class="dim small">Wissen</span>
               {#each u.articles as id (id)}
                 {@const a = ARTICLE_BY_ID[id]}
                 {#if a}
@@ -106,7 +132,7 @@
           {/if}
 
           {#if u.next.length}
-            <p class="next faint small">Kommt noch: {u.next.join(", ")}</p>
+            <p class="next dim small">Kommt noch: {u.next.join(", ")}</p>
           {/if}
         </div>
       </li>
@@ -136,14 +162,72 @@
     margin: 3px 0 0;
   }
   .sum {
-    display: flex;
-    align-items: baseline;
+    display: grid;
     gap: 6px;
+    min-width: 260px;
     font-size: 13px;
   }
-  .sum b {
-    font-size: 22px;
+  .sum-line {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+  }
+  .sum-line b {
+    font-size: 24px;
     font-weight: 600;
+  }
+  .sum-line .dim {
+    margin-left: 4px;
+  }
+  .sum-bar {
+    height: 6px;
+    border-radius: 99px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .sum-bar i {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--text);
+  }
+  .ladder {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 18px;
+    padding: 10px 16px;
+    border-radius: var(--r);
+    border: 1px solid var(--line);
+  }
+  .ladder-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .ladder ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+  }
+  .ladder li {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    cursor: help;
+  }
+  .arrow {
+    margin-left: 5px;
+    color: var(--text-3);
+  }
+  .check {
+    color: var(--pos);
+    stroke-width: 2.4;
   }
   .units {
     position: relative;
@@ -184,9 +268,18 @@
     padding: 14px 16px;
     transition: border-color 0.15s;
   }
+  .card {
+    padding: 16px 18px;
+  }
   .here .card {
     border-color: var(--line-2);
-    box-shadow: 0 0 0 1px var(--line-2);
+    background: var(--surface);
+    box-shadow:
+      0 0 0 1px var(--line-2),
+      0 10px 30px -18px rgba(0, 0, 0, 0.8);
+  }
+  .stop:not(.here) .card {
+    background: color-mix(in srgb, var(--surface) 60%, var(--bg));
   }
   .reading .card {
     background: transparent;
@@ -210,10 +303,14 @@
     color: var(--text-2);
   }
   .tag.now {
-    background: var(--text);
-    border-color: var(--text);
-    color: var(--bg);
+    border-color: transparent;
+    padding-left: 0;
+    color: var(--text);
     font-weight: 600;
+  }
+  .tag.now::before {
+    content: "← ";
+    color: var(--text-2);
   }
   .goal {
     margin: -4px 0 0;
@@ -221,6 +318,7 @@
   }
   .skills {
     display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 520px), 1fr));
     gap: 6px;
     margin: 0;
     padding: 0;
@@ -228,20 +326,16 @@
   }
   .skills li {
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) auto auto;
+    grid-template-columns: 38px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 12px;
     padding: 8px 10px;
     border-radius: var(--r-sm);
     background: var(--surface-2);
   }
-  .ico {
-    display: grid;
-    place-items: center;
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
-    background: var(--surface-3);
+  .lvl {
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   svg {
     fill: none;
@@ -259,7 +353,7 @@
     font-weight: 600;
   }
   .small {
-    font-size: 12px;
+    font-size: 12.5px;
   }
   .reads {
     display: flex;
@@ -293,9 +387,9 @@
   }
   @container (max-width: 640px) {
     .skills li {
-      grid-template-columns: 34px minmax(0, 1fr) auto;
+      grid-template-columns: 38px minmax(0, 1fr) auto;
     }
-    .skills li :global(.mastery) {
+    .skills li .lvl {
       grid-column: 2;
     }
     .skills li .btn {

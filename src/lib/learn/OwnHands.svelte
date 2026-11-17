@@ -12,13 +12,13 @@
   const KINDS: { id: LearnKind | null; label: string }[] = [
     { id: null, label: "Alle" },
     { id: "all_in", label: "All-ins" },
-    { id: "push_fold_open", label: "Shove nach Folds" },
-    { id: "push_fold_call", label: "Call gegen Shove" },
+    { id: "push_fold_open", label: "All-in nach Folds" },
+    { id: "push_fold_call", label: "Call gegen All-in" },
   ];
   const KIND_LABEL: Partial<Record<LearnKind, string>> = {
     all_in: "All-in",
-    push_fold_open: "Shove nach Folds",
-    push_fold_call: "Call gegen Shove",
+    push_fold_open: "All-in nach Folds",
+    push_fold_call: "Call gegen All-in",
   };
 
   let kind = $state<LearnKind | null>(null);
@@ -92,8 +92,8 @@
     return null;
   }
 
-  /** The all-in bars below show these three, so the fact list leaves them out. */
-  const IN_BARS = new Set(["Erwartet (EV)", "Tatsächlich", "Glück"]);
+  /** The all-in block below shows these, so the fact list leaves them out. */
+  const IN_BARS = new Set(["Erwartet (EV)", "Tatsächlich", "Glück", "Pot"]);
 
   async function checkOwn(s: OwnSpot, a: LearnAnswer): Promise<Feedback> {
     const fb = await api.learnCheckOwn(s.id, a);
@@ -155,9 +155,10 @@
                 <b>{KIND_LABEL[s.kind] ?? s.kind}</b>
                 {#if s.exercise.prompt.type === "push_fold_table"}
                   <span class="dim">{stack(s)}</span>
-                  <span class="faint">{when(s.played_at)}</span>
+                  <span class="dim">{when(s.played_at)}</span>
                 {:else}
-                  <span class="faint">{when(s.played_at)}{#if stack(s)} · {stack(s)}{/if}</span>
+                  {#if stack(s)}<span class="dim">{stack(s)}</span>{/if}
+                  <span class="dim">{when(s.played_at)}</span>
                 {/if}
               </span>
               <span class="state {tone(results[s.id])}" title={results[s.id] ? `${Math.round(results[s.id].score * 100)} Punkte` : "Noch offen"}></span>
@@ -174,7 +175,7 @@
                 <div class="hand-title">
                   <b>{KIND_LABEL[spot.kind]}{#if spot.exercise.prompt.type === "push_fold_table"} · {stack(spot)}{/if}</b>
                   <span class="faint">Hand {spot.hand_id} · {when(spot.played_at)}</span>
-                  {#if !reveal}<span class="stop">Stopp vor deiner Entscheidung</span>{/if}
+                  {#if results[spot.id]}<span class="stop done">Aufgelöst</span>{:else if !reveal}<span class="stop">Stopp vor deiner Entscheidung</span>{/if}
                 </div>
               </Replayer>
             {:else}
@@ -197,7 +198,7 @@
                     {@const r = spot.all_in}
                     {@const max = Math.max(Math.abs(r.ev_bb), Math.abs(r.net_bb), Math.abs(r.luck_bb), 0.01)}
                     <div class="allin">
-                      <h4>Entscheidung gegen Ergebnis</h4>
+                      <h4>Und dein All-in damals: Entscheidung gegen Ergebnis</h4>
                       {#each [{ label: "Erwartet (EV)", v: r.ev_bb }, { label: "Tatsächlich", v: r.net_bb }, { label: "Glück", v: r.luck_bb }] as row, i (row.label)}
                         <div class="row" style="--i:{i}">
                           <span class="lbl">{row.label}</span>
@@ -207,7 +208,7 @@
                           <b class="num" class:pos={row.v > 0.004} class:neg={row.v < -0.004}>{fmtBB(row.v, true)}</b>
                         </div>
                       {/each}
-                      <p class="faint small">
+                      <p class="dim small">
                         Equity {fmtPct(r.equity_pct, 1)} · Pot {fmtBB(r.pot_bb)}{#if r.rake_bb > 0} · Rake {fmtBB(r.rake_bb)}{/if}. Glück ist das
                         Ergebnis minus EV. Über viele Hände gleicht es sich aus.
                       </p>
@@ -215,8 +216,8 @@
                   {/if}
                   <div class="more">
                     {#if !reveal && hand}<button class="btn" onclick={() => (reveal = true)}>Hand zu Ende abspielen</button>{/if}
-                    <button class="btn ghost" onclick={() => onRead(spot.kind === "all_in" ? "entscheidung-ergebnis" : "push-fold")}>
-                      {spot.kind === "all_in" ? "Entscheidung statt Ergebnis" : "Push/Fold nachlesen"}
+                    <button class="link" onclick={() => onRead(spot.kind === "all_in" ? "entscheidung-ergebnis" : "push-fold")}>
+                      Nachlesen: {spot.kind === "all_in" ? "Entscheidung statt Ergebnis" : "Push/Fold"}
                     </button>
                   </div>
                 {/snippet}
@@ -332,9 +333,20 @@
     gap: 12px;
     min-width: 0;
   }
+  /* Wide windows: replay and question side by side, so both stay in view. */
+  @container (min-width: 1800px) {
+    .detail {
+      grid-template-columns: minmax(0, 1fr) minmax(560px, 1fr);
+      align-items: start;
+    }
+    .detail .replay {
+      position: sticky;
+      top: 0;
+    }
+  }
   .replay {
     display: flex;
-    height: clamp(460px, 72vh, 760px);
+    height: clamp(460px, 66vh, 700px);
     padding: 12px;
     min-width: 0;
   }
@@ -352,6 +364,11 @@
     color: var(--bg);
     font-size: 11.5px;
     font-weight: 600;
+  }
+  .stop.done {
+    background: transparent;
+    border: 1px solid var(--line-2);
+    color: var(--text-2);
   }
   .body {
     padding: 18px 20px;
@@ -419,7 +436,22 @@
   .more {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    gap: 8px 18px;
+  }
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-size: 13px;
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .link:hover {
+    color: var(--text);
   }
   .small {
     margin: 0;

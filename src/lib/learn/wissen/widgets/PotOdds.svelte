@@ -46,14 +46,14 @@
   <div class="result">
     <div>
       <span class="lbl">
-        {mode === "call" ? "Du brauchst mindestens" : mode === "mdf" ? "Verteidige mindestens" : "Der Bluff muss klappen in"}
+        {mode === "call" ? "Du brauchst mindestens diese Gewinnchance (Equity)" : mode === "mdf" ? "Verteidige mindestens" : "Der Bluff muss klappen in"}
       </span>
       <b class="big num">{pct(main)}</b>
     </div>
     <div class="side">
       {#if mode === "call"}
-        <span>Pot Odds <b class="num">{num((POT + size) / size, 1)} : 1</b></span>
-        <span>Endpot <b class="num">{int(total)}</b></span>
+        <span title="Was im Pot liegt, gegen das, was du zahlst">Pot Odds <b class="num">{num((POT + size) / size, 1)} : 1</b></span>
+        <span title="So groß ist der Pot, nachdem du gecallt hast">Pot nach deinem Call <b class="num">{int(total)}</b></span>
       {:else}
         <span>{mode === "mdf" ? "Alpha" : "MDF"} <b class="num">{pct(mode === "mdf" ? a : d)}</b></span>
         <span>Bet <b class="num">{pct(size / POT, 0)}</b> des Pots</span>
@@ -76,14 +76,20 @@
           <i class:ok={dr.eq >= need}></i>
           <span>{dr.label}</span>
           <b class="num">{pct(dr.eq)}</b>
-          <span class:pos={dr.eq >= need} class:neg={dr.eq < need}>{dr.eq >= need ? "reicht" : "reicht nicht"}</span>
+          <span class:pos={dr.eq >= need} class:neg={dr.eq < need}>{dr.eq >= need ? "reicht ohne weitere Bet" : "reicht nicht"}</span>
         </li>
       {/each}
     </ul>
+    <p class="why">Nur Turn: eine Karte kommt noch. Bis River: zwei Karten – das gilt nur, wenn am Turn niemand mehr setzt.</p>
   {/if}
 </div>
 
 <style>
+  .why {
+    margin: -4px 0 0;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
   .po {
     display: grid;
     gap: 14px;
@@ -198,7 +204,7 @@
   }
   .draws li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 64px 92px;
+    grid-template-columns: 10px minmax(0, 1fr) 64px max-content;
     align-items: center;
     gap: 10px;
     color: var(--text-2);

@@ -1,28 +1,66 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
   import type { Feedback } from "../types";
-  import { GRADING, fmtBB } from "./catalog";
+  import { GRADING, explain, fmtBB, withTerms } from "./catalog";
+  import { preview } from "./preview";
+  import { input } from "./input";
   import Ring from "./Ring.svelte";
 
   let {
     feedback,
     onNext,
     nextLabel = "Weiter",
-    children,
-  }: { feedback: Feedback; onNext?: () => void; nextLabel?: string; children?: Snippet } = $props();
+    estimate = null,
+    unit = "",
+  }: {
+    feedback: Feedback;
+    onNext?: () => void;
+    nextLabel?: string;
+    /** The number the player entered, for a plain sentence instead of answer and gap tiles. */
+    estimate?: number | null;
+    unit?: string;
+  } = $props();
 
   const verdict = $derived(feedback.correct ? "ok" : feedback.score >= 0.5 ? "close" : "miss");
   const TITLE = { ok: "Richtig", close: "Knapp daneben", miss: "Daneben" };
   const tone = $derived(verdict === "ok" ? "var(--pos)" : verdict === "close" ? "var(--amber)" : "var(--neg)");
   const g = $derived(GRADING[feedback.grading]);
+  /** "EV All-in", "EV Fold": spelled out as one sentence instead of separate tiles. */
+  const evFacts = $derived(feedback.facts.filter((f) => /^EV [^-]/.test(f.label)));
+  const bbValue = (v: string) => Number.parseFloat(v.replace("−", "-").replace(",", "."));
+  const evSentence = $derived.by(() => {
+    if (evFacts.length < 2) return "";
+    const said = evFacts.map((f) => `${f.label.slice(3)} bringt im Schnitt ${f.value}`).join(", ") + ".";
+    // Short stacks often lose either way; say so, or "best" reads like winning.
+    const allLose = evFacts.every((f) => bbValue(f.value) < 0);
+    return allLose ? `${said} Beide Wege kosten Chips, ${feedback.truth_text} kostet weniger.` : said;
+  });
+  const truthNumber = $derived("number" in feedback.truth ? feedback.truth.number : null);
+  const gapSentence = $derived.by(() => {
+    if (estimate === null || truthNumber === null) return "";
+    const d = estimate - truthNumber;
+    const n = Math.abs(d).toLocaleString("de-DE", { maximumFractionDigits: 1 });
+    if (Math.abs(d) < 0.05) return "Genau getroffen.";
+    return `Du lagst ${unit === "%" ? `${n} Prozentpunkte` : `um ${n}`} zu ${d > 0 ? "hoch" : "niedrig"}.`;
+  });
+  /** "31,8 %" as a frequency a beginner can picture. */
+  const tenths = $derived(unit === "%" && truthNumber !== null ? Math.round(truthNumber / 10) : null);
+
+  /** Tiles the sentence or the slider already say. */
+  const SAID = new Set(["Deine Antwort", "Abweichung"]);
+  const facts = $derived(
+    feedback.facts.filter(
+      (f) => !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
+    ),
+  );
   let nextBtn = $state<HTMLButtonElement>();
   let root = $state<HTMLElement>();
 
   // The explanation comes into view and the next step is one key press away.
   $effect(() => {
-    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const calm = matchMedia("(prefers-reduced-motion: reduce)").matches || preview("answer") !== null;
     root?.scrollIntoView({ block: "nearest", behavior: calm ? "auto" : "smooth" });
-    nextBtn?.focus({ preventScroll: true });
+    // Show the focus ring only to people who answered with the keyboard, like :focus-visible would.
+    nextBtn?.focus({ preventScroll: true, focusVisible: input.keys } as FocusOptions);
   });
 </script>
 
@@ -41,45 +79,64 @@
     </span>
     <div class="what">
       <h3>{TITLE[verdict]}</h3>
-      <p>Lösung: <b class="num">{feedback.truth_text}</b></p>
+      <p>Lösung: <b class="num">{feedback.truth_text}</b>{#if gapSentence}<span class="gap">{gapSentence}</span>{/if}</p>
+      {#if tenths !== null}
+        <p class="plain">
+          Zum Vorstellen: {feedback.truth_text} sind etwa {tenths} von 10 Fällen{tenths === 0 ? ", also fast nie" : tenths === 10 ? ", also fast immer" : ""}.
+        </p>
+      {/if}
     </div>
-    <Ring value={feedback.score} size={54} stroke={5} {tone} label="Punktzahl {Math.round(feedback.score * 100)} %">
+    <Ring value={feedback.score} size={60} stroke={5} {tone} label="{Math.round(feedback.score * 100)} von 100 Punkten">
       <b class="num score">{Math.round(feedback.score * 100)}</b>
+      <span class="of">Punkte</span>
     </Ring>
+    {#if onNext}
+      <button class="btn primary next" bind:this={nextBtn} onclick={onNext}>{nextLabel} <kbd>Enter</kbd></button>
+    {/if}
   </header>
 
   {#if feedback.ev_loss_bb !== null}
-    <div class="ev" class:none={feedback.ev_loss_bb <= 0.005}>
+    <div class="ev" class:none={feedback.ev_loss_bb <= 0.005} title={explain("EV-Verlust")}>
       {#if feedback.ev_loss_bb <= 0.005}
-        Kein EV-Verlust
+        <b>Beste Entscheidung.</b>
       {:else}
-        EV-Verlust deiner Wahl <b class="num">{fmtBB(feedback.ev_loss_bb)}</b>
+        <b>Deine Wahl kostet im Schnitt <span class="num">{fmtBB(feedback.ev_loss_bb)}</span> mehr als {feedback.truth_text}.</b>
       {/if}
+      {evSentence}
     </div>
   {/if}
 
-  {#if feedback.facts.length}
+  {#snippet factList()}
     <dl class="facts">
-      {#each feedback.facts as f, i (i)}
+      {#each facts as f, i (i)}
         <div class="fact" style="--i:{i}">
-          <dt>{f.label}</dt>
+          <dt>{#if explain(f.label)}<span class="term" title={explain(f.label)}>{f.label}</span>{:else}{f.label}{/if}</dt>
           <dd class="num">{f.value}</dd>
           {#if f.formula}<dd class="formula num">{f.formula}</dd>{/if}
         </div>
       {/each}
     </dl>
+  {/snippet}
+  {#if facts.length && evSentence}
+    <details class="more">
+      <summary>Details zur Lösung <span class="faint">{facts.map((f) => f.label).join(" · ")}</span></summary>
+      {@render factList()}
+    </details>
+  {:else if facts.length}
+    {@render factList()}
   {/if}
 
-  {@render children?.()}
 
-  <footer>
-    <span class="grading" title={g.text}>
-      <span class="badge {feedback.grading}">{g.label}</span>
-      <span class="faint">{feedback.model_note ?? g.text}</span>
-    </span>
-    {#if onNext}
-      <button class="btn primary" bind:this={nextBtn} onclick={onNext}>{nextLabel} <kbd>Enter</kbd></button>
-    {/if}
+  <footer class="grading" title={g.text}>
+    <span class="badge {feedback.grading}">{g.label}</span>
+    <span class="dim"
+      >{#if feedback.grading === "modell"}<b class="plain-lead">Vereinfachtes Modell.</b>
+      {/if}</span
+    >
+    <span class="dim"
+      >{#each withTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.tip}<span class="term" title={p.tip}>{p.text}</span
+          >{:else}{p.text}{/if}{/each}</span
+    >
   </footer>
 </section>
 
@@ -101,7 +158,7 @@
   }
   header {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 14px;
   }
@@ -153,24 +210,76 @@
     color: var(--text);
     font-size: 15px;
   }
-  .score {
-    font-size: 16px;
-  }
-  .ev {
-    justify-self: start;
-    padding: 4px 10px;
-    border-radius: 99px;
-    background: rgba(229, 72, 59, 0.12);
-    color: #ff9d93;
+  .plain {
+    margin-top: 2px;
     font-size: 13px;
   }
+  .gap {
+    margin-left: 10px;
+    color: var(--text);
+  }
+  .score {
+    font-size: 17px;
+  }
+  .of {
+    font-size: 9.5px;
+    color: var(--text-2);
+  }
+  .ev {
+    padding: 9px 12px;
+    border-radius: var(--r-sm);
+    border-left: 3px solid #ff9d93;
+    background: rgba(229, 72, 59, 0.1);
+    color: var(--text);
+    font-size: 13.5px;
+    line-height: 1.5;
+  }
+  .ev b {
+    color: #ff9d93;
+  }
   .ev.none {
-    background: rgba(120, 193, 66, 0.12);
+    border-left-color: var(--pos);
+    background: rgba(120, 193, 66, 0.1);
+  }
+  .ev.none b {
     color: var(--pos);
+  }
+  .more summary {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 2px 0;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+  .more summary::-webkit-details-marker {
+    display: none;
+  }
+  .more summary::before {
+    content: "";
+    align-self: center;
+    width: 6px;
+    height: 6px;
+    border-right: 1.6px solid currentColor;
+    border-bottom: 1.6px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.15s;
+  }
+  .more[open] summary::before {
+    transform: rotate(45deg);
+  }
+  .more summary .faint {
+    font-weight: 400;
+    font-size: 12.5px;
+  }
+  .more[open] .facts {
+    margin-top: 10px;
   }
   .facts {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 8px;
     margin: 0;
   }
@@ -183,7 +292,7 @@
   }
   dt {
     font-size: 12px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   dd {
     margin: 0;
@@ -197,19 +306,26 @@
     color: var(--text-2);
     overflow-wrap: anywhere;
   }
-  footer {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px 16px;
+  .next {
+    height: 40px;
+    padding: 0 18px;
+    font-size: 14px;
+  }
+  .term {
+    text-decoration: underline dotted;
+    text-decoration-color: var(--text-3);
+    text-underline-offset: 3px;
+    cursor: help;
+  }
+  .plain-lead {
+    color: var(--text);
+    font-weight: 600;
   }
   .grading {
     display: flex;
     align-items: baseline;
     gap: 8px;
     min-width: 0;
-    flex: 1 1 260px;
     font-size: 12.5px;
   }
   .badge {
@@ -236,5 +352,13 @@
     font-size: 11px;
     font-weight: 500;
     opacity: 0.7;
+  }
+  @container (max-width: 640px) {
+    header {
+      grid-template-columns: auto minmax(0, 1fr) auto;
+    }
+    .next {
+      grid-column: 1 / -1;
+    }
   }
 </style>
