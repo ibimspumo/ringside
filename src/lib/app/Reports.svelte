@@ -152,7 +152,7 @@
           </div>
           </div>
         {:else}
-          <div class="empty">Noch keine eigenen Hände mit bekannten Karten in diesem Zeitraum.</div>
+          <div class="empty-state">Noch keine eigenen Hände mit bekannten Karten in diesem Zeitraum.</div>
         {/if}
       </section>
 
@@ -199,7 +199,7 @@
               </table>
             </div>
           {:else}
-            <div class="empty">Noch keine eigenen Hände in diesem Zeitraum.</div>
+            <div class="empty-state">Noch keine eigenen Hände in diesem Zeitraum.</div>
           {/if}
         </section>
       <section class="panel">
@@ -242,7 +242,7 @@
             </table>
           </div>
         {:else}
-          <div class="empty">Keine Sitzungen in diesem Zeitraum. Wähle oben einen längeren Zeitraum.</div>
+          <div class="empty-state">Keine Sitzungen in diesem Zeitraum. Wähle oben einen längeren Zeitraum.</div>
         {/if}
       </section>
       </div>

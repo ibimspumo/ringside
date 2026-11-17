@@ -127,7 +127,7 @@
     </section>
   {:else}
     {#if loaded}
-      <section class="panel empty">
+      <section class="panel empty-state">
         <strong>Kein Tisch offen</strong>
         Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.
       </section>
@@ -267,7 +267,7 @@
     color: var(--text-2);
     font-size: 13px;
   }
-  .empty strong {
+  .empty-state strong {
     display: block;
     margin-bottom: 4px;
     color: var(--text);

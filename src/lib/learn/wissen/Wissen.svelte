@@ -123,7 +123,7 @@
     </div>
 
     {#if !groups.length}
-      <div class="empty">Nichts gefunden zu „{query}“.</div>
+      <div class="empty-state">Nichts gefunden zu „{query}“.</div>
     {/if}
 
     {#each groups as g (g.id)}

@@ -64,7 +64,7 @@
 
 <div class="page">
   {#if failed}
-    <div class="panel empty">Die Daten konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
+    <div class="panel empty-state">Die Daten konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
   {:else if data && r}
     <section class="panel kpis">
       <div class="kpi">
@@ -155,7 +155,7 @@
           </div>
         </div>
       {:else}
-        <div class="empty">
+        <div class="empty-state">
           Noch keine eigenen Hände in dieser Auswahl. Ringside erkennt deinen Namen automatisch aus den Hand-Historys.
         </div>
       {/if}

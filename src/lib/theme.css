@@ -199,6 +199,7 @@ input[type="range"] {
 .page {
   padding: 26px 30px 48px;
   max-width: 1360px;
+  margin-inline: auto;
 }
 .page-head {
   display: flex;
@@ -238,7 +239,7 @@ input[type="range"] {
   color: var(--text);
 }
 
-.empty {
+.empty-state {
   padding: 40px 24px;
   text-align: center;
   color: var(--text-2);

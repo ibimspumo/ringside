@@ -137,7 +137,7 @@
   {:else if spots === null}
     <p class="faint loading">Spots werden gesucht …</p>
   {:else if !spots.length}
-    <div class="empty panel">
+    <div class="empty-state panel">
       <p>Noch keine passenden Spots gefunden.</p>
       <p class="faint">
         Sobald du in Turnieren all-in gehst oder mit höchstens 20 bb effektiv vor einer Push/Fold-Entscheidung stehst, als
@@ -432,10 +432,10 @@
     margin: 30px 0;
     text-align: center;
   }
-  .empty {
+  .empty-state {
     padding: 28px 24px;
   }
-  .empty p {
+  .empty-state p {
     margin: 0 0 6px;
   }
   .error {

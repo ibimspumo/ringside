@@ -149,7 +149,7 @@
         </table>
       </div>
     {:else if loaded}
-      <div class="empty">
+      <div class="empty-state">
         {search ? `Kein Spieler mit „${search}“ in dieser Auswahl.` : "Noch keine Gegner in diesem Zeitraum. Spiel ein paar Hände oder wähle oben einen längeren Zeitraum."}
       </div>
     {/if}

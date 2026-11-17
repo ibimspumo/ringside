@@ -157,7 +157,7 @@
         </button>
       {:else}
         {#if loaded}
-          <div class="empty">Keine Hände für diese Filter. Lockere die Filter oder wähle oben einen längeren Zeitraum.</div>
+          <div class="empty-state">Keine Hände für diese Filter. Lockere die Filter oder wähle oben einen längeren Zeitraum.</div>
         {/if}
       {/each}
       {#if more}
@@ -178,7 +178,7 @@
           </div>
         </Replayer>
       {:else if loaded && list.length}
-        <div class="empty">Wähle links eine Hand zum Nachspielen.</div>
+        <div class="empty-state">Wähle links eine Hand zum Nachspielen.</div>
       {/if}
     </div>
   </div>
