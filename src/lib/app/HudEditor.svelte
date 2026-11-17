@@ -429,17 +429,6 @@
                   onSelect={(s) => (slot = s)}
                 />
               </div>
-              <div class="picker-head">
-                <span>{slotName}</span>
-              </div>
-              <div class="picker">
-                {#each RATED_STATS as id (id)}
-                  <button class="stat" class:on={slotStat === id} title={STAT_META[id].help} onclick={() => assign(id)}>
-                    <b>{STAT_META[id].name}</b>
-                    {#if STAT_META[id].short !== STAT_META[id].name}<i class="num">{STAT_META[id].short}</i>{/if}
-                  </button>
-                {/each}
-              </div>
               {#if slotStat}
                 {@const m = STAT_META[slotStat]}
                 {@const v = stat(sample.stats, slotStat)}
@@ -458,6 +447,17 @@
                   </p>
                 </div>
               {/if}
+              <div class="picker-head">
+                <span>Anderer Wert für: {slotName}</span>
+              </div>
+              <div class="picker">
+                {#each RATED_STATS as id (id)}
+                  <button class="stat" class:on={slotStat === id} title={STAT_META[id].help} onclick={() => assign(id)}>
+                    <b>{STAT_META[id].name}</b>
+                    {#if STAT_META[id].short !== STAT_META[id].name}<i class="num">{STAT_META[id].short}</i>{/if}
+                  </button>
+                {/each}
+              </div>
             </section>
 
             <section class="sec">
