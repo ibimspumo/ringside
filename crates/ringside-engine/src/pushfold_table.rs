@@ -67,7 +67,7 @@ impl Ante {
         }
     }
 
-    fn code(self) -> u8 {
+    pub(crate) fn code(self) -> u8 {
         self as u8
     }
 
@@ -79,7 +79,8 @@ impl Ante {
         })
     }
 
-    fn amounts(self) -> (f64, f64) {
+    /// Ante per player and of the big blind alone, in BB.
+    pub fn amounts(self) -> (f64, f64) {
         match self {
             Ante::None => (0.0, 0.0),
             Ante::Classic => (CLASSIC_ANTE_BB, 0.0),

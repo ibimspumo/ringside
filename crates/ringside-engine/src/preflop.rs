@@ -435,10 +435,11 @@ pub struct Node {
     pub actions: Vec<Action>,
     /// Probability that a hand reaches this node.
     pub reach: f64,
-    /// `freq[a][class]`: frequency of action `a` per class (`HandClass::index`).
+    /// `freq[a][class]`: frequency of action `a` per class (`HandClass::index`); all 0
+    /// for a class out of range here (see [`Solution::own_reach`]).
     pub freq: Vec<Vec<f64>>,
     /// `ev[a][class]`: expected result of action `a`, BB against the starting stack,
-    /// given the node is reached with the class.
+    /// given the node is reached with the class; 0 out of range.
     pub ev: Vec<Vec<f64>>,
 }
 
@@ -458,6 +459,33 @@ pub struct Realized {
     pub realization: Vec<f64>,
 }
 
+/// Whether a frequency survives the 1/255 steps charts and tables use. A class whose
+/// own earlier action is not taken is out of range from there on.
+pub fn taken(freq: f64) -> bool {
+    freq * 255.0 >= 0.5
+}
+
+/// For every node, the acting seat's own earlier decisions on the way to it as
+/// (node, action). Nodes must be in tree order, so these all come earlier.
+pub(crate) fn own_history(nodes: &[(usize, &[Step], &[Action])]) -> Vec<Vec<(usize, usize)>> {
+    type Key = (usize, Vec<(usize, Kind, u64)>);
+    let key = |seat: usize, line: &[Step]| -> Key { (seat, line.iter().map(|s| (s.seat, s.action.kind, s.action.to_bb.to_bits())).collect()) };
+    let index: HashMap<Key, usize> = nodes.iter().enumerate().map(|(v, &(seat, line, _))| (key(seat, line), v)).collect();
+    nodes
+        .iter()
+        .map(|&(seat, line, _)| {
+            line.iter()
+                .enumerate()
+                .filter(|(_, s)| s.seat == seat)
+                .filter_map(|(k, s)| {
+                    let u = *index.get(&key(seat, &line[..k]))?;
+                    Some((u, nodes[u].2.iter().position(|x| *x == s.action)?))
+                })
+                .collect()
+        })
+        .collect()
+}
+
 impl Solution {
     /// The node where `seat` acts after the non-fold actions `line`.
     pub fn node(&self, seat: usize, line: &[Step]) -> Option<usize> {
@@ -469,12 +497,56 @@ impl Solution {
         self.node(seat, &[])
     }
 
-    /// Share of all combos that take action `a` at node `v`, in percent.
+    fn history(&self) -> Vec<Vec<(usize, usize)>> {
+        let shapes: Vec<_> = self.nodes.iter().map(|n| (n.seat, n.line.as_slice(), n.actions.as_slice())).collect();
+        own_history(&shapes)
+    }
+
+    /// Per node and class, how often the actor's own earlier actions lead there; 0
+    /// means the class is out of range.
+    pub fn own_reach(&self) -> Vec<Vec<f64>> {
+        self.history()
+            .iter()
+            .map(|h| {
+                (0..C)
+                    .map(|c| {
+                        h.iter()
+                            .map(|&(u, a)| self.nodes[u].freq[a][c])
+                            .map(|f| if taken(f) { f } else { 0.0 })
+                            .product()
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Clears frequencies and EVs of the classes that are out of range at a node, so
+    /// that a fresh solve looks like one decoded from a table.
+    fn clear_out_of_range(&mut self) {
+        let reach = self.own_reach();
+        for (node, r) in self.nodes.iter_mut().zip(reach) {
+            for c in (0..C).filter(|&c| r[c] == 0.0) {
+                for row in node.freq.iter_mut().chain(node.ev.iter_mut()) {
+                    row[c] = 0.0;
+                }
+            }
+        }
+    }
+
+    /// Share of the range reaching node `v` (combos weighted by the actor's own reach)
+    /// that takes action `a`, in percent.
     pub fn action_pct(&self, v: usize, a: usize) -> f64 {
-        100.0
-            * HandClass::all()
-                .map(|c| self.nodes[v].freq[a][c.index()] * c.combo_count() as f64 / 1326.0)
-                .sum::<f64>()
+        self.action_pct_in(v, a, &self.own_reach()[v])
+    }
+
+    /// [`Solution::action_pct`] with the node's [`Solution::own_reach`] already known.
+    pub fn action_pct_in(&self, v: usize, a: usize, reach: &[f64]) -> f64 {
+        let weight = |c: HandClass| reach[c.index()] * c.combo_count() as f64;
+        let total: f64 = HandClass::all().map(weight).sum();
+        if total == 0.0 {
+            return 0.0;
+        }
+        100.0 * HandClass::all().map(|c| self.nodes[v].freq[a][c.index()] * weight(c)).sum::<f64>() / total
     }
 
     /// Share of all combos that do anything but fold at node `v`, in percent.
@@ -505,9 +577,25 @@ pub fn postflop_rank(players: usize, seat: usize) -> usize {
 }
 
 pub fn solve(params: &Params) -> Result<Solution, Error> {
+    Ok(solve_with(params, |_| true)?.expect("a solve that is never stopped finishes"))
+}
+
+/// How far a solve is, reported at every check of the exploitability.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+pub struct Progress {
+    pub iterations: u32,
+    pub max_iterations: u32,
+    /// NashConv of the best profile checked so far, BB per hand.
+    pub exploitability: f64,
+    pub target_exploitability: f64,
+}
+
+/// [`solve`] that reports every check to `on_check` and stops, returning `None`, as
+/// soon as it answers `false`.
+pub fn solve_with(params: &Params, on_check: impl FnMut(&Progress) -> bool) -> Result<Option<Solution>, Error> {
     params.validate()?;
     let mut solver = Solver::new(params);
-    Ok(solver.run())
+    Ok(solver.run(on_check))
 }
 
 /// Number of decision nodes and terminals of the tree for these parameters.
@@ -1286,7 +1374,7 @@ impl<'p> Solver<'p> {
         node.last[node.seat].map_or(ones, |e| &prof.pi[e])
     }
 
-    fn run(&mut self) -> Solution {
+    fn run(&mut self, mut on_check: impl FnMut(&Progress) -> bool) -> Option<Solution> {
         let n = self.tree.n;
         let target = self.p.target_exploitability;
         let sigma: Vec<Vec<f64>> = self.tree.nodes.iter().map(|node| vec![1.0 / node.actions.len() as f64; node.actions.len() * C]).collect();
@@ -1341,10 +1429,19 @@ impl<'p> Solver<'p> {
                         best = Some(checked);
                     }
                 }
+                let progress = Progress {
+                    iterations,
+                    max_iterations: self.p.max_iterations,
+                    exploitability: best.as_ref().map_or(f64::INFINITY, |b| b.gain.iter().sum()),
+                    target_exploitability: target,
+                };
+                if !on_check(&progress) {
+                    return None;
+                }
             }
         }
         let checked = best.expect("the last iteration is always checked");
-        self.solution(checked, iterations, converged)
+        Some(self.solution(checked, iterations, converged))
     }
 
     /// Reach-weighted linear average; classes that never reached a node keep the
@@ -1413,7 +1510,7 @@ impl<'p> Solver<'p> {
             .collect();
         let realized = self.realized(&prof, &checked.records);
         let exploitability = checked.gain.iter().sum();
-        Solution {
+        let mut sol = Solution {
             players: self.tree.n,
             stack_bb: self.p.stack_bb,
             nodes,
@@ -1424,7 +1521,9 @@ impl<'p> Solver<'p> {
             iterations,
             converged,
             realized,
-        }
+        };
+        sol.clear_out_of_range();
+        sol
     }
 
     /// Range-level equity realization of the most frequent heads-up flops.
@@ -1506,6 +1605,20 @@ mod tests {
         // Short stacks drop the sized raises once they commit the stack.
         let short = Tree::build(&Params::new(6, 4.0));
         assert!(short.nodes.iter().flat_map(|n| &n.actions).all(|a| a.kind != Kind::Raise || a.to_bb < 1.6));
+    }
+
+    #[test]
+    fn a_solve_reports_progress_and_stops_when_asked() {
+        let p = Params::new(2, 10.0);
+        let mut seen = Vec::new();
+        let stopped = solve_with(&p, |x| {
+            seen.push(*x);
+            seen.len() < 2
+        })
+        .unwrap();
+        assert!(stopped.is_none());
+        assert_eq!(seen.iter().map(|x| x.iterations).collect::<Vec<_>>(), vec![CHECK_EVERY, 2 * CHECK_EVERY]);
+        assert!(seen[1].exploitability <= seen[0].exploitability);
     }
 
     #[test]

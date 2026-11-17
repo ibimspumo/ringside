@@ -1,6 +1,6 @@
 use ringside_engine::multiway;
 use ringside_engine::preflop::{Kind, Params, Solution, Step, solve};
-use ringside_engine::preflop_table::{self, PLAYERS, STACKS, TARGET_EXPLOITABILITY};
+use ringside_engine::preflop_table::{self, Ante, PLAYERS, STACKS, TARGET_EXPLOITABILITY};
 
 fn open_pct(s: &Solution, seat: usize) -> f64 {
     s.play_pct(s.open_node(seat).unwrap())
@@ -66,15 +66,16 @@ fn ante_widens_opening_ranges() {
 /// equity in the range published for an opener in position against the big blind.
 #[test]
 fn embedded_tables() {
-    for &n in &PLAYERS {
-        let entries = preflop_table::embedded_entries(n);
-        assert_eq!(entries.len(), STACKS.len(), "{n} players");
-        let info = preflop_table::file_info(preflop_table::embedded_file(n).unwrap()).unwrap();
-        assert_eq!((info.players, info.entries), (n, STACKS.len()));
+    for (ante, &n) in Ante::ALL.into_iter().flat_map(|a| PLAYERS.iter().map(move |n| (a, n))) {
+        let entries = preflop_table::embedded_entries(ante, n);
+        let file = format!("{} {n} players", ante.key());
+        assert_eq!(entries.len(), STACKS.len(), "{file}");
+        let info = preflop_table::file_info(preflop_table::embedded_file(ante, n).unwrap()).unwrap();
+        assert_eq!((info.ante, info.players, info.entries), (ante, n, STACKS.len()));
         let mut jams = Vec::new();
         for ((p, s), &stack) in entries.iter().zip(&STACKS) {
-            let what = format!("{n} players {stack} BB");
-            assert_eq!(*p, preflop_table::params(n, stack), "{what}");
+            let what = format!("{file} {stack} BB");
+            assert_eq!(*p, preflop_table::params(ante, n, stack), "{what}");
             assert!(s.converged && s.exploitability < TARGET_EXPLOITABILITY, "{what}: {}", s.exploitability);
             // Later seats open wider: the button (n − 3) at least half as wide again as the
             // first seat, and no seat much narrower than the one before.
@@ -93,9 +94,9 @@ fn embedded_tables() {
             assert!((0.65..0.9).contains(&flop.realization[0]), "{what}: BB realizes {}", flop.realization[0]);
             assert!((1.05..1.3).contains(&flop.realization[1]), "{what}: opener realizes {}", flop.realization[1]);
         }
-        println!("{n} players, open all-in % summed over seats by stack: {jams:.1?}");
-        assert!(jams[0] > jams[2] && jams[2] > jams[5], "{n} players: {jams:?}");
-        assert_eq!(*jams.last().unwrap(), 0.0, "{n} players: open shoves at 100 BB");
+        println!("{file}, open all-in % summed over seats by stack: {jams:.1?}");
+        assert!(jams[0] > jams[2] && jams[2] > jams[5], "{file}: {jams:?}");
+        assert_eq!(*jams.last().unwrap(), 0.0, "{file}: open shoves at 100 BB");
     }
 }
 
@@ -105,7 +106,7 @@ fn embedded_tables() {
 #[ignore = "measurement, about a minute in release"]
 fn comparisons() {
     use ringside_engine::multiway::position_names;
-    use ringside_engine::pushfold_table::{self, Ante};
+    use ringside_engine::pushfold_table;
     let opens = |s: &Solution, n: usize| -> String {
         let names = position_names(n);
         (0..n - 1).map(|seat| format!("{} {:.1}", names[seat], open_pct(s, seat))).collect::<Vec<_>>().join(", ")
@@ -115,12 +116,12 @@ fn comparisons() {
     println!("6-max 100 BB, no ante (NashConv {:.4}): {}", cash.exploitability, opens(&cash, 6));
     // Published 8-max 40 BB chip EV (ThinkGTO): UTG 17.3, LJ 23.6, HJ 28.5, CO 36.9, BTN 52 %.
     for (n, stack) in [(8, 40.0), (9, 40.0), (6, 40.0)] {
-        let s = preflop_table::chart(n, stack).unwrap();
+        let s = preflop_table::chart(Ante::BigBlind, n, stack).unwrap();
         println!("{n}-max {stack} BB, BB ante: {}", opens(&s, n));
     }
     // Near push/fold: open shoves and total opens at 15 BB against the push/fold tables.
     for &n in &PLAYERS {
-        let s = preflop_table::chart(n, 15.0).unwrap();
+        let s = preflop_table::chart(Ante::BigBlind, n, 15.0).unwrap();
         let pf = pushfold_table::chart(Ante::BigBlind, n, 15.0).unwrap();
         let names = position_names(n);
         let rows: Vec<String> = (0..n - 1)

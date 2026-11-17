@@ -1,6 +1,6 @@
 //! Precomputed solutions of the [`preflop`](crate::preflop) model, shipped with the
-//! app: chip EV, equal stacks, big-blind ante, 6, 8 and 9 players on a fixed stack
-//! grid ([`STACKS`]).
+//! app: chip EV, equal stacks, 6, 8 and 9 players, each of the three ante structures
+//! of [`Ante`] on a fixed stack grid ([`STACKS`]).
 //!
 //! A lookup only hits when the parameters equal the ones the table was solved with
 //! ([`params`]). Frequencies are stored in 1/255 steps and action EVs in
@@ -8,33 +8,35 @@
 //! by at most half a step.
 //!
 //! # File format
-//! One file per player count, regenerated with
+//! One file per ante structure and player count, regenerated with
 //! `cargo run --release -p ringside-engine --bin gen-preflop-tables`:
 //!
 //! ```text
-//! header  magic "RSPR", format u32, players u8, engine version (u8 length + UTF-8),
-//!         entry count u32, body length u32, FNV-1a 64 of the body
+//! header  magic "RSPR", format u32, ante u8, players u8, engine version (u8 length +
+//!         UTF-8), entry count u32, body length u32, FNV-1a 64 of the body
 //! body    deflate stream of the entries, each prefixed with its length (u32)
 //! ```
 //!
 //! An entry holds the full solver parameters and the solution summary, then per node
-//! its reach, the frequency of every action and class as bytes and the action EVs as
-//! i16 steps (each minus the same class one row earlier), split into a low- and a
-//! high-byte plane. The tree itself is not stored: it follows from the parameters and
-//! is rebuilt on decoding. All numbers are little-endian.
+//! its reach, the frequency of every action as bytes and the action EVs as i16 steps
+//! (each minus the same class's previous stored EV), split into a low- and a high-byte
+//! plane. Only classes in range at a node are stored: which ones follows from the
+//! frequencies of the actor's earlier decisions ([`Solution::own_reach`]), and about
+//! half of all cells are out of range. The tree itself is not stored either: it
+//! follows from the parameters and is rebuilt on decoding. All numbers are
+//! little-endian.
 
 use std::collections::HashMap;
 use std::sync::LazyLock;
 
-use crate::preflop::{Action, Kind, Node, Params, Realized, Solution, Step, skeleton};
+use crate::preflop::{Action, Kind, Node, Params, Realized, Solution, Step, own_history, skeleton, taken};
+pub use crate::pushfold_table::Ante;
 use crate::range::NUM_CLASSES;
 
 const MAGIC: &[u8; 4] = b"RSPR";
-pub const FORMAT_VERSION: u32 = 1;
+pub const FORMAT_VERSION: u32 = 2;
 /// Resolution of stored action EVs.
 pub const EV_STEP_BB: f64 = 0.01;
-/// Ante of the big blind, in BB.
-pub const BB_ANTE_BB: f64 = 1.0;
 /// NashConv target of the tables, BB per hand summed over all players.
 pub const TARGET_EXPLOITABILITY: f64 = 0.001;
 pub const MAX_ITERATIONS: u32 = 4000;
@@ -45,25 +47,30 @@ const C: usize = NUM_CLASSES;
 const STALE: &str = "run `cargo run --release -p ringside-engine --bin gen-preflop-tables`";
 
 /// The parameters a table entry was solved with.
-pub fn params(players: usize, stack_bb: f64) -> Params {
+pub fn params(ante: Ante, players: usize, stack_bb: f64) -> Params {
     let mut p = Params::new(players, stack_bb);
-    p.bb_ante_bb = BB_ANTE_BB;
+    (p.ante_bb, p.bb_ante_bb) = ante.amounts();
     p.target_exploitability = TARGET_EXPLOITABILITY;
     p.max_iterations = MAX_ITERATIONS;
     p
 }
 
+fn ante_of(p: &Params) -> Option<Ante> {
+    Ante::ALL.into_iter().find(|a| a.amounts() == (p.ante_bb, p.bb_ante_bb))
+}
+
 /// The precomputed solution for exactly these parameters.
 pub fn lookup(p: &Params) -> Option<Solution> {
-    let table = table(p.players)?;
+    let ante = ante_of(p)?;
+    let table = table(ante, p.players)?;
     let bytes = table.index.get(&p.stack_bb.to_bits())?;
-    let entry = decode_entry(bytes).unwrap_or_else(|e| panic!("preflop table {}: {e}; {STALE}", p.players));
+    let entry = decode_entry(bytes).unwrap_or_else(|e| panic!("preflop table {} {}: {e}; {STALE}", ante.key(), p.players));
     (entry.params == *p).then_some(entry.solution)
 }
 
-/// The table solution at `players` × `stack_bb`.
-pub fn chart(players: usize, stack_bb: f64) -> Option<Solution> {
-    lookup(&params(players, stack_bb))
+/// The table solution at `players` × `stack_bb` with `ante`.
+pub fn chart(ante: Ante, players: usize, stack_bb: f64) -> Option<Solution> {
+    lookup(&params(ante, players, stack_bb))
 }
 
 // ---------------------------------------------------------------------------------
@@ -73,19 +80,39 @@ struct Table {
     index: HashMap<u64, Vec<u8>>,
 }
 
-static SIX_BYTES: &[u8] = include_bytes!("../data/preflop_6max.bin");
-static EIGHT_BYTES: &[u8] = include_bytes!("../data/preflop_8max.bin");
-static NINE_BYTES: &[u8] = include_bytes!("../data/preflop_9max.bin");
-
-/// Inflated on first use, one player count at a time.
-static TABLES: [LazyLock<Table>; 3] = [
-    LazyLock::new(|| load(6, SIX_BYTES)),
-    LazyLock::new(|| load(8, EIGHT_BYTES)),
-    LazyLock::new(|| load(9, NINE_BYTES)),
+/// By ante code, then player count as in [`PLAYERS`].
+static BYTES: [[&[u8]; 3]; 3] = [
+    [
+        include_bytes!("../data/preflop_none_6max.bin"),
+        include_bytes!("../data/preflop_none_8max.bin"),
+        include_bytes!("../data/preflop_none_9max.bin"),
+    ],
+    [
+        include_bytes!("../data/preflop_classic_6max.bin"),
+        include_bytes!("../data/preflop_classic_8max.bin"),
+        include_bytes!("../data/preflop_classic_9max.bin"),
+    ],
+    [
+        include_bytes!("../data/preflop_big_blind_6max.bin"),
+        include_bytes!("../data/preflop_big_blind_8max.bin"),
+        include_bytes!("../data/preflop_big_blind_9max.bin"),
+    ],
 ];
 
-fn load(players: usize, bytes: &[u8]) -> Table {
-    let entries = read_file(bytes, players).unwrap_or_else(|e| panic!("preflop table {players} is invalid ({e}); {STALE}"));
+/// Inflated on first use, one file at a time.
+static TABLES: [[LazyLock<Table>; 3]; 3] = {
+    fn at<const A: usize, const N: usize>() -> Table {
+        load(Ante::ALL[A], PLAYERS[N], BYTES[A][N])
+    }
+    [
+        [LazyLock::new(at::<0, 0>), LazyLock::new(at::<0, 1>), LazyLock::new(at::<0, 2>)],
+        [LazyLock::new(at::<1, 0>), LazyLock::new(at::<1, 1>), LazyLock::new(at::<1, 2>)],
+        [LazyLock::new(at::<2, 0>), LazyLock::new(at::<2, 1>), LazyLock::new(at::<2, 2>)],
+    ]
+};
+
+fn load(ante: Ante, players: usize, bytes: &[u8]) -> Table {
+    let entries = read_file(bytes, ante, players).unwrap_or_else(|e| panic!("preflop table {} {players} is invalid ({e}); {STALE}", ante.key()));
     let index = entries
         .into_iter()
         .map(|e| {
@@ -96,18 +123,22 @@ fn load(players: usize, bytes: &[u8]) -> Table {
     Table { index }
 }
 
-fn table(players: usize) -> Option<&'static Table> {
-    PLAYERS.iter().position(|&n| n == players).map(|i| &*TABLES[i])
+fn slot(players: usize) -> Option<usize> {
+    PLAYERS.iter().position(|&n| n == players)
 }
 
-/// The embedded file of a player count (for the generator and tests).
-pub fn embedded_file(players: usize) -> Option<&'static [u8]> {
-    PLAYERS.iter().position(|&n| n == players).map(|i| [SIX_BYTES, EIGHT_BYTES, NINE_BYTES][i])
+fn table(ante: Ante, players: usize) -> Option<&'static Table> {
+    slot(players).map(|i| &*TABLES[ante.code() as usize][i])
 }
 
-/// Every entry of a player count, by stack.
-pub fn embedded_entries(players: usize) -> Vec<(Params, Solution)> {
-    let Some(table) = table(players) else { return Vec::new() };
+/// The embedded file of an ante structure and player count (for the generator and tests).
+pub fn embedded_file(ante: Ante, players: usize) -> Option<&'static [u8]> {
+    slot(players).map(|i| BYTES[ante.code() as usize][i])
+}
+
+/// Every entry of an ante structure and player count, by stack.
+pub fn embedded_entries(ante: Ante, players: usize) -> Vec<(Params, Solution)> {
+    let Some(table) = table(ante, players) else { return Vec::new() };
     let mut out: Vec<(Params, Solution)> = table
         .index
         .values()
@@ -133,7 +164,7 @@ fn fnv1a(bytes: &[u8]) -> u64 {
 }
 
 /// A whole table file from encoded entries (see [`encode_entry`]).
-pub fn write_file(players: usize, entries: &[Vec<u8>]) -> Vec<u8> {
+pub fn write_file(ante: Ante, players: usize, entries: &[Vec<u8>]) -> Vec<u8> {
     let mut body = Vec::new();
     for e in entries {
         body.extend_from_slice(&(e.len() as u32).to_le_bytes());
@@ -142,6 +173,7 @@ pub fn write_file(players: usize, entries: &[Vec<u8>]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&FORMAT_VERSION.to_le_bytes());
+    out.push(ante.code());
     out.push(players as u8);
     let version = env!("CARGO_PKG_VERSION").as_bytes();
     out.push(version.len() as u8);
@@ -156,6 +188,7 @@ pub fn write_file(players: usize, entries: &[Vec<u8>]) -> Vec<u8> {
 /// Header facts of a table file.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileInfo {
+    pub ante: Ante,
     pub players: usize,
     pub engine_version: String,
     pub entries: usize,
@@ -172,21 +205,22 @@ pub fn file_info(bytes: &[u8]) -> Result<FileInfo, String> {
     if format != FORMAT_VERSION {
         return Err(format!("format {format}, expected {FORMAT_VERSION}"));
     }
+    let ante = *Ante::ALL.get(r.u8()? as usize).ok_or("unknown ante")?;
     let players = r.u8()? as usize;
     let len = r.u8()? as usize;
     let engine_version = String::from_utf8(r.take(len)?.to_vec()).map_err(|e| e.to_string())?;
     let entries = r.u32()? as usize;
     let body_len = r.u32()? as usize;
     let checksum = r.u64()?;
-    Ok(FileInfo { players, engine_version, entries, body_len, checksum })
+    Ok(FileInfo { ante, players, engine_version, entries, body_len, checksum })
 }
 
-fn read_file(bytes: &[u8], players: usize) -> Result<Vec<Vec<u8>>, String> {
+fn read_file(bytes: &[u8], ante: Ante, players: usize) -> Result<Vec<Vec<u8>>, String> {
     let info = file_info(bytes)?;
-    if info.players != players {
-        return Err(format!("holds {} players, expected {players}", info.players));
+    if (info.ante, info.players) != (ante, players) {
+        return Err(format!("holds {} {} players, expected {} {players}", info.ante.key(), info.players, ante.key()));
     }
-    let header = 4 + 4 + 1 + 1 + info.engine_version.len() + 4 + 4 + 8;
+    let header = 4 + 4 + 1 + 1 + 1 + info.engine_version.len() + 4 + 4 + 8;
     let body = miniz_oxide::inflate::decompress_to_vec_with_limit(&bytes[header..], info.body_len)
         .map_err(|e| format!("inflate: {e:?}"))?;
     if body.len() != info.body_len || fnv1a(&body) != info.checksum {
@@ -260,27 +294,32 @@ pub fn encode_entry(params: &Params, sol: &Solution) -> Result<Vec<u8>, String> 
     for node in &sol.nodes {
         put_f32(&mut out, node.reach);
     }
-    for node in &sol.nodes {
-        for f in &node.freq {
-            out.extend(f.iter().map(|&x| (x.clamp(0.0, 1.0) * 255.0).round() as u8));
-        }
-    }
-    let rows: Vec<&Vec<f64>> = sol.nodes.iter().flat_map(|n| &n.ev).collect();
+    let in_range: Vec<Vec<bool>> = sol.own_reach().iter().map(|r| r.iter().map(|&x| x > 0.0).collect()).collect();
+    let mut freq = Vec::new();
+    let mut evs: Vec<i16> = Vec::new();
     let mut prev = [0i32; C];
-    let mut evs: Vec<i16> = Vec::with_capacity(rows.len() * C);
-    for row in rows {
-        for (c, &ev) in row.iter().enumerate() {
-            let q = (ev / EV_STEP_BB).round() as i32;
-            if q.abs() > i16::MAX as i32 / 2 {
-                return Err(format!("EV {ev} BB out of range"));
+    for (node, live) in sol.nodes.iter().zip(&in_range) {
+        for (f, e) in node.freq.iter().zip(&node.ev) {
+            for c in (0..C).filter(|&c| live[c]) {
+                freq.push(quantise(f[c]));
+                let q = (e[c] / EV_STEP_BB).round() as i32;
+                if q.abs() > i16::MAX as i32 / 2 {
+                    return Err(format!("EV {} BB out of range", e[c]));
+                }
+                evs.push((q - prev[c]) as i16);
+                prev[c] = q;
             }
-            evs.push((q - prev[c]) as i16);
-            prev[c] = q;
         }
     }
+    out.extend_from_slice(&(freq.len() as u32).to_le_bytes());
+    out.extend(freq);
     out.extend(evs.iter().map(|v| v.to_le_bytes()[0]));
     out.extend(evs.iter().map(|v| v.to_le_bytes()[1]));
     Ok(out)
+}
+
+fn quantise(freq: f64) -> u8 {
+    (freq.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
 struct Reader<'a>(&'a [u8]);
@@ -366,30 +405,36 @@ pub fn decode_entry(bytes: &[u8]) -> Result<Entry, String> {
         return Err(format!("{count} nodes, the tree has {}", shape.len()));
     }
     let reach = (0..count).map(|_| r.f32()).collect::<Result<Vec<_>, _>>()?;
-    let rows: usize = shape.iter().map(|s| s.2.len()).sum();
-    let freq = r.take(rows * C)?;
-    let lo = r.take(rows * C)?;
-    let hi = r.take(rows * C)?;
+    let cells = r.u32()? as usize;
+    let freq = r.take(cells)?;
+    let lo = r.take(cells)?;
+    let hi = r.take(cells)?;
     if !r.0.is_empty() {
         return Err("trailing bytes in entry".into());
     }
-    let mut steps = [0i32; C];
-    let mut row = 0;
-    let mut nodes = Vec::with_capacity(count);
-    for ((seat, line, actions), reach) in shape.into_iter().zip(reach) {
+    let shapes: Vec<_> = shape.iter().map(|(seat, line, actions)| (*seat, line.as_slice(), actions.as_slice())).collect();
+    let history = own_history(&shapes);
+    let mut prev = [0i32; C];
+    let mut cell = 0;
+    let mut nodes: Vec<Node> = Vec::with_capacity(count);
+    for (((seat, line, actions), reach), history) in shape.into_iter().zip(reach).zip(history) {
+        let live: Vec<bool> = (0..C).map(|c| history.iter().all(|&(u, a)| taken(nodes[u].freq[a][c]))).collect();
         let k = actions.len();
-        let mut f = Vec::with_capacity(k);
-        let mut e = Vec::with_capacity(k);
-        for _ in 0..k {
-            let range = row * C..(row + 1) * C;
-            f.push(freq[range.clone()].iter().map(|&q| q as f64 / 255.0).collect());
-            for (c, (&l, &h)) in lo[range.clone()].iter().zip(&hi[range]).enumerate() {
-                steps[c] += i16::from_le_bytes([l, h]) as i32;
+        let mut f = vec![vec![0.0; C]; k];
+        let mut e = vec![vec![0.0; C]; k];
+        for a in 0..k {
+            for c in (0..C).filter(|&c| live[c]) {
+                let (&q, &l, &h) = (freq.get(cell).ok_or("too few cells")?, &lo[cell], &hi[cell]);
+                f[a][c] = q as f64 / 255.0;
+                prev[c] += i16::from_le_bytes([l, h]) as i32;
+                e[a][c] = prev[c] as f64 * EV_STEP_BB;
+                cell += 1;
             }
-            e.push(steps.iter().map(|&q| q as f64 * EV_STEP_BB).collect());
-            row += 1;
         }
         nodes.push(Node { seat, line, actions, reach, freq: f, ev: e });
+    }
+    if cell != cells {
+        return Err(format!("{cells} cells stored, the ranges hold {cell}"));
     }
     let solution = Solution {
         players: n,
@@ -412,7 +457,7 @@ mod tests {
 
     #[test]
     fn entry_round_trip_only_loses_quantisation() {
-        let mut p = params(6, 15.0);
+        let mut p = params(Ante::Classic, 6, 15.0);
         p.multiway_samples = 64;
         p.max_iterations = 30;
         let sol = crate::preflop::solve(&p).unwrap();
@@ -421,8 +466,10 @@ mod tests {
         assert_eq!(back.params, p);
         let s = &back.solution;
         assert_eq!(s.nodes.len(), sol.nodes.len());
-        for (x, y) in s.nodes.iter().zip(&sol.nodes) {
+        let mut out_of_range = 0;
+        for ((x, y), reach) in s.nodes.iter().zip(&sol.nodes).zip(sol.own_reach()) {
             assert_eq!((x.seat, &x.line, &x.actions), (y.seat, &y.line, &y.actions));
+            out_of_range += reach.iter().filter(|&&r| r == 0.0).count();
             for (fa, fb) in x.freq.iter().zip(&y.freq) {
                 assert!(fa.iter().zip(fb).all(|(a, b)| (a - b).abs() <= 0.5 / 255.0 + 1e-9));
             }
@@ -430,11 +477,14 @@ mod tests {
                 assert!(ea.iter().zip(eb).all(|(a, b)| (a - b).abs() <= 0.5 * EV_STEP_BB + 1e-4));
             }
         }
-        let file = write_file(6, &[bytes]);
-        assert_eq!(read_file(&file, 6).unwrap().len(), 1);
+        // Out-of-range classes are cleared by the solver and skipped by the format.
+        assert!(out_of_range > 0);
+        let file = write_file(Ante::Classic, 6, &[bytes]);
+        assert_eq!(read_file(&file, Ante::Classic, 6).unwrap().len(), 1);
         let mut broken = file.clone();
         *broken.last_mut().unwrap() ^= 1;
-        assert!(read_file(&broken, 6).is_err());
-        assert!(read_file(&file, 9).is_err());
+        assert!(read_file(&broken, Ante::Classic, 6).is_err());
+        assert!(read_file(&file, Ante::Classic, 9).is_err());
+        assert!(read_file(&file, Ante::None, 6).is_err());
     }
 }
