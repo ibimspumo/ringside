@@ -475,7 +475,7 @@ step("Spieler", () => nav("Spieler"));
     await waitFor("nur Rüdiger in der Liste", `return document.querySelectorAll("main tbody tr").length === 1`);
     await click("main tbody td.name button", "Rüdiger", { exact: false });
     const text = await waitFor("das Detail von Rüdiger", `return document.querySelector("aside[aria-label='Spieler Rüdiger'] .read")?.closest("aside").innerText ?? null`);
-    for (const want of ["Calling Station", "Gegenzug", "Viele Value-Bets, kaum bluffen.", "nach 96 Händen", "aus PokerStars"])
+    for (const want of ["Calling Station", "Gegenzug", "Mit guten Händen oft und groß setzen, kaum bluffen.", "nach 96 Händen", "aus PokerStars"])
       // Kickers are upper case on screen, so compare without case.
       if (!text.toLowerCase().includes(want.toLowerCase())) throw new Error(`detail lacks „${want}“`);
     await s.exec(`const i = document.querySelector("main input[type=search]"); i.value = ""; i.dispatchEvent(new Event("input", { bubbles: true }));`);
