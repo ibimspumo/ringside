@@ -102,7 +102,7 @@ fn resident_memory_by_step() {
     let mut rng = ChaCha8Rng::seed_from_u64(1);
     let t = Instant::now();
     while pool.status().ready < spots && pool.status().status != Status::Done {
-        pool.step(&mut rng, &|| false, &|_| {});
+        pool.step(&mut rng, &|| false, &|_| {}, &|_| {});
     }
     let mb = pool.memory_bytes() as f64 / 1048576.0;
     line(&format!("stock: {} spots ready ({mb:.0} MB), budget {budget} MB", pool.status().ready), t);
