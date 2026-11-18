@@ -32,8 +32,9 @@ jobs:
       # Anyone can submit: each check runs in a child process that is killed after its
       # kind's limit (120 s push/fold; 900 s postflop and shared spots, three solves on
       # these 4 cores and 16 GB, at most 8 GB each); a killed check gives no verdict. The
-      # run starts no check that could end more than a tenth past --budget-seconds, so it
-      # stays inside timeout-minutes. BUNNY_API_KEY drops withdrawn solutions from the CDN.
+      # run starts no check that could end more than a tenth past --budget-seconds; with up
+      # to six minutes of purging after it, it stays inside timeout-minutes. BUNNY_API_KEY
+      # drops withdrawn solutions from the CDN until they answer 404.
       - name: Sample served solutions
         env:
           BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
