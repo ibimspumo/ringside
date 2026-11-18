@@ -40,10 +40,7 @@
   onfocusin={show}
   onfocusout={hide}
   role="presentation">{@render children()}</span
->
-{#if anchor}
-  <div class="ui-tooltip" {id} role="tooltip" use:floating={{ anchor, side }}>{text}</div>
-{/if}
+>{#if anchor}<div class="ui-tooltip" {id} role="tooltip" use:floating={{ anchor, side }}>{text}</div>{/if}
 
 <style>
   .ui-tooltip-anchor {

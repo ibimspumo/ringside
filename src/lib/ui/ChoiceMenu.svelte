@@ -26,7 +26,7 @@
 
   let button = $state<HTMLButtonElement>();
   let anchor = $state<Anchor | null>(null);
-  const current = $derived(options.find(([id]) => id === value)?.[1] ?? label);
+  const current = $derived(options.find(([id]) => id === value)?.[1] ?? "–");
 
   function toggle() {
     anchor = anchor || !button ? null : rectOf(button);
@@ -54,7 +54,7 @@
   {title}
   onclick={toggle}
 >
-  <span>{current}</span>
+  <span class="what">{label}</span><span>{current}</span>
   <svg viewBox="0 0 12 12" width="10" height="10" aria-hidden="true"><path d="M3 4.5l3 3 3-3" /></svg>
 </button>
 {#if anchor}
@@ -101,7 +101,8 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .ui-choice svg {
+  .ui-choice svg,
+  .what {
     color: var(--text-2);
   }
   .ui-choice-list {
