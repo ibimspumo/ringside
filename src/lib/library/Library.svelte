@@ -711,7 +711,11 @@
     align-items: center;
     gap: var(--sp-1);
   }
+  /* Availability first, then a clear break before the marks of your own spots. */
   .legend .from {
+    margin-left: var(--sp-2);
+    padding-left: var(--sp-4);
+    border-left: 1px solid var(--line-2);
     color: var(--text-2);
   }
   .texture {
