@@ -10,7 +10,7 @@ use crate::model::{Action, ActionKind, Hand, Street};
 use crate::stats::position_labels;
 
 /// What the players before the hero did.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum History {
     /// Everyone before folded.

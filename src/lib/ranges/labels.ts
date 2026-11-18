@@ -25,8 +25,8 @@ export const MOVE: Record<Move, { label: string; color: string }> = {
 };
 
 /** Too loose (you play what the model folds) and too tight. */
-export const WIDE = "#e0703a";
-export const TIGHT = "#5aa9e6";
+export const WIDE = "var(--range-wide)";
+export const TIGHT = "var(--range-tight)";
 
 const POSITION_FROM: Record<string, string> = {
   BTN: "Vom Button",

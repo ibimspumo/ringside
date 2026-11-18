@@ -88,9 +88,13 @@ class NavLive {
     this.values = v;
   }
 
-  /** What the entry shows now: locked first, then a running task, then the live value. */
+  /**
+   * What the entry shows now: locked first, then a running task, then the live value. While
+   * PokerStars runs nothing rates or advises, so warnings and errors stay away then too.
+   */
   of(page: Page, locked: boolean): Live | undefined {
     if (locked && LOCKED_PAGES.includes(page)) return live("", "gesperrt");
+    if (locked && this.values[page] && this.values[page].tone !== "neutral" && this.values[page].tone !== "good") return undefined;
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;

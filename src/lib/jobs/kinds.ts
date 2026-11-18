@@ -20,7 +20,8 @@ export const PAGE_LABEL: Record<string, string> = {
   library: "Bibliothek",
   coach: "Coach",
   hands: "Hände",
-  dashboard: "Übersicht",
+  dashboard: "Rückblick",
+  overview: "Übersicht",
   training: "Training",
   play: "Hände spielen",
 };

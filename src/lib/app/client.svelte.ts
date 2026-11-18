@@ -11,3 +11,11 @@ export function watchPokerClient() {
   watching = true;
   on<boolean>("poker-client", (r) => (pokerClient.running = r)).then(() => api.pokerClientRunning().then((r) => (pokerClient.running = r)));
 }
+
+/**
+ * Ratings, recommendations and model comparisons wait while the client runs, and until the
+ * backend answered, so none flashes up at a table.
+ */
+export function adviceLocked(): boolean {
+  return pokerClient.running !== false;
+}

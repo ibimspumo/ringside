@@ -4,7 +4,7 @@
 
 use rusqlite::params;
 
-use super::{Db, Error};
+use super::{Db, Error, FILTER_SQL, Filter};
 use crate::db::{Choice, Rating, Source, SpotType, Status};
 use crate::parser::parse_hand;
 use crate::profile::{ProfileRow, facing_bet};
@@ -13,18 +13,18 @@ use crate::report::{PastScore, Report, ReportDecision, ReportHand, report};
 use super::analysis::parse_street;
 
 impl Db {
-    /// The hands of a tournament in play order, and how many of them are not analysed with
-    /// `engine` yet.
-    pub fn report_hands(&self, tournament_id: u64, engine: &str) -> Result<(Vec<ReportHand>, usize), Error> {
-        let mut stmt = self.conn.prepare_cached(
+    /// The hands of `filter` (a tournament or a session) in play order, and how many of them
+    /// are not analysed with `engine` yet.
+    pub fn report_hands(&self, filter: &Filter, engine: &str) -> Result<(Vec<ReportHand>, usize), Error> {
+        let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT h.id, h.played_at, h.hero_cards, h.hero_class, h.hero_position, h.hero_net, h.big_blind, h.hero_ev,
-                    h.raw, h.hero, COALESCE(a.engine = ?2, 0)
+                    h.raw, h.hero, COALESCE(a.engine = ?5, 0)
              FROM hands h LEFT JOIN hand_analysis a ON a.hand_id = h.id
-             WHERE h.tournament_id = ?1 AND h.hero_net IS NOT NULL ORDER BY h.played_at, h.id",
-        )?;
+             WHERE {FILTER_SQL} AND h.hero_net IS NOT NULL ORDER BY h.played_at, h.id"
+        ))?;
         let mut unanalyzed = 0;
         let mut hands = Vec::new();
-        let mut rows = stmt.query(params![tournament_id as i64, engine])?;
+        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament(), filter.until, engine])?;
         while let Some(r) = rows.next()? {
             let raw: String = r.get(8)?;
             let hero: Option<String> = r.get(9)?;
@@ -49,18 +49,18 @@ impl Db {
         Ok((hands, unanalyzed))
     }
 
-    /// Every unforced decision of the hero in a tournament, in play order.
-    pub fn report_decisions(&self, tournament_id: u64) -> Result<Vec<ReportDecision>, Error> {
-        let mut stmt = self.conn.prepare_cached(
+    /// Every unforced decision of the hero in the hands of `filter`, in play order.
+    pub fn report_decisions(&self, filter: &Filter) -> Result<Vec<ReportDecision>, Error> {
+        let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT d.hand_id, d.action_index, h.played_at, d.spot, d.status, d.rating, d.ev_loss_bb, d.source, d.reliability,
                     d.strategy, h.hero_position, h.hero_stack_bb,
                     (SELECT COUNT(*) FROM player_hands p WHERE p.hand_id = h.id),
                     d.street, d.played, d.best, d.why, d.pot_bb
              FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
-             WHERE h.tournament_id = ?1 AND d.status <> 'forced'
-             ORDER BY h.played_at, d.hand_id, d.action_index",
-        )?;
-        let rows = stmt.query_map([tournament_id as i64], |r| {
+             WHERE {FILTER_SQL} AND d.status <> 'forced'
+             ORDER BY h.played_at, d.hand_id, d.action_index"
+        ))?;
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             let strategy: Vec<Choice> = serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default();
             Ok(ReportDecision {
                 row: ProfileRow {
@@ -114,25 +114,11 @@ impl Db {
     /// The report of a tournament from what is stored; `started_at` orders it among the
     /// others for the comparison.
     pub fn tournament_report(&self, tournament_id: u64, started_at: &str, engine: &str) -> Result<Report, Error> {
-        let (hands, unanalyzed) = self.report_hands(tournament_id, engine)?;
-        let decisions = self.report_decisions(tournament_id)?;
+        let filter = Filter { tournament_id: Some(tournament_id), ..Default::default() };
+        let (hands, unanalyzed) = self.report_hands(&filter, engine)?;
+        let decisions = self.report_decisions(&filter)?;
         let past: Vec<PastScore> = self.past_scores()?.into_iter().filter(|p| p.tournament_id != tournament_id).collect();
         Ok(report(&hands, &decisions, unanalyzed, started_at, &past))
-    }
-
-    /// The newest tournament with a known result among the hands after `after_id`, for
-    /// leading from the automatic analysis to its report.
-    pub fn finished_tournament_after(&self, after_id: u64) -> Result<Option<u64>, Error> {
-        use rusqlite::OptionalExtension;
-        self.conn
-            .query_row(
-                "SELECT h.tournament_id FROM hands h JOIN tournaments t ON t.id = h.tournament_id
-                 WHERE h.id > ?1 AND ((t.summary = 1 AND t.place IS NOT NULL) OR t.hand_finish_id IS NOT NULL)
-                 ORDER BY h.id DESC LIMIT 1",
-                [i64::try_from(after_id).unwrap_or(i64::MAX)],
-                |r| r.get::<_, i64>(0).map(|t| t as u64),
-            )
-            .optional()
     }
 }
 
@@ -145,6 +131,5 @@ mod tests {
         let db = Db::open_in_memory().unwrap();
         let r = db.tournament_report(42, "2026/11/18 20:00:00", "e1").unwrap();
         assert_eq!((r.hands, r.score.decisions, r.worst.len()), (0, 0, 0));
-        assert_eq!(db.finished_tournament_after(0).unwrap(), None);
     }
 }

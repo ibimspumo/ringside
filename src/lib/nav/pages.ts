@@ -5,6 +5,7 @@
 
 export type Page =
   | "dashboard"
+  | "overview"
   | "reports"
   | "leaks"
   | "ranges"
@@ -39,8 +40,13 @@ const RING =
 export const PAGES: Record<Page, PageInfo> = {
   dashboard: {
     label: "Start",
-    text: "Dein letzter Abend auf einen Blick: Ergebnis, Glück oder Fehler und was du als Nächstes übst.",
+    text: "Deine letzte Session auf einen Blick: Ergebnis, Glück oder Fehler und was du als Nächstes übst.",
     icon: "M4.5 11 12 4.5l7.5 6.5V19a.5.5 0 0 1-.5.5h-4.5v-5h-5v5H5a.5.5 0 0 1-.5-.5z",
+  },
+  overview: {
+    label: "Übersicht",
+    text: "Alle Hände im gewählten Zeitraum: Ergebnis, Spielstil und wo du Chips verlierst.",
+    icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7",
   },
   tournaments: {
     label: "Turniere",
@@ -133,14 +139,14 @@ export interface Area {
 }
 
 export const AREAS: Area[] = [
-  { id: "start", label: "Start", text: "Wie lief dein letzter Abend?", short: "Dein letzter Abend", icon: PAGES.dashboard.icon, pages: ["dashboard"] },
+  { id: "start", label: "Start", text: "Wie lief deine letzte Session?", short: "Deine letzte Session", icon: PAGES.dashboard.icon, pages: ["dashboard"] },
   {
     id: "spiel",
     label: "Mein Spiel",
     text: "Wie läuft es, und wo verlierst du?",
     short: "Ergebnisse und Schwachstellen",
     icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7",
-    pages: ["tournaments", "hands", "leaks", "reports", "ranges"],
+    pages: ["overview", "tournaments", "hands", "leaks", "reports", "ranges"],
   },
   { id: "ueben", label: "Üben", text: "Besser werden in kurzen Runden.", short: "Kurze Runden, eigene Hände", icon: PAGES.training.icon, pages: ["training", "play", "coach"] },
   { id: "gegner", label: "Gegner", text: "Wer sitzt am Tisch, und wie spielst du gegen ihn?", short: "Wer mit dir am Tisch sitzt", icon: PAGES.players.icon, pages: ["players", "live", "hud"] },
@@ -159,4 +165,4 @@ export const ALL_PAGES = Object.keys(PAGES) as Page[];
 export const areaOf = (page: Page): Area | undefined => AREAS.find((a) => a.pages.includes(page));
 
 /** Pages PokerStars' rules lock while the client runs. */
-export const LOCKED_PAGES: Page[] = ["training", "play", "charts", "solver", "library"];
+export const LOCKED_PAGES: Page[] = ["leaks", "training", "play", "charts", "solver", "library"];

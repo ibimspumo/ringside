@@ -119,8 +119,6 @@ export interface AutoDone {
   mistakes: number;
   /** The run's entry in the task center, whose own note this one replaces. */
   job: number | null;
-  /** The newest tournament among the new hands with a result: its report is ready. */
-  tournament: number | null;
 }
 
 export interface SpotLoss {

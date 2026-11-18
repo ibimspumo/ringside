@@ -427,9 +427,15 @@ struct Reports {
     sessions: Vec<Session>,
 }
 
+/// Rates the hero's stats against published reference ranges and says what to change: advice.
 #[tauri::command]
 async fn leaks(filter: Filter, state: State<'_, AppState>) -> CmdResult<ringside_core::leaks::LeakReport> {
-    let cells = state.db.lock().unwrap().hero_cells(&filter).map_err(err)?;
+    leak_report(&state, &filter)
+}
+
+fn leak_report(state: &AppState, filter: &Filter) -> CmdResult<ringside_core::leaks::LeakReport> {
+    unlocked(state)?;
+    let cells = state.db.lock().unwrap().hero_cells(filter).map_err(err)?;
     Ok(ringside_core::leaks::find(&cells))
 }
 
@@ -444,7 +450,7 @@ async fn reports(filter: Filter, state: State<'_, AppState>) -> CmdResult<Report
     Ok(Reports {
         positions: view(db.hero_groups(&filter, false).map_err(err)?),
         starting_hands: view(db.hero_groups(&filter, true).map_err(err)?),
-        sessions: db.sessions(&filter, 30.0).map_err(err)?,
+        sessions: db.sessions(&filter).map_err(err)?,
     })
 }
 
@@ -469,7 +475,22 @@ async fn shown_hands(player: String, state: State<'_, AppState>) -> CmdResult<Ve
 
 #[tauri::command]
 async fn hands(query: HandQuery, state: State<'_, AppState>) -> CmdResult<Vec<HandSummary>> {
-    state.db.lock().unwrap().hands(&query).map_err(err)
+    hand_list(&state, query)
+}
+
+/// While the client runs the list keeps results and cards but drops every rating: no worst
+/// decision per hand, and no filter or order by ratings, which would give them away.
+fn hand_list(state: &AppState, mut query: HandQuery) -> CmdResult<Vec<HandSummary>> {
+    let locked = locked(state);
+    if locked {
+        query.decisions = None;
+        query.sort_by_loss = false;
+    }
+    let mut rows = state.db.lock().unwrap().hands(&query).map_err(err)?;
+    if locked {
+        rows.iter_mut().for_each(|r| r.worst = None);
+    }
+    Ok(rows)
 }
 
 #[tauri::command]
@@ -477,9 +498,14 @@ async fn hand(id: u64, state: State<'_, AppState>) -> CmdResult<Option<Hand>> {
     state.db.lock().unwrap().hand(id).map_err(err)
 }
 
-/// The learning area teaches and calculates; it stays locked while the client runs.
+/// PokerStars allows no advice while its client runs: no ratings against a model or solver, no
+/// recommendations. Own stats, results and the hand history stay.
+fn locked(state: &AppState) -> bool {
+    state.client_running.load(Ordering::Relaxed)
+}
+
 fn unlocked(state: &AppState) -> CmdResult<()> {
-    if state.client_running.load(Ordering::Relaxed) { Err("gesperrt".into()) } else { Ok(()) }
+    if locked(state) { Err("gesperrt".into()) } else { Ok(()) }
 }
 
 /// Runs `f` off the async runtime: exact equities and Nash solves take a while.
@@ -728,6 +754,7 @@ pub fn run() {
             analysis::analysis_summary,
             analysis::analysis_set_auto,
             report::tournament_report,
+            report::session_review,
             solver::solver_estimate,
             solver::solver_start,
             solver::solver_model_spot,
@@ -786,4 +813,54 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running Ringside");
+}
+
+#[cfg(test)]
+mod tests {
+    use ringside_core::db::{DecisionFilter, HandQuery};
+
+    use super::*;
+    use crate::solutions::{analysed_state as analysed, test_state};
+
+    fn query() -> HandQuery {
+        HandQuery { limit: 100, ..Default::default() }
+    }
+
+    #[test]
+    fn the_leak_finder_is_locked_while_pokerstars_runs() {
+        let state = analysed();
+        assert!(leak_report(&state, &Filter::default()).is_ok());
+        state.client_running.store(true, Ordering::Relaxed);
+        assert_eq!(leak_report(&state, &Filter::default()).unwrap_err(), "gesperrt");
+    }
+
+    #[test]
+    fn the_hand_list_keeps_results_but_loses_ratings_while_pokerstars_runs() {
+        let state = analysed();
+        let open = hand_list(&state, query()).unwrap();
+        assert!(open.iter().any(|h| h.worst.is_some()), "the fixtures must give a rated hand");
+
+        state.client_running.store(true, Ordering::Relaxed);
+        let plain = hand_list(&state, query()).unwrap();
+        assert_eq!(plain.len(), open.len());
+        assert!(plain.iter().all(|h| h.worst.is_none()));
+        assert!(plain.iter().zip(&open).all(|(a, b)| a.id == b.id && a.hero_net == b.hero_net));
+
+        // Filtering or sorting by rating would show which hands went wrong.
+        let by_rating = HandQuery {
+            decisions: Some(DecisionFilter { unrated: true, ..Default::default() }),
+            sort_by_loss: true,
+            ..query()
+        };
+        let ids = |l: &[HandSummary]| l.iter().map(|h| h.id).collect::<Vec<_>>();
+        assert_eq!(ids(&hand_list(&state, by_rating).unwrap()), ids(&plain));
+    }
+
+    #[test]
+    fn the_gate_of_blocking_commands_refuses_while_pokerstars_runs() {
+        let state = test_state();
+        assert!(unlocked(&state).is_ok());
+        state.client_running.store(true, Ordering::Relaxed);
+        assert_eq!(unlocked(&state).unwrap_err(), "gesperrt");
+    }
 }

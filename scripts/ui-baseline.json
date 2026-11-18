@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 143,
+      "total": 142,
       "files": {
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
@@ -34,7 +34,6 @@
         "learn/wissen/widgets/StackRuler.svelte": 1,
         "Logo.svelte": 5,
         "play/VerdictCard.svelte": 1,
-        "ranges/labels.ts": 2,
         "ranges/RangeGrid.svelte": 1,
         "solver/RangeEditor.svelte": 1,
         "solver/Saved.svelte": 1,

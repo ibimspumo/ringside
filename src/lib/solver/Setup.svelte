@@ -55,6 +55,8 @@
       return;
     }
     const mine = ++token;
+    // A spot handed over while this derives replaces it.
+    const source = solver.source;
     deriving = true;
     let d;
     let origin: string;
@@ -70,6 +72,7 @@
     }
     if (mine !== token) return;
     deriving = false;
+    if (solver.source !== source) return;
     solver.positions = { oop: d.oop, ip: d.ip };
     solver.spot = { ...solver.spot, oop_range: d.oopRange, ip_range: d.ipRange, pot: d.pot, stack: d.stack };
     solver.notes = { oop: d.oopNote, ip: d.ipNote };

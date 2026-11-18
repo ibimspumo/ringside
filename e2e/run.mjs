@@ -226,6 +226,21 @@ const ENTRY = `
   const hit = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length && e.textContent.trim() === text);
   return hit?.closest("button") ?? null;`;
 
+/** The names of all pages: the bar, the row under it and every area's menu, and the gear. */
+async function pageLabels() {
+  const TRIGGERS = "[role=banner] nav button[aria-haspopup]";
+  const labels = await s.exec(`return [...document.querySelectorAll("[role=banner] nav button:not([aria-haspopup]) .label")].map((e) => e.textContent.trim())`);
+  const areas = await s.exec(`return document.querySelectorAll(arguments[0]).length`, TRIGGERS);
+  for (let i = 0; i < areas; i++) {
+    const trigger = await s.exec(`return document.querySelectorAll(arguments[0])[arguments[1]]`, TRIGGERS, i);
+    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await s.click(trigger);
+    await waitFor("the menu", `return document.querySelector("#nav-menu")`);
+    labels.push(...(await s.exec(`return [...document.querySelectorAll("#nav-menu .label")].map((e) => e.textContent.trim())`)));
+  }
+  await s.exec(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+  return [...new Set([...labels, "Einstellungen"])];
+}
+
 async function nav(label) {
   const TRIGGERS = "[role=banner] nav button[aria-haspopup]";
   // Einstellungen is the gear at the end of the bar, named by its label.
@@ -333,7 +348,25 @@ tauriOnly("Hand-Histories einlesen", async () => {
   log(`stored hands: ${n}`);
 });
 
-step("Start", () => nav("Start"));
+step("Start: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick darunter", async () => {
+  await nav("Start");
+  await waitText("Deine letzte Session");
+  await waitText(/Du hast \d+ % deiner Hände gespielt|Die Analyse läuft|keine Hand, die das Modell vergleichen kann/, 60_000);
+  // Tile titles are set in capitals.
+  await waitText(/ERGEBNIS UND GLÜCK|Ergebnis und Glück/);
+  if (TAURI) return;
+  await waitText("Gegen eine Erhöhung aus früher Position gehst du zu oft mit");
+  // One example per side here; every example, with equity, on the page below.
+  await waitText("Gut entschieden, Pech gehabt");
+  await waitText(/Schlau entschieden – gegen die Hände, die er hier haben kann, richtig/);
+  await click("main button", "Alle Beispiele ansehen", { exact: false });
+  await waitText("Nicht schlau, auch wenn's gut ging");
+  await waitText(/Gewinnchance gegen die gezeigten Karten/);
+  await click("main button", "Zurück zum Rückblick", { exact: false });
+  await waitText("Deine teuersten Entscheidungen".toUpperCase());
+});
+
+step("Übersicht", () => nav("Übersicht"));
 step("Statistik", () => nav("Statistik"));
 step("Turniere", async () => {
   await nav("Turniere");
@@ -496,6 +529,16 @@ step("Meine Starthände: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände
   await find("main h1", "Hände");
   await find("main .chip-name", name, { exact: false });
 });
+if (!TAURI)
+  step("Start: ein Muster öffnet „Meine Starthände“ genau für diese Session", async () => {
+    await nav("Start");
+    await click("main .sr-patterns button", "Ansehen");
+    await find("main h1", "Meine Starthände");
+    await waitText(/Session .*20:04–22:41/);
+    await click("main button[aria-label='Nur diese Session: aufheben']");
+    await waitFor("the session filter to go", `return !/Session .*20:04–22:41/.test(document.querySelector("main")?.innerText ?? "")`);
+  });
+
 step("Spieler", () => nav("Spieler"));
 // The demo has known opponents; PokerStars is closed there, so type and counter may show.
 !TAURI &&
@@ -1105,6 +1148,57 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
     await shows(on);
   }
 });
+
+if (!TAURI)
+  step("Start: gesperrt, solange PokerStars läuft – nur Ergebnisse, keine Bewertung", async () => {
+    await s.navigate(new URL("?tab=dashboard&locked=1", DEMO_URL).href);
+    await waitText("Am Tisch – dein Rückblick kommt, sobald du PokerStars schließt.");
+    await waitText(/Hände\s+152/);
+    const text = (await mainText()).toLowerCase();
+    for (const advice of ["Vor dem Flop", "das Modell würde", "Schlau entschieden", "Glück gehabt", "Grober Fehler", "statt", "Als Nächstes üben"]) {
+      if (text.includes(advice.toLowerCase())) throw new Error(`„${advice}“ is shown while PokerStars runs`);
+    }
+  });
+
+// Last, because it reloads the demo as if PokerStars ran. The app cannot start the client, so
+// the Rust tests of the lock (lib.rs, ranges.rs, tests/commands.rs) cover the backend.
+if (!TAURI)
+  step("PokerStars läuft: keine Seite bewertet oder empfiehlt etwas", async () => {
+    const url = new URL(DEMO_URL);
+    url.searchParams.set("locked", "1");
+    // The note after the automatic analysis ("3 teure Fehler") must stay away too.
+    url.searchParams.set("autodone", "1");
+    await s.navigate(url.href);
+    await find("[role=banner] nav button", "Start", { timeout: 60_000 });
+    await s.exec(HOOK);
+    // Recommendations, model comparisons and the grade labels (ui/poker.ts GRADE).
+    const ADVICE = /Besser:|Fehler|Was du tun kannst|Modell|Beste Wahl|Auch richtig|Ungenau|\bGrob\b/;
+    // Settings name the coach's language model, which rates nothing.
+    const ALLOWED = { Einstellungen: /Modell/g };
+    const pages = await pageLabels();
+    const seen = async (page) => {
+      // Slow enough for the demo's note after the automatic analysis to have come.
+      await sleep(900);
+      const text = await s.exec(`return [...document.querySelectorAll("main, .toasts")].map((e) => e.innerText).join("\\n")`);
+      const hit = text.replace(ALLOWED[page] ?? /$^/, "").match(ADVICE);
+      writeFileSync(path.join(OUT, "pages", `locked-${page}.txt`), text);
+      writeFileSync(path.join(OUT, `locked-${page}.png`), Buffer.from(await s.screenshot(), "base64"));
+      if (hit) throw new Error(`${page} zeigt „${hit[0]}“, obwohl PokerStars läuft`);
+    };
+    for (const page of pages) {
+      await nav(page);
+      await seen(page);
+    }
+    // One level deeper: a hand in the replayer and a tournament's report.
+    await nav("Hände");
+    await click("main [data-id]");
+    await waitText("Die Analyse pausiert");
+    await seen("Hände – offene Hand");
+    await nav("Turniere");
+    await click("main tbody tr:has(.gname[title*='Sunday Million'])");
+    await waitText("gesperrt, solange PokerStars läuft");
+    await seen("Turnier-Bericht");
+  });
 
 // The browser demo sizes its window over chromedriver's DevTools endpoint; the layout check of
 // every page at every width runs there (e2e/layout.mjs), last, since it reloads the page.

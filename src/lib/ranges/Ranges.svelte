@@ -33,6 +33,7 @@
     bandOf,
     facet,
     hasOpponent,
+    fromPreset,
     initial,
     settle,
     stackHistogram,
@@ -43,15 +44,21 @@
     type Size,
   } from "./select";
   import { MOVES, type RangeChart, type RangeFilter, type RangeGroup } from "./types";
+  import type { RangePreset } from "../session/types";
 
   let {
     filter,
     refresh,
     onHands,
+    preset = null,
+    onPresetUsed,
   }: {
     filter: Filter;
     refresh: number;
     onHands: (range: RangeFilter, label: string) => void;
+    /** A situation to open on, e.g. a pattern of the session review; every depth. */
+    preset?: RangePreset | null;
+    onPresetUsed?: () => void;
   } = $props();
 
   let groups = $state<RangeGroup[] | null>(null);
@@ -73,6 +80,10 @@
         if (!live) return;
         groups = g;
         error = null;
+        if (preset) {
+          sel = fromPreset(g, preset);
+          onPresetUsed?.();
+        }
         // A new period or tournament keeps the situation while it still has hands.
         if (!sel || total(g, sel) === 0) sel = initial(g);
       })
@@ -196,7 +207,9 @@
   const answer = $derived(sel && totals ? headline(sel, totals.play, chart?.comparison ?? null) : "");
   const model = $derived(chart?.model ?? null);
   const thin = $derived(totals ? totals.n < 40 : false);
-  const views = (wide: boolean): GridMode[] => (wide ? ["you", "model", "diff"] : ["you", second]);
+  /** While PokerStars runs only the hero's own chart shows; the comparison waits. */
+  const locked = $derived(chart?.locked ?? false);
+  const views = (wide: boolean): GridMode[] => (locked ? ["you"] : wide ? ["you", "model", "diff"] : ["you", second]);
 </script>
 
 {#if error}
@@ -342,13 +355,15 @@
 
       <section class="charts" aria-label="Range-Charts">
         <div class="toolbar">
-          <div class="seg narrow-only" role="group" aria-label="Zweites Chart">
-            <button class:on={second === "model"} onclick={() => (second = "model")}>Modell</button>
-            <button class:on={second === "diff"} onclick={() => (second = "diff")}>Differenz</button>
-          </div>
-          <label class="outline-toggle" title="Zeichnet die Hände, die das Modell meistens spielt, als Linie über dein Chart">
-            <input type="checkbox" bind:checked={outline} disabled={!model} /> Modell-Umriss über deinem Chart
-          </label>
+          {#if !locked}
+            <div class="seg narrow-only" role="group" aria-label="Zweites Chart">
+              <button class:on={second === "model"} onclick={() => (second = "model")}>Modell</button>
+              <button class:on={second === "diff"} onclick={() => (second = "diff")}>Differenz</button>
+            </div>
+            <label class="outline-toggle" title="Zeichnet die Hände, die das Modell meistens spielt, als Linie über dein Chart">
+              <input type="checkbox" bind:checked={outline} disabled={!model} /> Modell-Umriss über deinem Chart
+            </label>
+          {/if}
           <div class="legend">
             {#each MOVES as m (m)}
               <span><i style="background:{MOVE[m].color}" class:fold={m === "fold"}></i>{MOVE[m].label}</span>

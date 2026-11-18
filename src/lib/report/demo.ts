@@ -4,7 +4,7 @@
 import { demoTournaments } from "../demo";
 import type { AskAbout, AskAnswer, AskEstimate, Moment, StackPoint, TournamentReport } from "./types";
 
-/** The demo tournament with a stored coach review; the automatic analysis note leads to it too. */
+/** The demo tournament with a stored coach review. */
 export const DEMO_REVIEWED = 4046787838;
 
 const preview = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
