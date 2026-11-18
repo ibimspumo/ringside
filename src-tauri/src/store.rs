@@ -472,7 +472,7 @@ pub(crate) fn find_cloud(app: &AppHandle, data: &Path, ask: &Ask) -> Option<Foun
 }
 
 /// What a lookup may do now. `others`: spots others solved count (always, except for
-/// practice with "nur eigene, frisch gegebene Spots"); `solve`: the caller solves on a miss.
+/// practice with "Üben mit fertigen Spots anderer" off); `solve`: the caller solves on a miss.
 pub(crate) fn policy(app: &AppHandle, others: bool, solve: bool) -> Policy {
     let state = app.state::<AppState>();
     let fetch = state.settings.lock().unwrap().cloud.fetch;
@@ -726,7 +726,7 @@ mod tests {
         assert_eq!(ask_for(&data, &state, &spot, &all(), &solves, &cloud), Some(Step::Library));
         assert_eq!((solves.get(), cloud.get()), (0, 0));
         assert_eq!(ask_for(&data, &state, &spot, &all(), &solves, &cloud), Some(Step::Local), "now in the index");
-        // Only own spots for "nur eigene, frisch gegebene Spots": a pack's spot does not count.
+        // Only own spots for practice without others' spots: a pack's spot does not count.
         let own_only = Policy { others: false, ..all() };
         let keyed = key_of(&spot, None).unwrap();
         assert!(find_local(&data, &state, &Ask::new(&spot, &keyed, 1.0), own_only.others).is_none());
