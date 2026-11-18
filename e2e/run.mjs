@@ -387,8 +387,8 @@ step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
 });
 
 // The review filters the overview's list to the session: in the demo the session played its first spot.
-step("Rückblick: „Als Nächstes üben“ nennt denselben ersten Schritt", async () => {
-  await nav("Rückblick");
+step("Start: „Als Nächstes üben“ nennt denselben ersten Schritt", async () => {
+  await nav("Start");
   await waitText(/ALS NÄCHSTES ÜBEN|Als Nächstes üben/);
   // The fixture session need not have played the overview's first spot.
   if (TAURI) return;
