@@ -158,6 +158,8 @@ pub async fn pushfold_chart(ante: Ante, players: usize, stack_bb: f64, app: AppH
 /// at eight and nine (45–60 BB); a four-core laptop needs about twice that. So solves
 /// report progress and can be stopped.
 const PREFLOP_LIVE_MAX_PLAYERS: usize = 9;
+/// Table sizes the charts offer; the preflop tables hold smaller ones too.
+const CHART_PLAYERS: [usize; 3] = [6, 8, 9];
 const PREFLOP_LIVE_STACKS: (f64, f64) = (10.0, 100.0);
 
 #[derive(Serialize)]
@@ -300,7 +302,7 @@ fn preflop_solution(
     if let Some(hit) = cached(key) {
         return Ok(hit);
     }
-    if !preflop_table::PLAYERS.contains(&players) {
+    if !CHART_PLAYERS.contains(&players) {
         return Err("Das Preflop-Modell gibt es für 6, 8 und 9 Spieler.".into());
     }
     let p = preflop_table::params(ante, players, stack_bb);
@@ -379,7 +381,7 @@ pub async fn preflop_grid(app: AppHandle) -> CmdResult<PreflopGrid> {
             })
             .collect();
         Ok(PreflopGrid {
-            players: preflop_table::PLAYERS.to_vec(),
+            players: CHART_PLAYERS.to_vec(),
             stacks: preflop_table::STACKS.to_vec(),
             antes,
             live_max_players: PREFLOP_LIVE_MAX_PLAYERS,

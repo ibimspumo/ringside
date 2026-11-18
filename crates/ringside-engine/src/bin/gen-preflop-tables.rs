@@ -1,5 +1,5 @@
 //! Solves the tables of [`ringside_engine::preflop_table`] and writes
-//! `data/preflop_<n>max.bin`; rebuild the crate afterwards to embed them.
+//! `data/preflop_<ante>_<n>max.bin`; rebuild the crate afterwards to embed them.
 //!
 //! ```text
 //! gen-preflop-tables [--ante none|classic|big_blind]... [--players 6]... [--stacks 15,20]

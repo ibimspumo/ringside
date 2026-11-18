@@ -11,7 +11,7 @@ use ringside_core::db::RangeCounts;
 use ringside_core::ranges::{AnteKind, History, Move};
 use ringside_engine::multiway;
 use ringside_engine::preflop::{Kind, Step};
-use ringside_engine::preflop_table::{Ante, PLAYERS, STACKS};
+use ringside_engine::preflop_table::{Ante, STACKS};
 use ringside_engine::pushfold_table;
 use ringside_engine::range::NUM_CLASSES;
 use ringside_engine::HandClass;
@@ -140,9 +140,6 @@ pub fn model_range(s: &Situation) -> Result<ModelRange, String> {
         model(n, hero, &steps, stack, ante)?
     };
     range.notes.splice(0..0, notes);
-    if s.history == Some(History::Limped) && range.source == ModelSource::Model && !steps.iter().all(|s| s.1 == 'l') {
-        range.notes.push("Limps rechnet das Modell nur aus dem Small Blind".into());
-    }
     Ok(range)
 }
 
@@ -154,8 +151,11 @@ fn depth_note(table: f64, real: f64) -> Option<String> {
     ((table - real).abs() >= 0.5).then(|| format!("nächste vorgerechnete Tiefe {} statt {} (typische Tiefe deiner Hände)", bb(table), bb(real)))
 }
 
+/// Table sizes the range comparison offers; the tables hold smaller ones too.
+const COMPARED: [usize; 3] = [6, 8, 9];
+
 fn model(n: usize, hero: usize, steps: &[(usize, char)], stack_real: f64, ante: Ante) -> Result<ModelRange, String> {
-    let players = *PLAYERS.iter().find(|&&p| p >= n).ok_or("Für diese Tischgröße gibt es kein Preflop-Modell.")?;
+    let players = *COMPARED.iter().find(|&&p| p >= n).ok_or("Für diese Tischgröße gibt es kein Preflop-Modell.")?;
     let stack = nearest(&STACKS, stack_real);
     let sol = preflop::model(ante, players, stack).ok_or("Diese Modell-Konfiguration ist nicht vorgerechnet.")?;
     let seat = |real: usize| players - n + real;
@@ -178,7 +178,7 @@ fn model(n: usize, hero: usize, steps: &[(usize, char)], stack_real: f64, ante: 
                 Kind::Limp => actions.iter().find(|a| a.kind == Kind::Call),
                 _ => None,
             })
-            .ok_or("Diese Vorgeschichte kommt im Preflop-Modell nicht vor (etwa ein Limp außerhalb des Small Blinds).")?;
+            .ok_or("Diese Vorgeschichte kommt im Preflop-Modell nicht vor (etwa ein dritter Limper).")?;
         line.push(Step { seat: seat(real), action: *action });
     }
     let v = sol.node(seat(hero), &line).ok_or("Diese Situation kommt im Preflop-Modell nicht vor.")?;

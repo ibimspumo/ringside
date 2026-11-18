@@ -24,6 +24,24 @@
 //!   the hand heads-up (all-in pots have two players).
 //! - Against a small-blind limp the big blind checks, raises to `iso_bb` or goes all
 //!   in; the small blind then folds, calls or goes all in.
+//! - With [`Params::open_limps`] every seat may limp when everyone folded to it. Behind
+//!   a limp every seat folds, limps along (at most two limpers, so that with the big
+//!   blind's check three players see the flop), isolates with a raise to `iso_bb` plus
+//!   one big blind per limper (the big blind one less), or goes all in; the big blind checks
+//!   instead of limping along. Behind an isolation raise the seats still to act fold
+//!   (as behind a 3-bet), then the limpers in turn fold, call or (shallow enough) go
+//!   all in.
+//!
+//! # Limps
+//! Solved freely, few seats limp, so the spots behind a limp would be reached by almost
+//! no hand and their strategies would mean nothing. Real tables limp a lot, so with
+//! [`Params::open_limps`] every limp and limp-along is taken at least that often with
+//! the hands of [`limp_shape`] (a typical limping range of recreational players), and
+//! the rest of the strategy is solved around it. Limping first in is taken exactly that
+//! often (it stands for the other players, the model itself does not limp in), except
+//! from the small blind, which limps by choice as before. The best responses that measure
+//! exploitability keep the same minimum, so the solve converges to an equilibrium of
+//! this constrained game.
 //!
 //! A sized raise that would put in at least [`Sizes::commit`] of the stack is replaced
 //! by all-in, so short stacks degenerate to push/fold.
@@ -301,6 +319,9 @@ pub struct Params {
     pub sizes: Sizes,
     /// The small blind may limp when everyone folded to it.
     pub limps: bool,
+    /// Every seat may limp and limp along; each does with at least this share times
+    /// [`limp_shape`] of its hands. 0: only the small blind limps (with `limps`).
+    pub open_limps: f64,
     pub realization: Realization,
     /// `false` treats all players' classes as independent.
     pub card_removal: bool,
@@ -322,6 +343,7 @@ impl Params {
             bb_ante_bb: 0.0,
             sizes: Sizes::standard(stack_bb),
             limps: true,
+            open_limps: 0.0,
             realization: Realization::default(),
             card_removal: true,
             target_exploitability: 0.01,
@@ -335,6 +357,7 @@ impl Params {
         let mut v = vec![self.stack_bb, self.small_blind_bb, self.ante_bb, self.bb_ante_bb, self.target_exploitability];
         v.extend(self.sizes.values());
         v.extend(self.realization.values());
+        v.push(self.open_limps);
         v
     }
 
@@ -346,7 +369,7 @@ impl Params {
         max_iterations: u32,
         multiway_samples: u32,
     ) -> Option<Params> {
-        if v.len() != 5 + 11 + 9 {
+        if v.len() != 5 + 11 + 9 + 1 {
             return None;
         }
         Some(Params {
@@ -358,6 +381,7 @@ impl Params {
             target_exploitability: v[4],
             sizes: Sizes::from_values(v[5..16].try_into().ok()?),
             realization: Realization::from_values(v[16..25].try_into().ok()?),
+            open_limps: v[25],
             limps,
             card_removal,
             max_iterations,
@@ -391,6 +415,9 @@ impl Params {
         }
         if !(0.0..=1.0).contains(&s.commit) {
             return bad("commit must be a share of the stack");
+        }
+        if !(0.0..=0.2).contains(&self.open_limps) {
+            return bad("open_limps must be in [0, 0.2]");
         }
         let r = &self.realization;
         if [r.position, r.initiative, r.pair, r.suited, r.offsuit].iter().any(|&x| x <= 0.0) || r.connected < 0.0 || !(0.0..1.0).contains(&r.gapped) || r.sharpness < 1.0 {
@@ -457,6 +484,31 @@ pub struct Realized {
     pub equity: Vec<f64>,
     /// Pot share in the model divided by equity.
     pub realization: Vec<f64>,
+}
+
+/// How typical a class is for a limping recreational player, 0–1: the middle of the
+/// hands by all-in equity against a random hand (8–55 % of all combos) fully, the
+/// strongest 8 % (slow-played) and the next 20 % below the middle partly, the rest not.
+pub fn limp_shape() -> &'static [f64; C] {
+    static SHAPE: std::sync::LazyLock<[f64; C]> = std::sync::LazyLock::new(|| {
+        let m = PreflopMatrix::embedded();
+        let mut order: Vec<HandClass> = HandClass::all().collect();
+        order.sort_by(|a, b| m.equity_vs_random(*b).total_cmp(&m.equity_vs_random(*a)));
+        let mut shape = [0.0; C];
+        let mut below = 0.0;
+        for c in order {
+            let mid = (below + c.combo_count() as f64 / 2.0) / 1326.0;
+            shape[c.index()] = match mid {
+                x if x < 0.08 => 0.3,
+                x if x < 0.55 => 1.0,
+                x if x < 0.75 => 0.3,
+                _ => 0.0,
+            };
+            below += c.combo_count() as f64;
+        }
+        shape
+    });
+    &SHAPE
 }
 
 /// Whether a frequency survives the 1/255 steps charts and tables use. A class whose
@@ -634,6 +686,9 @@ struct TreeNode {
     edge0: usize,
     /// Latest edge of each seat before this node.
     last: Vec<Option<usize>>,
+    /// An action every class takes at least `open_limps × limp_shape` of the time
+    /// (exactly that often when the flag is set).
+    floor: Option<(usize, bool)>,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -716,7 +771,7 @@ impl Builder<'_> {
         let v = t.nodes.len();
         let edge0 = t.edges.len();
         t.edges.extend((0..actions.len()).map(|a| (v, a)));
-        t.nodes.push(TreeNode { seat, line: h.line.clone(), actions, children: Vec::new(), edge0, last: h.last.clone() });
+        t.nodes.push(TreeNode { seat, line: h.line.clone(), actions, children: Vec::new(), edge0, last: h.last.clone(), floor: None });
         t.nodes_of[seat].push(v);
         v
     }
@@ -791,7 +846,8 @@ impl Builder<'_> {
         let sz = &params.sizes;
         let sb = s == n - 2;
         let mut actions = vec![act(Kind::Fold, h.contrib[s])];
-        if sb && self.p.limps {
+        let everyone = self.p.open_limps > 0.0;
+        if (sb && self.p.limps) || everyone {
             actions.push(act(Kind::Limp, 1.0));
         }
         let open = if sb && n > 2 { sz.sb_open_bb } else { sz.open_bb };
@@ -802,11 +858,96 @@ impl Builder<'_> {
         if sized.is_none() || self.live[s] <= sz.open_jam_max_bb {
             actions.push(act(Kind::AllIn, self.live[s]));
         }
-        self.node(&h, s, actions, |b, next, a| match a.kind {
+        // Limping first in is what the other players do, not a choice of the model: only
+        // the small blind limps by choice.
+        let floor = everyone.then_some((1, !sb));
+        let v = self.node(&h, s, actions, |b, next, a| match a.kind {
             Kind::Fold => b.open(next, s + 1),
+            Kind::Limp if everyone => b.vs_limps(next, vec![s], s + 1),
             Kind::Limp => b.vs_limp(next),
             Kind::Raise => b.vs_open(next, s, Vec::new(), s + 1),
             _ => b.vs_jam(next, s, (s + 1..n).collect(), 0),
+        });
+        self.set_floor(v, floor)
+    }
+
+    fn set_floor(&mut self, child: Child, floor: Option<(usize, bool)>) -> Child {
+        if let Child::Node(v) = child {
+            self.tree.nodes[v].floor = floor;
+        }
+        child
+    }
+
+    /// Seat `s` behind the limpers (in order), everyone else before folded.
+    fn vs_limps(&mut self, h: Hand, limpers: Vec<usize>, s: usize) -> Child {
+        let n = self.n;
+        let params = self.p;
+        let sz = &params.sizes;
+        let bb = s == n - 1;
+        // The big blind raises out of position from the blind; everyone else adds a
+        // big blind (the usual 3 BB plus one per limper).
+        let iso = sz.iso_bb + limpers.len() as f64 - if bb { 1.0 } else { 0.0 };
+        let mut actions = vec![if bb { act(Kind::Check, 1.0) } else { act(Kind::Fold, h.contrib[s]) }];
+        let along = !bb && limpers.len() < 2;
+        if along {
+            actions.push(act(Kind::Call, 1.0));
+        }
+        let sized = self.sized(s, iso);
+        if let Some(to) = sized {
+            actions.push(act(Kind::Raise, to));
+        }
+        if sized.is_none() || self.live[s] <= sz.open_jam_max_bb {
+            actions.push(act(Kind::AllIn, self.live[s]));
+        }
+        let v = self.node(&h, s, actions, |b, next, a| match a.kind {
+            Kind::Check => {
+                let mut involved = limpers.clone();
+                involved.push(s);
+                b.terminal(&next, Outcome::Postflop, involved, None)
+            }
+            Kind::Fold => b.vs_limps(next, limpers.clone(), s + 1),
+            Kind::Call => {
+                let mut more = limpers.clone();
+                more.push(s);
+                b.vs_limps(next, more, s + 1)
+            }
+            Kind::Raise => b.vs_iso_limpers(next, s, limpers.clone(), 0, Vec::new()),
+            _ => {
+                let mut responders: Vec<usize> = (s + 1..n).collect();
+                responders.extend(&limpers);
+                b.vs_jam(next, s, responders, 0)
+            }
+        });
+        self.set_floor(v, along.then_some((1, false)))
+    }
+
+    /// Limper `limpers[i]` answers the isolation raise; `callers` are limpers who called.
+    fn vs_iso_limpers(&mut self, h: Hand, iso: usize, limpers: Vec<usize>, i: usize, callers: Vec<usize>) -> Child {
+        let Some(&r) = limpers.get(i) else {
+            if callers.is_empty() {
+                return self.terminal(&h, Outcome::Won(iso), Vec::new(), None);
+            }
+            let mut involved = callers;
+            involved.push(iso);
+            return self.terminal(&h, Outcome::Postflop, involved, Some(iso));
+        };
+        let mut actions = vec![act(Kind::Fold, h.contrib[r]), act(Kind::Call, h.contrib[iso])];
+        if self.live[r] <= self.p.sizes.three_bet_jam_max_bb {
+            actions.push(act(Kind::AllIn, self.live[r]));
+        }
+        self.node(&h, r, actions, |b, next, a| match a.kind {
+            Kind::Fold => b.vs_iso_limpers(next, iso, limpers.clone(), i + 1, callers.clone()),
+            Kind::Call => {
+                let mut more = callers.clone();
+                more.push(r);
+                b.vs_iso_limpers(next, iso, limpers.clone(), i + 1, more)
+            }
+            _ => {
+                let mut responders = vec![iso];
+                responders.extend(&callers);
+                responders.extend(&limpers[i + 1..]);
+                b.vs_jam(next, r, responders, 0)
+            }
         })
     }
 
@@ -1127,9 +1268,28 @@ struct Checked {
     records: Vec<Records>,
 }
 
+struct Floor {
+    action: usize,
+    min: Vec<f64>,
+    exact: bool,
+}
+
+impl Floor {
+    /// The minimum of `a` for class `c` and whether `a` is out of the regret matching.
+    fn of(floor: Option<&Floor>, a: usize, c: usize) -> (f64, bool) {
+        match floor {
+            Some(f) if f.action == a => (f.min[c], f.exact),
+            _ => (0.0, false),
+        }
+    }
+}
+
 struct Solver<'p> {
     p: &'p Params,
     tree: Tree,
+    /// Per node: the action with a minimum frequency, that minimum per class, and
+    /// whether it is taken exactly that often.
+    floors: Vec<Option<Floor>>,
     prior: Vec<f64>,
     cond: Vec<f64>,
     tables: Vec<ShareTable>,
@@ -1173,7 +1333,13 @@ impl<'p> Solver<'p> {
             term_tables.push(ids);
         }
         let tables = keys.iter().map(|k| build_table(k, r, &cond, p.multiway_samples)).collect();
-        Solver { p, tree, prior, cond, tables, term_tables }
+        let shape = limp_shape();
+        let floors = tree
+            .nodes
+            .iter()
+            .map(|n| n.floor.map(|(action, exact)| Floor { action, min: shape.iter().map(|w| p.open_limps * w).collect(), exact }))
+            .collect();
+        Solver { p, tree, floors, prior, cond, tables, term_tables }
     }
 
     fn matvec(&self, w: &[f64]) -> Vec<f64> {
@@ -1315,7 +1481,16 @@ impl<'p> Solver<'p> {
                 .collect();
             let s = &prof.sigma[v];
             let val = (0..C).map(|c| (0..k).map(|a| s[a * C + c] * kids[a].0[c]).sum()).collect();
-            let br = (0..C).map(|c| kids.iter().map(|kid| kid.1[c]).fold(f64::NEG_INFINITY, f64::max)).collect();
+            let br = (0..C)
+                .map(|c| {
+                    let floor = self.floors[v].as_ref();
+                    let free = (0..k).filter(|&a| !Floor::of(floor, a, c).1).map(|a| kids[a].1[c]).fold(f64::NEG_INFINITY, f64::max);
+                    match floor {
+                        Some(f) => f.min[c] * kids[f.action].1[c] + (1.0 - f.min[c]) * free,
+                        None => free,
+                    }
+                })
+                .collect();
             rec.child[v] = Some(kids.into_iter().map(|kid| kid.0).collect());
             rec.prefix[v] = Some(prefix.to_vec());
             return (val, br);
@@ -1377,7 +1552,26 @@ impl<'p> Solver<'p> {
     fn run(&mut self, mut on_check: impl FnMut(&Progress) -> bool) -> Option<Solution> {
         let n = self.tree.n;
         let target = self.p.target_exploitability;
-        let sigma: Vec<Vec<f64>> = self.tree.nodes.iter().map(|node| vec![1.0 / node.actions.len() as f64; node.actions.len() * C]).collect();
+        let sigma: Vec<Vec<f64>> = self
+            .tree
+            .nodes
+            .iter()
+            .enumerate()
+            .map(|(v, node)| {
+                let k = node.actions.len();
+                let mut s = vec![1.0 / k as f64; k * C];
+                if let Some(f) = &self.floors[v] {
+                    let free = if f.exact { k - 1 } else { k };
+                    for c in 0..C {
+                        for a in 0..k {
+                            let (min, out) = Floor::of(Some(f), a, c);
+                            s[a * C + c] = min + if out { 0.0 } else { (1.0 - f.min[c]) / free as f64 };
+                        }
+                    }
+                }
+                s
+            })
+            .collect();
         let mut prof = self.profile(sigma);
         let mut regret: Vec<Vec<f64>> = prof.sigma.iter().map(|s| vec![0.0; s.len()]).collect();
         let mut sum: Vec<Vec<f64>> = regret.clone();
@@ -1394,19 +1588,25 @@ impl<'p> Solver<'p> {
                     let (Some(kids), Some(pre)) = (&rec.child[v], &rec.prefix[v]) else { continue };
                     let k = self.tree.nodes[v].actions.len();
                     let own = self.own_reach(&prof, v, &ones).to_vec();
+                    let floor = &self.floors[v];
                     let (s, r) = (&mut prof.sigma[v], &mut regret[v]);
                     for c in 0..C {
-                        let val: f64 = (0..k).map(|a| s[a * C + c] * kids[a][c]).sum();
+                        // Regret matching runs on the part of the strategy above the floor;
+                        // an exact floor's action is not part of it.
+                        let min = floor.as_ref().map_or(0.0, |f| f.min[c]);
+                        let of = |a: usize| Floor::of(floor.as_ref(), a, c);
+                        let free = |s: &[f64], a: usize| if of(a).1 { 0.0 } else { (s[a * C + c] - of(a).0) / (1.0 - min) };
+                        let val: f64 = (0..k).map(|a| free(s, a) * kids[a][c]).sum();
                         let mut total = 0.0;
                         for a in 0..k {
                             let x = &mut r[a * C + c];
-                            *x = (*x + pre[c] * (kids[a][c] - val)).max(0.0);
+                            *x = if of(a).1 { 0.0 } else { (*x + pre[c] * (kids[a][c] - val)).max(0.0) };
                             total += *x;
                         }
                         // With no positive regret any strategy keeps the RM+ bound.
                         if total > 0.0 {
                             for a in 0..k {
-                                s[a * C + c] = r[a * C + c] / total;
+                                s[a * C + c] = (1.0 - min) * r[a * C + c] / total + of(a).0;
                             }
                         }
                         for a in 0..k {
@@ -1465,17 +1665,27 @@ impl<'p> Solver<'p> {
     fn snap(&self, mut sigma: Vec<Vec<f64>>) -> Vec<Vec<f64>> {
         for (v, s) in sigma.iter_mut().enumerate() {
             let k = self.tree.nodes[v].actions.len();
+            let floor = self.floors[v].as_ref();
             for c in 0..C {
+                // An exact floor keeps its share; the rest is renormalised around it.
+                let (fixed, at) = match floor {
+                    Some(f) if f.exact => (f.min[c], Some(f.action)),
+                    _ => (0.0, None),
+                };
                 let mut total = 0.0;
-                for a in 0..k {
+                for a in (0..k).filter(|&a| Some(a) != at) {
                     let x = &mut s[a * C + c];
                     if *x < SNAP {
                         *x = 0.0;
                     }
                     total += *x;
                 }
-                for a in 0..k {
-                    s[a * C + c] = if total > 0.0 { s[a * C + c] / total } else { 1.0 / k as f64 };
+                let free = k - usize::from(at.is_some());
+                for a in (0..k).filter(|&a| Some(a) != at) {
+                    s[a * C + c] = (1.0 - fixed) * if total > 0.0 { s[a * C + c] / total } else { 1.0 / free as f64 };
+                }
+                if let Some(a) = at {
+                    s[a * C + c] = fixed;
                 }
             }
         }
@@ -1605,6 +1815,50 @@ mod tests {
         // Short stacks drop the sized raises once they commit the stack.
         let short = Tree::build(&Params::new(6, 4.0));
         assert!(short.nodes.iter().flat_map(|n| &n.actions).all(|a| a.kind != Kind::Raise || a.to_bb < 1.6));
+    }
+
+    #[test]
+    fn limps_from_every_seat() {
+        for n in [2, 3, 6, 9] {
+            let mut p = Params::new(n, 40.0);
+            p.open_limps = 0.03;
+            let t = Tree::build(&p);
+            println!("{n} players with limps: {} nodes, {} terminals", t.nodes.len(), t.terms.len());
+            assert!(t.terms.iter().all(|z| z.involved.len() <= 3));
+            assert!(t.terms.iter().filter(|z| z.outcome == Outcome::Showdown).all(|z| z.involved.len() == 2));
+            for z in &t.terms {
+                let total: f64 = z.base.iter().sum::<f64>() + if z.involved.len() >= 2 { z.pot } else { 0.0 };
+                assert!(total.abs() < 1e-9);
+            }
+            // Every seat but the big blind can limp first in.
+            let firsts = t.nodes.iter().filter(|v| v.line.is_empty() && v.actions.iter().any(|a| a.kind == Kind::Limp)).count();
+            assert_eq!(firsts, n - 1);
+            assert!(t.nodes.len() < u16::MAX as usize);
+        }
+        let shape = limp_shape();
+        let share: f64 = HandClass::all().map(|c| shape[c.index()] * c.combo_count() as f64).sum::<f64>() / 1326.0;
+        assert!((0.4..0.65).contains(&share), "{share}");
+        assert_eq!(shape["AA".parse::<HandClass>().unwrap().index()], 0.3);
+        assert_eq!(shape["72o".parse::<HandClass>().unwrap().index()], 0.0);
+    }
+
+    #[test]
+    fn other_players_limp_exactly_with_the_typical_range() {
+        let mut p = Params::new(3, 20.0);
+        p.open_limps = 0.03;
+        p.multiway_samples = 64;
+        p.max_iterations = 30;
+        let sol = solve(&p).unwrap();
+        let shape = limp_shape();
+        let first = &sol.nodes[sol.open_node(0).unwrap()];
+        let limp = first.actions.iter().position(|a| a.kind == Kind::Limp).unwrap();
+        for c in 0..C {
+            assert!((first.freq[limp][c] - 0.03 * shape[c]).abs() < 1e-9, "class {c}: {}", first.freq[limp][c]);
+        }
+        // The small blind limps by choice, at least as often.
+        let sb = &sol.nodes[sol.open_node(1).unwrap()];
+        let limp = sb.actions.iter().position(|a| a.kind == Kind::Limp).unwrap();
+        assert!((0..C).all(|c| sb.freq[limp][c] >= 0.03 * shape[c] - 1e-9));
     }
 
     #[test]

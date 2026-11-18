@@ -1,6 +1,7 @@
 //! Precomputed solutions of the [`preflop`](crate::preflop) model, shipped with the
-//! app: chip EV, equal stacks, 6, 8 and 9 players, each of the three ante structures
-//! of [`Ante`] on a fixed stack grid ([`STACKS`]).
+//! app: chip EV, equal stacks, 2 to 6, 8 and 9 players ([`PLAYERS`]), each of the
+//! three ante structures of [`Ante`] on a fixed stack grid ([`STACKS`]), with limps
+//! from every seat ([`OPEN_LIMPS`]).
 //!
 //! A lookup only hits when the parameters equal the ones the table was solved with
 //! ([`params`]). Frequencies are stored in 1/255 steps and action EVs in
@@ -36,13 +37,16 @@ pub use crate::pushfold_table::Ante;
 use crate::range::NUM_CLASSES;
 
 const MAGIC: &[u8; 4] = b"RSPR";
-pub const FORMAT_VERSION: u32 = 2;
+pub const FORMAT_VERSION: u32 = 3;
 /// Resolution of stored action EVs.
 pub const EV_STEP_BB: f64 = 0.01;
 /// NashConv target of the tables, BB per hand summed over all players.
 pub const TARGET_EXPLOITABILITY: f64 = 0.001;
 pub const MAX_ITERATIONS: u32 = 4000;
-pub const PLAYERS: [usize; 3] = [6, 8, 9];
+/// Minimum limp share of the tables, times [`limp_shape`](crate::preflop::limp_shape):
+/// enough hands reach every spot behind a limp for its strategy to mean something.
+pub const OPEN_LIMPS: f64 = 0.03;
+pub const PLAYERS: [usize; 7] = [2, 3, 4, 5, 6, 8, 9];
 /// Stack depths in BB.
 pub const STACKS: [f64; 8] = [15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 75.0, 100.0];
 const C: usize = NUM_CLASSES;
@@ -54,6 +58,7 @@ pub fn params(ante: Ante, players: usize, stack_bb: f64) -> Params {
     (p.ante_bb, p.bb_ante_bb) = ante.amounts();
     p.target_exploitability = TARGET_EXPLOITABILITY;
     p.max_iterations = MAX_ITERATIONS;
+    p.open_limps = OPEN_LIMPS;
     p
 }
 
@@ -83,18 +88,30 @@ struct Table {
 }
 
 /// By ante code, then player count as in [`PLAYERS`].
-static BYTES: [[&[u8]; 3]; 3] = [
+static BYTES: [[&[u8]; 7]; 3] = [
     [
+        include_bytes!("../data/preflop_none_2max.bin"),
+        include_bytes!("../data/preflop_none_3max.bin"),
+        include_bytes!("../data/preflop_none_4max.bin"),
+        include_bytes!("../data/preflop_none_5max.bin"),
         include_bytes!("../data/preflop_none_6max.bin"),
         include_bytes!("../data/preflop_none_8max.bin"),
         include_bytes!("../data/preflop_none_9max.bin"),
     ],
     [
+        include_bytes!("../data/preflop_classic_2max.bin"),
+        include_bytes!("../data/preflop_classic_3max.bin"),
+        include_bytes!("../data/preflop_classic_4max.bin"),
+        include_bytes!("../data/preflop_classic_5max.bin"),
         include_bytes!("../data/preflop_classic_6max.bin"),
         include_bytes!("../data/preflop_classic_8max.bin"),
         include_bytes!("../data/preflop_classic_9max.bin"),
     ],
     [
+        include_bytes!("../data/preflop_big_blind_2max.bin"),
+        include_bytes!("../data/preflop_big_blind_3max.bin"),
+        include_bytes!("../data/preflop_big_blind_4max.bin"),
+        include_bytes!("../data/preflop_big_blind_5max.bin"),
         include_bytes!("../data/preflop_big_blind_6max.bin"),
         include_bytes!("../data/preflop_big_blind_8max.bin"),
         include_bytes!("../data/preflop_big_blind_9max.bin"),
@@ -102,14 +119,14 @@ static BYTES: [[&[u8]; 3]; 3] = [
 ];
 
 /// Inflated on first use, one file at a time.
-static TABLES: [[Idle<Table>; 3]; 3] = {
+static TABLES: [[Idle<Table>; 7]; 3] = {
     fn at<const A: usize, const N: usize>() -> Table {
         load(Ante::ALL[A], PLAYERS[N], BYTES[A][N])
     }
     [
-        [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>)],
-        [Idle::new(at::<1, 0>), Idle::new(at::<1, 1>), Idle::new(at::<1, 2>)],
-        [Idle::new(at::<2, 0>), Idle::new(at::<2, 1>), Idle::new(at::<2, 2>)],
+        [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>), Idle::new(at::<0, 3>), Idle::new(at::<0, 4>), Idle::new(at::<0, 5>), Idle::new(at::<0, 6>)],
+        [Idle::new(at::<1, 0>), Idle::new(at::<1, 1>), Idle::new(at::<1, 2>), Idle::new(at::<1, 3>), Idle::new(at::<1, 4>), Idle::new(at::<1, 5>), Idle::new(at::<1, 6>)],
+        [Idle::new(at::<2, 0>), Idle::new(at::<2, 1>), Idle::new(at::<2, 2>), Idle::new(at::<2, 3>), Idle::new(at::<2, 4>), Idle::new(at::<2, 5>), Idle::new(at::<2, 6>)],
     ]
 };
 
