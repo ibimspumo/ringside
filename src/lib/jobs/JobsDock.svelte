@@ -5,7 +5,8 @@
   import { cancelJob, clearJobs, jobs, startJobs } from "./store.svelte";
   import type { Job, JobTarget } from "./types";
 
-  let { onView }: { onView: (target: JobTarget) => void } = $props();
+  /** `top`: the dock sits in a top bar, so the panel opens below it at the right. */
+  let { onView, placement = "side" }: { onView: (target: JobTarget) => void; placement?: "side" | "top" } = $props();
 
   onMount(startJobs);
 
@@ -70,7 +71,7 @@
 </button>
 
 {#if jobs.open}
-  <div class="panel" id="jobs-panel" role="dialog" aria-label="Aufgaben" bind:this={panel}>
+  <div class="sheet" class:top={placement === "top"} id="jobs-panel" role="dialog" aria-label="Aufgaben" bind:this={panel}>
     <header>
       <div>
         <h2>Aufgaben</h2>
@@ -205,7 +206,7 @@
     color: var(--text-2);
   }
 
-  .panel {
+  .sheet {
     position: fixed;
     left: 206px;
     bottom: 12px;
@@ -220,6 +221,12 @@
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     animation: rise 0.16s ease-out;
   }
+  .sheet.top {
+    left: auto;
+    right: 12px;
+    top: 64px;
+    bottom: auto;
+  }
   @keyframes rise {
     from {
       opacity: 0;
@@ -227,7 +234,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .panel {
+    .sheet {
       animation: none;
     }
   }

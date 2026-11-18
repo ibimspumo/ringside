@@ -42,6 +42,9 @@
   import PageHeader from "../ui/PageHeader.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { followPage, pageHead } from "../ui/page.svelte";
+  import Hub from "../nav/Hub.svelte";
+  import NavPrototype from "../nav/NavPrototype.svelte";
+  import { PAGES, conceptFrom, type AreaId } from "../nav/pages";
 
   type Tab =
     | "dashboard"
@@ -129,6 +132,9 @@
   const STORE = "ringside.filter";
 
   const query = new URLSearchParams(window.location.search);
+  /** Browser demo only: navigation prototypes (`?nav=a|b|c`, `&navopen=<area>` for pictures). */
+  const navConcept = conceptFrom(query, inTauri);
+  const navOpen = query.get("navopen") as AreaId | null;
   const initialTab = query.get("tab") as Tab | null;
   let tab = $state<Tab>(initialTab && NAV.some((n) => n.id === initialTab) ? initialTab : "dashboard");
   let status = $state<ImportStatus | null>(null);
@@ -264,6 +270,12 @@
     if (page) tab = page;
   }
 
+  function go(id: Tab) {
+    // "Turniere" again leads from a report back to the list.
+    if (id === "tournaments") reportTournament = null;
+    tab = id;
+  }
+
   function showHands(player: string | null, handId: number | null = null) {
     handsPlayer = player;
     handsSpot = null;
@@ -328,7 +340,24 @@
   const upgrade = $derived(status?.upgrade ?? null);
 </script>
 
-<div class="shell">
+<div class="shell" class:wide={navConcept === "a" || navConcept === "b"} class:top={navConcept === "c"}>
+  {#if navConcept}
+    <NavPrototype
+      concept={navConcept}
+      {tab}
+      locked={clientRunning}
+      open={navOpen}
+      {filter}
+      tournaments={tournamentList}
+      {tables}
+      {status}
+      {hud}
+      {refresh}
+      onSelect={go}
+      onView={viewTarget}
+      onChooseFolder={chooseFolder}
+    />
+  {:else}
   <aside>
     <div class="brand">
       <Logo size={26} />
@@ -342,11 +371,7 @@
             <button
               class:on={tab === item.id}
               aria-current={tab === item.id ? "page" : undefined}
-              onclick={() => {
-                // "Turniere" again leads from a report back to the list.
-                if (item.id === "tournaments") reportTournament = null;
-                tab = item.id;
-              }}
+              onclick={() => go(item.id)}
             >
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                 {#if item.id === "hud"}
@@ -398,10 +423,11 @@
       </div>
     </footer>
   </aside>
+  {/if}
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
+    <PageHeader title={navConcept ? PAGES[tab].label : (NAV.find((n) => n.id === tab)?.label ?? "")} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab) && !showingReport}
         {@const off = tournament !== null}
@@ -439,6 +465,7 @@
 
     <div class="content" class:fill={tab === "hands"} use:followPage>
       {#if tab === "dashboard"}
+        {#if navConcept === "b"}<Hub locked={clientRunning} onSelect={go} />{/if}
         <Dashboard
           {filter}
           {hud}
@@ -581,6 +608,16 @@
     display: grid;
     grid-template-columns: 200px minmax(0, 1fr);
     height: 100vh;
+  }
+  .shell.wide {
+    grid-template-columns: 232px minmax(0, 1fr);
+  }
+  .shell.top {
+    display: flex;
+    flex-direction: column;
+  }
+  .shell.top main {
+    flex: 1;
   }
   aside {
     display: flex;

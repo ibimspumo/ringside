@@ -1,0 +1,79 @@
+<script lang="ts">
+  import JobsDock from "../jobs/JobsDock.svelte";
+  import type { JobTarget } from "../jobs/types";
+  import type { Filter, HudConfig, ImportStatus, TournamentRow } from "../types";
+  import { navLive } from "./live.svelte";
+  import NavA from "./NavA.svelte";
+  import NavB from "./NavB.svelte";
+  import NavC from "./NavC.svelte";
+  import NavMeta from "./NavMeta.svelte";
+  import NavNotices from "./NavNotices.svelte";
+  import type { AreaId, Concept, Page } from "./pages";
+
+  /** The navigation prototypes of the browser demo (`?nav=a|b|c`) in place of the side bar. */
+  let {
+    concept,
+    tab,
+    locked,
+    open = null,
+    filter,
+    tournaments,
+    tables,
+    status,
+    hud,
+    refresh,
+    onSelect,
+    onView,
+    onChooseFolder,
+  }: {
+    concept: Concept;
+    tab: Page;
+    locked: boolean;
+    /** Browser demo: a group or menu shown open for pictures (`&navopen=<area>`). */
+    open?: AreaId | null;
+    filter: Filter;
+    tournaments: TournamentRow[];
+    tables: number;
+    status: ImportStatus | null;
+    hud: HudConfig | null;
+    refresh: number;
+    onSelect: (page: Page) => void;
+    onView: (target: JobTarget) => void;
+    onChooseFolder: () => void;
+  } = $props();
+
+  $effect(() => {
+    void refresh;
+    navLive.load(filter, tournaments, tables, status?.total_hands ?? 0, hud);
+  });
+</script>
+
+{#snippet foot()}
+  <JobsDock {onView} />
+  <NavNotices {status} settingsOpen={tab === "settings"} {onChooseFolder} />
+  <NavMeta {tables} hands={status?.total_hands ?? 0} />
+{/snippet}
+
+{#snippet barStatus()}
+  <NavMeta {tables} hands={status?.total_hands ?? 0} layout="bar" />
+  <span class="dock"><JobsDock {onView} placement="top" /></span>
+{/snippet}
+
+{#snippet barNotices()}
+  <NavNotices {status} settingsOpen={tab === "settings"} layout="bar" {onChooseFolder} />
+{/snippet}
+
+{#if concept === "a"}
+  <NavA {tab} {locked} open={open === "werkzeuge"} {onSelect} {foot} />
+{:else if concept === "b"}
+  <NavB {tab} {locked} {open} {onSelect} {foot} />
+{:else}
+  <NavC {tab} {locked} {open} {onSelect} status={barStatus} notices={barNotices} />
+{/if}
+
+<style>
+  .dock {
+    display: flex;
+    width: 190px;
+  }
+</style>
