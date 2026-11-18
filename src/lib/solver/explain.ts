@@ -51,9 +51,9 @@ export function verb(a: SolverAction, node: SolverNode): string {
     case "call":
       return "callen";
     case "bet":
-      return `${sizeWord(sizePct(a, node))} setzen (${Math.round(sizePct(a, node))} % Pot)`;
+      return `${sizeWord(sizePct(a, node))} setzen (${Math.round(sizePct(a, node))}\u00a0%\u00a0Pot)`;
     case "raise":
-      return `${sizeWord(sizePct(a, node))} erhöhen (${Math.round(sizePct(a, node))} % Pot)`;
+      return `${sizeWord(sizePct(a, node))} erhöhen (${Math.round(sizePct(a, node))}\u00a0%\u00a0Pot)`;
     case "all_in":
       return "all-in gehen";
   }

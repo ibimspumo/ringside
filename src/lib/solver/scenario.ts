@@ -25,7 +25,7 @@ export const ANTES: { id: PreflopAnte; label: string }[] = [
 ];
 
 export const POT_TYPES: { id: PotType; label: string; hint: string }[] = [
-  { id: "srp", label: "SRP", hint: "Single-Raised-Pot: Open-Raise und Call" },
+  { id: "srp", label: "Raise + Call", hint: "Single-Raised-Pot (SRP): einer erhöht, einer geht mit" },
   { id: "3bet", label: "3-Bet", hint: "3-Bet-Pot: Open, 3-Bet und Call" },
   { id: "limp", label: "Limp", hint: "Limp-Pot: Small Blind limpt, Big Blind checkt" },
 ];

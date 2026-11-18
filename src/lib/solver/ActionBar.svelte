@@ -35,8 +35,9 @@
 <div class="strip" role="group" aria-label="Aktionen">
   {#each node.actions as a, k (k)}
     <button
-      class="seg"
+      class="act"
       class:blind
+      class:both={!!mine}
       style="flex-grow:{grow[k]}; --c:{colors[k]}"
       {disabled}
       onclick={() => onAct(k)}
@@ -48,7 +49,7 @@
       <span class="what">{parts[k].label}</span>
       <span class="chips num">
         {#if parts[k].chips}<span>{parts[k].chips}</span>{/if}
-        {#if mine}<span class="mine">deine Hand {mine[k]} %</span>{/if}
+        {#if mine}<span class="mine">deine Hand {mine[k]}&nbsp;%</span>{/if}
         {#if !parts[k].chips && !mine}&nbsp;{/if}
       </span>
       {#if !blind}
@@ -66,7 +67,7 @@
     gap: 4px;
     min-width: 0;
   }
-  .seg {
+  .act {
     position: relative;
     flex: 1 1 0;
     min-width: 124px;
@@ -88,7 +89,7 @@
       background var(--dur-fast) var(--ease-standard),
       border-color var(--dur-fast) var(--ease-standard);
   }
-  .seg::before {
+  .act::before {
     content: "";
     position: absolute;
     left: 0;
@@ -97,15 +98,15 @@
     width: 3px;
     background: var(--c);
   }
-  .seg:hover:not(:disabled) {
+  .act:hover:not(:disabled) {
     background: color-mix(in srgb, var(--c) 12%, var(--surface-2));
     border-color: color-mix(in srgb, var(--c) 60%, var(--line-2));
   }
-  .seg:disabled {
+  .act:disabled {
     cursor: default;
     opacity: 0.55;
   }
-  .seg.blind {
+  .act.blind {
     background: var(--surface-2);
   }
   .key {
@@ -145,6 +146,10 @@
   .mine {
     color: var(--text);
     font-weight: var(--fw-semibold);
+  }
+  .act.both .freq {
+    font-size: var(--fs-md);
+    color: var(--text-2);
   }
   .freq {
     grid-area: freq;

@@ -344,8 +344,8 @@
             <p class="say">Mit deiner Hand hier {handLine(node, h.strategy)}.</p>
             {#if heroAdvice.close}
               <p class="close">
-                {heroAdvice.close}{#if !heroAdvice.close.startsWith("Beides")}
-                  Die anderen Aktionen gehören trotzdem zur Mischung – der Unterschied ist klein.{/if}
+                {heroAdvice.close}{#if !heroAdvice.close.startsWith("Beides")}{" "}Die anderen Aktionen gehören trotzdem zur Mischung – der
+                  Unterschied ist klein.{/if}
               </p>
             {/if}
           </div>
@@ -393,7 +393,7 @@
     {#if node.kind === "action" && node.player}
       <section class="acts" class:busy={loading}>
         <div class="actor">
-          <span><b>Weiterspielen · alle Hände der Range</b> – Klick auf eine Aktion. „Range“ und Balken: wie oft die ganze Range sie wählt{heroShares.length ? "; darunter, wie oft deine Hand" : ""}.</span>
+          <span><b>Weiterspielen</b> – Klick auf eine Aktion. Jeder Knopf zeigt, wie oft die ganze Range und wie oft deine Hand sie wählt.</span>
           <span class="faint keys">Tasten 1–{Math.min(9, node.actions.length)}</span>
         </div>
         <ActionBar {node} {colors} onAct={act} mine={heroShares.length ? heroShares : null} />

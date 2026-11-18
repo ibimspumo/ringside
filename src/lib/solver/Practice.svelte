@@ -152,9 +152,14 @@
     const labels = node.actions.map((a) => actionText(a, node!));
     const best = cap(verb(node.actions[verdict.best], node));
     // A mixed hand: the solution also plays another action often, which the verdict should not hide.
-    const also = h.strategy.map((f, i) => ({ f, i })).filter((x) => x.i !== k && x.f >= 0.2).sort((a, b) => b.f - a.f)[0];
+    const also = h.strategy
+      .map((f, i) => ({ f, i }))
+      .filter((x) => x.i !== k && x.f >= 0.1)
+      .sort((a, b) => b.f - a.f)
+      .map((x) => verb(node!.actions[x.i], node!));
+    const mix = also.length > 1 ? `${also.slice(0, -1).join(", ")} und ${also.at(-1)}` : also[0];
     const intro = {
-      best: also ? `Stark – das spielt auch die Lösung, im Wechsel mit ${verb(node.actions[also.i], node)}.` : "Stark – so spielt es auch die Lösung.",
+      best: mix ? `Stark – das spielt auch die Lösung, im Wechsel mit ${mix}.` : "Stark – so spielt es auch die Lösung.",
       good: `Gut gespielt – fast so viel wert wie die beste Wahl (${best}).`,
       inaccurate: `Knapp daneben: ${best} wäre etwas besser gewesen.`,
       mistake: `Hier lohnt sich ${best} deutlich mehr.`,

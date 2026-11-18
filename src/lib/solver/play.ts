@@ -52,9 +52,9 @@ export function actionParts(a: SolverAction, node: SolverNode): { label: string;
     case "call":
       return { label: "Call", chips: `${bb(toCall(node), 2)} BB` };
     case "bet":
-      return { label: `Bet ${pct} % Pot`, chips: `${bb(a.amount, 2)} BB` };
+      return { label: `Bet ${pct}\u00a0%\u00a0Pot`, chips: `${bb(a.amount, 2)} BB` };
     case "raise":
-      return { label: `Raise ${pct} % Pot`, chips: `auf ${bb(a.amount, 2)} BB` };
+      return { label: `Raise ${pct}\u00a0%\u00a0Pot`, chips: `auf ${bb(a.amount, 2)} BB` };
     case "all_in":
       return { label: "All-in", chips: `${bb(a.amount, 2)} BB` };
   }
