@@ -802,11 +802,6 @@
     max-width: 90ch;
   }
 
-  @container (min-width: 1800px) {
-    .library {
-      max-width: 1760px;
-    }
-  }
   @container (max-width: 1100px) {
     .band {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);

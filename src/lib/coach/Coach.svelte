@@ -455,7 +455,6 @@
 
 <style>
   .wide {
-    max-width: 1880px;
     padding-top: 20px;
   }
   .layout {

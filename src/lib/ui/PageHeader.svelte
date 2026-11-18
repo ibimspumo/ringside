@@ -43,8 +43,8 @@
 <header
   class="ui-page-header"
   class:tabbed={!!sections?.tabs?.length}
-  style:--frame-left={box ? `${box.left}px` : "var(--sp-6)"}
-  style:--frame-right={box ? `${box.right}px` : "var(--sp-6)"}
+  style:--frame-left={box ? `${box.left}px` : "var(--frame-auto)"}
+  style:--frame-right={box ? `${box.right}px` : "var(--frame-auto)"}
 >
   <div class="bar">
     <div class="title">
