@@ -151,7 +151,7 @@ export const api = {
   /** Where a rated preflop decision sits in the charts; null when no bundled table fits. */
   analysisChartTarget: (handId: number, actionIndex: number) =>
     inTauri ? invoke<ChartTarget | null>("analysis_chart_target", { handId, actionIndex }) : (async (): Promise<ChartTarget | null> => {
-      // Browser preview: the sample hands' spots in the sample charts (99 in the small blind against an open, 86s on the button).
+      // Browser preview: the sample hands' spots in the sample charts (99 first in from the small blind, 86s on the button).
       const d = analysisDemo.demoDecisions(handId).find((x) => x.action_index === actionIndex);
       if (!d || d.street !== "preflop" || d.status !== "rated" || d.source === "solver") return null;
       const base = { action_index: actionIndex, ante: "big_blind" as const, players: 6, callers: [] };
@@ -160,16 +160,16 @@ export const api = {
         return { ...base, kind: "pushfold" as const, stack_bb: 10, seat: call ? 5 : 3, shover: call ? 3 : null, node: null, hand: call ? "K9o" : "86s" };
       }
       const spots = await import("./charts/preflop-demo").then((m) => m.demoSpots("big_blind", 6, 100));
-      const vsOpen = spots.nodes.find((n) => n.seat === 4 && n.line.length === 1 && n.line[0].kind === "raise");
-      return { ...base, kind: "preflop" as const, stack_bb: 100, seat: 4, shover: null, node: vsOpen?.id ?? 0, hand: "99" };
+      const open = spots.nodes.find((n) => n.seat === 4 && !n.line.length);
+      return { ...base, kind: "preflop" as const, stack_bb: 100, seat: 4, shover: null, node: open?.id ?? 0, hand: "99" };
     })(),
   analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, () => analysisDemo.demoDecisions(handId)),
   analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
   hand: (id: number) => call<Hand | null>("hand", { id }, () => learnDemo.demoSpotHand(id) ?? demo.demoHandById(id)),
   learnExercise: (kind: LearnKind, level: number, seed: number | null = null) =>
-    call<Exercise>("learn_exercise", { kind, level, seed }, () => learnDemo.demoExercise(kind, level, seed)),
+    inTauri ? invoke<Exercise>("learn_exercise", { kind, level, seed }) : learnDemo.demoExercise(kind, level, seed),
   learnCheck: (exercise: Exercise, answer: LearnAnswer) =>
-    call<Feedback>("learn_check", { exercise, answer }, () => learnDemo.demoCheck(exercise, answer)),
+    inTauri ? invoke<Feedback>("learn_check", { exercise, answer }) : learnDemo.demoCheck(exercise, answer),
   learnOwnSpots: (filter: Filter, kind: LearnKind | null = null, limit = 60) =>
     call<OwnSpot[]>("learn_own_spots", { filter, kind, limit }, () => learnDemo.demoOwnSpots(kind, limit)),
   learnCheckOwn: (spotId: string, answer: LearnAnswer) =>

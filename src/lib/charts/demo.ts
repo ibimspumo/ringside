@@ -27,6 +27,9 @@ export function demoChart(stack = 10, players = 6): PushFoldChart {
     shover: n.shover === null ? null : n.shover - cut,
     callers: n.callers.map((c) => c - cut),
   }));
+  // The new first seat is reached by every hand; the rest scale with it.
+  const first = kept.find((n) => n.seat === 0 && n.shover === null)?.reach || 1;
+  for (const n of kept) n.reach = Math.min(1, n.reach / first);
   const nodes = new URLSearchParams(window.location.search).has("empty")
     ? kept.map((n) => ({ ...n, act_pct: 0, freq: n.freq.map(() => 0) }))
     : kept.map((n) => ({ ...n, act_pct: Math.min(100, n.act_pct * scale) }));

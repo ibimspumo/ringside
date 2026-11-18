@@ -356,6 +356,108 @@ step("Training: All-in nach Folds", async () => {
   await find("main button", "Nächste Aufgabe", { exact: false });
 });
 
+/** Opens a skill at level 1 in the trainer and returns the question once it is that skill's. */
+async function drill(button, short) {
+  await click("main button.skill", button, { exact: false });
+  await click("main button.level", "Stufe 1", { exact: false });
+  return waitFor(
+    `a question of ${short}`,
+    `const t = document.querySelector("main .task");
+     return t?.querySelector(".kind")?.textContent.trim() === arguments[0] && !t.querySelector(".fb") ? t.querySelector("h2.q").textContent : null;`,
+    [short],
+  );
+}
+
+/** Numbers of a German sentence: "7.550" → 7550, "2,6" → 2.6. */
+const numbers = (text) => [...text.matchAll(/\d[\d.]*(?:,\d+)?/g)].map((m) => Number(m[0].replace(/\.(?=\d{3})/g, "").replace(",", ".")));
+
+async function answerNumber(unit, value) {
+  const input = await find(`main input[aria-label='Antwort in ${unit}']`);
+  await s.type(input, String(Math.round(value * 10) / 10));
+  await click("main button", "Prüfen", { exact: false });
+}
+
+/** The verdict and the solution's text once the answer is graded. */
+async function graded() {
+  await find("main .task .fb");
+  await find("main button", "Nächste Aufgabe", { exact: false });
+  return s.exec(`const f = document.querySelector("main .task .fb");
+    return { right: f.classList.contains("ok"), truth: f.querySelector(".what b").textContent.trim() };`);
+}
+
+async function solved(what) {
+  const g = await graded();
+  if (!g.right) throw new Error(`${what}: graded wrong, solution ${g.truth}`);
+}
+
+/** A decision whose answer only the engine knows: the verdict has to agree with the solution. */
+async function decided(id, label) {
+  await click(`main button.choice.${id}`);
+  const g = await graded();
+  if (g.right !== (g.truth === label)) throw new Error(`answered ${label}, solution ${g.truth}, graded ${g.right ? "right" : "wrong"}`);
+}
+
+/** Malmuth–Harville: places go out top-down in proportion to the chips. */
+function icmValue(stacks, payouts, seat) {
+  const go = (left, place) => {
+    if (place >= payouts.length) return 0;
+    const total = left.reduce((a, i) => a + stacks[i], 0);
+    return left.reduce((sum, i) => {
+      const p = stacks[i] / total;
+      const rest = left.filter((j) => j !== i);
+      return sum + p * ((i === seat ? payouts[place] : 0) + (i === seat ? 0 : go(rest, place + 1)));
+    }, 0);
+  };
+  return go(stacks.map((_, i) => i), 0);
+}
+
+step("Training: Stacktiefe, Stufe 1 gelöst", async () => {
+  const q = await drill("Stacktiefe", "Stacktiefe");
+  const [stack, , bigBlind] = numbers(q);
+  await answerNumber("bb", stack / bigBlind);
+  await solved(q);
+});
+
+step("Training: Pot Odds mit Kopfgeld, Stufe 1 gelöst", async () => {
+  const q = await drill("Pot Odds mit Kopfgeld", "Pot Odds mit Kopfgeld");
+  const [shove, dead, stack, bounty] = numbers(q);
+  const call = Math.min(shove, stack);
+  await answerNumber("%", (100 * call) / (dead + call + call + bounty));
+  await solved(q);
+});
+
+step("Training: Gegner lesen, Stufe 1 gelöst", async () => {
+  const q = await drill("Gegner lesen", "Gegner lesen");
+  const [vpip, pfr] = numbers(q);
+  // The rules of thumb of crates/ringside-learn/src/hud.rs.
+  const type = vpip < 15 ? "nit" : vpip < 27 ? "tag" : pfr / vpip >= 0.6 ? "lag" : "station";
+  await click(`main button.choice.${type}`);
+  await solved(q);
+});
+
+step("Training: ICM-Wert, Stufe 1 gelöst", async () => {
+  const q = await drill("ICM und Bubble", "ICM und Bubble");
+  const prizes = [...q.matchAll(/(\d+) \$/g)].map((m) => Number(m[1]));
+  const rows = await s.exec(`return [...document.querySelectorAll("main ol.stacks li")].map((li) => ({
+      bb: Number(li.querySelector(".num").textContent.replace(/[^0-9,]/g, "").replace(",", ".")),
+      asked: li.classList.contains("asked") }))`);
+  const seat = rows.findIndex((r) => r.asked);
+  await answerNumber("$", icmValue(rows.map((r) => r.bb), prizes, seat));
+  await solved(q);
+});
+
+step("Training: Öffnen oder folden, Stufe 1", async () => {
+  await drill("Öffnen oder folden", "Öffnen oder folden");
+  await decided("fold", "Fold");
+  await find("main .task .fb [aria-label^='Open-Range']");
+});
+
+step("Training: Bet oder Check am River, Stufe 1", async () => {
+  await drill("Bet oder Check am River", "Bet oder Check am River");
+  await decided("check", "Check");
+  await waitText("Gleichgewicht des River-Spiels");
+});
+
 /** Sets the table size with the − / + buttons in the middle of the table. */
 async function tableSize(n) {
   await s.exec(
@@ -392,8 +494,25 @@ step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () 
 
 step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await stackTo(50);
-  await waitText(/eröffnest du etwa \d+ %/);
+  await waitText(/erhöhst du mit etwa \d+ %/);
   await waitText("Modell");
+});
+
+/** Presses one key the way a keyboard would, on whatever has the focus. */
+async function press(key) {
+  await s.cmd("POST", "/actions", { actions: [{ type: "key", id: "k", actions: [{ type: "keyDown", value: key }, { type: "keyUp", value: key }] }] });
+}
+
+step("Begriffe per Tastatur: Tab erreicht die Erklärung, Esc schließt sie", async () => {
+  // Tab from the stack slider to the next explained word on the page.
+  await s.exec(`document.querySelector("#stack-axis").focus()`);
+  for (let i = 0; i < 40; i++) {
+    await press("\uE004");
+    if (await s.exec(`return !!document.activeElement?.matches(".ui-tooltip-anchor")`)) break;
+  }
+  await waitFor("Erklärung beim Fokus", `return !!document.querySelector(".ui-tooltip")`);
+  await press("\uE00C");
+  await waitFor("Erklärung zu nach Esc", `return !document.querySelector(".ui-tooltip")`);
 });
 
 /** Sets a field's text the way typing would, replacing what is there. */

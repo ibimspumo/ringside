@@ -2,6 +2,7 @@
   import PlayingCard from "../PlayingCard.svelte";
   import type { ExercisePrompt } from "../types";
   import { explain, fmtBB, fmtPct, parseRange } from "./catalog";
+  import DrillStage, { isDrill } from "./DrillStage.svelte";
   import SeatRing from "./SeatRing.svelte";
   import Matrix from "./wissen/blocks/Matrix.svelte";
   import { score } from "./wissen/poker";
@@ -255,6 +256,8 @@
         </li>
       {/each}
     </ol>
+  {:else if isDrill(prompt)}
+    <DrillStage {prompt} />
   {/if}
 </div>
 

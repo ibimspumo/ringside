@@ -16,8 +16,9 @@ export function actionColor(kind: PreflopKind): string {
       return "var(--act-call)";
     case "check":
       return "var(--act-check)";
+    // Passive like a call; the kit's limp blue is too close to fold blue in one grid.
     case "limp":
-      return "var(--act-limp)";
+      return "var(--act-call)";
     default:
       return "var(--act-fold)";
   }
@@ -76,7 +77,7 @@ export function actionPhrase(a: PreflopAction, line: PreflopStep[] = []): string
 
 /** Colour word for the answer sentence, matching `actionColor`. */
 export function colorWord(kind: PreflopKind): string {
-  return kind === "all_in" ? "dunkelrote" : kind === "raise" ? "orange" : kind === "limp" ? "hellblaue" : kind === "fold" ? "blaue" : "grüne";
+  return kind === "all_in" ? "dunkelrote" : kind === "raise" ? "orange" : kind === "limp" ? "grüne" : kind === "fold" ? "blaue" : "grüne";
 }
 
 /** One step of a line, from the point of view of `seat` ("du" for its own actions). */
@@ -84,7 +85,7 @@ function stepName(s: PreflopStep, before: PreflopStep[], seat: number): string {
   const who = s.seat === seat ? "du" : s.position;
   switch (s.kind) {
     case "raise":
-      return `${who} ${raiseName(before)} ${bb(s.to_bb)}`;
+      return `${who} ${raiseName(before)} ${bb(s.to_bb)} BB`;
     case "all_in":
       return `${who} All-in`;
     case "call":
