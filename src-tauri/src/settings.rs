@@ -145,6 +145,21 @@ pub struct Settings {
     pub cloud: CloudSettings,
     /// Changed only through `library_set_mode` and `library_set_power`, see `library.rs`.
     pub library: LibrarySettings,
+    /// Changed only through `analysis_set_auto`, see `auto_analysis.rs`.
+    pub analysis: AnalysisSettings,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AnalysisSettings {
+    /// Rate new hands once PokerStars is closed.
+    pub auto: bool,
+}
+
+impl Default for AnalysisSettings {
+    fn default() -> Self {
+        AnalysisSettings { auto: true }
+    }
 }
 
 /// When the spot library may grow in the background.
@@ -214,6 +229,7 @@ impl Default for Settings {
             presets: Vec::new(),
             cloud: CloudSettings::default(),
             library: LibrarySettings::default(),
+            analysis: AnalysisSettings::default(),
         }
     }
 }
@@ -333,6 +349,7 @@ mod tests {
         assert_eq!(s.hud.scale, 1.2);
         assert_eq!(s.hud.mode, OverlayMode::Graphic);
         assert_eq!(s.cloud, CloudSettings { fetch: true, share: true, notice_seen: false }, "cloud on, notice not seen");
+        assert!(s.analysis.auto, "new hands are rated automatically unless switched off");
     }
 
     #[test]

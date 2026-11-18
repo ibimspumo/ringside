@@ -3459,6 +3459,7 @@ name = "ringside"
 version = "0.10.0"
 dependencies = [
  "keyring",
+ "rayon",
  "ringside-analysis",
  "ringside-cloud",
  "ringside-coach",

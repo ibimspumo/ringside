@@ -303,6 +303,10 @@ impl Drop for JobInner {
 pub struct Job(Arc<JobInner>);
 
 impl Job {
+    pub fn id(&self) -> u64 {
+        self.0.id
+    }
+
     fn update(&self, f: impl FnOnce(&mut Entry)) {
         self.0.registry.update(self.0.id, f);
     }
@@ -416,10 +420,6 @@ mod tests {
         r.view().jobs.into_iter().find(|j| j.id == id).unwrap()
     }
 
-    fn id_of(job: &Job) -> u64 {
-        job.0.id
-    }
-
     #[test]
     fn a_task_reports_progress_and_ends_once() {
         let r = registry();
@@ -428,7 +428,7 @@ mod tests {
         assert!(!r.take_dirty());
         job.steps(3, 12);
         job.detail("0,8 % ausbeutbar");
-        let v = one(&r, id_of(&job));
+        let v = one(&r, job.id());
         assert_eq!((v.status, v.progress, v.steps), (Status::Running, Some(0.25), Some((3, 12))));
         assert_eq!(v.detail.as_deref(), Some("0,8 % ausbeutbar"));
         assert!(r.take_dirty());
@@ -436,13 +436,13 @@ mod tests {
         job.target(Target::to("solver", Some(9)));
         job.finish();
         job.fail("später");
-        let v = one(&r, id_of(&job));
+        let v = one(&r, job.id());
         assert_eq!((v.status, v.progress, v.error), (Status::Done, Some(1.0), None));
         assert_eq!(v.target.id, Some(9));
 
         // Dropping the last clone of an unfinished task ends it as done.
         let other = r.start(Kind::Coach, "Coach", Target::to("coach", None));
-        let id = id_of(&other);
+        let id = other.id();
         let clone = other.clone();
         drop(other);
         assert_eq!(one(&r, id).status, Status::Running);
@@ -460,10 +460,10 @@ mod tests {
         let flag = hooked.clone();
         job.on_cancel(move || flag.store(true, Ordering::SeqCst));
         assert!(!job.should_stop());
-        r.cancel(id_of(&job)).unwrap();
+        r.cancel(job.id()).unwrap();
         assert!(job.cancelled() && job.should_stop() && hooked.load(Ordering::SeqCst));
-        assert!(one(&r, id_of(&job)).cancelling);
-        let id = id_of(&job);
+        assert!(one(&r, job.id()).cancelling);
+        let id = job.id();
         drop(job);
         let v = one(&r, id);
         assert_eq!((v.status, v.cancelling, v.by_client), (Status::Cancelled, false, false));
@@ -471,7 +471,7 @@ mod tests {
 
         let fixed = r.start(Kind::Rebuild, "Datenbank", Target::to("dashboard", None));
         fixed.not_cancellable();
-        assert!(r.cancel(id_of(&fixed)).is_err());
+        assert!(r.cancel(fixed.id()).is_err());
         assert!(!fixed.cancelled());
     }
 
@@ -487,10 +487,10 @@ mod tests {
         assert!(solve.should_stop() && !solve.cancelled());
         // The solve gives up; it ended because of the client, not the user.
         solve.stopped();
-        let v = one(&r, id_of(&solve));
+        let v = one(&r, solve.id());
         assert_eq!((v.status, v.by_client), (Status::Cancelled, true));
         r.set_locked(false);
-        assert_eq!(one(&r, id_of(&queue)).status, Status::Running);
+        assert_eq!(one(&r, queue.id()).status, Status::Running);
         assert!(!queue.should_stop());
     }
 
@@ -499,12 +499,12 @@ mod tests {
         let r = registry();
         let job = r.start(Kind::Preflop, "Preflop", Target::to("charts", None));
         job.progress(0.5);
-        assert_eq!(one(&r, id_of(&job)).eta_secs, None, "too early to say");
-        r.update(id_of(&job), |e| e.started -= Duration::from_secs(10));
-        let eta = one(&r, id_of(&job)).eta_secs.unwrap();
+        assert_eq!(one(&r, job.id()).eta_secs, None, "too early to say");
+        r.update(job.id(), |e| e.started -= Duration::from_secs(10));
+        let eta = one(&r, job.id()).eta_secs.unwrap();
         assert!((9.5..=11.0).contains(&eta), "{eta}");
         job.progress(1.0);
-        assert_eq!(one(&r, id_of(&job)).eta_secs, None);
+        assert_eq!(one(&r, job.id()).eta_secs, None);
     }
 
     #[test]
@@ -516,7 +516,7 @@ mod tests {
         }
         let view = r.view();
         assert_eq!(view.jobs.len(), KEEP_FINISHED + 1);
-        assert!(view.jobs.iter().any(|j| j.id == id_of(&running)));
+        assert!(view.jobs.iter().any(|j| j.id == running.id()));
         assert_eq!(view.jobs[0].title, format!("{}", KEEP_FINISHED + 4), "newest first");
     }
 }

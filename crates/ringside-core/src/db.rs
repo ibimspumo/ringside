@@ -21,7 +21,7 @@ mod solutions;
 pub use ranges::{RangeCounts, RangeFilter, RangeGroup};
 pub use solutions::{NewSolution, SavedSolution, SolutionSource};
 pub use analysis::{
-    AnalysisCounts, AnalysisSummary, Choice, CostlyDecision, Decision, DecisionBrief, DecisionFilter, HandAnalysis, Rating,
+    AnalysisCounts, AnalysisSince, AnalysisSummary, Choice, CostlyDecision, Decision, DecisionBrief, DecisionFilter, HandAnalysis, Rating,
     Source, SpotLoss, SpotType, Status,
 };
 
@@ -986,6 +986,11 @@ impl Db {
 
     pub fn hand_count(&self) -> Result<i64, Error> {
         self.conn.query_row("SELECT COUNT(*) FROM hands", [], |r| r.get(0))
+    }
+
+    pub fn max_hand_id(&self) -> Result<Option<u64>, Error> {
+        let id: Option<i64> = self.conn.query_row("SELECT MAX(id) FROM hands", [], |r| r.get(0))?;
+        Ok(id.map(|id| id as u64))
     }
 
     pub fn file_offset(&self, path: &str) -> Result<u64, Error> {

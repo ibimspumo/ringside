@@ -161,7 +161,7 @@ fn postflop_spot_is_queued_and_rated() {
     let flop = pending.iter().find(|d| d.street == Street::Flop).unwrap();
     assert_eq!((flop.status, flop.spot), (Status::Pending, SpotType::CBet));
 
-    let (id, json) = db.next_postflop_job().unwrap().unwrap();
+    let (id, json) = db.next_postflop_job(0).unwrap().unwrap();
     assert_eq!(id, 4);
     let mut job: PostflopJob = serde_json::from_str(&json).unwrap();
     assert!(job.note.contains("Ranges aus dem Preflop-Modell"), "{}", job.note);
@@ -178,6 +178,36 @@ fn postflop_spot_is_queued_and_rated() {
     db.finish_postflop(id, &solved).unwrap();
     let counts = db.analysis_counts(ringside_analysis::ENGINE).unwrap();
     assert_eq!((counts.queued, counts.pending, counts.rated), (0, 0, 2));
+}
+
+#[test]
+fn the_queue_and_the_counts_keep_to_the_new_hands() {
+    let mut db = Db::open_in_memory().unwrap();
+    let raws = [k6o_fold(), c_bet_hand(4), c_bet_hand(9)];
+    let hands: Vec<(Hand, String)> = raws.iter().map(|r| (parsed(r), r.clone())).collect();
+    db.insert_hands(&hands).unwrap();
+    assert_eq!(db.max_hand_id().unwrap(), Some(9));
+    let next = |db: &Db, after: u64| db.next_postflop_job(after).unwrap().map(|(id, _)| id);
+    assert_eq!(next(&db, 0), None, "nothing analysed, nothing queued");
+    db.save_analysis(&hands.iter().map(|(h, _)| analyze_hand(h)).collect::<Vec<_>>()).unwrap();
+
+    assert_eq!(next(&db, u64::MAX), None, "only marked hands, and none is");
+    assert_eq!(next(&db, 5), Some(9), "only the hands after the mark");
+    assert!(db.mark_postflop(4).unwrap());
+    assert_eq!(next(&db, 5), Some(4), "a hand asked for goes first, new or not");
+    assert_eq!(next(&db, u64::MAX), Some(4));
+
+    let since = db.analysis_since(ringside_analysis::ENGINE, 5).unwrap();
+    assert_eq!((since.hands, since.last_hand), (1, Some(9)));
+    let all = db.analysis_since(ringside_analysis::ENGINE, 0).unwrap();
+    assert_eq!((all.hands, all.last_hand), (3, Some(9)));
+    let mistakes = [1, 4, 9]
+        .iter()
+        .flat_map(|&id| db.hand_decisions(id).unwrap())
+        .filter(|d| d.status == Status::Rated && d.rating >= Some(Rating::Mistake))
+        .count();
+    assert_eq!(all.mistakes, mistakes as i64);
+    assert_eq!(db.analysis_since(ringside_analysis::ENGINE, 9).unwrap(), Default::default());
 }
 
 #[test]

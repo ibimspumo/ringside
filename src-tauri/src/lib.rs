@@ -1,4 +1,5 @@
 mod analysis;
+mod auto_analysis;
 mod charts;
 pub mod cloud;
 mod coach;
@@ -232,6 +233,7 @@ async fn save_settings(mut settings: Settings, app: AppHandle, state: State<'_, 
     // A settings page opened before the cloud notice was answered must not undo it.
     settings.cloud = state.settings.lock().unwrap().cloud;
     settings.library = state.settings.lock().unwrap().library;
+    settings.analysis = state.settings.lock().unwrap().analysis;
     store_settings(&app, &state, settings)
 }
 
@@ -716,6 +718,7 @@ pub fn run() {
             analysis::analysis_decisions,
             analysis::analysis_chart_target,
             analysis::analysis_summary,
+            analysis::analysis_set_auto,
             solver::solver_estimate,
             solver::solver_start,
             solver::solver_cancel,

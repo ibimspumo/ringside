@@ -375,6 +375,15 @@ pub struct AnalysisCounts {
     pub queued: i64,
 }
 
+/// The analysed hands after a given hand, see [`Db::analysis_since`].
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct AnalysisSince {
+    pub hands: i64,
+    /// Rated decisions that are mistakes or worse.
+    pub mistakes: i64,
+    pub last_hand: Option<u64>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 pub struct SpotLoss {
     pub spot: Option<SpotType>,
@@ -532,15 +541,36 @@ impl Db {
         Ok(AnalysisCounts { hands, analyzed, decisions, rated, pending, queued })
     }
 
-    /// The postflop spot to solve next: marked hands first, then the biggest pots.
-    pub fn next_postflop_job(&self) -> Result<Option<(u64, String)>, Error> {
+    /// The postflop spot to solve next among the marked hands and those after `after_id`:
+    /// marked hands first, then the biggest pots. `0` takes every hand, `u64::MAX` only
+    /// the marked ones.
+    pub fn next_postflop_job(&self, after_id: u64) -> Result<Option<(u64, String)>, Error> {
         self.conn
             .query_row(
-                "SELECT hand_id, job FROM postflop_queue ORDER BY marked DESC, priority DESC, hand_id LIMIT 1",
-                [],
+                "SELECT hand_id, job FROM postflop_queue WHERE marked > 0 OR hand_id > ?1
+                 ORDER BY marked DESC, priority DESC, hand_id LIMIT 1",
+                [i64::try_from(after_id).unwrap_or(i64::MAX)],
                 |r| Ok((r.get::<_, i64>(0)? as u64, r.get(1)?)),
             )
             .optional()
+    }
+
+    /// What the analysis says about the hands after `after_id`: how many with a decision
+    /// of the hero are analysed with `engine`, how many of their decisions are mistakes or
+    /// worse, and the highest analysed hand id.
+    pub fn analysis_since(&self, engine: &str, after_id: u64) -> Result<AnalysisSince, Error> {
+        let after = i64::try_from(after_id).unwrap_or(i64::MAX);
+        let (hands, last) = self.conn.query_row(
+            "SELECT COALESCE(SUM(engine = ?2 AND decisions > 0), 0), MAX(hand_id) FROM hand_analysis WHERE hand_id > ?1",
+            params![after, engine],
+            |r| Ok((r.get(0)?, r.get::<_, Option<i64>>(1)?)),
+        )?;
+        let mistakes = self.conn.query_row(
+            "SELECT COUNT(*) FROM hero_decisions WHERE hand_id > ?1 AND status = 'rated' AND rating >= ?2",
+            params![after, Rating::Mistake.level()],
+            |r| r.get(0),
+        )?;
+        Ok(AnalysisSince { hands, mistakes, last_hand: last.map(|id| id as u64) })
     }
 
     /// Moves a queued hand to the front. False when nothing of it waits.

@@ -3,7 +3,9 @@
 //! heads-up postflop spots, marked hands first, then the biggest pots.
 //!
 //! The bulk run starts with the first click on "Hände analysieren" and stays on, so new
-//! hands are analysed as they are imported. A single hand asked for in the replayer is
+//! hands are analysed as they are imported. Without it, the automatic run of
+//! [`crate::auto_analysis`] rates the new hands once PokerStars is closed; their flop
+//! spots go before the rest of the history. A single hand asked for in the replayer is
 //! analysed at once and its postflop spot jumps the queue, interrupting a running solve,
 //! which stays queued. Like the trainer and the solver, everything is locked while
 //! PokerStars runs; a running solve stops within an iteration and resumes later.
@@ -30,12 +32,17 @@ use ringside_solver::library::format::{Stored, View};
 use ringside_solver::saved::NOT_STORED;
 use ringside_solver::{Solution, Summary};
 use serde::Serialize;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, State};
 
+use crate::auto_analysis::{Auto, Edge, Phase};
 use crate::solutions::{self, SaveInfo};
-use crate::{AppState, CmdResult, blocking, err, jobs};
+use crate::{AppState, CmdResult, blocking, err, jobs, store_settings};
 
 const ENABLED_KEY: &str = "analysis_enabled";
+/// Hands after this id are new for the automatic run.
+const AFTER_KEY: &str = "auto_analysis_after";
+/// The user cancelled the automatic run; holds until PokerStars closes the next time.
+const CANCELLED_KEY: &str = "auto_analysis_cancelled";
 const BATCH: usize = 2000;
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 /// Assumed solve time until the first spots were solved here.
@@ -92,7 +99,40 @@ pub struct AnalysisStatus {
     pub last_error: Option<String>,
     /// Stopped with `analysis_cancel`; cleared by the next start.
     pub cancelled: bool,
+    /// The automatic run over the new hands is on (it may wait for PokerStars to close).
+    pub auto_run: bool,
     pub progress: JobProgress,
+}
+
+/// Sent as `analysis-auto-done` when the automatic run rated new hands.
+#[derive(Clone, Debug, Serialize)]
+pub struct AutoDone {
+    pub hands: i64,
+    /// Rated decisions that are mistakes or worse.
+    pub mistakes: i64,
+    /// The run's entry in the task center, whose own note this one replaces.
+    pub job: Option<u64>,
+}
+
+/// Which hands a step may work on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Scope {
+    /// The whole history: the bulk run.
+    All,
+    /// The hands after this id, and those the user asked for: the automatic run.
+    After(u64),
+    /// Only the hands the user asked for.
+    Marked,
+}
+
+impl Scope {
+    fn after(self) -> u64 {
+        match self {
+            Scope::All => 0,
+            Scope::After(id) => id,
+            Scope::Marked => u64::MAX,
+        }
+    }
 }
 
 fn int(n: i64) -> String {
@@ -110,8 +150,12 @@ fn int(n: i64) -> String {
 fn job_progress(s: &AnalysisStatus) -> JobProgress {
     let c = &s.counts;
     let postflop = |c: &AnalysisCounts| (c.decisions > 0).then(|| 1.0 - c.pending as f64 / c.decisions as f64);
+    // Only work that waits for PokerStars to close shows as paused; an idle analysis is no task.
+    let waits = s.auto_run || !s.marked.is_empty() || (s.enabled && (c.analyzed < c.hands || c.queued > 0));
     let (state, title, share) = match s.state {
-        "locked" => (JobState::PausedPokerstars, "Hand-Analyse pausiert, solange PokerStars läuft".to_string(), None),
+        "locked" if waits => (JobState::PausedPokerstars, "Hand-Analyse pausiert, solange PokerStars läuft".to_string(), None),
+        "locked" => (JobState::Waiting, "Hand-Analyse wartet".into(), None),
+        "preflop" if s.auto_run => (JobState::Running, "Bewerte deine neuen Hände".into(), None),
         "preflop" => (
             JobState::Running,
             "Analysiere deine Hände".into(),
@@ -121,10 +165,13 @@ fn job_progress(s: &AnalysisStatus) -> JobProgress {
             let hand = s.solving.as_ref().filter(|x| s.marked.contains(&x.hand_id));
             let title = match hand {
                 Some(h) => format!("Rechne Hand #{} nach dem Flop", h.hand_id),
+                None if s.auto_run => "Rechne Flop-Spots deiner neuen Hände".into(),
                 None => "Rechne Flop-Spots deiner Hände".into(),
             };
             let share = match hand {
                 Some(h) => Some(h.iteration as f64 / h.max_iterations.max(1) as f64),
+                // The counts cover the whole history, not the new hands.
+                None if s.auto_run => None,
                 None => postflop(c),
             };
             (JobState::Running, title, share)
@@ -206,6 +253,7 @@ pub struct AnalysisState {
     solved: Mutex<(f64, u32)>,
     /// The entry in the task center while the analysis runs.
     job: Mutex<Option<jobs::Job>>,
+    auto: Mutex<Auto>,
 }
 
 impl AnalysisState {
@@ -221,9 +269,14 @@ impl AnalysisState {
     }
 }
 
+/// Half the cores at most, so the app stays usable while the analysis runs.
 fn threads() -> usize {
     std::thread::available_parallelism().map_or(2, |n| n.get()).div_ceil(2).clamp(1, 8)
 }
+
+/// The preflop batches run here instead of on rayon's pool, which takes every core.
+static POOL: std::sync::LazyLock<Option<rayon::ThreadPool>> =
+    std::sync::LazyLock::new(|| rayon::ThreadPoolBuilder::new().num_threads(threads()).thread_name(|i| format!("analysis-{i}")).build().ok());
 
 fn client_running(app: &AppHandle) -> bool {
     app.state::<AppState>().client_running.load(Ordering::Relaxed)
@@ -272,13 +325,17 @@ fn publish(app: &AppHandle, force: bool, f: impl FnOnce(&mut AnalysisStatus)) {
 
 pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
+        let cancelled = setting(&app, CANCELLED_KEY).is_some_and(|v| v == "1");
+        *app.state::<AnalysisState>().auto.lock().unwrap() = Auto::new(cancelled);
         loop {
             let state = app.state::<AnalysisState>();
             let (was, was_on) = {
                 let s = state.status.lock().unwrap();
                 (s.state, s.enabled)
             };
-            if client_running(&app) {
+            let client = client_running(&app);
+            let auto = auto_step(&app, client);
+            if client {
                 // The overlays need the database while PokerStars runs, so only the change is sent.
                 if was != "locked" {
                     publish(&app, true, |s| {
@@ -289,11 +346,18 @@ pub fn spawn(app: AppHandle) {
                 state.sleep(Duration::from_secs(2));
                 continue;
             }
+            if let Some(after) = auto {
+                let scope = Scope::After(after);
+                if preflop_batch(&app, scope) || solve_next(&app, scope) {
+                    continue;
+                }
+                auto_finish(&app, after);
+            }
             let on = enabled(&app);
-            if on && preflop_batch(&app) {
+            if on && preflop_batch(&app, Scope::All) {
                 continue;
             }
-            if solve_next(&app, on) {
+            if solve_next(&app, if on { Scope::All } else { Scope::Marked }) {
                 continue;
             }
             if was != "idle" || was_on != on {
@@ -308,22 +372,96 @@ pub fn spawn(app: AppHandle) {
     });
 }
 
-/// Analyses the next batch of hands; false when none is left.
-fn preflop_batch(app: &AppHandle) -> bool {
+fn setting(app: &AppHandle, key: &str) -> Option<String> {
+    app.state::<AppState>().db.lock().unwrap().setting(key).ok().flatten()
+}
+
+fn store(app: &AppHandle, key: &str, value: &str) {
+    if let Err(e) = app.state::<AppState>().db.lock().unwrap().set_setting(key, value) {
+        eprintln!("analysis: saving {key}: {e}");
+    }
+}
+
+/// Feeds the automatic run with what PokerStars does. Returns the id after which hands
+/// are new while the run may calculate.
+fn auto_step(app: &AppHandle, client: bool) -> Option<u64> {
+    let on = app.state::<AppState>().settings.lock().unwrap().analysis.auto;
+    let analysis = app.state::<AnalysisState>();
+    let (edges, may) = {
+        let mut auto = analysis.auto.lock().unwrap();
+        let edges = auto.observe(client, on);
+        (edges, auto.may_compute())
+    };
+    for edge in edges {
+        match edge {
+            Edge::OpenedIdle => {
+                let last = app.state::<AppState>().db.lock().unwrap().max_hand_id().ok().flatten();
+                store(app, AFTER_KEY, &last.unwrap_or(0).to_string());
+            }
+            Edge::CancelLifted => store(app, CANCELLED_KEY, "0"),
+            Edge::Started => {}
+        }
+    }
+    // Without a mark nothing is new yet: it is set the first time PokerStars is seen.
+    let after = may.then(|| setting(app, AFTER_KEY).and_then(|v| v.parse().ok())).flatten();
+    if may && after.is_none() {
+        analysis.auto.lock().unwrap().finish();
+    }
+    let running = analysis.auto.lock().unwrap().phase() == Phase::Running;
+    if analysis.status.lock().unwrap().auto_run != running {
+        let mut status = analysis.status.lock().unwrap();
+        status.auto_run = running;
+        report(app, &mut status);
+    }
+    after
+}
+
+/// Ends the automatic run once nothing of it is left: the hands rated are no longer new,
+/// and if there were any the page hears how many.
+fn auto_finish(app: &AppHandle, after: u64) {
+    let analysis = app.state::<AnalysisState>();
+    if !analysis.auto.lock().unwrap().finish() {
+        return;
+    }
+    let since = app.state::<AppState>().db.lock().unwrap().analysis_since(ENGINE, after);
+    match since {
+        Ok(since) => {
+            if let Some(last) = since.last_hand {
+                store(app, AFTER_KEY, &last.to_string());
+            }
+            if since.hands > 0 {
+                let job = analysis.job.lock().unwrap().as_ref().map(jobs::Job::id);
+                let _ = app.emit("analysis-auto-done", AutoDone { hands: since.hands, mistakes: since.mistakes, job });
+            }
+            publish(app, true, |s| s.auto_run = false);
+        }
+        Err(e) => publish(app, true, |s| {
+            s.auto_run = false;
+            s.last_error = Some(e.to_string());
+        }),
+    }
+}
+
+/// Analyses the next batch of hands in `scope`; false when none is left.
+fn preflop_batch(app: &AppHandle, scope: Scope) -> bool {
     let main = app.state::<AppState>();
     let analysis = app.state::<AnalysisState>();
     let rows = {
         let db = main.db.lock().unwrap();
-        let mut cursor = analysis.cursor.lock().unwrap();
-        let total = db.hand_count().unwrap_or(0);
-        if total != cursor.1 {
-            *cursor = (0, total);
+        if scope == Scope::All {
+            let mut cursor = analysis.cursor.lock().unwrap();
+            let total = db.hand_count().unwrap_or(0);
+            if total != cursor.1 {
+                *cursor = (0, total);
+            }
+            let rows = db.analysis_candidates(ENGINE, cursor.0, BATCH);
+            if let Ok(Some((last, _))) = rows.as_ref().map(|r| r.last()) {
+                cursor.0 = *last;
+            }
+            rows
+        } else {
+            db.analysis_candidates(ENGINE, scope.after(), BATCH)
         }
-        let rows = db.analysis_candidates(ENGINE, cursor.0, BATCH);
-        if let Ok(Some((last, _))) = rows.as_ref().map(|r| r.last()) {
-            cursor.0 = *last;
-        }
-        rows
     };
     let rows = match rows {
         Ok(rows) => rows,
@@ -336,13 +474,15 @@ fn preflop_batch(app: &AppHandle) -> bool {
         return false;
     }
     let started = Instant::now();
-    let results = analyze_raw(&rows);
+    let results = match POOL.as_ref() {
+        Some(pool) => pool.install(|| analyze_raw(&rows)),
+        None => analyze_raw(&rows),
+    };
     let saved = main.db.lock().unwrap().save_analysis(&results);
     let rate = rows.len() as f64 / started.elapsed().as_secs_f64().max(1e-3);
     app.state::<AnalysisState>().preflop_rate.store(rate.to_bits(), Ordering::Relaxed);
     publish(app, false, |s| {
         s.state = "preflop";
-        s.enabled = true;
         if let Err(e) = &saved {
             s.last_error = Some(e.to_string());
         }
@@ -429,17 +569,12 @@ fn cloud_summary(stored: &Stored) -> Summary {
     }
 }
 
-/// Solves the next queued spot (only marked ones while the bulk run is off); false when
-/// there is nothing to do.
-fn solve_next(app: &AppHandle, bulk: bool) -> bool {
+/// Solves the next queued spot in `scope`; false when there is nothing to do.
+fn solve_next(app: &AppHandle, scope: Scope) -> bool {
     let main = app.state::<AppState>();
     let state = app.state::<AnalysisState>();
-    let next = main.db.lock().unwrap().next_postflop_job();
+    let next = main.db.lock().unwrap().next_postflop_job(scope.after());
     let Ok(Some((hand_id, json))) = next else { return false };
-    let marked = state.status.lock().unwrap().marked.contains(&hand_id);
-    if !bulk && !marked {
-        return false;
-    }
     state.preempt.store(false, Ordering::SeqCst);
     let job: Result<PostflopJob, _> = serde_json::from_str(&json);
     let result = match (job, solutions::dir(app)) {
@@ -580,24 +715,46 @@ pub async fn analysis_cancel(app: AppHandle) -> CmdResult<()> {
     .await
 }
 
-/// Stops the whole analysis, from the page or the task center.
+/// Stops the whole analysis, from the page or the task center. The automatic run rests
+/// until PokerStars closes the next time.
 fn cancel_all(app: &AppHandle) {
     {
         let main = app.state::<AppState>();
         let db = main.db.lock().unwrap();
         // Best effort: the run stops either way; a failed write shows up as the next error.
         let _ = db.set_setting(ENABLED_KEY, "0");
+        let _ = db.set_setting(CANCELLED_KEY, "1");
         let _ = db.unmark_all_postflop();
     }
     let analysis = app.state::<AnalysisState>();
+    analysis.auto.lock().unwrap().cancel();
     let mut status = analysis.status.lock().unwrap();
     analysis.preempt.store(status.solving.is_some(), Ordering::SeqCst);
     status.enabled = false;
+    status.auto_run = false;
     status.marked.clear();
     status.cancelled = true;
     report(app, &mut status);
     drop(status);
     analysis.poke();
+}
+
+/// Switches the automatic run over new hands on or off; works while PokerStars runs, it
+/// only changes the setting. Off stops a running solve of the run unless the bulk run or
+/// the user asked for that spot.
+#[tauri::command]
+pub async fn analysis_set_auto(on: bool, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    let mut settings = state.settings.lock().unwrap().clone();
+    settings.analysis.auto = on;
+    store_settings(&app, &state, settings)?;
+    let analysis = app.state::<AnalysisState>();
+    let status = analysis.status.lock().unwrap();
+    if !on && !status.enabled && status.solving.as_ref().is_some_and(|s| !status.marked.contains(&s.hand_id)) {
+        analysis.preempt.store(true, Ordering::SeqCst);
+    }
+    drop(status);
+    analysis.poke();
+    Ok(())
 }
 
 /// Stops the analysis of one hand: its postflop spot goes back in line (solved later by
