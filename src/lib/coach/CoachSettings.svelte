@@ -319,7 +319,7 @@
   .rlabel span,
   .fine {
     font-size: 12.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .rbody {
     display: flex;
@@ -444,8 +444,8 @@
     top: 0;
     background: var(--surface);
     border-bottom: 1px solid var(--line);
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .lhead span:not(:first-child),
   .lrow > span:not(:first-child) {
@@ -529,8 +529,8 @@
     text-align: right;
   }
   .mname small {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .strong {
     color: var(--text);

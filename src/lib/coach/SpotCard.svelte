@@ -202,7 +202,7 @@
     height: 22px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-2);
   }
   .verdict {
@@ -225,7 +225,7 @@
     padding: 1px 8px;
     border-radius: 999px;
     border: 1px solid var(--line-2);
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-2);
     white-space: nowrap;
   }
@@ -261,8 +261,8 @@
     border-left: 2px solid var(--text);
   }
   .better span {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .better b {
     font-weight: 600;

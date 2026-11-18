@@ -460,7 +460,7 @@ impl Watch {
             Doing::Calling => {
                 let message = match live.tool.as_deref() {
                     Some(REPORT) => "Das Modell schreibt den Bericht …".to_string(),
-                    Some(t) => format!("Das Modell ruft das Werkzeug „{}“ auf …", tool_label(t)),
+                    Some(t) => format!("Das Modell fragt Ringside, {} …", tool_purpose(t)),
                     None => "Das Modell ruft ein Werkzeug auf …".to_string(),
                 };
                 (Stage::Calling, live.tool.clone(), message)
@@ -477,14 +477,15 @@ impl Watch {
     }
 }
 
-fn tool_label(name: &str) -> &str {
+/// What a calculator answers, in the player's words, for the live progress line.
+fn tool_purpose(name: &str) -> &str {
     match name {
-        "equity" => "Equity",
-        "pot_odds" => "Pot Odds",
-        "push_fold_nash" => "Push/Fold-Nash",
-        "icm" => "ICM",
-        "outs" => "Outs",
-        REPORT => "Bericht",
+        "equity" => "wie oft deine Hand gegen die Gegner gewinnt",
+        "pot_odds" => "ob sich der Call vom Preis her lohnt",
+        "push_fold_nash" => "ob All-in oder Fold besser war",
+        "icm" => "was die Chips in Preisgeld wert sind",
+        "outs" => "welche Karten deine Hand noch verbessern",
+        REPORT => "ob der Bericht vollständig ist",
         other => other,
     }
 }
@@ -666,7 +667,7 @@ pub fn run(
                 Ok(args) => {
                     p.stage = Stage::Tool;
                     p.tool = Some(name.clone());
-                    p.message = format!("Ringside rechnet: {}", tool_label(&name));
+                    p.message = format!("Ringside prüft, {} …", tool_purpose(&name));
                     watch.emit(&mut p, progress);
                     match tools::run(&name, &args) {
                         Ok(v) => {

@@ -301,7 +301,7 @@
     padding: 2px 9px;
     border-radius: 999px;
     border: 1px solid var(--line-2);
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-2);
   }
   .stop.done {
@@ -402,8 +402,8 @@
     margin: 0;
   }
   dt {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   dd {
     margin: 2px 0 0;
@@ -411,7 +411,7 @@
   }
   .vtag {
     margin-left: 6px;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
   }
   .v-fehler .vtag {

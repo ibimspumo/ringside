@@ -263,10 +263,10 @@ type Phase = Pick<CoachProgress, "step" | "stage" | "message" | "tool"> & {
 
 const PHASES: Phase[] = [
   { step: 1, stage: "thinking", message: "Das Modell liest die Hände und denkt nach …", tool: null, seconds: 2.5, reasoning: 40 },
-  { step: 1, stage: "calling", message: "Das Modell ruft das Werkzeug „Push/Fold-Nash“ auf …", tool: "push_fold_nash", seconds: 1, output: 30 },
-  { step: 1, stage: "tool", message: "Ringside rechnet: Push/Fold-Nash", tool: "push_fold_nash", seconds: 0.8 },
-  { step: 1, stage: "tool", message: "Ringside rechnet: Equity", tool: "equity", seconds: 0.6 },
-  { step: 1, stage: "tool", message: "Ringside rechnet: Pot Odds", tool: "pot_odds", seconds: 0.6 },
+  { step: 1, stage: "calling", message: "Das Modell fragt Ringside, ob All-in oder Fold besser war …", tool: "push_fold_nash", seconds: 1, output: 30 },
+  { step: 1, stage: "tool", message: "Ringside prüft, ob All-in oder Fold besser war …", tool: "push_fold_nash", seconds: 0.8 },
+  { step: 1, stage: "tool", message: "Ringside prüft, wie oft deine Hand gegen die Gegner gewinnt …", tool: "equity", seconds: 0.6 },
+  { step: 1, stage: "tool", message: "Ringside prüft, ob sich der Call vom Preis her lohnt …", tool: "pot_odds", seconds: 0.6 },
   { step: 2, stage: "thinking", message: "Das Modell denkt nach …", tool: null, seconds: 2.5, reasoning: 35, long: true },
   { step: 2, stage: "calling", message: "Das Modell schreibt den Bericht …", tool: "report", seconds: 2, output: 120 },
 ];

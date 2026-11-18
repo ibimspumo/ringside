@@ -292,7 +292,7 @@
                   <span class="n num">3</span>
                   <div>
                     <b>Turnier besprechen</b>
-                    <p>Links ein Turnier wählen. Du siehst die Kosten, bevor etwas gesendet wird.</p>
+                    <p>Unter „Turnier besprechen“ eins wählen. Du siehst die Kosten, bevor etwas gesendet wird.</p>
                   </div>
                 </li>
               </ol>
@@ -339,7 +339,7 @@
                 was du üben solltest. Jede Zahl darin rechnet Ringside selbst.
               </p>
               <ol class="flow">
-                <li><b>Turnier wählen</b><span>Links stehen deine letzten fertigen Turniere.</span></li>
+                <li><b>Turnier wählen</b><span>Unter „Turnier besprechen“ stehen deine letzten fertigen Turniere.</span></li>
                 <li><b>Kosten sehen</b><span>Ringside schätzt vorher, was die Analyse kostet, meist wenige Cent.</span></li>
                 <li><b>Bestätigen</b><span>Erst dann gehen deine Hände ohne Namen an das Sprachmodell.</span></li>
                 <li><b>Bericht lesen und üben</b><span>Jede Entscheidung mit Urteil, Begründung und passender Übung.</span></li>
@@ -708,7 +708,7 @@
     content: counter(flow);
     font-family: var(--font-num);
     font-size: 13px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .flow span {
     font-size: 13px;

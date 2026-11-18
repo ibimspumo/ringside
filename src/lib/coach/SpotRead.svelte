@@ -199,8 +199,8 @@
     border-left: 2px solid var(--text);
   }
   .better span {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .lead {
     margin: 4px 0 0;

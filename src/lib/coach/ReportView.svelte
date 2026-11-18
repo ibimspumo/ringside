@@ -551,7 +551,7 @@
   .pos {
     width: 28px;
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
     color: var(--text-2);
   }
@@ -564,8 +564,8 @@
   }
   .go {
     flex-shrink: 0;
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .worst button:hover .go {
     color: var(--text);
@@ -614,7 +614,7 @@
     height: 22px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-2);
   }
 
@@ -634,8 +634,8 @@
     display: flex;
     align-items: center;
     gap: 3px;
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   kbd {
     display: inline-grid;
@@ -680,8 +680,8 @@
     margin: 12px 0 0;
   }
   dt {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   dd {
     margin: 1px 0 0;

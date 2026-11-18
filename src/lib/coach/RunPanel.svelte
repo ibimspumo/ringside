@@ -313,8 +313,8 @@
   }
   .eyebrow {
     margin: 0;
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   h2 {
     margin: 0;
@@ -329,7 +329,7 @@
     margin: 0;
     padding: 0;
     font-size: 12.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .stepper li {
     display: flex;
@@ -496,18 +496,18 @@
     font-size: 12.5px;
   }
   .swaps s {
-    color: var(--text-3);
+    color: var(--text-2);
     text-decoration-color: var(--text-3);
   }
   .swaps span {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .swaps b {
     font-weight: 600;
   }
   .swaps .plain {
     background: none;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .never {
     font-size: 12.5px;
@@ -665,7 +665,7 @@
     padding: 1px 8px;
     border-radius: 999px;
     border: 1px solid var(--line-2);
-    font-size: 12px;
+    font-size: 12.5px;
     color: var(--text-2);
   }
   .tool {
