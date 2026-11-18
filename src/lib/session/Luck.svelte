@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { KIT_SOURCE } from "../analysis/labels";
+  import { GRADE_OF, KIT_SOURCE } from "../analysis/labels";
+  import GradeIcon from "../ui/GradeIcon.svelte";
   import Button from "../ui/Button.svelte";
   import { bb, num } from "../ui/format";
   import MiniCard from "../ui/MiniCard.svelte";
@@ -17,11 +18,11 @@
 </script>
 
 {#snippet card(s: Swing, right: boolean)}
-  <article class="lk-card" class:lk-right={right}>
+  <article class="lk-card" style="--lk-grade:var(--grade-{s.rating ? GRADE_OF[s.rating] : right ? 'best' : 'mistake'})">
     <header class="lk-top">
-      <span class="lk-mark" aria-label={right ? "schlau entschieden" : "nicht schlau"}>{right ? "✓" : "✗"}</span>
+      {#if s.rating}<GradeIcon grade={GRADE_OF[s.rating]} size={18} />{/if}
       <span class="lk-verdict">{right ? "Schlau entschieden" : "Nicht schlau, auch wenn's gut ging"}</span>
-      <span class="lk-net" class:lk-up={s.net_bb > 0} class:lk-down={s.net_bb < 0}>{bb(s.net_bb, { sign: true })}</span>
+      <span class="lk-net" class:lk-up={s.net_bb > 0} class:lk-down={s.net_bb < 0} title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span>
     </header>
     <div class="lk-hand">
       <span class="lk-cards" title="Deine Karten">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}</span>
@@ -31,7 +32,7 @@
       {#if s.board.length}<span class="lk-vs">Board</span><span class="lk-cards">{#each s.board as c (c)}<MiniCard card={c} />{/each}</span>{/if}
       <span class="lk-played">{s.position ?? "?"} · <b>{s.played}</b></span>
     </div>
-    <p class="lk-line">{swingLine(s, right)}</p>
+    <p class="lk-line">{swingLine(s, right, false)}</p>
     {#if s.equity_pct !== null}
       <div class="lk-eq">
         <span class="lk-eq-label">Gewinnchance gegen die gezeigten Karten</span>
@@ -79,9 +80,9 @@
   }
   .lk-bar-top {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-3) var(--sp-5);
-    align-items: center;
+    flex-direction: column;
+    gap: var(--sp-3);
+    align-items: flex-start;
   }
   .lk-ico {
     fill: none;
@@ -120,30 +121,13 @@
     padding: var(--sp-4);
     background: var(--surface);
     border: 1px solid var(--line);
-    border-left: 3px solid var(--amber);
+    border-left: 3px solid var(--lk-grade);
     border-radius: var(--r-lg);
-  }
-  .lk-card.lk-right {
-    border-left-color: var(--pos);
   }
   .lk-top {
     display: flex;
     gap: var(--sp-2);
     align-items: center;
-  }
-  .lk-mark {
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    font-weight: var(--fw-bold);
-    color: var(--amber);
-    background: color-mix(in srgb, var(--amber) 18%, transparent);
-    border-radius: var(--r-pill);
-  }
-  .lk-right .lk-mark {
-    color: var(--pos);
-    background: color-mix(in srgb, var(--pos) 18%, transparent);
   }
   .lk-verdict {
     font-size: var(--fs-base);

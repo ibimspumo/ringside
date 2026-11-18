@@ -9,10 +9,10 @@
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
-  import CardText from "../ui/CardText.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import { bb, cash, int, num } from "../ui/format";
   import GradeBadge from "../ui/GradeBadge.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
   import { usePageHead } from "../ui/page.svelte";
   import ProgressRing from "../ui/ProgressRing.svelte";
@@ -20,7 +20,7 @@
   import SourceNote from "../ui/SourceNote.svelte";
   import Term from "../ui/Term.svelte";
   import Luck from "./Luck.svelte";
-  import { cardsOf, luckLine, swingLine } from "./labels";
+  import { cardsOf, classCards, classWords, luckLine, swingLine } from "./labels";
   import type { ClassGap, RangePreset, SessionPage, SessionScope, SessionSpan } from "./types";
 
   let {
@@ -173,6 +173,19 @@
       </span>
 {/snippet}
 
+{#snippet nextTile()}
+        <section class="sr-tile sr-next" aria-labelledby="sr-next-title">
+          <header class="sr-head"><h2 id="sr-next-title" class="sr-title">Als Nächstes üben</h2></header>
+          {#if practice}
+            <p class="sr-next-what"><b>{practice.title}</b>{#if practice.detail}<span class="sr-next-detail">&nbsp;· {practice.detail}</span>{/if}</p>
+            <p class="sr-say">{practice.why}</p>
+            <span class="sr-more"><Button variant="primary" onclick={() => onLearn({ spot: practice.key })}>In „Lernen“ üben</Button></span>
+          {:else}
+            <p class="sr-say">Noch nichts Bestimmtes – in dieser Session hat dich keine Spot-Art spürbar Chips gekostet.</p>
+          {/if}
+        </section>
+{/snippet}
+
 {#snippet classRow(classes: number[], title: string, color: string)}
   {#if classes.length}
     <div class="sr-keys">
@@ -180,7 +193,7 @@
       <span class="sr-key-list">
         {#each classes.slice(0, 3) as i (i)}
           {@const c = byClass.get(i)}
-          {#if c}<span class="sr-key" title={note(c)}><CardText text={c.name} hands /></span>{/if}
+          {#if c}<span class="sr-key" title="{classWords(c.name)}. {note(c)}">{#each classCards(c.name) as card (card)}<MiniCard {card} />{/each}</span>{/if}
         {/each}
       </span>
     </div>
@@ -231,6 +244,7 @@
       </section>
     {:else}
       <div class="sr-grid">
+        <div class="sr-col">
         <!-- Preflop: the answer first, then which hands, then patterns. -->
         <section class="sr-tile sr-pre" aria-labelledby="sr-pre-title">
           <header class="sr-head">
@@ -254,6 +268,8 @@
                 style="left:{at(Math.min(pre.you_pct ?? 0, pre.model_pct ?? 0))}; width:{at(Math.abs(diff))}"
               ></span>
               <span class="sr-mark sr-mark-you" style="left:{at(pre.you_pct ?? 0)}"><b>Du</b> {num(pre.you_pct ?? 0, 0)} %</span>
+              <span class="sr-scale sr-scale-start" aria-hidden="true">0 %</span>
+              <span class="sr-scale sr-scale-end" aria-hidden="true">{scaleMax} %</span>
               <span class="sr-mark sr-mark-model" style="left:{at(pre.model_pct ?? 0)}"><Term tip="Ringsides Preflop-Modell und bei kurzen Stacks das Push/Fold-Gleichgewicht – für genau deine Plätze, Stacks und Situationen, mit deinen Karten.">Modell</Term> {num(pre.model_pct ?? 0, 0)} %</span>
             </div>
             {#if pre.verdict}<p class="sr-say">{pre.verdict.line}</p>{/if}
@@ -264,6 +280,7 @@
               <div class="sr-hands">
                 <div class="sr-mini">
                   <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
+                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen</span>
                 </div>
                 <div class="sr-keycol">
                   {@render classRow(pre.tight, "Hättest du auch spielen sollen", "--range-tight")}
@@ -278,9 +295,10 @@
                     <li>
                       <span class="sr-arrow" class:sr-arrow-wide={p.wide} aria-label={p.wide ? "zu oft" : "zu selten"}>{p.wide ? "↑" : "↓"}</span>
                       <span class="sr-pattern-text">{p.text}</span>
-                      {#if scope}
-                        <Button size="sm" variant="quiet" onclick={() => onRanges(scope, { history: p.history, position: p.position, vs: p.vs_position })}>Ansehen</Button>
-                      {/if}
+                      <span class="sr-pattern-do">
+                        {#if scope}<Button size="sm" variant="quiet" onclick={() => onRanges(scope, { history: p.history, position: p.position, vs: p.vs_position })}>Ansehen</Button>{/if}
+                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="quiet" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
+                      </span>
                     </li>
                   {/each}
                 </ul>
@@ -297,6 +315,10 @@
           {/if}
         </section>
 
+        <!-- What to practise next: right under the answer it follows from. -->
+        {@render nextTile()}
+        </div>
+        <div class="sr-col">
         <!-- Result and luck. -->
         <section class="sr-tile sr-res" aria-labelledby="sr-res-title">
           <header class="sr-head"><h2 id="sr-res-title" class="sr-title">Ergebnis und Glück</h2></header>
@@ -316,34 +338,35 @@
             <div class="sr-swings">
               {#if review.bad_luck[0]}
                 {@const s = review.bad_luck[0]}
-                <article class="sr-swing sr-swing-good">
-                  <span class="sr-swing-mark" aria-hidden="true">✓</span>
+                <article class="sr-swing" style="--sr-grade:var(--grade-{s.rating ? GRADE_OF[s.rating] : 'best'})">
+                  <span class="sr-swing-mark">{#if s.rating}<GradeIcon grade={GRADE_OF[s.rating]} size={18} />{/if}</span>
                   <div class="sr-swing-body">
-                    <span class="sr-swing-kind">Schlau entschieden, Pech gehabt</span>
-                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b><span class="sr-down">{bb(s.net_bb, { sign: true })}</span></span>
+                    <span class="sr-swing-kind">Gut entschieden, Pech gehabt<span class="sr-swing-net sr-down" title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span></span>
+                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b></span>
                     <span class="sr-swing-line">{swingLine(s, true)}</span>
                   </div>
                 </article>
               {/if}
               {#if review.good_luck[0]}
                 {@const s = review.good_luck[0]}
-                <article class="sr-swing sr-swing-bad">
-                  <span class="sr-swing-mark" aria-hidden="true">✗</span>
+                <article class="sr-swing" style="--sr-grade:var(--grade-{s.rating ? GRADE_OF[s.rating] : 'mistake'})">
+                  <span class="sr-swing-mark">{#if s.rating}<GradeIcon grade={GRADE_OF[s.rating]} size={18} />{/if}</span>
                   <div class="sr-swing-body">
-                    <span class="sr-swing-kind">Nicht schlau, auch wenn's gut ging</span>
-                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b><span class="sr-up">{bb(s.net_bb, { sign: true })}</span></span>
+                    <span class="sr-swing-kind">Glück gehabt<span class="sr-swing-net sr-up" title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span></span>
+                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b></span>
                     <span class="sr-swing-line">{swingLine(s, false)}</span>
                   </div>
                 </article>
               {/if}
             </div>
-            <span class="sr-more"><Button size="sm" variant="quiet" onclick={() => (detail = true)}>Alle ansehen ({review.bad_luck.length + review.good_luck.length})</Button></span>
+            <span class="sr-more"><Button size="sm" variant="quiet" onclick={() => (detail = true)}>Alle Beispiele ansehen ({review.bad_luck.length + review.good_luck.length})</Button></span>
           {/if}
         </section>
 
         <!-- The three costliest decisions. -->
         <section class="sr-tile sr-worst" aria-labelledby="sr-worst-title">
           <header class="sr-head"><h2 id="sr-worst-title" class="sr-title">Deine teuersten Entscheidungen</h2></header>
+          {#if rep.worst.length}<p class="sr-note">Die Beträge sagen, was dich die Entscheidung im Schnitt kostet – nicht, wie die Hand ausging.</p>{/if}
           {#if rep.worst.length}
             <ol class="sr-moments">
               {#each rep.worst as m (m.hand_id + ":" + m.action_index)}
@@ -353,7 +376,7 @@
                     <span class="sr-moment-what">{m.played} statt <b>{m.best ?? "–"}</b></span>
                     <span class="sr-moment-where">
                       {#if m.rating}<GradeBadge grade={GRADE_OF[m.rating]} cost={m.loss_bb} size="sm" />{/if}
-                      <span class="sr-moment-place">{m.position ?? "?"} · {STREET[m.street]} · {m.situation}</span>
+                      <span class="sr-moment-place">{m.position ?? "?"} · {STREET[m.street]}{m.situation !== STREET[m.street] ? ` · ${m.situation}` : ""}</span>
                     </span>
                   </span>
                   {#if scope}<Button size="sm" onclick={() => onHand(scope, m.hand_id, m.action_index)}>Abspielen</Button>{/if}
@@ -365,17 +388,7 @@
           {/if}
         </section>
 
-        <!-- What to practise next. -->
-        <section class="sr-tile sr-next" aria-labelledby="sr-next-title">
-          <header class="sr-head"><h2 id="sr-next-title" class="sr-title">Als Nächstes üben</h2></header>
-          {#if practice}
-            <p class="sr-next-what"><b>{practice.title}</b>{#if practice.detail}<span class="sr-next-detail"> · {practice.detail}</span>{/if}</p>
-            <p class="sr-say">{practice.why}</p>
-            <Button variant="primary" onclick={() => onLearn({ spot: practice.key })}>In „Lernen“ üben</Button>
-          {:else}
-            <p class="sr-say">Noch nichts Bestimmtes – in dieser Session hat dich keine Spot-Art spürbar Chips gekostet.</p>
-          {/if}
-        </section>
+        </div>
       </div>
     {/if}
   {/if}
@@ -391,7 +404,7 @@
   /* Tournaments and analysis state in one quiet row. */
   .sr-strip {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: var(--sp-2);
   }
   .sr-t {
@@ -401,11 +414,13 @@
     min-width: 0;
   }
   .sr-t-name {
+    display: -webkit-box;
     overflow: hidden;
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
   .sr-t-meta {
     display: flex;
@@ -441,34 +456,22 @@
   }
 
   /* Preflop takes the left column; result, mistakes and practice stack on the right. */
+  /* Preflop and the next step on the left, result and mistakes on the right; one column when narrow. */
   .sr-grid {
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
-    grid-template-areas:
-      "pre res"
-      "pre worst"
-      "pre next";
-    grid-template-rows: auto auto 1fr;
     gap: var(--sp-4);
     align-items: start;
   }
-  .sr-pre {
-    grid-area: pre;
-  }
-  .sr-res {
-    grid-area: res;
-  }
-  .sr-worst {
-    grid-area: worst;
-  }
-  .sr-next {
-    grid-area: next;
+  .sr-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    min-width: 0;
   }
   @media (max-width: 1180px) {
     .sr-grid {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "pre" "res" "worst" "next";
-      grid-template-rows: none;
     }
   }
 
@@ -513,6 +516,36 @@
     line-height: var(--lh-base);
     color: var(--text-2);
   }
+  .sr-note {
+    margin: calc(-1 * var(--sp-2)) 0 0;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+  .sr-mini {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .sr-legend {
+    display: flex;
+    gap: var(--sp-2);
+    align-items: center;
+    font-size: var(--fs-xs);
+    color: var(--text-2);
+  }
+  .sr-dot-same {
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--line-2);
+  }
+  .sr-key {
+    display: inline-flex;
+    gap: 2px;
+    cursor: help;
+  }
+  .sr-pattern-do {
+    display: inline-flex;
+    gap: var(--sp-1);
+  }
   .sr-hint {
     margin: 0;
     padding: var(--sp-3) var(--sp-4);
@@ -556,6 +589,19 @@
   .sr-gap.sr-gap-wide {
     background: var(--range-wide);
   }
+  .sr-scale {
+    position: absolute;
+    top: 36px;
+    font-family: var(--font-num);
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+  }
+  .sr-scale-start {
+    left: 0;
+  }
+  .sr-scale-end {
+    right: 0;
+  }
   .sr-mark {
     position: absolute;
     font-size: var(--fs-sm);
@@ -583,12 +629,13 @@
     color: var(--text-2);
   }
   .sr-mark-model::after {
-    top: -10px;
+    top: -8px;
+    height: 7px;
   }
 
   .sr-hands {
     display: grid;
-    grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
     gap: var(--sp-5);
     align-items: center;
     padding-top: var(--sp-3);
@@ -688,34 +735,33 @@
     padding: var(--sp-3);
     background: var(--surface-2);
     border-radius: var(--r-md);
+    box-shadow: inset 3px 0 0 var(--sr-grade);
   }
   .sr-swing-mark {
     display: grid;
     flex: none;
     place-items: center;
-    width: 26px;
-    height: 26px;
-    font-weight: var(--fw-bold);
-    border-radius: var(--r-pill);
-  }
-  .sr-swing-good .sr-swing-mark {
-    color: var(--pos);
-    background: color-mix(in srgb, var(--pos) 18%, transparent);
-  }
-  .sr-swing-bad .sr-swing-mark {
-    color: var(--amber);
-    background: color-mix(in srgb, var(--amber) 18%, transparent);
+    width: 18px;
+    height: 20px;
   }
   .sr-swing-body {
     display: flex;
     flex-direction: column;
+    flex: 1;
     gap: var(--sp-1);
     min-width: 0;
   }
   .sr-swing-kind {
+    display: flex;
+    gap: var(--sp-2);
+    justify-content: space-between;
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
     color: var(--text-2);
+  }
+  .sr-swing-net {
+    font-family: var(--font-num);
+    white-space: nowrap;
   }
   .sr-swing-hand {
     display: flex;
@@ -723,9 +769,6 @@
     gap: var(--sp-1) var(--sp-2);
     align-items: center;
     font-size: var(--fs-md);
-  }
-  .sr-swing-hand span {
-    font-family: var(--font-num);
   }
   .sr-swing-line {
     font-size: var(--fs-md);
@@ -769,16 +812,14 @@
   }
   .sr-moment-where {
     display: flex;
-    gap: var(--sp-2);
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
     align-items: center;
     min-width: 0;
   }
   .sr-moment-place {
-    overflow: hidden;
     font-size: var(--fs-sm);
     color: var(--text-2);
-    white-space: nowrap;
-    text-overflow: ellipsis;
   }
 
   .sr-more {
@@ -790,9 +831,6 @@
   }
   .sr-next-detail {
     color: var(--text-2);
-  }
-  .sr-next :global(.ui-button) {
-    align-self: flex-start;
   }
 
   .sr-locked {

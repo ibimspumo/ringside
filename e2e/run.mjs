@@ -318,9 +318,10 @@ step("Rückblick: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen 
   if (TAURI) return;
   await waitText("Gegen eine Erhöhung aus früher Position gehst du zu oft mit");
   // One example per side here; every example, with equity, on the page below.
-  await waitText("Schlau entschieden, Pech gehabt");
-  await click("main button", "Alle ansehen", { exact: false });
   await waitText("Gut entschieden, Pech gehabt");
+  await waitText(/Schlau entschieden – gegen die Hände, die er hier haben kann, richtig/);
+  await click("main button", "Alle Beispiele ansehen", { exact: false });
+  await waitText("Nicht schlau, auch wenn's gut ging");
   await waitText(/Gewinnchance gegen die gezeigten Karten/);
   await click("main button", "Zurück zum Rückblick", { exact: false });
   await waitText("Deine teuersten Entscheidungen".toUpperCase());
