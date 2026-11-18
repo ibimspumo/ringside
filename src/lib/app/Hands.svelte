@@ -21,6 +21,7 @@
     player,
     tournamentNames,
     openId,
+    openAt = null,
     spot = null,
     onClearPlayer,
     onClearTournament,
@@ -33,6 +34,8 @@
     /** Names known from table windows, by tournament id. */
     tournamentNames: Map<number, string>;
     openId: number | null;
+    /** Decision of `openId` to stop at (action index), e.g. coming back from the ranges page. */
+    openAt?: number | null;
     /** Hands of a leak-finder spot or a range-chart cell, with a label for the chip. */
     spot?: { filter?: SpotFilter | null; range?: RangeFilter | null; label: string } | null;
     onClearPlayer: () => void;
@@ -53,7 +56,8 @@
   const SUMMARY_KEY = "ringside.hands.summary";
 
   // Coming from another page with a hand, a player or a leak, the newest hands fit better.
-  let view = $state<View | null>(untrack(() => (openId !== null || spot || player ? "all" : null)));
+  // A hand opened from elsewhere shows in "Alle Hände"; coming back to a decision keeps the usual view.
+  let view = $state<View | null>(untrack(() => ((openId !== null && openAt === null) || spot || player ? "all" : null)));
   let showdownOnly = $state(false);
   let result = $state<"won" | "lost" | null>(null);
   let minPot = $state<number | null>(null);
@@ -145,7 +149,7 @@
   });
 
   $effect(() => {
-    if (openId !== null) untrack(() => open(openId, null, true));
+    if (openId !== null) untrack(() => open(openId, openAt, true));
   });
 
   // A finished solve of the hand on screen shows at once.

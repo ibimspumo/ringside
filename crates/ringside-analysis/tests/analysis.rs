@@ -187,3 +187,58 @@ fn hand_list_filters_and_sorts_by_loss() {
     assert!(summary.by_spot.windows(2).all(|w| w[0].loss_bb >= w[1].loss_bb));
     assert!(summary.by_spot.iter().any(|s| s.spot == Some(SpotType::Shove)));
 }
+
+/// Every chart target of a rated preflop decision opens a spot that exists in the bundled
+/// tables, with the hero's seat and hand; unrated decisions offer none.
+#[test]
+fn chart_targets_hit_existing_tables() {
+    use ringside_analysis::{ChartKind, chart_targets};
+    use ringside_engine::range::HandClass;
+    use ringside_engine::{preflop_table, pushfold_table};
+
+    let eight: Vec<(&str, i64)> = vec![("Hero", 7400), ("P2", 7400), ("P3", 7400), ("P4", 7400), ("P5", 7400), ("P6", 7400), ("P7", 7400), ("P8", 7400)];
+    let spin: [(&str, i64); 3] = [("P1", 500), ("Hero", 500), ("P3", 500)];
+    let hands = [
+        // Push/fold open, six players.
+        k6o_fold(),
+        // Preflop model, open from early position.
+        hand(2, &eight, 5, 200, 25, "7c 2d", "Hero: raises 300 to 500\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: folds\nP8: folds\nUncalled bet (300) returned to Hero\nHero collected 700 from pot\n*** SUMMARY ***\nTotal pot 700 | Rake 0\n"),
+        // Preflop model, facing an open and then a 3-bet.
+        hand(4, &eight, 1, 200, 25, "Ah Kd", "P5: raises 300 to 500\nP6: folds\nP7: folds\nP8: folds\nHero: raises 1100 to 1600\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nUncalled bet (1100) returned to Hero\nHero collected 1475 from pot\n*** SUMMARY ***\nTotal pot 1475 | Rake 0\n"),
+        // Three-handed at 10 BB on the button (a Spin & Go), push/fold.
+        hand(5, &spin, 1, 50, 0, "6d 2c", "Hero: folds\nP3: folds\nUncalled bet (25) returned to P1\nP1 collected 50 from pot\n*** SUMMARY ***\nTotal pot 50 | Rake 0\n"),
+        // A limp: not rated, so no target.
+        hand(3, &SIX, 4, 200, 25, "9s 9d", "P1: calls 200\nP2: folds\nP3: folds\nP4: folds\nHero: raises 800 to 1000\nP6: folds\nP1: folds\nUncalled bet (800) returned to Hero\nHero collected 850 from pot\n*** SUMMARY ***\nTotal pot 850 | Rake 0\n"),
+    ];
+    let mut seen = (0, 0);
+    for raw in &hands {
+        let h = parsed(raw);
+        let rated: Vec<usize> = analyze_hand(&h)
+            .decisions
+            .iter()
+            .filter(|d| d.street == Street::Preflop && d.status == Status::Rated)
+            .map(|d| d.action_index)
+            .collect();
+        let targets = chart_targets(&h);
+        assert_eq!(targets.iter().map(|t| t.action_index).collect::<Vec<_>>(), rated, "{raw}");
+        for t in &targets {
+            let class: HandClass = t.hand.parse().unwrap_or_else(|_| panic!("{t:?}"));
+            match t.kind {
+                ChartKind::Pushfold => {
+                    seen.0 += 1;
+                    assert!(pushfold_table::stacks(t.ante).contains(&t.stack_bb), "{t:?}");
+                    let sol = pushfold_table::chart(t.ante, t.players, t.stack_bb).unwrap_or_else(|| panic!("{t:?}"));
+                    assert!(sol.spot(t.seat, class, t.shover, &t.callers).is_some(), "{t:?}");
+                }
+                ChartKind::Preflop => {
+                    seen.1 += 1;
+                    assert!(preflop_table::STACKS.contains(&t.stack_bb) && preflop_table::PLAYERS.contains(&t.players), "{t:?}");
+                    let sol = preflop_table::chart(t.ante, t.players, t.stack_bb).unwrap_or_else(|| panic!("{t:?}"));
+                    let node = t.node.and_then(|n| sol.nodes.get(n)).unwrap_or_else(|| panic!("{t:?}"));
+                    assert_eq!(node.seat, t.seat, "{t:?}");
+                }
+            }
+        }
+    }
+    assert!(seen.0 >= 2 && seen.1 >= 2, "{seen:?}");
+}

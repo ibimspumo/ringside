@@ -16,16 +16,30 @@ export function demoGrid(): PushFoldGrid {
   };
 }
 
-export function demoChart(): PushFoldChart {
+/** The 10 BB sample at any depth; only the share played moves with the depth, so the curve has a shape. */
+export function demoChart(stack = 10, players = 6): PushFoldChart {
+  const scale = Math.pow(10 / stack, 0.6);
+  // Fewer players: the last seats of the sample, so names and seats stay consistent.
+  const cut = Math.max(0, 6 - Math.min(6, players));
+  const kept = NODES.filter((n) => n.seat >= cut && (n.shover ?? cut) >= cut && n.callers.every((c) => c >= cut)).map((n) => ({
+    ...n,
+    seat: n.seat - cut,
+    shover: n.shover === null ? null : n.shover - cut,
+    callers: n.callers.map((c) => c - cut),
+  }));
+  const nodes = new URLSearchParams(window.location.search).has("empty")
+    ? kept.map((n) => ({ ...n, act_pct: 0, freq: n.freq.map(() => 0) }))
+    : kept.map((n) => ({ ...n, act_pct: Math.min(100, n.act_pct * scale) }));
   return {
-    players: 6,
-    stack_bb: 10,
+    players: 6 - cut,
+    stack_bb: stack,
     ante: "big_blind",
     precomputed: true,
     converged: true,
     exploitability_bb: 0.0009,
     multiway_probability: 0.078,
-    nodes: NODES,
+    // ?empty=1 shows a spot where no hand is played, for screenshots of that state.
+    nodes,
   };
 }
 
