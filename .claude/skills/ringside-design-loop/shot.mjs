@@ -49,10 +49,20 @@ browser.addEventListener("message", (e) => {
     msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
   }
 });
+// A reload in Vite can swallow an answer: every call gives up after 30 s, as "navigated", so the
+// page is loaded again, and the whole shot ends after two minutes at the latest.
+setTimeout(() => {
+  console.error(`shot: no picture after 120 s: ${url}`);
+  process.exit(3);
+}, 120_000).unref();
 const send = (method, params = {}, sessionId) =>
   new Promise((resolve, reject) => {
-    pending.set(++id, { resolve, reject });
-    browser.send(JSON.stringify({ id, method, params, sessionId }));
+    const call = ++id;
+    pending.set(call, { resolve, reject });
+    browser.send(JSON.stringify({ id: call, method, params, sessionId }));
+    setTimeout(() => {
+      if (pending.delete(call)) reject(new Error(`no answer to ${method}: navigated or closed`));
+    }, 30_000);
   });
 
 try {
@@ -80,13 +90,9 @@ try {
   // Vite may reload the page once while it optimizes dependencies on the first visits; the wait
   // then ends with "Inspected target navigated", and the page is loaded again.
   for (let attempt = 1; ; attempt++) {
-    await page("Page.navigate", { url });
     try {
-      // A reload can also swallow the answer entirely; give up on this attempt after 30 s.
-      await Promise.race([
-        page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("no answer: navigated or closed")), 30000)),
-      ]);
+      await page("Page.navigate", { url });
+      await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
       break;
     } catch (e) {
       if (attempt >= 3 || !/navigated or closed|context was destroyed/i.test(e.message)) throw e;
