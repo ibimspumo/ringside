@@ -67,7 +67,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     line-height: 1.45;
     color: var(--text-2);
   }
@@ -77,7 +77,7 @@
   }
   .note {
     margin: 12px 18px 0;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     line-height: 1.5;
     color: var(--text-2);
   }

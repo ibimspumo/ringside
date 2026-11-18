@@ -141,7 +141,7 @@
     transition: opacity var(--dur) var(--ease-standard);
   }
   .seat.folded {
-    opacity: 0.45;
+    opacity: 0.6;
   }
   .seat-name {
     font-family: var(--font-num);

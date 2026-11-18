@@ -44,12 +44,14 @@
     compare?: string | null;
   } = $props();
 
-  const PAD = { l: 38, r: 54, t: 22, b: 8 };
+  const CURVE_PAD = { l: 38, r: 54, t: 22, b: 8 };
   const TICKS = [2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100];
 
   let width = $state(600);
   /** Narrow windows: the curve folds away behind a toggle, the slider stays. */
   const narrow = $derived(width < 760);
+  /** Folded behind a toggle on narrow windows and while it is only a comparison. */
+  const folded = $derived(narrow || !!compare);
   let showCurve = $state(false);
   // Lower on narrow windows, so table and grid still come into view.
   const H = $derived(narrow ? 120 : 168);
@@ -57,6 +59,9 @@
   let open = $state(false);
   let typed = $state("");
 
+  /** Without the curve the slider spans the card. */
+  const curveShown = $derived(!folded || showCurve);
+  const PAD = $derived(curveShown ? CURVE_PAD : { l: 8, r: 8, t: 22, b: 8 });
   const plotW = $derived(Math.max(40, width - PAD.l - PAD.r));
   const lo = $derived(Math.log(stacks[0] ?? 1));
   const hi = $derived(Math.log(stacks[stacks.length - 1] ?? 100));
@@ -93,10 +98,13 @@
       .filter((s) => s.points.length)
       .map((s) => {
         const p = s.points[s.points.length - 1];
-        return { seat: s.seat, name: s.name, x: x(p.stack) + 9, y: y(p.pct), at: y(p.pct) };
+        return { seat: s.seat, name: s.name, x: x(p.stack) + 12, y: y(p.pct), at: y(p.pct) };
       })
       .sort((a, b) => a.y - b.y);
+    // Push apart downwards, then centre the stack on the line ends so each name stays near its line.
     for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+    const drift = ends.reduce((t, e) => t + (e.y - e.at), 0) / Math.max(1, ends.length);
+    for (const e of ends) e.y -= drift;
     return ends;
   });
 
@@ -112,8 +120,10 @@
       .filter((v) => v.p !== null)
       .sort((a, b) => Math.abs(y(a.p as number) - py) - Math.abs(y(b.p as number) - py))[0];
     if (!near) return (hover = null);
-    const { clientX: cx, clientY: cy } = e;
-    hover = { stack, seat: near.s.seat, anchor: { left: cx - 10, right: cx + 14, top: cy + 14, bottom: cy + 14 } };
+    // Above the plot, so the card never covers the slider and the values under it.
+    const { clientX: cx } = e;
+    const top = r.top + PAD.t - 18;
+    hover = { stack, seat: near.s.seat, anchor: { left: cx - 1, right: cx + 1, top, bottom: top } };
   }
 
   const rows = $derived(
@@ -125,7 +135,13 @@
       : [],
   );
 
-  const ticks = $derived(TICKS.filter((t) => t >= (stacks[0] ?? 0) && t <= (stacks[stacks.length - 1] ?? 0)));
+  // The deepest stack always gets its label, also off the round numbers (e.g. 25 BB).
+  const ticks = $derived.by(() => {
+    const last = stacks[stacks.length - 1] ?? 0;
+    const t = TICKS.filter((v) => v >= (stacks[0] ?? 0) && v <= last);
+    if (last && !t.includes(last)) t.push(last);
+    return t;
+  });
   const onGrid = $derived(stacks.includes(value));
   const parsed = $derived.by(() => {
     const v = Number(typed.replace(",", "."));
@@ -135,12 +151,12 @@
 
 <div class="axis" bind:clientWidth={width}>
   <div class="top">
-    <label class="lbl" for={id}><Tooltip text={TERM.stack}><span class="term">Stack</span></Tooltip> <span class="faint">· die wichtigste Wahl</span></label>
+    <label class="lbl" for={id}><Tooltip text={TERM.stack}><span class="term">Stack</span></Tooltip> <span class="lead-in">· die wichtigste Wahl</span></label>
     {#if !onGrid}<span class="own">eigener Stack</span>{/if}
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
 
-  {#if !narrow || showCurve}
+  {#if !folded || showCurve}
   <p class="what" class:compare>
     {#if compare}<b>Nur zum Vergleich</b> – die Range unten gilt für „{compare}“. Die Linien zeigen, wie oft jede Position eröffnet.{:else}Zum Vergleich: wie oft jede Position eröffnet, wenn alle vor ihr gefoldet haben{/if}
   </p>
@@ -169,7 +185,7 @@
         <path class="line" class:mine={s.seat === seat} class:hot={hover?.seat === s.seat} d={path(s.points)} />
       {/each}
       {#each labels as l (l.seat)}
-        {#if Math.abs(l.y - l.at) > 2}<path class="lead" d="M{l.x - 8},{l.at} L{l.x - 2},{l.y}" />{/if}
+        {#if Math.abs(l.y - l.at) > 2}<path class="lead" d="M{l.x - 3},{l.at} L{l.x - 1},{l.y}" />{/if}
         <text class="end" class:mine={l.seat === seat} x={l.x} y={l.y + 3.5}>{l.name}</text>
       {/each}
       {#if hover}
@@ -204,9 +220,9 @@
   </div>
 
   <div class="foot">
-  {#if narrow}
+  {#if folded}
     <Button variant="quiet" size="sm" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
-      {showCurve ? "Kurve ausblenden" : "Kurve zeigen"}
+      {showCurve ? "Vergleichskurve ausblenden" : "Vergleichskurve zeigen"}
     </Button>
   {/if}
   {#if custom}
@@ -253,7 +269,7 @@
 </div>
 
 {#if hover}
-  <Popover anchor={hover.anchor} width={220}>
+  <Popover anchor={hover.anchor} side="top" width={220}>
     <p class="tip-head"><b class="num">{bb(hover.stack)} BB</b> · so oft wird eröffnet</p>
     {#each rows as r (r.seat)}
       <div class="tip-row" class:hot={r.seat === hover.seat}><span>{r.name}</span><b class="num">{pct(r.p as number, 0)} %</b></div>
@@ -278,13 +294,16 @@
     text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
     text-underline-offset: 3px;
   }
+  .lead-in {
+    color: var(--text-2);
+  }
   .lbl {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .what {
     margin: 2px 0 0;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .what b {
@@ -319,7 +338,7 @@
     fill: color-mix(in srgb, var(--pos) 6%, transparent);
   }
   .band-t {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     fill: var(--text-2);
   }
   .grid {
@@ -328,7 +347,7 @@
   }
   .y {
     font-family: var(--font-num);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     fill: var(--text-2);
     text-anchor: end;
   }
@@ -363,12 +382,13 @@
   }
   .lead {
     fill: none;
-    stroke: var(--text-3);
+    stroke: var(--line-2);
     stroke-width: 1;
+    stroke-dasharray: 1 2;
   }
   .end {
     font-family: var(--font-num);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     fill: var(--text-2);
   }
   .end.mine {
@@ -432,7 +452,7 @@
     background: none;
     color: var(--text-2);
     font-family: var(--font-num);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
   }
   .ticks span.here {
     color: var(--text);
