@@ -82,7 +82,11 @@ try {
   for (let attempt = 1; ; attempt++) {
     await page("Page.navigate", { url });
     try {
-      await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
+      // A reload can also swallow the answer entirely; give up on this attempt after 30 s.
+      await Promise.race([
+        page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("no answer: navigated or closed")), 30000)),
+      ]);
       break;
     } catch (e) {
       if (attempt >= 3 || !/navigated or closed|context was destroyed/i.test(e.message)) throw e;
