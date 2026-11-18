@@ -17,9 +17,9 @@ Usage: ringside-worker [--kinds K,K] [--minutes M] [--max N] [--threads T] [--me
                        [--dry-run] [--base URL]
 
 Takes open spots from Ringside Cloud's community queue, solves them here and submits the
-solutions through the public API, like \"Mitrechnen\" in the app. The hourly verifier
-checks them before anyone gets them. Needs no keys or .env. Build and run it with
---release, e.g.
+solutions through the public API, like \"Mitrechnen\" in the app. The API serves each one
+as soon as its form checks out; the hourly verifier re-solves samples. Needs no keys or
+.env. Build and run it with --release, e.g.
 
   cargo run --release -p ringside-cloud --bin ringside-worker -- --minutes 120
 
@@ -194,7 +194,8 @@ fn run() -> Result<ExitCode, String> {
 
 fn outcome(o: &Outcome) -> String {
     match o {
-        Outcome::Submitted => "submitted".into(),
+        Outcome::Accepted => "accepted, served now".into(),
+        Outcome::Submitted => "submitted, waits for the verifier".into(),
         Outcome::AlreadyVerified => "not submitted (already verified)".into(),
         Outcome::DryRun => "not submitted (dry run)".into(),
         Outcome::Stopped => "not submitted (stopped)".into(),
@@ -211,9 +212,10 @@ fn line(d: &Done) -> String {
 fn summary(done: &[Done], elapsed: Duration) {
     let count = |f: fn(&Outcome) -> bool| done.iter().filter(|d| f(&d.outcome)).count();
     println!(
-        "{} spots in {:.1} min: {} submitted, {} already verified, {} dry run, {} stopped, {} failed",
+        "{} spots in {:.1} min: {} accepted, {} submitted, {} already verified, {} dry run, {} stopped, {} failed",
         done.len(),
         elapsed.as_secs_f64() / 60.0,
+        count(|o| *o == Outcome::Accepted),
         count(|o| *o == Outcome::Submitted),
         count(|o| *o == Outcome::AlreadyVerified),
         count(|o| *o == Outcome::DryRun),
@@ -221,7 +223,7 @@ fn summary(done: &[Done], elapsed: Duration) {
         count(|o| matches!(o, Outcome::Failed(_))),
     );
     let mut by_kind: BTreeMap<&str, (u32, f64)> = BTreeMap::new();
-    for d in done.iter().filter(|d| matches!(d.outcome, Outcome::Submitted | Outcome::AlreadyVerified | Outcome::DryRun)) {
+    for d in done.iter().filter(|d| matches!(d.outcome, Outcome::Accepted | Outcome::Submitted | Outcome::AlreadyVerified | Outcome::DryRun)) {
         let e = by_kind.entry(&d.kind).or_default();
         *e = (e.0 + 1, e.1 + d.seconds);
     }

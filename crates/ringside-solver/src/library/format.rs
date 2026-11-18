@@ -600,6 +600,14 @@ pub fn header(bytes: &[u8]) -> Result<(u32, String, String), Error> {
     Ok((version, scenario, flop))
 }
 
+/// The exploitability a stored spot reports about itself, read from its header alone.
+pub fn reported_exploitability(bytes: &[u8]) -> Result<f32, Error> {
+    let (_, scenario, _) = header(bytes)?;
+    let mut r = R(bytes.get(4 + 1 + 2 + 1 + scenario.len() + 6..).ok_or_else(|| invalid("header"))?);
+    r.u32()?;
+    r.f32()
+}
+
 impl Stored {
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut head = W(Vec::new());

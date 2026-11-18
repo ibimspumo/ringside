@@ -1,5 +1,6 @@
-//! End-to-end check against the deployed API: health, submit, hidden until verified,
-//! verify, served, manipulated solution rejected (for every kind, postflop included),
+//! End-to-end check against the deployed API: health, submit, served at once, the app
+//! refusing a manipulated download, a sample check verifying the good solution and
+//! withdrawing the manipulated one (for every kind, postflop included), a banned client,
 //! shared spots (9-max with limps, plain heads-up) through the community queue, rate
 //! limit, report. Deletes its test rows afterwards, also when a step fails.
 
@@ -13,7 +14,9 @@ use ringside_cloud::kinds::{
     Kind, ModelLine, Postflop, PostflopInput, PostflopSolution, PushFoldHu, PushFoldHuInput, PushFoldHuSolution,
     PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution, Verdict,
 };
-use ringside_cloud::operator::{Db, SqlValue, VerifyOptions, check_here, load_env, need, now, verify_pending};
+use ringside_cloud::operator::{
+    Attempt, Db, Penalty, SqlValue, ban_client, check_here, check_keys, load_env, need, now, purge, unban_client,
+};
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
 use ringside_engine::preflop_table::{self, Ante, Family};
 use ringside_engine::range::HandClass;
@@ -32,6 +35,8 @@ BUNNY_API_KEY).
 It resets the current hour's rate-limit counters, so run it only for maintenance.";
 
 const SMOKE_VERSION: &str = "0.0.0-smoke";
+/// Reason of the smoke test's own short ban, so the cleanup finds it.
+const SMOKE_BAN: &str = "smoke test";
 
 fn main() -> ExitCode {
     let mut base = DEFAULT_BASE_URL.to_string();
@@ -62,9 +67,11 @@ fn main() -> ExitCode {
     };
     let started = now();
     let mut keys: Vec<(&'static str, String)> = Vec::new();
-    let outcome = run(&base, &db, &mut keys);
+    let outcome = run(&base, &db, &api_key, &mut keys);
     let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
-    let cleanup = clean(&db, &plain, started).and(purge(&base, &api_key, &keys));
+    let owned: Vec<(String, String)> = keys.iter().map(|(kind, k)| (kind.to_string(), k.clone())).collect();
+    let cleanup = clean(&db, &plain, started)
+        .and(purge(&base, &api_key, &owned).map(|()| println!("cdn: purged {} solution URL(s)", owned.len())));
     match (&outcome, &cleanup) {
         (Ok(()), Ok(())) => {
             println!("smoke test passed, test data deleted");
@@ -91,7 +98,7 @@ fn step(name: &str, ok: bool, detail: impl std::fmt::Display) -> Result<(), Stri
     }
 }
 
-/// The verified solution, once the read replicas have the verdict (they can lag a minute).
+/// The served solution, once the read replicas have it (they can lag a minute).
 fn served<K: Kind>(client: &Client, input: &K::Input) -> Result<Option<K::Solution>, String> {
     for _ in 0..45 {
         if let Some(s) = client.get_solution::<K>(input).map_err(|e| e.to_string())? {
@@ -102,14 +109,39 @@ fn served<K: Kind>(client: &Client, input: &K::Input) -> Result<Option<K::Soluti
     Ok(None)
 }
 
-/// Checks only this run's keys, in this process.
-fn verify(db: &Db, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
-    let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
-    let opts = VerifyOptions { keys: Some(&plain), limit: 10, offset: 0, tried_since: None, deadline: None, dry_run: false };
-    Ok(verify_pending(db, &opts, &check_here)?.into_iter().map(|c| (c.key, c.attempt.verdict())).collect())
+/// Whether the API stops serving `input` within a minute and a half (replicas, CDN purge).
+fn gone<K: Kind>(client: &Client, input: &K::Input) -> bool {
+    (0..45).any(|_| {
+        let none = matches!(client.get_solution::<K>(input), Ok(None));
+        if !none {
+            std::thread::sleep(Duration::from_secs(2));
+        }
+        none
+    })
 }
 
-fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
+/// Re-solves this run's accepted keys in this process, as the hourly sample does, but
+/// withdraws only a failed row: the smoke client is the operator's. Drops the checked
+/// URLs from the CDN, whose copies show the accepted state.
+fn verify(base: &str, db: &Db, api_key: &str, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
+    let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
+    let checked = check_keys(db, &plain, &check_here, Penalty::RowOnly)?;
+    let urls: Vec<(String, String)> = checked.iter().map(|c| (c.kind.clone(), c.key.clone())).collect();
+    purge(base, api_key, &urls)?;
+    Ok(checked
+        .into_iter()
+        .map(|c| (c.key, match c.attempt {
+            Attempt::Verdict(v) => Some(v),
+            _ => None,
+        }))
+        .collect())
+}
+
+fn submitted(r: SubmitStatus) -> bool {
+    r == SubmitStatus::Accepted
+}
+
+fn run(base: &str, db: &Db, api_key: &str, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
     let client = &Client::new(base);
 
     let health = ureq::get(&format!("{base}/v1/health")).call().map_err(|e| e.to_string())?;
@@ -129,29 +161,47 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
     keys.extend([(PushFoldHu::NAME, good_key.clone()), (PushFoldHu::NAME, bad_key.clone())]);
 
     let r = client.submit_solution::<PushFoldHu>(&good_input, &good).map_err(|e| e.to_string())?;
-    step("submit good", r == SubmitStatus::Submitted, format!("{r:?} key {good_key}"))?;
-    let r = client.get_solution::<PushFoldHu>(&good_input).map_err(|e| e.to_string())?;
-    step("unverified is hidden", r.is_none(), "404")?;
-    let r = client.submit_solution::<PushFoldHu>(&bad_input, &bad).map_err(|e| e.to_string())?;
-    step("submit manipulated (AA folds)", r == SubmitStatus::Submitted, format!("{r:?} key {bad_key}"))?;
-
-    let checked = verify(db, keys)?;
-    let verdict = |k: &str| checked.iter().find(|c| c.0 == k).and_then(|c| c.1.clone());
-    let v = verdict(&good_key);
-    step("verifier accepts good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
-    let v = verdict(&bad_key);
-    step("verifier rejects manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
-
-    // Reads may hit a database replica that has not applied the verdict yet.
+    step("submit good", submitted(r), format!("{r:?} key {good_key}"))?;
     let served = served::<PushFoldHu>(client, &good_input)?;
-    step("verified is served", served.as_ref() == Some(&good), "200, locally re-checked")?;
+    step("served at once", served.as_ref() == Some(&good), "200, locally re-checked")?;
     let again = ureq::get(&format!("{base}/v1/solutions/{}/{good_key}", PushFoldHu::NAME))
         .call()
         .map_err(|e| e.to_string())?;
     let cache = again.header("Cache-Control").unwrap_or("").to_string();
-    step("served with immutable caching", cache.contains("immutable"), cache)?;
-    let r = client.get_solution::<PushFoldHu>(&bad_input).map_err(|e| e.to_string())?;
-    step("rejected stays hidden", r.is_none(), "404")?;
+    step("accepted is cached for a while only", cache.contains("max-age") && !cache.contains("immutable"), cache)?;
+    let r = client.submit_solution::<PushFoldHu>(&bad_input, &bad).map_err(|e| e.to_string())?;
+    step("submit manipulated (AA folds), form is fine", submitted(r), format!("{r:?} key {bad_key}"))?;
+    let r = (0..45).find_map(|_| match client.get_solution::<PushFoldHu>(&bad_input) {
+        Ok(None) => {
+            std::thread::sleep(Duration::from_secs(2));
+            None
+        }
+        other => Some(other),
+    });
+    step("the app refuses the manipulated download", matches!(r, Some(Err(Error::Protocol(_)))), format!("{r:?}"))?;
+
+    let checked = verify(base, db, api_key, keys)?;
+    let verdict = |k: &str| checked.iter().find(|c| c.0 == k).and_then(|c| c.1.clone());
+    let v = verdict(&good_key);
+    step("sample check verifies good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
+    let v = verdict(&bad_key);
+    step("sample check fails manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
+    step("withdrawn is no longer served", gone::<PushFoldHu>(client, &bad_input), "404")?;
+    let cache = (0..45)
+        .map(|_| {
+            let c = ureq::get(&format!("{base}/v1/solutions/{}/{good_key}", PushFoldHu::NAME))
+                .call()
+                .ok()
+                .and_then(|r| r.header("Cache-Control").map(str::to_string))
+                .unwrap_or_default();
+            if !c.contains("immutable") {
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            c
+        })
+        .find(|c| c.contains("immutable"))
+        .unwrap_or_default();
+    step("verified is cached for good", cache.contains("immutable"), cache)?;
     let r = client.submit_solution::<PushFoldHu>(&good_input, &good).map_err(|e| e.to_string())?;
     step("resubmit verified", r == SubmitStatus::AlreadyVerified, format!("{r:?}"))?;
     let unknown = "0".repeat(64);
@@ -159,13 +209,23 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
     let ok = r[0].1 == KeyStatus::Verified && matches!(r[1].1, KeyStatus::Rejected(Some(_))) && r[2].1 == KeyStatus::Unknown;
     step("status of many keys at once", ok, format!("{r:?}"))?;
 
-    multiway(client, db, keys, stack_mbb)?;
-    postflop(client, db, keys)?;
+    // This client is the operator's: banned for one submission only.
+    let rows = db.execute(&[("SELECT submitter FROM solutions WHERE key = ?", vec![good_key.as_str().into()])])?;
+    let me = rows[0].col(0, "submitter").as_str().unwrap_or_default().to_string();
+    ban_client(db, &me, SMOKE_BAN)?;
+    let banned_input = PushFoldHuInput { stack_mbb: stack_mbb + 2, ..good_input };
+    keys.push((PushFoldHu::NAME, PushFoldHu::key(&banned_input).map_err(|e| e.to_string())?));
+    let r = client.submit_solution::<PushFoldHu>(&banned_input, &good);
+    unban_client(db, &me)?;
+    step("a banned client cannot submit", matches!(r, Err(Error::Rejected { status: 403, .. })), format!("{r:?}"))?;
+
+    multiway(client, base, db, api_key, keys, stack_mbb)?;
+    postflop(client, base, db, api_key, keys)?;
     // The hand analysis's tables with limps from every seat, and heads-up practice.
-    shared_spot(client, db, keys, Family::Limps, 9)?;
+    shared_spot(client, base, db, api_key, keys, Family::Limps, 9)?;
     // The queue takes six requests a minute per client, fewer than two rounds make.
     db.execute(&[("DELETE FROM rate_limits WHERE bucket LIKE 'work-min:%' AND window_start >= ?", vec![(now() / 60 * 60).into()])])?;
-    shared_spot(client, db, keys, Family::Plain, 2)?;
+    shared_spot(client, base, db, api_key, keys, Family::Plain, 2)?;
 
     let report = Report {
         app_version: SMOKE_VERSION.into(),
@@ -196,7 +256,14 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
 
 /// The same round for `pushfold-mw`: three players, ICM, heads-up pots, so the solve
 /// takes about a second.
-fn multiway(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, stack_mbb: u32) -> Result<(), String> {
+fn multiway(
+    client: &Client,
+    base: &str,
+    db: &Db,
+    api_key: &str,
+    keys: &mut Vec<(&'static str, String)>,
+    stack_mbb: u32,
+) -> Result<(), String> {
     let good_input = PushFoldMwInput {
         stacks_mbb: vec![stack_mbb, 12_000, 9_000],
         sb_mbb: 500,
@@ -215,25 +282,24 @@ fn multiway(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, st
     keys.extend([(PushFoldMw::NAME, good_key.clone()), (PushFoldMw::NAME, bad_key.clone())]);
 
     let r = client.submit_solution::<PushFoldMw>(&good_input, &good).map_err(|e| e.to_string())?;
-    step("mw: submit good", r == SubmitStatus::Submitted, format!("{r:?} key {good_key}"))?;
+    step("mw: submit good", submitted(r), format!("{r:?} key {good_key}"))?;
     let r = client.submit_solution::<PushFoldMw>(&bad_input, &bad).map_err(|e| e.to_string())?;
-    step("mw: submit manipulated (first seat folds AA)", r == SubmitStatus::Submitted, format!("{r:?}"))?;
-    let checked = verify(db, &keys[keys.len() - 2..])?;
+    step("mw: submit manipulated (first seat folds AA)", submitted(r), format!("{r:?}"))?;
+    let served = served::<PushFoldMw>(client, &good_input)?;
+    step("mw: served at once", served.as_ref() == Some(&good), "200, locally re-checked")?;
+    let checked = verify(base, db, api_key, &keys[keys.len() - 2..])?;
     let verdict = |k: &str| checked.iter().find(|c| c.0 == k).and_then(|c| c.1.clone());
     let v = verdict(&good_key);
-    step("mw: verifier accepts good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
+    step("mw: sample check verifies good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
     let v = verdict(&bad_key);
-    step("mw: verifier rejects manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
-    let served = served::<PushFoldMw>(client, &good_input)?;
-    step("mw: verified is served", served.as_ref() == Some(&good), "200, locally re-checked")?;
-    let r = client.get_solution::<PushFoldMw>(&bad_input).map_err(|e| e.to_string())?;
-    step("mw: rejected stays hidden", r.is_none(), "404")
+    step("mw: sample check fails manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
+    step("mw: withdrawn is no longer served", gone::<PushFoldMw>(client, &bad_input), "404")
 }
 
 /// The same round for `postflop`, on a catalog spot nobody has submitted yet. Inputs are
 /// catalog spots only, so the manipulated solution goes first under the same key and is
-/// then replaced by the good one, as the API allows for rejected rows.
-fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
+/// then replaced by the good one, as the API allows for withdrawn rows.
+fn postflop(client: &Client, base: &str, db: &Db, api_key: &str, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
     let c = catalog();
     let scenario = c.scenario("3bp-btn-bb-40").ok_or("smoke scenario missing from the catalog")?;
     let offset = (now() % c.flops.len() as i64) as usize;
@@ -255,29 +321,31 @@ fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) ->
     let s = &c.scenarios[scenario];
     let flop = &c.flops[id.flop];
 
-    // One iteration: a well-formed spot whose flop strategy is far from solved.
+    // One iteration: a well-formed spot whose flop strategy is far from solved, claiming
+    // to be solved, so only re-solving finds it out.
     let rough = Settings { target_pct: c.target_pct, max_iterations: 1, threads };
     let mut early = solve(&s.spot(flop), &rough, memory, |_| {}, || false).map_err(|e| e.to_string())?;
-    let bad = PostflopSolution::from_stored(&encode(&mut early, c, s, flop).map_err(|e| e.to_string())?);
+    let mut lying = encode(&mut early, c, s, flop).map_err(|e| e.to_string())?;
+    lying.exploitability_pct = 0.4;
+    let bad = PostflopSolution::from_stored(&lying);
     let good_stored = solve_spot(c, id, threads, memory, |_| {}, || false).map_err(|e| e.to_string())?;
     let good = PostflopSolution::from_stored(&good_stored);
 
     let r = client.submit_solution::<Postflop>(&input, &bad).map_err(|e| e.to_string())?;
-    step("pf: submit unsolved flop strategy", r == SubmitStatus::Submitted, format!("{r:?} {} {flop} key {key}", s.id))?;
-    let checked = verify(db, &keys[keys.len() - 1..])?;
+    step("pf: submit unsolved flop strategy claiming 0.4 %", submitted(r), format!("{r:?} {} {flop} key {key}", s.id))?;
+    let checked = verify(base, db, api_key, &keys[keys.len() - 1..])?;
     let v = checked.first().and_then(|c| c.1.clone());
-    step("pf: verifier rejects it", matches!(v, Some(Verdict::Rejected { exploitability: Some(e), .. }) if e > Postflop::TOLERANCE), format!("{v:?}"))?;
-    let r = client.get_solution::<Postflop>(&input).map_err(|e| e.to_string())?;
-    step("pf: rejected stays hidden", r.is_none(), "404")?;
+    step("pf: sample check fails it", matches!(v, Some(Verdict::Rejected { exploitability: Some(e), .. }) if e > Postflop::TOLERANCE), format!("{v:?}"))?;
+    step("pf: withdrawn is no longer served", gone::<Postflop>(client, &input), "404")?;
 
     let r = client.submit_solution::<Postflop>(&input, &good).map_err(|e| e.to_string())?;
-    step("pf: submit solved spot (replaces the rejected row)", r == SubmitStatus::Submitted, format!("{r:?}"))?;
-    let r = client.get_solution::<Postflop>(&input).map_err(|e| e.to_string())?;
-    step("pf: unverified is hidden", r.is_none(), "404")?;
-    let checked = verify(db, &keys[keys.len() - 1..])?;
+    step("pf: submit solved spot (replaces the withdrawn row)", submitted(r), format!("{r:?}"))?;
+    let r = served::<Postflop>(client, &input)?;
+    step("pf: served at once", r.as_ref() == Some(&good), "200, form re-checked")?;
+    let checked = verify(base, db, api_key, &keys[keys.len() - 1..])?;
     let v = checked.first().and_then(|c| c.1.clone());
     let rebuilt = matches!(&v, Some(Verdict::Verified { result: Some(_), .. }));
-    step("pf: verifier accepts it and stores its own rebuild", rebuilt, format!("{:?}", v.as_ref().map(|v| match v {
+    step("pf: sample check verifies it and stores its own rebuild", rebuilt, format!("{:?}", v.as_ref().map(|v| match v {
         Verdict::Verified { exploitability, .. } => format!("verified {exploitability:.3} %"),
         Verdict::Rejected { reason, .. } => format!("rejected: {reason}"),
     })))?;
@@ -290,8 +358,16 @@ fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) ->
 }
 
 /// A spot off the catalog: requested, handed out by the queue (and again once its lease
-/// ran out), solved on a suit renaming of its board, submitted, verified and served.
-fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, family: Family, players: usize) -> Result<(), String> {
+/// ran out), solved on a suit renaming of its board, submitted, served, verified.
+fn shared_spot(
+    client: &Client,
+    base: &str,
+    db: &Db,
+    api_key: &str,
+    keys: &mut Vec<(&'static str, String)>,
+    family: Family,
+    players: usize,
+) -> Result<(), String> {
     let (ante, stack) = (Ante::BigBlind, 40.0);
     let params = family.params(ante, players, stack);
     let sol = preflop_table::lookup(&params).ok_or("model table missing")?;
@@ -354,13 +430,13 @@ fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>,
         let stored = solve_spot(&catalog_of, local_id, threads, 8 << 30, |_| {}, || false).map_err(|e| e.to_string())?;
         let shared = stored.renamed(&catalog_of.scenarios[0], &input.board).map_err(|e| e.to_string())?;
         let r = client.submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&shared)).map_err(|e| e.to_string())?;
-        step("spot: submit", r == SubmitStatus::Submitted, format!("{r:?}"))?;
+        step("spot: submit", submitted(r), format!("{r:?}"))?;
         db.execute(&[("UPDATE work SET lease_until = NULL WHERE key = ?", vec![key.as_str().into()])])?;
         let next = client.next_work(&kinds).map_err(|e| e.to_string())?;
-        step("queue: a submitted spot is not handed out", next.as_ref().is_none_or(|w| w.key != key), "skipped")?;
-        let r = client.get_solution::<SpotKind>(&input).map_err(|e| e.to_string())?;
-        step("spot: unverified is hidden", r.is_none(), "404")?;
-        let checked = verify(db, &keys[keys.len() - 1..])?;
+        step("queue: a served spot is not handed out", next.as_ref().is_none_or(|w| w.key != key), "skipped")?;
+        let r = served::<SpotKind>(client, &input)?;
+        step("spot: served at once", r.is_some(), "200, form re-checked")?;
+        let checked = verify(base, db, api_key, &keys[keys.len() - 1..])?;
         let v = checked.first().and_then(|c| c.1.clone());
         step("spot: verifier rebuilds the ranges and accepts it", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}").chars().take(160).collect::<String>())?;
         let served = served::<SpotKind>(client, &input)?;
@@ -379,24 +455,6 @@ fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>,
     result
 }
 
-/// Drops this run's solution URLs from the CDN cache; only for a ringside-* host.
-fn purge(base: &str, api_key: &str, keys: &[(&str, String)]) -> Result<(), String> {
-    let host = base.trim_start_matches("https://");
-    if !host.starts_with("ringside-") || host.contains('/') {
-        return Err(format!("refusing to purge {base}: not a ringside-* host"));
-    }
-    for (kind, key) in keys {
-        let url = format!("{base}/v1/solutions/{kind}/{key}");
-        ureq::post("https://api.bunny.net/purge")
-            .set("AccessKey", api_key)
-            .query("url", &url)
-            .call()
-            .map_err(|e| format!("purge {url}: {}", e.kind()))?;
-    }
-    println!("cdn: purged {} solution URL(s)", keys.len());
-    Ok(())
-}
-
 fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     let mut stmts: Vec<(&str, Vec<SqlValue>)> = Vec::new();
     for k in keys {
@@ -406,6 +464,7 @@ fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
         stmts.push(("DELETE FROM work WHERE key = ? AND source = 'request'", vec![k.as_str().into()]));
     }
     stmts.push(("DELETE FROM reports WHERE app_version = ?", vec![SMOKE_VERSION.into()]));
+    stmts.push(("DELETE FROM banned_clients WHERE reason = ?", vec![SMOKE_BAN.into()]));
     stmts.push(("DELETE FROM rate_limits WHERE window_start >= ?", vec![(started / 3600 * 3600).into()]));
     let r = db.execute(&stmts)?;
     let deleted: u64 = r.iter().map(|r| r.affected).sum();
