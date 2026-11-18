@@ -332,7 +332,7 @@
   }
   .rlabel span,
   .fine {
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .rbody {

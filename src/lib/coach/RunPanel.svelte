@@ -395,7 +395,7 @@
     line-height: 1.5;
   }
   .label {
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .note,
@@ -469,7 +469,7 @@
     padding: var(--sp-1) var(--sp-3);
     border-radius: var(--r-pill);
     background: var(--surface-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
   }
   .swaps s,
   .swaps span {
