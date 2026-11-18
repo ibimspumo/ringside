@@ -143,9 +143,11 @@
   let chartsBack = chartsHandoff.back;
   $effect(() => {
     if (chartsHandoff.target) tab = "charts";
+    // Back to the hand as it was: the list keeps its filters.
     if (chartsHandoff.back !== chartsBack) {
       chartsBack = chartsHandoff.back;
-      showHands(null, chartsHandoff.hand);
+      handToOpen = chartsHandoff.hand;
+      tab = "hands";
     }
   });
   // "Diesen Spot lösen" in the replayer hands a spot over; the solver page takes it.

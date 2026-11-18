@@ -134,8 +134,9 @@
     return list.reduce((a, b) => (Math.abs(Math.log(b) - Math.log(v)) < Math.abs(Math.log(a) - Math.log(v)) ? b : a));
   }
 
+  // Snap to the axis only once both grids are known; before that the axis is still partial.
   $effect(() => {
-    if (axis.length && !custom && !axis.includes(stack)) stack = nearest(axis, stack);
+    if (pfGrid && preGrid && axis.length && !custom && !axis.includes(stack)) stack = nearest(axis, stack);
   });
   $effect(() => {
     if (pfView && !overlap) pfView = false;

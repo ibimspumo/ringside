@@ -43,11 +43,11 @@ export function actionName(a: PreflopAction, line: PreflopStep[] = []): string {
     case "limp":
       return "Limp";
     case "call":
-      return `Call ${bb(a.to_bb)}`;
+      return `Call ${bb(a.to_bb)} BB`;
     case "all_in":
-      return `All-in ${bb(a.to_bb)}`;
+      return `All-in ${bb(a.to_bb)} BB`;
     case "raise":
-      return `${raiseName(line)} ${bb(a.to_bb)}`;
+      return `${raiseName(line)} ${bb(a.to_bb)} BB`;
   }
 }
 

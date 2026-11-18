@@ -37,10 +37,11 @@
   } = $props();
 
   const PAD = { l: 38, r: 50, t: 22, b: 8 };
-  const H = 168;
   const TICKS = [2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100];
 
   let width = $state(600);
+  // Lower on narrow windows, so table and grid still come into view.
+  const H = $derived(width < 760 ? 132 : 168);
   let hover = $state<{ stack: number; seat: number; anchor: Anchor } | null>(null);
   let open = $state(false);
   let typed = $state("");
@@ -84,7 +85,7 @@
         return { seat: s.seat, name: s.name, x: x(p.stack) + 6, y: y(p.pct) };
       })
       .sort((a, b) => a.y - b.y);
-    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 11) ends[i].y = ends[i - 1].y + 11;
+    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 12) ends[i].y = ends[i - 1].y + 12;
     return ends;
   });
 
@@ -281,8 +282,8 @@
     fill: color-mix(in srgb, var(--pos) 6%, transparent);
   }
   .band-t {
-    font-size: 10.5px;
-    fill: var(--text-3);
+    font-size: 11px;
+    fill: var(--text-2);
   }
   .grid {
     stroke: var(--line);
@@ -290,8 +291,8 @@
   }
   .y {
     font-family: var(--font-num);
-    font-size: 10.5px;
-    fill: var(--text-3);
+    font-size: 11px;
+    fill: var(--text-2);
     text-anchor: end;
   }
   .now {
@@ -305,11 +306,11 @@
   }
   .line {
     fill: none;
-    stroke: var(--text-3);
+    stroke: color-mix(in srgb, var(--text-2) 70%, var(--text-3));
     stroke-width: 1.5;
     stroke-linejoin: round;
     stroke-linecap: round;
-    opacity: 0.7;
+    opacity: 0.85;
     transition:
       stroke var(--dur-fast) var(--ease-out),
       opacity var(--dur-fast) var(--ease-out);
@@ -325,8 +326,8 @@
   }
   .end {
     font-family: var(--font-num);
-    font-size: 10.5px;
-    fill: var(--text-3);
+    font-size: 11.5px;
+    fill: var(--text-2);
   }
   .end.on {
     fill: var(--text);
