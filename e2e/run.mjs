@@ -322,7 +322,8 @@ step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", as
   await find("main figure figcaption b", "Du");
   const cell = await waitFor(
     "a visible cell with hands",
-    `return [...document.querySelectorAll("main .cell")].find((c) => c.offsetParent && !c.getAttribute("aria-label").includes("keine Hände")) ?? null`,
+    `const you = [...document.querySelectorAll("main figure")].find((f) => f.querySelector("figcaption b")?.textContent.trim() === "Du");
+    return [...(you?.querySelectorAll("button.cell.in") ?? [])].find((c) => c.offsetParent) ?? null`,
   );
   const name = (await s.exec(`return arguments[0].querySelector(".k").textContent`, cell)).trim();
   await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, cell);
