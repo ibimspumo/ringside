@@ -37,7 +37,7 @@ Deno.test("health answers without the database", async () => {
   const { handle } = setup();
   const res = await handle(get("/v1/health"));
   assertEquals(res.status, 200);
-  assertEquals((await res.json()).kinds, { "pushfold-hu": [1], "pushfold-mw": [1], postflop: [1] });
+  assertEquals((await res.json()).kinds, { "pushfold-hu": [1], "pushfold-mw": [1], postflop: [1], spot: [1] });
 });
 
 Deno.test("submitted solutions stay hidden until verified, then are cacheable", async () => {

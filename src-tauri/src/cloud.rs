@@ -6,20 +6,27 @@
 //! after a few seconds and then leave the cloud alone for a while; submissions run in
 //! the background.
 
-use std::collections::VecDeque;
+use std::collections::{BTreeMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use ringside_cloud::client::{DEFAULT_BASE_URL, RetryPolicy};
+use ringside_cloud::client::{DEFAULT_BASE_URL, MAX_STATUS_KEYS, RetryPolicy};
 use ringside_cloud::kinds::pushfold_mw::{evaluated, reference, to_caller_units};
-use ringside_cloud::kinds::{Kind, PushFoldMw, PushFoldMwInput, PushFoldMwSolution};
-use ringside_cloud::{Client, Error, Report};
-use ringside_engine::multiway::{self, Params, Solution};
-use serde::Serialize;
+use ringside_cloud::kinds::spot::MAX_BYTES as SPOT_MAX_BYTES;
+use ringside_cloud::kinds::{Kind, PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution};
+use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
+use ringside_engine::multiway::{self, Params, Solution as PushFoldSolution};
+use ringside_engine::preflop_table::ModelLine;
+use ringside_solver::library::Catalog;
+use ringside_solver::library::format::{Stored, encode};
+use ringside_solver::saved::spot_key;
+use ringside_solver::{Solution, Spot};
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
+use crate::library::{ShareState, Shared};
 use crate::settings::CloudSettings;
 use crate::{AppState, CmdResult, err, store_settings, unlocked};
 
@@ -97,14 +104,14 @@ pub(crate) fn may_talk(app: &AppHandle) -> bool {
 /// cloud's ([`PushFoldMwInput::from_params`]) or that are outside its range (more
 /// than three players all in, stacks above 100 BB, …) are solved here without cache or
 /// cloud. `None` only for params the engine rejects.
-pub fn cloud_lookup_or_submit(app: &AppHandle, params: &Params) -> Option<Solution> {
+pub fn cloud_lookup_or_submit(app: &AppHandle, params: &Params) -> Option<PushFoldSolution> {
     let input = PushFoldMwInput::from_params(params).and_then(|i| PushFoldMw::check_input(&i).map(|()| i));
     let (Ok(input), Some(cache)) = (input, cache_dir(app)) else {
         return multiway::solve(params).ok();
     };
     let key = PushFoldMw::key(&input).ok()?;
     let path = cache.join(format!("{key}.json"));
-    if let Some(cached) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Solution>(&b).ok()) {
+    if let Some(cached) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<PushFoldSolution>(&b).ok()) {
         return Some(to_caller_units(cached, params));
     }
     let settings = cloud_settings_of(app);
@@ -158,7 +165,7 @@ fn cache_dir(app: &AppHandle) -> Option<PathBuf> {
     Some(dir)
 }
 
-fn store(dir: &Path, path: &Path, solution: &Solution) {
+fn store(dir: &Path, path: &Path, solution: &PushFoldSolution) {
     let Ok(json) = serde_json::to_vec(solution) else { return };
     if std::fs::write(path, json).is_err() {
         return;
@@ -174,6 +181,172 @@ fn store(dir: &Path, path: &Path, solution: &Solution) {
             let _ = std::fs::remove_file(old);
         }
     }
+}
+
+// ---------------------------------------------------------------------------------
+// Shared spots: heads-up flops of the hand analysis and the practice table whose ranges
+// are the preflop model's. Only the abstract spot leaves the computer (see
+// `ringside_cloud::kinds::spot`); `spots.json` remembers what became of every upload, by
+// the local spot key, for "Meine Lösungen".
+
+const SPOTS_FILE: &str = "spots.json";
+/// Read-modify-write of `spots.json` from several threads.
+static SPOT_LOG: Mutex<()> = Mutex::new(());
+
+/// An uploaded spot: its cloud key and where it stands.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SpotShared {
+    pub key: String,
+    #[serde(flatten)]
+    pub shared: Shared,
+}
+
+/// By local spot key (`ringside_solver::saved::spot_key`).
+pub type SpotLog = BTreeMap<String, SpotShared>;
+
+fn spot_log_path(app: &AppHandle) -> Option<PathBuf> {
+    let dir = crate::data_dir(app).ok()?.join("cloud");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir.join(SPOTS_FILE))
+}
+
+pub(crate) fn spot_log(app: &AppHandle) -> SpotLog {
+    spot_log_path(app)
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+fn update_spot_log(app: &AppHandle, f: impl FnOnce(&mut SpotLog)) {
+    let _guard = SPOT_LOG.lock().unwrap();
+    let Some(path) = spot_log_path(app) else { return };
+    let mut log = spot_log(app);
+    f(&mut log);
+    if let Ok(bytes) = serde_json::to_vec(&log) {
+        let tmp = path.with_extension("part");
+        if std::fs::write(&tmp, bytes).is_ok() {
+            let _ = std::fs::rename(&tmp, &path);
+        }
+    }
+}
+
+/// The cloud input of a local flop spot, if its ranges are exactly the model's along the
+/// line; spots with edited ranges (or the hero's hand added) are never shared.
+pub(crate) fn spot_input(model: &ModelLine, spot: &Spot) -> Option<SpotInput> {
+    SpotInput::from_model(model, spot).ok()
+}
+
+fn compact(board: &str) -> String {
+    board.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
+}
+
+/// With `cloud.fetch`: the cloud's verified solution of `input`, renamed to the local
+/// `board`, with the one-spot catalog to view it.
+pub(crate) fn fetch_spot(app: &AppHandle, input: &SpotInput, board: &str) -> Option<(Catalog, Stored)> {
+    if !cloud_settings_of(app).fetch || !may_talk(app) {
+        return None;
+    }
+    match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<SpotKind>(input) {
+        Ok(Some(found)) => {
+            let board = compact(board);
+            let catalog = input.catalog(Some(&board)).ok()?;
+            let stored = found.stored(input).ok()?.renamed(&catalog.scenarios[0], &board).ok()?;
+            Some((catalog, stored))
+        }
+        Ok(None) => None,
+        Err(e) => {
+            eprintln!("cloud spot lookup: {e}");
+            app.state::<CloudState>().note(&e);
+            None
+        }
+    }
+}
+
+/// With `cloud.share`: asks the community queue to solve a spot this computer could not.
+/// A refusal is only logged; it must not keep the cloud away for the other requests.
+pub(crate) fn request_spot(app: &AppHandle, input: SpotInput) {
+    if !cloud_settings_of(app).share || !may_talk(app) {
+        return;
+    }
+    std::thread::spawn(move || {
+        if let Err(e) = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).request_work::<SpotKind>(&input) {
+            eprintln!("cloud request: {e}");
+        }
+    });
+}
+
+/// With `cloud.share`: offers a fresh local solve of `input`'s spot. The library format is
+/// written here (it needs the solution), the upload runs in the background.
+pub(crate) fn share_spot(app: &AppHandle, input: SpotInput, solution: &mut Solution) {
+    if !cloud_settings_of(app).share || !may_talk(app) {
+        return;
+    }
+    let Ok(local_key) = spot_key(&solution.spot) else { return };
+    let board = compact(&solution.spot.board);
+    let Ok(catalog) = input.catalog(Some(&board)) else { return };
+    let stored = match encode(solution, &catalog, &catalog.scenarios[0], &board)
+        .and_then(|s| s.renamed(&catalog.scenarios[0], &input.board))
+    {
+        Ok(s) => s,
+        Err(e) => return eprintln!("cloud share: {e}"),
+    };
+    let app = app.clone();
+    std::thread::spawn(move || {
+        if !cloud_settings_of(&app).share || !may_talk(&app) {
+            return;
+        }
+        let key = SpotKind::key(&input).unwrap_or_default();
+        let at = crate::now_secs().max(0) as u64;
+        let bytes = stored.to_bytes();
+        let shared = if bytes.len() > SPOT_MAX_BYTES {
+            Shared { state: ShareState::Failed, at, note: Some("zu groß zum Teilen".into()) }
+        } else {
+            let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
+            match Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&stored)) {
+                Ok(SubmitStatus::Submitted) => Shared { state: ShareState::Submitted, at, note: None },
+                Ok(SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Verified, at, note: None },
+                Err(e) => {
+                    app.state::<CloudState>().note(&e);
+                    Shared { state: ShareState::Failed, at, note: Some(e.to_string()) }
+                }
+            }
+        };
+        update_spot_log(&app, |log| {
+            log.insert(local_key, SpotShared { key, shared });
+        });
+    });
+}
+
+/// Asks the cloud about uploaded spots that wait for the verifier.
+pub(crate) fn check_spots(app: &AppHandle) -> Result<(), Error> {
+    let waiting: Vec<(String, String)> = spot_log(app)
+        .into_iter()
+        .filter(|(_, s)| s.shared.state == ShareState::Submitted)
+        .map(|(local, s)| (local, s.key))
+        .take(MAX_STATUS_KEYS)
+        .collect();
+    if waiting.is_empty() {
+        return Ok(());
+    }
+    let keys: Vec<String> = waiting.iter().map(|(_, k)| k.clone()).collect();
+    let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy { attempts: 2, ..RetryPolicy::impatient() });
+    let statuses = client.statuses(&keys)?;
+    update_spot_log(app, |log| {
+        for ((local, _), (_, status)) in waiting.iter().zip(statuses) {
+            if let Some(entry) = log.get_mut(local) {
+                entry.shared.state = match status {
+                    KeyStatus::Verified => ShareState::Verified,
+                    KeyStatus::Submitted => ShareState::Submitted,
+                    KeyStatus::Rejected(note) => {
+                        entry.shared.note = note;
+                        ShareState::Rejected
+                    }
+                    KeyStatus::Unknown => ShareState::Failed,
+                };
+            }
+        }
+    });
+    Ok(())
 }
 
 // ---------------------------------------------------------------------------------
@@ -446,6 +619,88 @@ Seat 3: Moritz_K showed [Ah Kd] and won (3300)\r
         assert!(a.contains("Hero wins $5 for eliminating Spieler 1"));
         assert!(a.contains("Spieler 1 said, \"…\""));
         assert!(!a.contains('\r'), "line endings do not matter");
+    }
+
+    /// A real-looking tournament hand: the button opens, the big blind calls, a c-bet.
+    const POSTFLOP_HAND: &str = "PokerStars Hand #260000000077: Tournament #4046789301, $10+$10+$2 USD Hold'em No Limit - Level IV (100/200) - 2026/11/16 21:00:00 CET [2026/11/16 15:00:00 ET]
+Table '4046789301 3' 6-max Seat #4 is the button
+Seat 1: Lee Ann: KO (8000 in chips, $10 bounty)
+Seat 2: Mo (8000 in chips, $10 bounty)
+Seat 3: Smith_Berlin (8000 in chips, $10 bounty)
+Seat 4: Moritz_K (8000 in chips, $10 bounty)
+Seat 5: anna.k (8000 in chips, $10 bounty)
+Seat 6: xX_shark_Xx (8000 in chips, $10 bounty)
+Lee Ann: KO: posts the ante 25
+Mo: posts the ante 25
+Smith_Berlin: posts the ante 25
+Moritz_K: posts the ante 25
+anna.k: posts the ante 25
+xX_shark_Xx: posts the ante 25
+anna.k: posts small blind 100
+xX_shark_Xx: posts big blind 200
+*** HOLE CARDS ***
+Dealt to Moritz_K [Ah Kh]
+Lee Ann: KO: folds
+Mo: folds
+Smith_Berlin: folds
+Moritz_K: raises 240 to 440
+anna.k: folds
+xX_shark_Xx: calls 240
+*** FLOP *** [Kd 7s 2c]
+xX_shark_Xx: checks
+Moritz_K: bets 330
+xX_shark_Xx: folds
+Uncalled bet (330) returned to Moritz_K
+Moritz_K collected 1130 from pot
+*** SUMMARY ***
+Total pot 1130 | Rake 0
+Board [Kd 7s 2c]
+";
+
+    #[test]
+    fn a_shared_spot_carries_nothing_of_the_hand() {
+        let hand = ringside_core::parse_hand(POSTFLOP_HAND).unwrap();
+        let analysis = ringside_analysis::analyze_hand(&hand);
+        let (_, json) = analysis.job.expect("a heads-up flop to solve");
+        let job: ringside_analysis::PostflopJob = serde_json::from_str(&json).unwrap();
+        let input = spot_input(job.model.as_ref().expect("model line"), &job.spot).expect("model ranges are shareable");
+        assert_eq!(input.board, "Ks7h2d", "the canonical flop, not the dealt suits");
+        let body = ringside_cloud::kinds::submission::<SpotKind>(&input, &SpotSolution { data: "AAAA".into() });
+        ringside_cloud::privacy::assert_anonymous(&body);
+        let text = body.to_string();
+        for secret in [
+            "Lee Ann", "Mo\"", "Smith", "Berlin", "Moritz", "anna", "shark", "260000000077", "4046789301", "2026", "21:00", "$",
+            "USD", "bounty", "Ah", "Kh", "Kd7s2c",
+        ] {
+            assert!(!text.contains(secret), "{secret:?} in the upload: {text}");
+        }
+        // The hero's hand is no part of it, and neither is the hero's seat by name.
+        assert!(!text.contains("hero") && !text.contains("Hero"), "{text}");
+    }
+
+    #[test]
+    fn practice_and_analysis_spots_are_both_shared_under_their_own_keys() {
+        use ringside_engine::preflop_table::Family;
+        // The hand analysis rates with the limps tables.
+        let hand = ringside_core::parse_hand(POSTFLOP_HAND).unwrap();
+        let (_, json) = ringside_analysis::analyze_hand(&hand).job.expect("a heads-up flop");
+        let job: ringside_analysis::PostflopJob = serde_json::from_str(&json).unwrap();
+        let analysed = job.model.clone().unwrap();
+        assert_eq!(analysed.family, Family::Limps);
+        let limps = spot_input(&analysed, &job.spot).expect("an analysed spot is shareable");
+
+        // Practice plays the plain tables: the same table and line, as the pool solves it.
+        let table = ringside_play::TableKey { players: analysed.players, ante: analysed.ante, stack_bb: analysed.stack_bb };
+        let deep = ringside_play::table::deep(table).expect("plain table");
+        let sc = deep.scenarios.iter().find(|s| s.line == analysed.line).expect("the line in the plain table");
+        let practice = ModelLine { family: Family::Plain, ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: sc.line.clone() };
+        let plain = spot_input(&practice, &sc.spot("Kd7s2c")).expect("a practice spot is shareable");
+
+        assert_eq!((plain.family.as_str(), limps.family.as_str()), ("plain", "limps"));
+        assert_ne!(SpotKind::key(&plain).unwrap(), SpotKind::key(&limps).unwrap());
+        // The limps ranges are not the plain ones: a spot never passes for the other family.
+        let swapped = ModelLine { family: Family::Plain, ..analysed };
+        assert!(spot_input(&swapped, &job.spot).is_none());
     }
 
     #[test]

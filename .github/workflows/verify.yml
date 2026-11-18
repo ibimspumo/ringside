@@ -1,9 +1,9 @@
 name: Verify cloud solutions
 
 # Checks solutions clients submitted to Ringside Cloud with the engine and sets them to
-# verified or rejected; also deletes rate-limit counters, and parser reports and
-# submission log entries older than 90 days. The logs are public: ringside-verify prints
-# solution keys and verdicts only.
+# verified or rejected; also deletes rate-limit counters, queue entries whose spot is
+# verified, and parser reports and submission log entries older than 90 days. The logs
+# are public: ringside-verify prints solution keys and verdicts only.
 on:
   schedule:
     - cron: "17 * * * *"
@@ -28,11 +28,12 @@ jobs:
           shared-key: verify
       - run: cargo build --release --locked -p ringside-cloud --bin ringside-verify
       # Anyone can submit: each check runs in a child process that is killed after its
-      # kind's limit (120 s push/fold; 900 s postflop, three solves on these 4 cores and
-      # 16 GB, at most 8 GB each), and the run starts no check that could end more than a
-      # tenth past --budget-seconds, so it stays inside timeout-minutes.
+      # kind's limit (120 s push/fold; 900 s postflop and shared spots, three solves on
+      # these 4 cores and 16 GB, at most 8 GB each), at most --max-slow of the slow ones
+      # per run, and the run starts no check that could end more than a tenth past
+      # --budget-seconds, so it stays inside timeout-minutes.
       - name: Verify pending solutions
         env:
           BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
           BUNNY_DATABASE_AUTH_TOKEN: ${{ secrets.BUNNY_DATABASE_AUTH_TOKEN }}
-        run: ./target/release/ringside-verify --limit 50 --budget-seconds 2400
+        run: ./target/release/ringside-verify --limit 50 --max-slow 4 --budget-seconds 2400

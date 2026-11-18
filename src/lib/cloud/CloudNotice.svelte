@@ -47,10 +47,10 @@
     </div>
     {#if details}
       <p class="full" id="cloud-details" transition:slide={{ duration: 220, easing: cubicOut }}>
-        Lösungen, die andere schon gerechnet haben (Push/Fold und Spots der Bibliothek), werden geladen; deine eigenen werden
-        geteilt. Geteilt wird nur die Rechen-Eingabe (Stacks, Blinds, Antes, Auszahlungen; bei Bibliothek-Spots Board, Ranges und
-        Größen) und das Ergebnis, nichts Persönliches. Deine IP-Adresse sieht der Anbieter Bunny technisch, gespeichert wird sie nur
-        gehasht.
+        Lösungen, die andere schon gerechnet haben (Push/Fold, Spots der Bibliothek und Flop-Spots), werden geladen; deine eigenen
+        werden geteilt. Geteilt wird nur die Rechen-Eingabe (Stacks, Blinds, Antes, Auszahlungen; bei Flop-Spots Board, Pot, Größen
+        und die Modell-Linie der Ranges) und das Ergebnis, nie deine Hände, Karten oder Namen. Deine IP-Adresse sieht der Anbieter
+        Bunny technisch, gespeichert wird sie nur gehasht.
       </p>
     {/if}
   </div>

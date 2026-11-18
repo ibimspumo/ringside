@@ -16,6 +16,8 @@ use ringside_solver::{
 use serde::{Deserialize, Serialize};
 
 use crate::fmt::{bb, num};
+use ringside_engine::preflop_table::ModelLine;
+
 use crate::preflop::Flop;
 use crate::seats::hero_combo;
 use crate::{Source, base, hero_actions, is_raise, score};
@@ -55,6 +57,9 @@ pub struct PostflopJob {
     pub note: String,
     /// Final pot in BB: big pots are solved first.
     pub pot_bb: f64,
+    /// Where the ranges come from; jobs stored before it was recorded have none.
+    #[serde(default)]
+    pub model: Option<ModelLine>,
 }
 
 /// Spot type of a hero action after the flop.
@@ -252,6 +257,7 @@ pub(crate) fn prepare(hand: &Hand, hero: &str, flop: Result<&Flop, &str>) -> (Ve
         players: hand.active_players().count(),
         note,
         pot_bb: hand.total_pot as f64 / big,
+        model: Some(flop.model.clone()),
     };
     let decisions = indices.iter().map(|&i| pending(hand, i, spot_type(hand, i, hero))).collect();
     (decisions, Some(job))

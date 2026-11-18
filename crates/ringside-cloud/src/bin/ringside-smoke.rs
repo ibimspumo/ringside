@@ -1,6 +1,7 @@
 //! End-to-end check against the deployed API: health, submit, hidden until verified,
-//! verify, served, manipulated solution rejected (for every kind, postflop included), rate limit, report.
-//! Deletes its test rows afterwards, also when a step fails.
+//! verify, served, manipulated solution rejected (for every kind, postflop included), a
+//! shared spot through the community queue, rate limit, report. Deletes its test rows
+//! afterwards, also when a step fails.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -9,11 +10,12 @@ use std::time::Duration;
 use ringside_cloud::client::{DEFAULT_BASE_URL, RetryPolicy};
 use ringside_cloud::kinds::pushfold_mw::reference;
 use ringside_cloud::kinds::{
-    Kind, Postflop, PostflopInput, PostflopSolution, PushFoldHu, PushFoldHuInput, PushFoldHuSolution, PushFoldMw,
-    PushFoldMwInput, PushFoldMwSolution, Verdict,
+    Kind, ModelLine, Postflop, PostflopInput, PostflopSolution, PushFoldHu, PushFoldHuInput, PushFoldHuSolution,
+    PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution, Verdict,
 };
 use ringside_cloud::operator::{Db, SqlValue, VerifyOptions, check_here, load_env, need, now, verify_pending};
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
+use ringside_engine::preflop_table::{self, Ante, Family};
 use ringside_engine::range::HandClass;
 use ringside_engine::solve_push_fold;
 use ringside_solver::library::format::encode;
@@ -89,6 +91,17 @@ fn step(name: &str, ok: bool, detail: impl std::fmt::Display) -> Result<(), Stri
     }
 }
 
+/// The verified solution, once the read replicas have the verdict (they can lag a minute).
+fn served<K: Kind>(client: &Client, input: &K::Input) -> Result<Option<K::Solution>, String> {
+    for _ in 0..45 {
+        if let Some(s) = client.get_solution::<K>(input).map_err(|e| e.to_string())? {
+            return Ok(Some(s));
+        }
+        std::thread::sleep(Duration::from_secs(2));
+    }
+    Ok(None)
+}
+
 /// Checks only this run's keys, in this process.
 fn verify(db: &Db, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
     let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
@@ -97,7 +110,7 @@ fn verify(db: &Db, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdic
 }
 
 fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
-    let client = Client::new(base);
+    let client = &Client::new(base);
 
     let health = ureq::get(&format!("{base}/v1/health")).call().map_err(|e| e.to_string())?;
     let status = health.status();
@@ -130,14 +143,7 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
     step("verifier rejects manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
 
     // Reads may hit a database replica that has not applied the verdict yet.
-    let mut served = None;
-    for _ in 0..15 {
-        served = client.get_solution::<PushFoldHu>(&good_input).map_err(|e| e.to_string())?;
-        if served.is_some() {
-            break;
-        }
-        std::thread::sleep(Duration::from_secs(2));
-    }
+    let served = served::<PushFoldHu>(client, &good_input)?;
     step("verified is served", served.as_ref() == Some(&good), "200, locally re-checked")?;
     let again = ureq::get(&format!("{base}/v1/solutions/{}/{good_key}", PushFoldHu::NAME))
         .call()
@@ -153,8 +159,9 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
     let ok = r[0].1 == KeyStatus::Verified && matches!(r[1].1, KeyStatus::Rejected(Some(_))) && r[2].1 == KeyStatus::Unknown;
     step("status of many keys at once", ok, format!("{r:?}"))?;
 
-    multiway(&client, db, keys, stack_mbb)?;
-    postflop(&client, db, keys)?;
+    multiway(client, db, keys, stack_mbb)?;
+    postflop(client, db, keys)?;
+    shared_spot(client, db, keys)?;
 
     let report = Report {
         app_version: SMOKE_VERSION.into(),
@@ -213,14 +220,7 @@ fn multiway(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, st
     step("mw: verifier accepts good", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}"))?;
     let v = verdict(&bad_key);
     step("mw: verifier rejects manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
-    let mut served = None;
-    for _ in 0..15 {
-        served = client.get_solution::<PushFoldMw>(&good_input).map_err(|e| e.to_string())?;
-        if served.is_some() {
-            break;
-        }
-        std::thread::sleep(Duration::from_secs(2));
-    }
+    let served = served::<PushFoldMw>(client, &good_input)?;
     step("mw: verified is served", served.as_ref() == Some(&good), "200, locally re-checked")?;
     let r = client.get_solution::<PushFoldMw>(&bad_input).map_err(|e| e.to_string())?;
     step("mw: rejected stays hidden", r.is_none(), "404")
@@ -277,19 +277,100 @@ fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) ->
         Verdict::Verified { exploitability, .. } => format!("verified {exploitability:.3} %"),
         Verdict::Rejected { reason, .. } => format!("rejected: {reason}"),
     })))?;
-    let mut served = None;
-    for _ in 0..15 {
-        served = client.get_solution::<Postflop>(&input).map_err(|e| e.to_string())?;
-        if served.is_some() {
-            break;
-        }
-        std::thread::sleep(Duration::from_secs(2));
-    }
+    let served = served::<Postflop>(client, &input)?;
     let served = served.ok_or("pf: verified spot is not served")?;
     let stored = served.stored(&input)?;
     let same_flop = stored.nodes.iter().zip(&good_stored.nodes).all(|(a, b)| a.strategy == b.strategy)
         && stored.nodes.len() == good_stored.nodes.len();
     step("pf: served spot reads and keeps the submitted flop strategy", same_flop, format!("{} bytes", served.data.len()))
+}
+
+/// A spot off the catalog: requested, handed out by the queue (and again once its lease
+/// ran out), solved on a suit renaming of its board, submitted, verified and served.
+fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
+    // The hand analysis's tables, with limps from every seat.
+    let (family, ante, players, stack) = (Family::Limps, Ante::BigBlind, 9, 40.0);
+    let params = family.params(ante, players, stack);
+    let sol = preflop_table::lookup(&params).ok_or("model table missing")?;
+    // The 3-bet pot with the fewest combos solves in seconds.
+    let sc = ringside_play::scenario::scenarios(&sol, &params)
+        .into_iter()
+        .filter(|s| s.pot_type == ringside_play::scenario::PotType::ThreeBet)
+        .min_by(|a, b| a.reach.total_cmp(&b.reach))
+        .ok_or("no 3-bet pot in the model")?;
+    let model = ModelLine { family, ante, players, stack_bb: stack, line: sc.line.clone() };
+    let c = catalog();
+    let offset = (now() % c.flops.len() as i64) as usize;
+    let mut chosen = None;
+    for k in 0..c.flops.len() {
+        // Spades and diamonds swapped: the app solves the board as dealt.
+        let local: String = c.flops[(offset + k) % c.flops.len()].chars().map(|ch| match ch {
+            's' => 'd',
+            'd' => 's',
+            x => x,
+        }).collect();
+        let input = SpotInput::from_model(&model, &sc.spot(&local))?;
+        let key = SpotKind::key(&input).map_err(|e| e.to_string())?;
+        let rows = db.execute(&[(
+            "SELECT (SELECT count(*) FROM solutions WHERE key = ?) + (SELECT count(*) FROM work WHERE key = ?) AS n",
+            vec![key.as_str().into(), key.as_str().into()],
+        )])?;
+        if rows[0].col(0, "n").as_i64() == Some(0) {
+            chosen = Some((local, input, key));
+            break;
+        }
+    }
+    let (local, input, key) = chosen.ok_or("every smoke spot is taken")?;
+    keys.push((SpotKind::NAME, key.clone()));
+    step("spot: local board and canonical key", input.board != local, format!("{local} -> {} key {key}", input.board))?;
+
+    let status = client.request_work::<SpotKind>(&input).map_err(|e| e.to_string())?;
+    step("queue: request", status == "queued", &status)?;
+    // Ahead of everything real, so the next hand-out is this one.
+    db.execute(&[("UPDATE work SET priority = 1000000000 WHERE key = ?", vec![key.as_str().into()])])?;
+    let kinds = [(SpotKind::NAME, SpotKind::ENGINE_VERSION)];
+    let mut handed: Vec<String> = Vec::new();
+    let first = client.next_work(&kinds).map_err(|e| e.to_string())?;
+    handed.extend(first.iter().map(|w| w.key.clone()));
+    let leased = first.as_ref().is_some_and(|w| w.key == key && w.lease_until > now() as u64);
+    step("queue: hands out the requested spot with a lease", leased, format!("{:?}", first.as_ref().map(|w| (&w.kind, w.lease_until))))?;
+    let second = client.next_work(&kinds).map_err(|e| e.to_string())?;
+    handed.extend(second.iter().map(|w| w.key.clone()));
+    let result = (|| {
+        step("queue: a leased spot goes to nobody else", second.as_ref().is_none_or(|w| w.key != key), "other or none")?;
+        db.execute(&[("UPDATE work SET lease_until = ? WHERE key = ?", vec![(now() - 1).into(), key.as_str().into()])])?;
+        let third = client.next_work(&kinds).map_err(|e| e.to_string())?;
+        step("queue: after the lease ran out it is handed out again", third.as_ref().is_some_and(|w| w.key == key), "same key")?;
+
+        let catalog_of = input.catalog(Some(&local))?;
+        let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
+        let local_id = SpotId { scenario: 0, flop: catalog_of.flop(&local).ok_or("local board")? };
+        let stored = solve_spot(&catalog_of, local_id, threads, 8 << 30, |_| {}, || false).map_err(|e| e.to_string())?;
+        let shared = stored.renamed(&catalog_of.scenarios[0], &input.board).map_err(|e| e.to_string())?;
+        let r = client.submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&shared)).map_err(|e| e.to_string())?;
+        step("spot: submit", r == SubmitStatus::Submitted, format!("{r:?}"))?;
+        db.execute(&[("UPDATE work SET lease_until = NULL WHERE key = ?", vec![key.as_str().into()])])?;
+        let next = client.next_work(&kinds).map_err(|e| e.to_string())?;
+        step("queue: a submitted spot is not handed out", next.as_ref().is_none_or(|w| w.key != key), "skipped")?;
+        let r = client.get_solution::<SpotKind>(&input).map_err(|e| e.to_string())?;
+        step("spot: unverified is hidden", r.is_none(), "404")?;
+        let checked = verify(db, &keys[keys.len() - 1..])?;
+        let v = checked.first().and_then(|c| c.1.clone());
+        step("spot: verifier rebuilds the ranges and accepts it", matches!(v, Some(Verdict::Verified { .. })), format!("{v:?}").chars().take(160).collect::<String>())?;
+        let served = served::<SpotKind>(client, &input)?;
+        let served = served.ok_or("spot: verified spot is not served")?;
+        let back = served.stored(&input)?.renamed(&catalog_of.scenarios[0], &local).map_err(|e| e.to_string())?;
+        let same = back.nodes.len() == stored.nodes.len() && back.nodes.iter().zip(&stored.nodes).all(|(a, b)| a.strategy == b.strategy);
+        step("spot: served spot renamed to the local board keeps the flop strategy", same, format!("{} bytes", served.data.len()))
+    })();
+    // Leases this run took from real queue entries go back.
+    for k in handed.iter().filter(|k| **k != key) {
+        db.execute(&[(
+            "UPDATE work SET lease_until = NULL, leased_to = NULL, leases = max(leases - 1, 0) WHERE key = ?",
+            vec![k.as_str().into()],
+        )])?;
+    }
+    result
 }
 
 /// Drops this run's solution URLs from the CDN cache; only for a ringside-* host.
@@ -315,6 +396,8 @@ fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     for k in keys {
         stmts.push(("DELETE FROM solutions WHERE key = ?", vec![k.as_str().into()]));
         stmts.push(("DELETE FROM submissions WHERE key = ?", vec![k.as_str().into()]));
+        // Only the queue entry this run requested; a catalog spot it used stays queued.
+        stmts.push(("DELETE FROM work WHERE key = ? AND source = 'request'", vec![k.as_str().into()]));
     }
     stmts.push(("DELETE FROM reports WHERE app_version = ?", vec![SMOKE_VERSION.into()]));
     stmts.push(("DELETE FROM rate_limits WHERE window_start >= ?", vec![(started / 3600 * 3600).into()]));
@@ -325,10 +408,11 @@ fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     let sql = format!(
         "SELECT (SELECT count(*) FROM solutions WHERE key IN ({marks})) + \
          (SELECT count(*) FROM submissions WHERE key IN ({marks})) + \
+         (SELECT count(*) FROM work WHERE key IN ({marks}) AND source = 'request') + \
          (SELECT count(*) FROM reports WHERE app_version = ?) AS n"
     );
     let mut args: Vec<SqlValue> = Vec::new();
-    for _ in 0..2 {
+    for _ in 0..3 {
         if keys.is_empty() {
             args.push(SqlValue::Null);
         }
@@ -337,5 +421,5 @@ fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     args.push(SMOKE_VERSION.into());
     let left = db.execute(&[(sql.as_str(), args)])?;
     let n = left[0].col(0, "n").as_i64().unwrap_or(-1);
-    if n == 0 { Ok(()) } else { Err(format!("{n} rows left in solutions/submissions/reports")) }
+    if n == 0 { Ok(()) } else { Err(format!("{n} rows left in solutions/submissions/work/reports")) }
 }

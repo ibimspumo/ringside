@@ -8,7 +8,7 @@ use ringside_core::db::{Choice, Decision, Source, SpotType};
 use ringside_core::model::{Action, ActionKind, Hand, Street};
 use ringside_core::stats::position_labels;
 use ringside_engine::preflop::{Kind, Solution, Step, taken};
-use ringside_engine::preflop_table::{self, Ante, Family, LIMP_PLAYERS, STACKS};
+use ringside_engine::preflop_table::{self, Ante, Family, LIMP_PLAYERS, ModelLine, STACKS};
 use ringside_engine::pushfold_table::{BB_ANTE_BB, CLASSIC_ANTE_BB};
 use ringside_engine::range::NUM_CLASSES;
 
@@ -52,6 +52,8 @@ pub struct Flop {
     pub raises: usize,
     /// Model configuration and deviations, for the postflop note.
     pub note: String,
+    /// The table and line the flop ranges follow from.
+    pub model: ModelLine,
 }
 
 pub struct Preflop {
@@ -348,6 +350,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                         .collect(),
                     raises,
                     note,
+                    model: ModelLine { family: Family::Limps, ante: t.ante, players, stack_bb: stack, line: line.clone() },
                 })
             }
         }

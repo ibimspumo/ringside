@@ -1,4 +1,5 @@
 import { call } from "../api";
+import type { Shared } from "../library/types";
 import { demoShow } from "./demo";
 import { defaultSizes } from "./presets";
 import { solver } from "./store.svelte";
@@ -26,12 +27,16 @@ export interface SavedSolution {
   bytes: number;
   created_at: number;
   pinned: boolean;
+  /** What became of it in Ringside Cloud; null if it was never offered (own ranges, sharing off). */
+  shared: Shared | null;
 }
 
 export interface SolutionsView {
   items: SavedSolution[];
   bytes: number;
   max_mb: number;
+  /** The user shares own solutions. */
+  share: boolean;
 }
 
 interface Opened {
@@ -70,11 +75,15 @@ let demo: SavedSolution[] = [
   bytes: bytes as number,
   created_at: at as number,
   pinned: pinned as boolean,
+  shared:
+    source === "hand"
+      ? { state: i === 1 ? "verified" : "submitted", at: (at as number) + 60 }
+      : null,
 }));
 let demoMax = 500;
 
 function demoView(): SolutionsView {
-  return { items: structuredClone(demo), bytes: demo.reduce((s, x) => s + x.bytes, 0), max_mb: demoMax };
+  return { items: structuredClone(demo), bytes: demo.reduce((s, x) => s + x.bytes, 0), max_mb: demoMax, share: true };
 }
 
 function demoOpen(id: number): Opened {
