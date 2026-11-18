@@ -1,6 +1,5 @@
 <script lang="ts">
   import { api } from "../api";
-  import { notAnalyzable } from "../coach/meaning";
   import { buyInText, cash, tournamentName } from "../stats";
   import type { Filter, TournamentRow, Tournaments } from "../types";
   import { dateTime, int, sign, signed } from "./format";
@@ -14,14 +13,13 @@
     filter,
     refresh,
     selected,
-    onHands,
-    onAnalyze,
+    onReport,
   }: {
     filter: Filter;
     refresh: number;
     selected: number | null;
-    onHands: (tournament: number) => void;
-    onAnalyze: (tournament: number) => void;
+    /** Opens the report of a tournament. */
+    onReport: (tournament: number) => void;
   } = $props();
 
   type Point = { n: number; played_at: string; profit: number; bounties: number };
@@ -163,10 +161,6 @@
   }
 </script>
 
-{#snippet coachIcon()}<svg class="coach-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"
-    ><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" /></svg
-  >{/snippet}
-
 <div class="page tours">
   {#if failed}
     <Panel>
@@ -294,7 +288,7 @@
       </Panel>
     {/if}
 
-    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · Zeile anklicken: Hände ansehen">
+    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · Zeile anklicken: Bericht mit Fehlern, Glück und dem nächsten Übungsschritt">
       <table class="table tours-table">
           <thead>
             <tr>
@@ -307,7 +301,7 @@
                   onclick={() => sortOn(col)}>{label}</th
                 >
               {/each}
-              <th class="coach-head">Coach</th>
+              <th class="open-head"><span class="sr">Bericht</span></th>
             </tr>
           </thead>
           <tbody>
@@ -316,8 +310,8 @@
               <tr
                 class:on={r.id === selected}
                 aria-selected={r.id === selected}
-                onclick={() => onHands(r.id)}
-                title="Nur dieses Turnier zeigen und seine Hände öffnen"
+                onclick={() => onReport(r.id)}
+                title="Bericht zu diesem Turnier öffnen"
               >
                 <td class="date"
                   >{#if r.started_at}{@const [day, clock] = dateTime(r.started_at).split(". ")}<span class="day">{day}.</span
@@ -350,21 +344,8 @@
                   {#if r.profit === null}<span class="unknown">offen</span>{:else}{signedCash(r.profit, r.currency)}{/if}
                 </td>
                 <td>{int(r.hands)}</td>
-                <td class="coach">
-                  {#if notAnalyzable(r) === null}
-                    <Button
-                      size="sm"
-                      variant="quiet"
-                      icon={coachIcon}
-                      title="Vom KI-Coach analysieren lassen. Vorher siehst du, was gesendet wird und was es kostet."
-                      onclick={(e: MouseEvent) => {
-                        e.stopPropagation();
-                        onAnalyze(r.id);
-                      }}>Analyse</Button
-                    >
-                  {:else}
-                    <span class="na" title={notAnalyzable(r)}>–</span>
-                  {/if}
+                <td class="open" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="14" height="14"><path d="M9 5l7 7-7 7" /></svg>
                 </td>
               </tr>
             {/each}
@@ -622,20 +603,29 @@
   td.profit {
     font-weight: 600;
   }
-  td.coach {
+  td.open {
     width: 1%;
     padding-right: 12px;
+    color: var(--text-3);
   }
-  .coach-icon {
+  td.open svg {
+    display: block;
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.8;
-    stroke-linejoin: round;
+    stroke-width: 2;
     stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .na {
-    color: var(--text-3);
-    cursor: help;
+  tbody tr:hover td.open {
+    color: var(--text);
+  }
+  .sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .unknown {
     font-family: var(--font-ui);

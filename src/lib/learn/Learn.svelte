@@ -128,6 +128,7 @@
   $effect(() => {
     if (!open) return;
     if ("article" in open) read(open.article);
+    else if ("spot" in open) practice(open.spot);
     else train(open.kind, open.level);
     onOpened();
   });

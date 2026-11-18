@@ -222,6 +222,6 @@ function fullSummary(): AnalysisSummary {
 
 export function onAutoDone(handler: (d: AutoDone) => void) {
   const shown = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("autodone") === "1";
-  const timer = shown ? setTimeout(() => handler({ hands: 42, mistakes: 3, job: null }), 600) : undefined;
+  const timer = shown ? setTimeout(() => handler({ hands: 42, mistakes: 3, job: null, tournament: 4046787838 }), 600) : undefined;
   return () => clearTimeout(timer);
 }

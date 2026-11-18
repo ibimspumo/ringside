@@ -17,9 +17,9 @@
 
 **In der App**
 - Übersicht mit Gewinnkurve (gesamt, mit und ohne Showdown, All-in-EV), Winrate, Bounties, Glück bei All-ins und deinem Spielstil.
-- Berichte: Ergebnis nach Position, 13×13-Starthand-Matrix, Sitzungen.
+- Statistik: Ergebnis nach Position, 13×13-Starthand-Matrix, Sitzungen.
 - Leaks: deine Werte je Position und Stacktiefe neben veröffentlichten Richtwerten (mit Quelle), mit Sicherheit je Befund und direktem Weg zu den Händen, zur Erklärung und zur Übung.
-- Turniere: Buy-ins, Preisgeld, Bounties, ROI und ITM je Währung. Ein Klick filtert alle Ansichten auf ein Turnier.
+- Turniere: Buy-ins, Preisgeld, Bounties, ROI und ITM je Währung. Ein Klick öffnet den *Turnier-Bericht* – ohne KI, ohne Internet, aus Ringsides eigenen Zahlen: Ergebnis gegen All-in-EV (Glück oder Pech), Anteil guter Entscheidungen und EV-Verlust je 100 Entscheidungen gegen deinen Schnitt, wo du verlierst (Spot-Art, Position, Straße, Stacktiefe), die drei teuersten Fehler und besten Entscheidungen zum Abspielen, deine Starthände, der Stack-Verlauf und was du als Nächstes übst. Nach der automatischen Analyse führt der Hinweis direkt zum Bericht des fertigen Turniers.
 - Live-Tische: deine Gegner an allen offenen Tischen mit HUD-Werten und PokerStars-Notizen.
 - Spieler mit Detailansicht und allen Händen, die sie gezeigt haben.
 - Hände mit Filtern und Replayer. *Hand-Analyse:* ein Klick bewertet deine ganze Historie oder eine einzelne Hand – jede deiner Entscheidungen bekommt eine Stufe von „beste Wahl“ bis „grober Fehler“ (dieselben Stufen wie in „Hände spielen“), den EV-Verlust in BB und einen Satz zum Warum. Jede Bewertung nennt ihre Quelle: Gleichgewicht, Solver, Modell (auch Limps und Tische mit 2–5 Spielern) oder – für Multiway-Pots und alles andere – eine *Einschätzung* mit gemessener Verlässlichkeit. Die Liste startet mit deinen teuersten Fehlern; im Replayer markiert die Zeitleiste jede Entscheidung.
@@ -39,7 +39,8 @@
 - *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
 
 **KI-Coach** (optional, mit eigenem [OpenRouter](https://openrouter.ai)-Key)
-- Analysiert ein abgeschlossenes Turnier und speichert den Bericht: Gesamteindruck, Spots mit Urteil, bessere Alternative und Schwerpunkte zum Üben.
+- *Frag den Coach* im Turnier-Bericht und an jeder bewerteten Hand: Das Sprachmodell bekommt die fertigen Zahlen und erklärt sie in Alltagssprache („Warum ist das ein Fold?“). Zahlen in der Antwort, die nicht von Ringside stammen, werden markiert.
+- Bespricht auf Wunsch ein abgeschlossenes Turnier ausführlich und speichert die Besprechung: Gesamteindruck, Spots mit Urteil, bessere Alternative und Schwerpunkte zum Üben.
 - Das Sprachmodell rechnet nie selbst. Jede Zahl holt es über Werkzeuge aus Ringsides Engine; jede Zahl zeigt, ob sie berechnet oder geschätzt ist.
 - Gegnernamen werden vor dem Senden anonymisiert, vor jedem Lauf siehst du die geschätzten Kosten. Der Key liegt im Windows-Tresor.
 - Gründlichkeit wählbar, Fortschritt live. Bei Bubble und Finaltisch rechnet er Push/Fold mit ICM (echte Auszahlungen aus der Turnier-Zusammenfassung oder eine gekennzeichnete Standard-Struktur).
@@ -52,7 +53,7 @@
 | --- | --- |
 | ![](docs/overlay.png) | ![](docs/overlay-classic.png) |
 
-| Übersicht | Berichte |
+| Übersicht | Statistik |
 | --- | --- |
 | ![](docs/dashboard.png) | ![](docs/reports.png) |
 

@@ -2,7 +2,7 @@
   import type { LearnKind, StatId } from "../types";
 
   /** Where a leak in the learning area leads: an article, or an exercise at a level. */
-  export type LearnTarget = { article: string } | { kind: LearnKind; level: number };
+  export type LearnTarget = { article: string } | { kind: LearnKind; level: number } | { spot: string };
 </script>
 
 <script lang="ts">

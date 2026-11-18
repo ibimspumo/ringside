@@ -25,15 +25,20 @@
 
   let {
     analyze,
+    open: openReview = null,
     tournaments,
     onAnalyzeHandled,
+    onOpenHandled = () => {},
     onHand,
     onTraining,
   }: {
     /** A tournament to analyse, set from the tournaments page. */
     analyze: number | null;
+    /** A stored review to show, set from a tournament report. */
+    open?: number | null;
     tournaments: TournamentRow[];
     onAnalyzeHandled: () => void;
+    onOpenHandled?: () => void;
     onHand: (tournament: number, hand: number) => void;
     /** Opens the learning area, at an exercise or article when one fits. */
     onTraining: (target: LearnTarget | null) => void;
@@ -132,6 +137,15 @@
     runFor = analyze;
     setupOpen = false;
     onAnalyzeHandled();
+  });
+
+  $effect(() => {
+    if (openReview === null) return;
+    selected = openReview;
+    runFor = null;
+    setupOpen = false;
+    focus = null;
+    onOpenHandled();
   });
 
   const loadStatus = () => coachApi.status().then((s) => (status = s));

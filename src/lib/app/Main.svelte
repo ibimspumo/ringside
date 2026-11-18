@@ -5,6 +5,7 @@
   import Coach from "../coach/Coach.svelte";
   import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
+  import ClientLock from "./ClientLock.svelte";
   import Dashboard from "./Dashboard.svelte";
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
@@ -17,6 +18,7 @@
   import TournamentPicker from "./TournamentPicker.svelte";
   import Tournaments from "./Tournaments.svelte";
   import Training from "./Training.svelte";
+  import TournamentReport from "../report/TournamentReport.svelte";
   import PlayPage from "../play/PlayPage.svelte";
   import { playNav } from "../play/nav.svelte";
   import RangesPage from "../charts/RangesPage.svelte";
@@ -64,12 +66,11 @@
       label: "Analyse",
       items: [
         { id: "dashboard", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
-        { id: "reports", label: "Berichte", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
         { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
+        { id: "reports", label: "Statistik", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
         { id: "leaks", label: "Leaks", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
         { id: "ranges", label: "Deine Ranges", icon: "M4.5 4.5h15v15h-15zM4.5 12h15M12 4.5v15M7 7h2.5v2.5H7zM14.5 14.5H17V17h-2.5z" },
         { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
-        { id: "coach", label: "Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
       ],
     },
     {
@@ -83,6 +84,7 @@
       label: "Besser werden",
       items: [
         { id: "training", label: "Lernen", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
+        { id: "coach", label: "KI-Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
         { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
         { id: "charts", label: "Ranges nach Stack", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
         { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
@@ -101,14 +103,15 @@
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
   const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
-    tournaments: "Klick auf ein Turnier zeigt seine Hände und filtert alle Seiten darauf.",
+    tournaments: "Klick auf ein Turnier öffnet seinen Bericht: Ergebnis, Glück, deine Fehler und was du als Nächstes übst.",
+    reports: "Starthände, Positionen und Sessions über den gewählten Zeitraum.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
     leaks: "Deine Werte gegen veröffentlichte Richtwerte.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
-    coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
+    coach: "Optional: Ein Sprachmodell erklärt deine Zahlen und bespricht Turniere ausführlich. Jede Zahl rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
     play: "Postflop-Spots rechnet Ringside im Hintergrund vor.",
     solver: "Gerechnet wird nur auf diesem Rechner.",
@@ -124,7 +127,8 @@
   ];
   const STORE = "ringside.filter";
 
-  const initialTab = new URLSearchParams(window.location.search).get("tab") as Tab | null;
+  const query = new URLSearchParams(window.location.search);
+  const initialTab = query.get("tab") as Tab | null;
   let tab = $state<Tab>(initialTab && NAV.some((n) => n.id === initialTab) ? initialTab : "dashboard");
   let status = $state<ImportStatus | null>(null);
   let tables = $state(0);
@@ -164,8 +168,18 @@
   let handsPlayer = $state<string | null>(null);
   let handToOpen = $state<number | null>(null);
   let handOpenAt = $state<number | null>(null);
-  /** Coach tab: a tournament to analyse, set from the tournaments page. */
+  /** Coach tab: a tournament to analyse, or a stored review to open, set from a report. */
   let analyzeTournament = $state<number | null>(null);
+  let coachOpen = $state<number | null>(null);
+  /** Tournaments tab: the tournament whose report is open instead of the list. */
+  const initialReport = Number(query.get("report"));
+  let reportTournament = $state<number | null>(Number.isSafeInteger(initialReport) && initialReport > 0 ? initialReport : null);
+  const showingReport = $derived(tab === "tournaments" && reportTournament !== null);
+
+  function openReport(id: number) {
+    reportTournament = id;
+    tab = "tournaments";
+  }
 
   // "Range ansehen" in a hand opens the ranges page; its "Zurück zur Hand" returns.
   let chartsBack = chartsHandoff.back;
@@ -324,7 +338,15 @@
         <div class="group" role="group" aria-labelledby="nav-{group.label}">
           <span class="group-label" id="nav-{group.label}">{group.label}</span>
           {#each group.items as item (item.id)}
-            <button class:on={tab === item.id} aria-current={tab === item.id ? "page" : undefined} onclick={() => (tab = item.id)}>
+            <button
+              class:on={tab === item.id}
+              aria-current={tab === item.id ? "page" : undefined}
+              onclick={() => {
+                // "Turniere" again leads from a report back to the list.
+                if (item.id === "tournaments") reportTournament = null;
+                tab = item.id;
+              }}
+            >
               <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
                 {#if item.id === "hud"}
                   <circle cx="12" cy="12" r="7.5" stroke-dasharray="9.8 2" stroke-dashoffset="-1" stroke-linecap="butt" />
@@ -379,7 +401,7 @@
     <CloudNotice onSettings={() => (tab = "settings")} />
     <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
       {#snippet actions()}
-      {#if DATA_TABS.includes(tab)}
+      {#if DATA_TABS.includes(tab) && !showingReport}
         {@const off = tournament !== null}
         {@const offTitle = off ? "Gilt nicht, solange ein Turnier gewählt ist. Klick hebt die Turnierauswahl auf." : undefined}
         <div class="filters">
@@ -449,25 +471,42 @@
             handsSpot = { range, label };
           }}
         />
+      {:else if tab === "tournaments" && reportTournament !== null}
+        {@const id = reportTournament}
+        <ClientLock feature="Der Turnier-Bericht">
+          <TournamentReport
+            tournamentId={id}
+            {refresh}
+            onBack={() => (reportTournament = null)}
+            onHand={(hand, at) => {
+              tournament = id;
+              showHands(null, hand);
+              handOpenAt = at;
+            }}
+            onHands={() => {
+              tournament = id;
+              showHands(null);
+            }}
+            onLearn={(target) => {
+              learnOpen = target;
+              tab = "training";
+            }}
+            onCoach={(what) => {
+              if (what === "analyze") analyzeTournament = id;
+              if (what === "review") coachOpen = id;
+              tab = "coach";
+            }}
+          />
+        </ClientLock>
       {:else if tab === "tournaments"}
-        <Tournaments
-          filter={tournamentFilter}
-          {refresh}
-          selected={tournament}
-          onHands={(id) => {
-            tournament = id;
-            showHands(null);
-          }}
-          onAnalyze={(id) => {
-            analyzeTournament = id;
-            tab = "coach";
-          }}
-        />
+        <Tournaments filter={tournamentFilter} {refresh} selected={tournament} onReport={openReport} />
       {:else if tab === "coach"}
         <Coach
           analyze={analyzeTournament}
+          open={coachOpen}
           tournaments={tournamentList}
           onAnalyzeHandled={() => (analyzeTournament = null)}
+          onOpenHandled={() => (coachOpen = null)}
           onHand={(t, id) => {
             tournament = t;
             showHands(null, id);
@@ -515,6 +554,7 @@
             learnOpen = target;
             tab = "training";
           }}
+          onCoachSetup={() => (tab = "coach")}
         />
       {:else if tab === "hud"}
         <HudEditor />
@@ -525,7 +565,8 @@
   </main>
   <JobToasts onView={viewTarget}>
     <AutoDoneToast
-      onView={() => {
+      onView={(finished) => {
+        if (finished !== null) return openReport(finished);
         analysis.openMistakes = true;
         showHands(null);
       }}
