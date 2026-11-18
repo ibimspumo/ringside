@@ -283,6 +283,35 @@
         {solver.positions[meSide()]} spielt <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span> laut Range hier nie – die Lösung hat dafür keine Strategie. Wähl eine andere Hand oder pass die Range an.
       </p>
     {/if}
+    <section class="panel go" aria-live="polite">
+      {#if running}
+        <SolveProgress total={seconds || null} />
+      {:else}
+        <div class="est">
+          <span class="spot num"
+            ><b>{solver.positions.oop}</b> gegen <b>{solver.positions.ip}</b>
+            {#if board.length}<span class="cards">{#each board as c (c)}<MiniCard card={c} />{/each}</span>{:else}· kein Board{/if}
+            {#if solver.hero}· Du <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>{/if}</span
+          >
+          {#if estimate}
+            <span>Rechnet <b class="num">ca. {duration(seconds)}</b></span>
+            <span title={estimate.compressed ? "Passt nur mit platzsparendem 16-Bit-Speicher" : undefined}
+              >braucht <b class="num" class:neg={!estimate.fits}>{bytes(estimate.memory_bytes)}</b> Arbeitsspeicher</span
+            >
+            {#if !estimate.fits}
+              <span class="neg">Zu groß für diesen Rechner (erlaubt sind {bytes(estimate.memory_limit)}). Weniger Einsatzgrößen oder ein späteres Board helfen.</span>
+            {/if}
+          {:else if estimateError}
+            <span class="neg">{estimateError}</span>
+          {:else}
+            <span class="faint">Schätze …</span>
+          {/if}
+          {#if solver.error}<span class="neg">{solver.error}</span>{/if}
+          {#if solver.status === "cancelled" && !solver.error}<span class="dim">Abgebrochen.</span>{/if}
+        </div>
+        <button class="btn primary" disabled={!canStart} onclick={() => startSolve()}>Lösen</button>
+      {/if}
+    </section>
   </div>
 
   <aside class="panel scen">
@@ -418,35 +447,6 @@
   </div>
 </details>
 
-<section class="panel go" aria-live="polite">
-  {#if running}
-    <SolveProgress />
-  {:else}
-    <div class="est">
-      <span class="spot num"
-        ><b>{solver.positions.oop}</b> gegen <b>{solver.positions.ip}</b>
-        {#if board.length}<span class="cards">{#each board as c (c)}<MiniCard card={c} />{/each}</span>{:else}· kein Board{/if}
-        {#if solver.hero}· Du <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>{/if}</span
-      >
-      {#if estimate}
-        <span>Rechnet <b class="num">ca. {duration(seconds)}</b></span>
-        <span title={estimate.compressed ? "Passt nur mit platzsparendem 16-Bit-Speicher" : undefined}
-          >braucht <b class="num" class:neg={!estimate.fits}>{bytes(estimate.memory_bytes)}</b> Arbeitsspeicher</span
-        >
-        {#if !estimate.fits}
-          <span class="neg">Zu groß für diesen Rechner (erlaubt sind {bytes(estimate.memory_limit)}). Weniger Einsatzgrößen oder ein späteres Board helfen.</span>
-        {/if}
-      {:else if estimateError}
-        <span class="neg">{estimateError}</span>
-      {:else}
-        <span class="faint">Schätze …</span>
-      {/if}
-      {#if solver.error}<span class="neg">{solver.error}</span>{/if}
-      {#if solver.status === "cancelled" && !solver.error}<span class="dim">Abgebrochen.</span>{/if}
-    </div>
-    <button class="btn primary" disabled={!canStart} onclick={() => startSolve()}>Lösen</button>
-  {/if}
-</section>
 
 {#if picker}
   <DeckPopover
@@ -593,9 +593,7 @@
     font-size: 12.5px;
   }
   .who .dim {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.35;
   }
   .origin {
     margin: 6px 0 10px;
@@ -676,15 +674,12 @@
     width: 100%;
   }
   .go {
-    position: sticky;
-    bottom: 12px;
-    z-index: 3;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 16px;
-    margin-top: 16px;
-    padding: 12px 16px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    gap: var(--sp-3) var(--sp-4);
+    margin-top: var(--sp-1);
+    padding: var(--sp-3) var(--sp-4);
   }
   .est {
     display: flex;

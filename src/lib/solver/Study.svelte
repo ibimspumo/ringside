@@ -247,7 +247,11 @@
       .filter((x) => x.f >= 0.03)
       .sort((x, y) => y.f - x.f)
       .slice(0, 3)
-      .map((x) => `${often(x.f)} ${verb(n.actions[x.k], n)}`);
+      .map((x) => {
+        const a = n.actions[x.k];
+        const size = isAggressive(a.kind) ? ` (${actionText(a, n).replace(/ \(.*\)$/, "")})` : "";
+        return `${often(x.f)} ${verb(a, n)}${size}`;
+      });
     return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} und ${parts.at(-1)}` : (parts[0] ?? "");
   }
 </script>
@@ -337,7 +341,7 @@
           {#each h.strategy as f, k (k)}
             {#if f >= 0.005}
               <i style="flex-grow:{f}; --c:{colors[k]}" title="{labels[k]}: in {pct(f)} der Fälle">
-                <span>{cap(verb(node.actions[k], node))}</span><b class="num">{pct(f)}</b>
+                <span>{labels[k].replace(/ \(.*\)$/, "")}</span><b class="num">{pct(f)}</b>
               </i>
             {/if}
           {/each}
@@ -373,7 +377,7 @@
       <section class="acts" class:busy={loading}>
         <div class="actor">
           <span><b>Weiterspielen · ganze Range</b> – Klick auf eine Aktion. Zahl und Balken im Knopf zeigen, wie oft die ganze Range sie wählt.</span>
-          <span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span>
+          <span class="faint keys">Tasten 1–{Math.min(9, node.actions.length)}</span>
         </div>
         <ActionBar {node} {colors} onAct={act} />
         {#if canBet}
@@ -768,6 +772,9 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
+  }
+  .keys {
+    white-space: nowrap;
   }
   .acts.busy {
     opacity: 0.75;

@@ -142,8 +142,8 @@
           <div class="who">
             <h3>{s.title}</h3>
             <p class="seats">
-              <span><Term term="oop">{s.oop || "OOP"}</Term> out of position</span>
-              <span><Term term="ip">{s.ip || "IP"}</Term> in position</span>
+              <span><Term term="oop">{s.oop || "OOP"}</Term> handelt zuerst</span>
+              <span><Term term="ip">{s.ip || "IP"}</Term> handelt zuletzt</span>
             </p>
           </div>
           <dl class="facts">

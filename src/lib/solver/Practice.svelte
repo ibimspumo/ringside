@@ -360,7 +360,7 @@
       <section class="panel box">
         <h3>Serie</h3>
         <div class="series num">
-          <span>Hände <b>{series.hands}</b></span>
+          <span>Hände <b>{series.hands + (phase === "me" || phase === "wait" ? 1 : 0)}</b></span>
           <span>Punkte <b>{series.decisions ? Math.round(series.points / series.decisions) : "–"}</b></span>
           <span>EV-Verlust <b>{signed(-series.loss, 2)} BB</b></span>
         </div>

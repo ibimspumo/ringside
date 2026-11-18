@@ -118,7 +118,15 @@
       </p>
       <h2>{title}</h2>
       <p class="say">
-        {#if what === "result"}
+        {#if running}
+          Sobald die Lösung steht, öffnet sich hier {what === "result"
+            ? hand
+              ? "die Antwort für deine Hand – und der Spot zum Durchspielen"
+              : "der Spot zum Durchspielen"
+            : hand
+              ? "das Üben mit deiner Hand"
+              : "das Üben gegen die Lösung"}. Du kannst die Seite solange verlassen.
+        {:else if what === "result"}
           Hier gehst du den Spot Zug für Zug durch. Bei jeder Entscheidung steht oben, was die Lösung
           {#if hand}mit deiner Hand macht{:else}macht{/if} – darunter, wie sie jede andere Hand spielt und warum.
         {:else}
@@ -128,7 +136,7 @@
       </p>
 
       {#if running}
-        <div class="go"><SolveProgress /></div>
+        <div class="go"><SolveProgress total={seconds || null} /></div>
       {:else if board.length < 3}
         <div class="go">
           <Button variant="primary" onclick={onSetup}>Zum Aufbau</Button>
