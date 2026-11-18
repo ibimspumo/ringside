@@ -10,7 +10,7 @@
   import CardText from "../ui/CardText.svelte";
   import { conceptName } from "./concepts";
   import Figures from "./Figures.svelte";
-  import { positionHint, verdictOf } from "./meaning";
+  import { positionHint, verdictOf, say } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
   import type { CoachSpot } from "./types";
 
@@ -77,8 +77,8 @@
       </div>
       <div class="text">
         <p class="eyebrow">Dein Spot zum Thema {conceptName(spot.concept)} <GradeBadge grade={verdict.grade} size="sm" /></p>
-        <h2 id="mine-title"><CardText hands text={spot.action} /></h2>
-        {#if spot.better}<p class="better"><span>Besser</span><b><CardText hands text={spot.better} /></b></p>{/if}
+        <h2 id="mine-title"><CardText hands text={say(spot.action)} /></h2>
+        {#if spot.better}<p class="better"><span>Besser</span><b><CardText hands text={say(spot.better)} /></b></p>{/if}
         {#if spot.numbers.length}
           <p class="lead">
             Deine Zahlen aus diesem Spot. Der Artikel unten rechnet mit eigenen Beispielen – vergleiche sie mit deinen:

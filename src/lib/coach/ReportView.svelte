@@ -21,7 +21,7 @@
   import { cost, duration, tokens } from "./api";
   import { conceptName } from "./concepts";
   import type { Choice } from "./drill";
-  import { COACH_GRADES, VERDICTS, shortModel, toPractise, verdictOf } from "./meaning";
+  import { COACH_GRADES, VERDICTS, shortModel, toPractise, verdictOf, say } from "./meaning";
   import { rise } from "./motion";
   import SpotCard from "./SpotCard.svelte";
   import type { CoachReport } from "./types";
@@ -142,7 +142,17 @@
 
     <div class="answer">
       <div class="say">
-        <p class="summary"><CardText hands text={report.summary} /></p>
+        <p class="summary"><CardText hands text={say(report.summary)} /></p>
+        {#if report.focus.length}
+          <div class="focus">
+            <h3 class="focus-title">Woran du arbeiten solltest</h3>
+            <ol class="plan">
+              {#each report.focus as f, i (i)}
+                <li><span class="rank num">{i + 1}</span><span><CardText hands text={say(f)} /></span></li>
+              {/each}
+            </ol>
+          </div>
+        {/if}
         <div class="next">
           {#if lesson?.train}
             <Button variant="primary" size="lg" icon={arrow} onclick={() => onTraining(lesson.train)}>{conceptName(lesson.concept)} üben</Button>
@@ -184,7 +194,7 @@
                       <span class="mini-cards">{#each s.spot.hero_cards as c (c)}<PlayingCard card={c} size={18} />{/each}</span>
                       <span class="seat">{s.spot.position ?? "–"}</span>
                       <span class="txt"
-                        >{#if s.spot.better}Besser: <CardText hands text={s.spot.better} />{:else}<CardText hands text={s.spot.action} />{/if}</span
+                        >{#if s.spot.better}Besser: <CardText hands text={say(s.spot.better)} />{:else}<CardText hands text={say(s.spot.action)} />{/if}</span
                       >
                       <span class="go num" aria-hidden="true">{s.n} →</span>
                     </span>
@@ -198,19 +208,6 @@
     </div>
   </Card>
 
-  {#if report.focus.length}
-    <Card>
-      <div class="plan-head">
-        <SectionHead level={3} title="Woran du arbeiten solltest" />
-        <Button size="sm" onclick={() => onTraining(null)}>Zum Lernen</Button>
-      </div>
-      <ol class="plan">
-        {#each report.focus as f, i (i)}
-          <li><span class="rank num">{i + 1}</span><span><CardText hands text={f} /></span></li>
-        {/each}
-      </ol>
-    </Card>
-  {/if}
 
   <div class="list-head">
     <h3>Deine Entscheidungen</h3>
@@ -419,27 +416,25 @@
     color: var(--text-2);
   }
 
-  .plan-head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
+  .focus-title {
+    margin: 0 0 var(--sp-2);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+    color: var(--text-2);
   }
   .plan {
     list-style: none;
-    margin: var(--sp-3) 0 0;
+    margin: 0;
     padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: var(--sp-2);
   }
   .plan li {
     display: flex;
     gap: var(--sp-3);
-    align-items: flex-start;
-    padding: var(--sp-3);
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
+    align-items: center;
+    font-size: var(--fs-base);
     line-height: 1.45;
   }
   .rank {
@@ -488,7 +483,7 @@
 
   .how {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: var(--sp-3) var(--sp-4);
     margin: var(--sp-3) 0 0;
   }
@@ -513,6 +508,11 @@
     color: var(--amber);
   }
 
+  @container (max-width: 1100px) {
+    .how {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
   @container (max-width: 860px) {
     .answer {
       grid-template-columns: minmax(0, 1fr);

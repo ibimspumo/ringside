@@ -8,7 +8,7 @@
   import { conceptName } from "./concepts";
   import { CHOICE_NAME, accepted, bb, behind, choices, decisionIndex, played, scene, type Choice } from "./drill";
   import Figures from "./Figures.svelte";
-  import { positionHint, verdictOf } from "./meaning";
+  import { positionHint, verdictOf, say } from "./meaning";
   import { appear, rise } from "./motion";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
@@ -180,7 +180,7 @@
                 <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <GradeBadge grade={verdict.grade} size="sm" /></dd>
               </div>
               {#if spot.better}
-                <div><dt>Besser laut Coach</dt><dd><CardText hands text={spot.better} /></dd></div>
+                <div><dt>Besser laut Coach</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
               {/if}
             </dl>
             <div class="next">
@@ -208,7 +208,7 @@
     <div class="detail" in:rise>
       <div class="detail-why">
         <h3>Warum</h3>
-        <p class="why"><CardText hands text={spot.why} /></p>
+        <p class="why"><CardText hands text={say(spot.why)} /></p>
       </div>
       {#if spot.numbers.length}
         <div class="detail-figs">

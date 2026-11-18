@@ -231,7 +231,7 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Ringside hat gerechnet" value="{p?.tool_calls ?? 0}-mal" meaning={used.length ? undefined : "Jede Zahl rechnet Ringside nach."} />
+            <Stat label="Ringside hat gerechnet" value="{Math.max(0, (p?.tool_calls ?? 0) - (p?.stage === "tool" ? 1 : 0))}-mal" meaning={used.length ? undefined : "Jede Zahl rechnet Ringside nach."} />
             {#if used.length}
               <span class="tools">
                 {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
@@ -550,7 +550,9 @@
   .tools {
     display: flex;
     flex-wrap: wrap;
+    align-content: flex-start;
     gap: var(--sp-1);
+    min-height: 48px;
   }
   .wait {
     padding: var(--sp-3) var(--sp-4);

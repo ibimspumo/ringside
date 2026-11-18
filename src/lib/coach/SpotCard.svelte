@@ -9,7 +9,7 @@
   import { conceptName } from "./concepts";
   import { CHOICE_NAME, type Choice } from "./drill";
   import Figures from "./Figures.svelte";
-  import { positionHint, verdictOf } from "./meaning";
+  import { positionHint, verdictOf, say } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
   import type { CoachSpot } from "./types";
 
@@ -76,11 +76,11 @@
       {/if}
       <span class="time num" title="Gespielt um {time} Uhr">{time}</span>
     </header>
-    <p class="action" id="spot-{index}-title"><CardText hands text={spot.action} /></p>
+    <p class="action" id="spot-{index}-title"><CardText hands text={say(spot.action)} /></p>
     {#if spot.better}
-      <p class="better"><span>Besser</span><b><CardText hands text={spot.better} /></b></p>
+      <p class="better"><span>Besser</span><b><CardText hands text={say(spot.better)} /></b></p>
     {/if}
-    <p class="why"><CardText hands text={spot.why} /></p>
+    <p class="why"><CardText hands text={say(spot.why)} /></p>
     {#if spot.numbers.length}
       <Figures numbers={spot.numbers} />
     {/if}

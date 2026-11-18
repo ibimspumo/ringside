@@ -1,6 +1,6 @@
 <script lang="ts">
   import SourceNote from "../ui/SourceNote.svelte";
-  import { termsIn } from "./meaning";
+  import { say, termsIn } from "./meaning";
   import type { Figure } from "./types";
 
   /** A spot's figures as rows (label, value, source), with the poker terms they use explained. */
@@ -14,9 +14,9 @@
     {#each numbers as n, i (i)}
       {@const calc = n.source === "berechnet"}
       <div class="fig" class:guess={!calc}>
-        <dt>{n.label}</dt>
+        <dt>{say(n.label)}</dt>
         <dd>
-          <b class:num={calc} class:big={calc}>{n.value}</b>
+          <b class:num={calc} class:big={calc}>{say(n.value)}</b>
           <span class="src"><SourceNote kind={calc ? "computed" : "opinion"} /></span>
         </dd>
       </div>

@@ -58,3 +58,6 @@ export function termsIn(labels: string[]): { term: string; meaning: string }[] {
   const text = labels.join(" ");
   return TERMS.filter(([re]) => re.test(text)).map(([, term, meaning]) => ({ term, meaning }));
 }
+
+/** The model's texts write "bb"; the app writes big blinds as "BB". */
+export const say = (text: string) => text.replace(/(\d)\s?bb\b/g, "$1 BB").replace(/\bbb\b/g, "BB");
