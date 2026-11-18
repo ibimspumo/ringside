@@ -73,6 +73,8 @@
   /** The reason's first sentence, next to the verdict; the whole reason follows below the table. */
   const gist = $derived(spot.why.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? spot.why);
   /** Ringside's own figures behind the verdict, shown right with it; all figures follow below. */
+  /** The coach's own assumption behind those figures, so they are read as "against this range". */
+  const assumed = $derived(spot.numbers.find((n) => n.source !== "berechnet") ?? null);
   const key = $derived(spot.numbers.filter((n) => n.source === "berechnet").slice(0, 2));
   /** The rest of the reason, so the first sentence is not said twice. */
   const rest = $derived(spot.why.slice(gist.length).trim() || spot.why);
@@ -185,6 +187,9 @@
               <ul class="key">
                 {#each key as f, i (i)}<li><span><CardText hands text={say(ownCards(f.label, spot.hero_cards))} /></span><b class="num">{say(f.value)}</b></li>{/each}
               </ul>
+              {#if assumed}
+                <p class="basis">Gerechnet gegen die Gegner-Range, die der Coach annimmt: <b>{say(assumed.value)}</b> (Einschätzung).</p>
+              {/if}
             {/if}
             <dl class="compare">
               <div class="mine"><dt>Deine Antwort</dt><dd>{CHOICE_NAME[answer]}</dd></div>
@@ -393,6 +398,16 @@
     color: var(--text);
     font-weight: var(--fw-semibold);
     white-space: nowrap;
+  }
+  .basis {
+    margin: 0;
+    font-size: var(--fs-md);
+    line-height: 1.45;
+    color: var(--text-2);
+  }
+  .basis b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
   }
   .gist {
     margin: 0;

@@ -189,7 +189,6 @@
             Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
             <b class="num nowrap">{shortModel(e.model)}</b>.
           </p>
-          <Button size="sm" variant="quiet" onclick={onSettings}>Modell ändern</Button>
         </div>
       </div>
 
@@ -198,6 +197,7 @@
           Senden und analysieren{e.cost_usd != null ? ` · ca. ${money(e.cost_usd)}` : ""}
         </Button>
         <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
+        <Button variant="quiet" onclick={onSettings}>Modell ändern</Button>
         <details class="tech">
           <summary>Tokens und Preise</summary>
           <p>
@@ -242,13 +242,13 @@
           <div class="fact">
             <Stat label="Ringside hat gerechnet" value={st.estimate.spots + finished(p) ? `${st.estimate.spots + finished(p)}-mal` : "noch nichts"}
               meaning={st.estimate.spots ? `${st.estimate.spots} vorab, ${finished(p)} während der Analyse` : undefined} />
-            <span class="tools">
-              {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
-                  >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
-                >{:else}<span class="note">Jede weitere Zahl rechnet Ringside nach.</span>{/each}
-            </span>
           </div>
         </Card>
+      </div>
+      <div class="tools" aria-label="Was Ringside nachgerechnet hat">
+        {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
+            >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
+          >{:else}<span class="note">Jede Zahl im Bericht rechnet Ringside selbst nach.</span>{/each}
       </div>
       {#if p?.idle_limit != null && p.idle_seconds >= 15}
         <p class="wait" role="status">
@@ -435,10 +435,6 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-    height: 100%;
-  }
-  .figs :global(.ui-card) {
-    height: 100%;
   }
 
   .effort {
@@ -583,7 +579,8 @@
   .tools {
     display: flex;
     flex-wrap: wrap;
-    align-content: flex-start;
+    align-items: center;
+    min-height: 22px;
     gap: var(--sp-1);
   }
   .wait {

@@ -179,8 +179,7 @@
             </ProgressRing>
             <p class="big">
               {#if weak.length}
-                <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span>
-                {spots.length === 1 ? "Entscheidung" : "Entscheidungen"} zum Üben
+                <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span> zum Üben
               {:else}
                 Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
               {/if}
