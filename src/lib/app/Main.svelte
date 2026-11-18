@@ -5,7 +5,9 @@
   import Coach from "../coach/Coach.svelte";
   import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
+  import AtTable from "./AtTable.svelte";
   import ClientLock from "./ClientLock.svelte";
+  import { adviceLocked, pokerClient, watchPokerClient } from "./client.svelte";
   import Dashboard from "./Dashboard.svelte";
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
@@ -118,9 +120,16 @@
     solver: "Gerechnet wird nur auf diesem Rechner.",
     library: "Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
+  /** While the client runs: the lines of pages whose usual line promises a rating. */
+  const LOCKED_NOTES: Partial<Record<Tab, string>> = {
+    tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du PokerStars schließt.",
+    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
+    leaks: "Deine Werte gegen Richtwerte – sobald du PokerStars schließt.",
+  };
   /** Pages PokerStars' rules lock while the client runs; the PageHeader keeps saying so. */
-  const LOCKED: Tab[] = ["training", "play", "charts", "solver", "library"];
-  let clientRunning = $state(false);
+  const LOCKED: Tab[] = ["leaks", "training", "play", "charts", "solver", "library"];
+  watchPokerClient();
+  const clientRunning = $derived(pokerClient.running === true);
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
     ["cash", "Cash"],
@@ -311,13 +320,9 @@
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
       on("tournament-named", () => refresh++),
-      on<boolean>("poker-client", (r) => (clientRunning = r)),
     ];
     // Listen first, then read the state, so nothing sent at startup is missed.
-    Promise.all(subs).then(() => {
-      sync();
-      api.pokerClientRunning().then((r) => (clientRunning = r));
-    });
+    Promise.all(subs).then(sync);
     const poll = setInterval(sync, 5000);
     return () => {
       clearInterval(poll);
@@ -401,7 +406,7 @@
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
+    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={(clientRunning && LOCKED_NOTES[tab]) || NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab) && !showingReport}
         {@const off = tournament !== null}
@@ -451,6 +456,8 @@
         />
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
+      {:else if tab === "leaks" && adviceLocked()}
+        <AtTable hands={status?.total_hands} />
       {:else if tab === "leaks"}
         <Leaks
           {filter}

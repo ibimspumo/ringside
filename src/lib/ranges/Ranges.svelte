@@ -196,7 +196,9 @@
   const answer = $derived(sel && totals ? headline(sel, totals.play, chart?.comparison ?? null) : "");
   const model = $derived(chart?.model ?? null);
   const thin = $derived(totals ? totals.n < 40 : false);
-  const views = (wide: boolean): GridMode[] => (wide ? ["you", "model", "diff"] : ["you", second]);
+  /** While PokerStars runs only the hero's own chart shows; the comparison waits. */
+  const locked = $derived(chart?.locked ?? false);
+  const views = (wide: boolean): GridMode[] => (locked ? ["you"] : wide ? ["you", "model", "diff"] : ["you", second]);
 </script>
 
 {#if error}
@@ -342,13 +344,15 @@
 
       <section class="charts" aria-label="Range-Charts">
         <div class="toolbar">
-          <div class="seg narrow-only" role="group" aria-label="Zweites Chart">
-            <button class:on={second === "model"} onclick={() => (second = "model")}>Modell</button>
-            <button class:on={second === "diff"} onclick={() => (second = "diff")}>Differenz</button>
-          </div>
-          <label class="outline-toggle" title="Zeichnet die Hände, die das Modell meistens spielt, als Linie über dein Chart">
-            <input type="checkbox" bind:checked={outline} disabled={!model} /> Modell-Umriss über deinem Chart
-          </label>
+          {#if !locked}
+            <div class="seg narrow-only" role="group" aria-label="Zweites Chart">
+              <button class:on={second === "model"} onclick={() => (second = "model")}>Modell</button>
+              <button class:on={second === "diff"} onclick={() => (second = "diff")}>Differenz</button>
+            </div>
+            <label class="outline-toggle" title="Zeichnet die Hände, die das Modell meistens spielt, als Linie über dein Chart">
+              <input type="checkbox" bind:checked={outline} disabled={!model} /> Modell-Umriss über deinem Chart
+            </label>
+          {/if}
           <div class="legend">
             {#each MOVES as m (m)}
               <span><i style="background:{MOVE[m].color}" class:fold={m === "fold"}></i>{MOVE[m].label}</span>

@@ -1083,6 +1083,46 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
   }
 });
 
+// Last, because it reloads the demo as if PokerStars ran. The app cannot start the client, so
+// the Rust tests of the lock (lib.rs, ranges.rs, tests/commands.rs) cover the backend.
+if (!TAURI)
+  step("PokerStars läuft: keine Seite bewertet oder empfiehlt etwas", async () => {
+    const url = new URL(DEMO_URL);
+    url.searchParams.set("locked", "1");
+    // The note after the automatic analysis ("3 teure Fehler") must stay away too.
+    url.searchParams.set("autodone", "1");
+    await s.navigate(url.href);
+    await find("nav button", "Übersicht", { timeout: 60_000 });
+    await s.exec(HOOK);
+    // Recommendations, model comparisons and the grade labels (ui/poker.ts GRADE).
+    const ADVICE = /Besser:|Fehler|Was du tun kannst|Modell|Beste Wahl|Auch richtig|Ungenau|\bGrob\b/;
+    // Settings name the coach's language model, which rates nothing.
+    const ALLOWED = { Einstellungen: /Modell/g };
+    const pages = await s.exec(`return [...document.querySelectorAll("nav button")].map((b) => b.textContent.replace(/\\s+/g, " ").trim())`);
+    const seen = async (page) => {
+      // Slow enough for the demo's note after the automatic analysis to have come.
+      await sleep(900);
+      const text = await s.exec(`return [...document.querySelectorAll("main, .toasts")].map((e) => e.innerText).join("\\n")`);
+      const hit = text.replace(ALLOWED[page] ?? /$^/, "").match(ADVICE);
+      writeFileSync(path.join(OUT, "pages", `locked-${page}.txt`), text);
+      writeFileSync(path.join(OUT, `locked-${page}.png`), Buffer.from(await s.screenshot(), "base64"));
+      if (hit) throw new Error(`${page} zeigt „${hit[0]}“, obwohl PokerStars läuft`);
+    };
+    for (const page of pages) {
+      await nav(page);
+      await seen(page);
+    }
+    // One level deeper: a hand in the replayer and a tournament's report.
+    await nav("Hände");
+    await click("main [data-id]");
+    await waitText("Die Analyse pausiert");
+    await seen("Hände – offene Hand");
+    await nav("Turniere");
+    await click("main tbody tr:has(.gname[title*='Sunday Million'])");
+    await waitText("gesperrt, solange PokerStars läuft");
+    await seen("Turnier-Bericht");
+  });
+
 // ---------------------------------------------------------------------------------
 // Run.
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { onAnalysisAutoDone } from "../api";
+  import { adviceLocked, watchPokerClient } from "../app/client.svelte";
   import { silence } from "../jobs/store.svelte";
   import Toast from "../ui/Toast.svelte";
   import type { AutoDone } from "./types";
@@ -10,6 +11,7 @@
   /** Opens the report of the finished tournament, or else "Meine teuersten Fehler" on the hands page. */
   let { onView }: { onView: (tournament: number | null) => void } = $props();
 
+  watchPokerClient();
   let done = $state<AutoDone | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -35,7 +37,7 @@
   });
 </script>
 
-{#if done}
+{#if done && !adviceLocked()}
   <Toast
     tone="good"
     title={hands(done.hands)}

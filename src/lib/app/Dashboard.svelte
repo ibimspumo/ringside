@@ -15,6 +15,8 @@
   import Panel from "../ui/Panel.svelte";
   import Term from "../ui/Term.svelte";
   import Wheel from "./Wheel.svelte";
+  import AtTable from "./AtTable.svelte";
+  import { adviceLocked, watchPokerClient } from "./client.svelte";
 
   const SERIES: Series<ResultPoint>[] = [
     { key: "net_bb", label: "Gesamt", color: "var(--text)", width: 2 },
@@ -74,6 +76,9 @@
   /** The curve fills whatever height the answer column gives the row. */
   let plotH = $state(0);
 
+  watchPokerClient();
+  const locked = $derived(adviceLocked());
+
   $effect(() => {
     void refresh;
     void retry;
@@ -87,7 +92,25 @@
         failed = false;
       })
       .catch(() => live && (failed = true));
+    api.reports(f).then(
+      (rep) => live && (positions = rep.positions),
+      () => live && (positions = []),
+    );
+    return () => (live = false);
+  });
+
+  // Ratings and the leak finder's verdicts are advice: none while PokerStars runs.
+  $effect(() => {
+    void refresh;
+    void retry;
     void analysis.status?.counts.analyzed;
+    const f = { ...filter };
+    if (locked) {
+      next = null;
+      flagged = new Map();
+      return;
+    }
+    let live = true;
     api.analysisSummary(f).then(
       (s) => live && (next = s.by_spot.find((x) => x.spot && x.loss_bb > 0.5) ?? null),
       () => live && (next = null),
@@ -104,10 +127,6 @@
         flagged = m;
       },
       () => live && (flagged = new Map()),
-    );
-    api.reports(f).then(
-      (rep) => live && (positions = rep.positions),
-      () => live && (positions = []),
     );
     return () => (live = false);
   });
@@ -266,7 +285,7 @@
     <section class="loss">
       <div class="section-head">
           <h2 class="section-title">Wo du Chips verlierst</h2>
-          {#if running}
+          {#if running && !locked}
             <span class="snapshot"
               >{preflopDone
                 ? "Zwischenstand – nach dem Flop kommen noch Entscheidungen dazu."
@@ -274,8 +293,12 @@
             >
           {/if}
       </div>
-      <AnalyzeBar compact title="Analyse starten" />
-      <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpot={() => onHand(-1, null)} {onLearn} />
+      {#if locked}
+        <AtTable compact hands={r.hands} />
+      {:else}
+        <AnalyzeBar compact title="Analyse starten" />
+        <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpot={() => onHand(-1, null)} {onLearn} />
+      {/if}
     </section>
 
     {#if byPosition.length}
@@ -307,7 +330,7 @@
     <Panel
       flush
       title="Dein Spielstil"
-      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ ist kein Fehler – ob ein Wert dich Geld kostet, prüft die Seite Leaks."
+      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ heißt noch nicht schlecht – ob ein Wert dich Geld kostet, prüft die Seite Leaks."
     >
       {#if hero && hud}
         <div class="style">
