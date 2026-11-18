@@ -170,16 +170,116 @@ const postflop: KindSpec = {
     if (typeof r.flop !== "string" || !POSTFLOP_FLOPS.includes(r.flop)) throw new InvalidError("flop is not in the catalog");
   },
   normalizeResult(result, input) {
-    const r = record(result, "result", ["data"]);
-    const data = r.data;
-    if (typeof data !== "string" || data.length === 0 || data.length > POSTFLOP_MAX_BASE64) {
-      throw new InvalidError(`data must be base64 of at most ${POSTFLOP_MAX_BASE64} characters`);
-    }
-    if (data.length % 4 !== 0 || !BASE64_RE.test(data)) throw new InvalidError("data must be base64");
+    const data = storedData(result);
     checkHeader(data, input as { catalog: number; scenario: string; flop: string });
     return { data };
   },
 };
+
+const RANKS = "23456789TJQKA";
+const SUITS = "cdhs";
+
+/**
+ * The canonical flop of a suit class, as `library::flops::canonical` in Rust: of all 24
+ * suit renamings the one that sorts first with cards highest rank first, suits s, h, d, c.
+ */
+export function canonicalFlop(flop: string): string {
+  if (!/^([2-9TJQKA][cdhs]){3}$/.test(flop)) throw new InvalidError("board must be a flop like AsKs2h");
+  const cards = [0, 2, 4].map((i) => ({ rank: RANKS.indexOf(flop[i]), suit: SUITS.indexOf(flop[i + 1]) }));
+  if (new Set(cards.map((c) => c.rank * 4 + c.suit)).size !== 3) throw new InvalidError("board has a card twice");
+  const key = (c: { rank: number; suit: number }) => (12 - c.rank) * 4 + (3 - c.suit);
+  let best: number[] | undefined;
+  for (const perm of permutations([0, 1, 2, 3])) {
+    const k = cards.map((c) => key({ rank: c.rank, suit: perm[c.suit] })).sort((a, b) => a - b);
+    const first = best === undefined ? -1 : k.findIndex((x, i) => x !== best![i]);
+    if (best === undefined || (first >= 0 && k[first] < best[first])) best = k;
+  }
+  return best!.map((k) => RANKS[12 - Math.floor(k / 4)] + SUITS[3 - (k % 4)]).join("");
+}
+
+function permutations(xs: number[]): number[][] {
+  if (xs.length <= 1) return [xs];
+  return xs.flatMap((x, i) => permutations([...xs.slice(0, i), ...xs.slice(i + 1)]).map((p) => [x, ...p]));
+}
+
+/** Versions of the preflop model the verifier rebuilds ranges with; mirrors MODEL_VERSION in kinds/spot.rs. */
+export const SPOT_MODELS: readonly number[] = [1];
+export const SPOT_PLAYERS: readonly number[] = [6, 8, 9];
+export const SPOT_STACKS: readonly number[] = [15, 20, 25, 30, 40, 50, 75, 100];
+const SPOT_ANTES = ["none", "classic", "big_blind"];
+const SPOT_ACTIONS = ["check", "call", "limp", "raise", "all_in"];
+const SPOT_MAX_LINE = 8;
+const SPOT_MAX_CBB = 50_000;
+const SPOT_MAX_SIZES = 4;
+
+/**
+ * Heads-up flops off the catalog (kinds/spot.rs): the ranges are named by the preflop
+ * model's configuration and line, never sent; the verifier rebuilds them. Only the shape
+ * is checked here: whether the line exists in the model and the tree fits is the
+ * verifier's call.
+ */
+const spot: KindSpec = {
+  engineVersions: [1],
+  maxResultBytes: POSTFLOP_MAX_BASE64 + 64,
+  checkInput(input) {
+    const r = record(input, "input", [
+      "model",
+      "ante",
+      "players",
+      "stack_bb",
+      "line",
+      "board",
+      "pot_cbb",
+      "stack_cbb",
+      "sizes",
+      "allin_pct",
+    ]);
+    if (!SPOT_MODELS.includes(r.model as number)) throw new InvalidError("model is not a known model version");
+    if (typeof r.ante !== "string" || !SPOT_ANTES.includes(r.ante)) throw new InvalidError("unknown ante");
+    const players = int(r.players, "players", 2, 9);
+    if (!SPOT_PLAYERS.includes(players)) throw new InvalidError("players has no model table");
+    if (!SPOT_STACKS.includes(int(r.stack_bb, "stack_bb", 1, 1000))) throw new InvalidError("stack_bb has no model table");
+    if (!Array.isArray(r.line) || r.line.length < 1 || r.line.length > SPOT_MAX_LINE) {
+      throw new InvalidError(`line must have 1 to ${SPOT_MAX_LINE} actions`);
+    }
+    r.line.forEach((step, i) => {
+      if (!Array.isArray(step) || step.length !== 3) throw new InvalidError(`line[${i}] must be [seat, action, to_mbb]`);
+      int(step[0], `line[${i}] seat`, 0, players - 1);
+      if (typeof step[1] !== "string" || !SPOT_ACTIONS.includes(step[1])) throw new InvalidError(`line[${i}] action`);
+      int(step[2], `line[${i}] to_mbb`, 0, 1_000_000);
+    });
+    if (typeof r.board !== "string" || canonicalFlop(r.board) !== r.board) {
+      throw new InvalidError("board must be the canonical flop of its suit class");
+    }
+    int(r.pot_cbb, "pot_cbb", 100, SPOT_MAX_CBB);
+    int(r.stack_cbb, "stack_cbb", 1, SPOT_MAX_CBB);
+    if (!Array.isArray(r.sizes) || r.sizes.length !== 6) throw new InvalidError("sizes must have six lists");
+    r.sizes.forEach((list, i) => {
+      const v = intArray(list, `sizes[${i}]`, 0, SPOT_MAX_SIZES, 1, 1000);
+      if (v.some((x, j) => j > 0 && x <= v[j - 1])) throw new InvalidError(`sizes[${i}] must ascend`);
+    });
+    int(r.allin_pct, "allin_pct", 0, 1000);
+  },
+  normalizeResult(result, input) {
+    const data = storedData(result);
+    checkHeader(data, { catalog: SPOT_CATALOG, scenario: SPOT_SCENARIO, flop: (input as { board: string }).board });
+    return { data };
+  },
+};
+
+/** Header of a stored spot of kind `spot` (CATALOG_VERSION and SCENARIO in kinds/spot.rs). */
+export const SPOT_CATALOG = 0;
+export const SPOT_SCENARIO = "spot";
+
+function storedData(result: unknown): string {
+  const r = record(result, "result", ["data"]);
+  const data = r.data;
+  if (typeof data !== "string" || data.length === 0 || data.length > POSTFLOP_MAX_BASE64) {
+    throw new InvalidError(`data must be base64 of at most ${POSTFLOP_MAX_BASE64} characters`);
+  }
+  if (data.length % 4 !== 0 || !BASE64_RE.test(data)) throw new InvalidError("data must be base64");
+  return data;
+}
 
 /** Magic "RSLS", format 1, catalog u16, scenario (u8 length + ASCII) and flop must match the input. */
 function checkHeader(data: string, input: { catalog: number; scenario: string; flop: string }): void {
@@ -200,6 +300,7 @@ export const KINDS: Readonly<Record<string, KindSpec>> = {
   "pushfold-hu": pushfoldHu,
   "pushfold-mw": pushfoldMw,
   postflop,
+  spot,
 };
 
 export function kindSpec(kind: string): KindSpec | undefined {

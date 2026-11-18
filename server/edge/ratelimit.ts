@@ -25,6 +25,15 @@ export const RULES = {
   ],
   read: [{ name: "read-min", scope: "client", windowS: 60, max: 300 }],
   status: [{ name: "status-min", scope: "client", windowS: 60, max: 20 }],
+  work: [
+    { name: "work-min", scope: "client", windowS: 60, max: 6 },
+    { name: "work-hour", scope: "client", windowS: 3600, max: 60 },
+    { name: "work-global", scope: "global", windowS: 3600, max: 3000 },
+  ],
+  request: [
+    { name: "request-hour", scope: "client", windowS: 3600, max: 30 },
+    { name: "request-global", scope: "global", windowS: 3600, max: 1500 },
+  ],
 } as const satisfies Record<string, readonly Rule[]>;
 
 /** Counters older than this are deleted; longer than the longest window. */

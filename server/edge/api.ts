@@ -7,7 +7,7 @@ import { CanonicalError, canonicalize, solutionKey } from "./canonical.ts";
 import { InvalidError, KINDS, kindSpec } from "./kinds.ts";
 import { decide, hitStatements, MemoryCounter, pruneStatement, RULES, type Rule } from "./ratelimit.ts";
 
-export const API_VERSION = "1.0.0";
+export const API_VERSION = "1.1.0";
 const MAX_BODY = 256 * 1024;
 const MAX_INPUT = 4 * 1024;
 const MAX_HAND = 20_000;
@@ -16,6 +16,17 @@ const MAX_ERROR = 2_000;
 export const MAX_STATUS_KEYS = 200;
 const MAX_NOTE = 300;
 const KEEP_VERIFIED = 100_000;
+/** How long a computer may work on a spot before it is handed out again, by kind. */
+export const LEASE_S: Readonly<Record<string, number>> = {
+  "pushfold-hu": 600,
+  "pushfold-mw": 1_800,
+  postflop: 3 * 3_600,
+  spot: 3 * 3_600,
+};
+/** Spots one client (one IP, so several computers behind a router) holds at once; a further request frees its oldest. */
+export const MAX_LEASES = 3;
+/** Kinds a client may ask the community to solve; the others are seeded by the operator. */
+const REQUESTABLE = ["spot"];
 
 export interface Deps {
   sql: Sql;
@@ -208,19 +219,9 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   async function submitSolution(req: Request, client: string): Promise<Response> {
     await limitWrites(RULES.submit, client);
     const body = exactFields(await readBody(req), ["kind", "engine_version", "input", "result"]);
-    const kind = String(body.kind);
-    const spec = typeof body.kind === "string" ? kindSpec(kind) : undefined;
-    if (!spec) throw new InvalidError(`kind must be one of ${Object.keys(KINDS).join(", ")}`);
-    const version = body.engine_version;
-    if (typeof version !== "number" || !spec.engineVersions.includes(version)) {
-      throw new InvalidError(`engine_version must be one of ${spec.engineVersions.join(", ")}`);
-    }
-    const input = canonicalize(body.input);
-    if (input.length > MAX_INPUT) throw new InvalidError("input too large");
-    spec.checkInput(body.input);
+    const { kind, spec, version, input, key } = await solutionInput(body);
     const result = JSON.stringify(spec.normalizeResult(body.result, body.input));
     if (result.length > spec.maxResultBytes) throw new InvalidError("result too large");
-    const key = await solutionKey(kind, version, input);
     const t = now();
 
     const [outcome] = await deps.sql.batch([
@@ -245,6 +246,99 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     return o === "verified"
       ? json(200, { key, status: "verified" })
       : json(202, { key, status: "submitted", outcome: o });
+  }
+
+  /** The kind, engine version and canonical input of a body, with its key; throws on anything malformed. */
+  async function solutionInput(body: Record<string, unknown>) {
+    const kind = String(body.kind);
+    const spec = typeof body.kind === "string" ? kindSpec(kind) : undefined;
+    if (!spec) throw new InvalidError(`kind must be one of ${Object.keys(KINDS).join(", ")}`);
+    const version = body.engine_version;
+    if (typeof version !== "number" || !spec.engineVersions.includes(version)) {
+      throw new InvalidError(`engine_version must be one of ${spec.engineVersions.join(", ")}`);
+    }
+    const input = canonicalize(body.input);
+    if (input.length > MAX_INPUT) throw new InvalidError("input too large");
+    spec.checkInput(body.input);
+    return { kind, spec, version, input, key: await solutionKey(kind, version, input) };
+  }
+
+  /**
+   * Hands out the open spot first in line (most requested, least handed out, oldest)
+   * among the kinds the client can solve, leased for the kind's time. A spot whose lease
+   * ran out is open again; one with a submitted or verified solution is not.
+   */
+  async function nextWork(req: Request, client: string): Promise<Response> {
+    await limitWrites(RULES.work, client);
+    const { kinds } = exactFields(await readBody(req), ["kinds"]);
+    if (typeof kinds !== "object" || kinds === null || Array.isArray(kinds)) {
+      throw new InvalidError("kinds must map kind names to engine versions");
+    }
+    const wanted: [string, number[]][] = [];
+    for (const [kind, versions] of Object.entries(kinds)) {
+      const spec = kindSpec(kind);
+      if (!spec) throw new InvalidError(`unknown kind ${kind.slice(0, 40)}`);
+      if (!Array.isArray(versions) || versions.length < 1 || versions.some((v) => !spec.engineVersions.includes(v))) {
+        throw new InvalidError(`engine versions of ${kind} must be among ${spec.engineVersions.join(", ")}`);
+      }
+      wanted.push([kind, versions as number[]]);
+    }
+    if (wanted.length === 0) throw new InvalidError("kinds must name at least one kind");
+    const t = now();
+    const filter = wanted.map(([, vs]) => `(w.kind = ? AND w.engine_version IN (${vs.map(() => "?").join(",")}))`)
+      .join(" OR ");
+    const filterArgs = wanted.flatMap(([k, vs]) => [k, ...vs]);
+    const leaseCase = `CASE kind ${Object.keys(LEASE_S).map(() => "WHEN ? THEN ?").join(" ")} ELSE 3600 END`;
+    const leaseArgs = Object.entries(LEASE_S).flat();
+    const [, picked] = await deps.sql.batch([
+      // Leases beyond the client's share go back to the queue, oldest first.
+      {
+        sql: "UPDATE work SET lease_until = NULL, leased_to = NULL WHERE key IN (SELECT key FROM work " +
+          "WHERE leased_to = ? AND lease_until > ? ORDER BY lease_until DESC LIMIT -1 OFFSET ?)",
+        args: [client, t, MAX_LEASES - 1],
+      },
+      {
+        sql: `UPDATE work SET lease_until = ? + ${leaseCase}, leased_to = ?, leases = leases + 1 ` +
+          "WHERE key = (SELECT w.key FROM work w WHERE (" + filter + ") " +
+          "AND (w.lease_until IS NULL OR w.lease_until <= ?) " +
+          "AND NOT EXISTS (SELECT 1 FROM solutions s WHERE s.key = w.key AND s.status IN ('submitted', 'verified')) " +
+          "ORDER BY w.priority DESC, w.leases, w.created_at LIMIT 1) " +
+          "AND (lease_until IS NULL OR lease_until <= ?) " +
+          "RETURNING key, kind, engine_version, input, lease_until",
+        args: [t, ...leaseArgs, client, ...filterArgs, t, t],
+      },
+    ]);
+    const row = picked.rows[0];
+    if (!row) return json(200, { work: null });
+    return new Response(
+      `{"work":{"key":"${row.key}","kind":${JSON.stringify(row.kind)},"engine_version":${
+        Number(row.engine_version)
+      },"input":${row.input},"lease_until":${Number(row.lease_until)}}}`,
+      { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } },
+    );
+  }
+
+  /** A client looked a spot up in vain: queue it for the community, or count one more request. */
+  async function requestWork(req: Request, client: string): Promise<Response> {
+    await limitWrites(RULES.request, client);
+    const body = exactFields(await readBody(req), ["kind", "engine_version", "input"]);
+    const { kind, version, input, key } = await solutionInput(body);
+    if (!REQUESTABLE.includes(kind)) throw new InvalidError(`only ${REQUESTABLE.join(", ")} can be requested`);
+    const [r] = await deps.sql.batch([
+      {
+        sql: "SELECT status FROM solutions WHERE key = ? AND status IN ('submitted', 'verified')",
+        args: [key],
+      },
+      {
+        sql: "INSERT INTO work (key, kind, engine_version, input, source, priority, created_at) " +
+          "SELECT ?, ?, ?, ?, 'request', 1, ? " +
+          "WHERE NOT EXISTS (SELECT 1 FROM solutions WHERE key = ? AND status IN ('submitted', 'verified')) " +
+          "ON CONFLICT (key) DO UPDATE SET priority = priority + 1",
+        args: [key, kind, version, input, now(), key],
+      },
+    ]);
+    const solved = r.rows[0];
+    return json(202, { key, status: solved ? String(solved.status) : "queued" });
   }
 
   async function report(req: Request, client: string): Promise<Response> {
@@ -292,6 +386,14 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (path === "/v1/solutions") {
         if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
         return await submitSolution(req, client);
+      }
+      if (path === "/v1/work/next") {
+        if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
+        return await nextWork(req, client);
+      }
+      if (path === "/v1/work/request") {
+        if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
+        return await requestWork(req, client);
       }
       if (path === "/v1/reports") {
         if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
