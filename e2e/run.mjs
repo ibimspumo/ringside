@@ -392,7 +392,7 @@ step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () 
 
 step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await stackTo(50);
-  await waitText(/eröffnest du etwa \d+ %/);
+  await waitText(/erhöhst du mit etwa \d+ %/);
   await waitText("Modell");
 });
 

@@ -453,6 +453,12 @@
     const open = spots?.nodes.find((n) => n.seat === seat && !n.line.length);
     return open ? open.actions.filter((a) => a.kind === "raise" || a.kind === "all_in").reduce((t, a) => t + a.pct, 0) : null;
   });
+  /** Limp share of your seat when everyone folded (only the small blind limps in the model). */
+  const myLimp = $derived(
+    engine === "preflop"
+      ? (spots?.nodes.find((n) => n.seat === seat && !n.line.length)?.actions.find((a) => a.kind === "limp")?.pct ?? 0)
+      : 0,
+  );
   const myName = $derived(positions.find((p) => p.seat === seat)?.name ?? "");
 
   // ── Live solve ───────────────────────────────────────────────────
@@ -514,11 +520,11 @@
               {#if mine < 0.5}
                 <b>{fromPos(myName)} mit {bb(stack)} BB foldest du jede Hand,</b> wenn alle vor dir gefoldet haben.
               {:else if seg === "open"}
-                <b>{fromPos(myName)} mit {bb(stack)} BB eröffnest du etwa {pct(mine, 0)} % deiner Hände</b>
-                {engine === "pushfold" ? "– jedes Mal all-in." : "– meist mit einem Raise."}
+                <b>{fromPos(myName)} mit {bb(stack)} BB erhöhst du mit etwa {pct(mine, 0)} % deiner Hände</b>
+                {#if engine === "pushfold"}– jedes Mal all-in.{:else if myLimp >= 0.5}– dazu limpst du etwa {pct(myLimp, 0)} %.{:else}– Open-Raise oder all-in.{/if}
                 <span class="faint">Je kürzer der Stack, desto öfter geht es direkt all-in.</span>
               {:else}
-                Zum Vergleich: Wenn alle vor dir folden, eröffnest du {fromPos(myName).replace(/^\S+/, (w) => w.toLowerCase())} mit {bb(stack)} BB etwa
+                Zum Vergleich: Wenn alle vor dir folden, erhöhst du {fromPos(myName).replace(/^\S+/, (w) => w.toLowerCase())} mit {bb(stack)} BB mit etwa
                 {pct(mine, 0)} % deiner Hände. <span class="faint">Die Range unten gilt für „{SEG_LABEL[seg]}“.</span>
               {/if}
             </p>
