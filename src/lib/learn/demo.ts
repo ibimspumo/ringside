@@ -31,6 +31,12 @@ const NAMES: Record<LearnKind, string> = {
   push_fold_call: "Call gegen einen Shove",
   all_in: "All-ins eigener Hände",
   full_hands: "Ganze Hände",
+  bounty_odds: "Pot Odds mit Kopfgeld",
+  icm_call: "ICM und Bubble-Calls",
+  open_fold: "Öffnen oder folden",
+  river_bet: "Bet oder Check am River",
+  stack_depth: "Stacktiefe und M-Zahl",
+  hud_read: "Gegner lesen mit HUD-Werten",
 };
 const KINDS = Object.keys(NAMES) as LearnKind[];
 const LEVEL_NAMES = ["neu", "kennengelernt", "mit Hilfe", "selbstständig", "bestätigt"] as const;
@@ -343,6 +349,8 @@ function genTask(kind: LearnKind, level: number, r: Rng): Task {
       throw "Diese Übungsart gibt es nur aus eigenen Händen.";
     case "full_hands":
       throw "Ganze Hände gibt es im Übungsmodus „Hände spielen“.";
+    default:
+      throw "Diese Übung kommt aus drills.json.";
   }
 }
 
@@ -411,7 +419,7 @@ function labelOf(seat: number, button: number, n: number): string {
 /* Grading ----------------------------------------------------------------------------------------- */
 
 function base(correct: boolean, s: number, truth: LearnAnswer, truth_text: string, facts: Fact[], ex: Exercise): Feedback {
-  return { correct, score: Math.max(0, Math.min(1, s)), truth, truth_text, facts, highlight: [], ev_loss_bb: null, grading: ex.grading, model_note: ex.model_note };
+  return { correct, score: Math.max(0, Math.min(1, s)), truth, truth_text, facts, highlight: [], ev_loss_bb: null, grading: ex.grading, model_note: ex.model_note, grid: null };
 }
 
 /** Linear score: 1 inside `tol` percentage points, 0 at `zero`. */
@@ -592,6 +600,8 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       fb.facts.push(fact("Pot", bb(r.pot_bb)), fact("Erwartet (EV)", sbb(r.ev_bb), "Equity × (Pot − Rake) − eigener Einsatz"), fact("Tatsächlich", sbb(r.net_bb)), fact("Glück", sbb(r.luck_bb), "Tatsächlich − EV"));
       return fb;
     }
+    default:
+      throw "Diese Übung wird mit drills.json bewertet.";
   }
 }
 
@@ -777,13 +787,66 @@ const SPOTS: OwnSpot[] = SPOT_SEEDS.map(makeSpot);
 
 /* Public stand-ins -------------------------------------------------------------------------------- */
 
-export function demoExercise(kind: LearnKind, level: number, seed?: number | null): Exercise {
-  const s = seed ?? Math.floor(Math.random() * 2 ** 52);
-  return { kind, level, seed: s, hand_id: null, ...genTask(kind, level, rng(s)) };
+/* Kinds solved by the engine: real exercises written by crates/ringside-learn/tests/demo.rs. --------- */
+
+type Drill = { exercise: Exercise; feedback: Record<string, Feedback> };
+const DRILLS: ReadonlySet<LearnKind> = new Set(["bounty_odds", "icm_call", "open_fold", "river_bet", "stack_depth", "hud_read"]);
+let drills: Promise<Record<string, Drill[][]>> | null = null;
+
+async function drill(kind: LearnKind, level: number, seed: number): Promise<Drill> {
+  drills ??= import("./drills.json").then((m) => m.default as unknown as Record<string, Drill[][]>);
+  const list = (await drills)[kind][level - 1];
+  return list[seed % list.length];
 }
 
-export function demoCheck(exercise: Exercise, answer: LearnAnswer): Feedback {
-  const ex = exercise.hand_id === null ? demoExercise(exercise.kind, exercise.level, exercise.seed) : exercise;
+/** Score bands of the number answers, as the Rust graders use them: [full, zero, relative to the truth]. */
+function tolerance(ex: Exercise): [number, number, boolean] {
+  const p = ex.prompt;
+  if (p.type === "icm") {
+    const pool = p.payouts.reduce((a, b) => a + b, 0);
+    return [0.025 * pool, 0.12 * pool, false];
+  }
+  if (p.type === "stack_depth") return p.ask === "bb" ? [0.03, 0.25, true] : p.ask === "m" ? [0.05, 0.3, true] : [1.5, 8, false];
+  return [2, 10, false];
+}
+
+function checkDrill(d: Drill, answer: LearnAnswer): Feedback {
+  if ("choice" in answer) {
+    const fb = d.feedback[answer.choice];
+    if (!fb) throw `Unbekannte Antwort '${answer.choice}'`;
+    return structuredClone(fb);
+  }
+  if (!("number" in answer)) throw "Hier wird eine Zahl erwartet";
+  const fb = structuredClone(d.feedback.number);
+  const truth = "number" in fb.truth ? fb.truth.number : 0;
+  const [full, zero, relative] = tolerance(d.exercise);
+  const err = relative ? (answer.number - truth) / truth : answer.number - truth;
+  fb.score = band(err, full, zero);
+  fb.correct = Math.abs(err) <= full;
+  return fb;
+}
+
+export async function demoExercise(kind: LearnKind, level: number, seed?: number | null): Promise<Exercise> {
+  const s = seed ?? Math.floor(Math.random() * 2 ** 52);
+  if (DRILLS.has(kind)) return { ...(await drill(kind, level, s)).exercise, seed: s };
+  return exerciseNow(kind, level, s);
+}
+
+function exerciseNow(kind: LearnKind, level: number, seed: number): Exercise {
+  return { kind, level, seed, hand_id: null, ...genTask(kind, level, rng(seed)) };
+}
+
+export async function demoCheck(exercise: Exercise, answer: LearnAnswer): Promise<Feedback> {
+  if (DRILLS.has(exercise.kind)) {
+    const fb = checkDrill(await drill(exercise.kind, exercise.level, exercise.seed), answer);
+    record(exercise, fb);
+    return fb;
+  }
+  return checkNow(exercise, answer);
+}
+
+function checkNow(exercise: Exercise, answer: LearnAnswer): Feedback {
+  const ex = exercise.hand_id === null ? exerciseNow(exercise.kind, exercise.level, exercise.seed) : exercise;
   const fb = grade(ex, answer);
   record(ex, fb);
   return fb;
@@ -796,7 +859,7 @@ export function demoOwnSpots(kind: LearnKind | null, limit: number): OwnSpot[] {
 export function demoCheckOwn(spotId: string, answer: LearnAnswer): Feedback {
   const spot = SPOTS.find((s) => s.id === spotId);
   if (!spot) throw "Spot nicht gefunden";
-  const fb = demoCheck(spot.exercise, answer);
+  const fb = checkNow(spot.exercise, answer);
   if (spot.played && "choice" in spot.played) {
     const loss = grade(spot.exercise, spot.played).ev_loss_bb ?? 0;
     const did = { shove: "All-in", call: "Call" }[spot.played.choice] ?? "Fold";
