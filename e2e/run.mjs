@@ -250,7 +250,10 @@ async function consoleErrors() {
   const hooked = await s.exec(`${HOOK}; return window.__e2eErrors.splice(0);`);
   for (const m of hooked) log(`[hook] ${m}`);
   // The driver's log already has what the hook saw, unless the driver has no log.
-  return errors.length ? errors : hooked;
+  // A table sized from its own width settles one frame later after a window resize; the
+  // browser reports that as this "error", which the ResizeObserver spec defines as benign.
+  const benign = (m) => m.includes("ResizeObserver loop completed with undelivered notifications");
+  return (errors.length ? errors : hooked).filter((m) => !benign(m));
 }
 
 // ---------------------------------------------------------------------------------
