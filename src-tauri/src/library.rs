@@ -19,14 +19,10 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ringside_cloud::client::{DEFAULT_BASE_URL, MAX_STATUS_KEYS, RetryPolicy};
 use ringside_cloud::kinds::postflop::MAX_BYTES;
-use ringside_cloud::kinds::pushfold_mw::reference;
-use ringside_cloud::kinds::{
-    Postflop, PostflopInput, PostflopSolution, PushFoldHu, PushFoldHuInput, PushFoldHuSolution, PushFoldMw, PushFoldMwInput,
-    PushFoldMwSolution, SpotInput, SpotKind, SpotSolution,
-};
+use ringside_cloud::kinds::{Postflop, PostflopInput, PostflopSolution};
 use ringside_cloud::packs::{self, Packs, newest_version};
+use ringside_cloud::worker::{self, Power, Solved, Task};
 use ringside_cloud::{Client, Error as CloudError, Kind as _, KeyStatus, SubmitStatus, Work};
-use ringside_engine::solve_push_fold;
 use ringside_solver::library::format::{Stored, unpack};
 use ringside_solver::library::{PotType, SpotId, catalog, solve_spot};
 use ringside_solver::{Error as SolverError, Progress, Spot, Summary};
@@ -685,14 +681,6 @@ fn tick(app: &AppHandle, offset: usize) {
 // The community queue: once the library has no spot left, a run the user started solves
 // spots other Ringside users need (`POST /v1/work/next`) and submits them.
 
-/// Kinds this computer solves for the queue.
-const COMMUNITY_KINDS: [(&str, u32); 4] = [
-    (SpotKind::NAME, SpotKind::ENGINE_VERSION),
-    (Postflop::NAME, Postflop::ENGINE_VERSION),
-    (PushFoldMw::NAME, PushFoldMw::ENGINE_VERSION),
-    (PushFoldHu::NAME, PushFoldHu::ENGINE_VERSION),
-];
-
 /// The queue's spot in words.
 fn community_label(work: &Work) -> String {
     let flop = |f: &str| spot_label("", f).rsplit_once("Flop ").map_or(String::new(), |(_, cards)| cards.to_string());
@@ -725,7 +713,7 @@ fn community(app: &AppHandle, root: &Path) -> bool {
         return false;
     }
     let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy { attempts: 2, ..RetryPolicy::impatient() });
-    let work = match client.next_work(&COMMUNITY_KINDS) {
+    let work = match client.next_work(&worker::KINDS) {
         Ok(Some(w)) => w,
         Ok(None) => return false,
         Err(e) => {
@@ -753,10 +741,20 @@ fn community(app: &AppHandle, root: &Path) -> bool {
 
 /// Ok(true) once the solution went up, Ok(false) when stopped.
 fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, label: &str) -> Result<bool, String> {
-    let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
-    let client = Client::with_policy(DEFAULT_BASE_URL, policy);
-    let parse = |e: serde_json::Error| format!("Eingabe unlesbar: {e}");
-    let submitted = |r: Result<SubmitStatus, CloudError>| r.map(|_| true).map_err(|e| e.to_string());
+    let task = Task::parse(work)?;
+    if let Task::Postflop { id, .. } = task {
+        match status_of(root, id) {
+            Some(Source::Local) => {
+                let bytes = std::fs::read(spot_path(root, Source::Local, id)).map_err(err)?;
+                let stored = Stored::from_bytes(&bytes, catalog()).map_err(err)?;
+                share(app, root, id, &stored, bytes.len());
+                return Ok(true);
+            }
+            // Someone else's copy is here already; the queue hears of it from them.
+            Some(Source::Cloud) => return Ok(false),
+            None => {}
+        }
+    }
     let power = app.state::<AppState>().settings.lock().unwrap().library.power;
     let threads = threads_for(power, cores());
     let progress_app = app.clone();
@@ -783,60 +781,16 @@ fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, lab
         }
         stop_job.cancelled() || blocked(&stop_app, mode_of(&stop_app)).is_some()
     };
-    let limit = crate::solver::memory_limit() / 2;
-    let finish = |r: Result<Stored, SolverError>| match r {
-        Ok(stored) => Ok(Some(stored)),
-        Err(SolverError::Cancelled) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    };
-    match work.kind.as_str() {
-        "spot" => {
-            let input: SpotInput = serde_json::from_value(work.input.clone()).map_err(parse)?;
-            let catalog = input.catalog(None)?;
-            let Some(stored) = finish(solve_spot(&catalog, SpotId { scenario: 0, flop: 0 }, threads, limit, on_progress, stop))? else {
-                return Ok(false);
-            };
-            submitted(client.submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&stored)))
-        }
-        "postflop" => {
-            let input: PostflopInput = serde_json::from_value(work.input.clone()).map_err(parse)?;
-            let c = catalog();
-            let id = SpotId {
-                scenario: c.scenario(&input.scenario).ok_or("unbekannter Spot")?,
-                flop: c.flop(&input.flop).ok_or("unbekannter Flop")?,
-            };
-            let stored = match status_of(root, id) {
-                Some(Source::Local) => {
-                    let bytes = std::fs::read(spot_path(root, Source::Local, id)).map_err(err)?;
-                    Stored::from_bytes(&bytes, c).map_err(err)?
-                }
-                // Someone else's copy is here already; the queue hears of it from them.
-                Some(Source::Cloud) => return Ok(false),
-                None => {
-                    let Some(stored) = finish(solve_spot(c, id, threads, limit, on_progress, stop))? else { return Ok(false) };
-                    write(root, Source::Local, id, &stored.to_bytes())?;
-                    stored
-                }
-            };
-            let size = stored.to_bytes().len();
-            share(app, root, id, &stored, size);
-            Ok(true)
-        }
-        "pushfold-mw" => {
-            let input: PushFoldMwInput = serde_json::from_value(work.input.clone()).map_err(parse)?;
-            let solution = reference(&input)?;
-            if !solution.converged {
-                return Err("nicht konvergiert".into());
-            }
-            submitted(client.submit_solution::<PushFoldMw>(&input, &PushFoldMwSolution::from(&*solution)))
-        }
-        "pushfold-hu" => {
-            let input: PushFoldHuInput = serde_json::from_value(work.input.clone()).map_err(parse)?;
-            let solution = solve_push_fold(&input.params()).map_err(err)?;
-            submitted(client.submit_solution::<PushFoldHu>(&input, &PushFoldHuSolution::from(&solution)))
-        }
-        other => Err(format!("unbekannte Art {other}")),
+    let power = Power { threads, memory: crate::solver::memory_limit() / 2 };
+    let Some(solved) = worker::solve(&task, power, on_progress, stop)? else { return Ok(false) };
+    if let Solved::Postflop { id, stored, .. } = &solved {
+        let bytes = stored.to_bytes();
+        write(root, Source::Local, *id, &bytes)?;
+        share(app, root, *id, stored, bytes.len());
+        return Ok(true);
     }
+    let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
+    solved.submit(&Client::with_policy(DEFAULT_BASE_URL, policy)).map(|_| true).map_err(|e| e.to_string())
 }
 
 fn note(app: &AppHandle, e: &CloudError) {
