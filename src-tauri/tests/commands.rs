@@ -342,3 +342,135 @@ fn object_keys_skip_nested_values() {
     let src = br#"{ spot, settings: { a: 1, b: [2, 3] }, "run": f(x, y), }"#;
     assert_eq!(object_keys(src, 0, "t"), ["spot", "settings", "run"]);
 }
+
+/// Calls that refuse or empty a command while PokerStars runs (`src-tauri/src/lib.rs`).
+const GATES: &[&str] = &["blocking", "unlocked", "locked"];
+
+/// Commands that answer while PokerStars runs. Each of them returns nothing that rates a play
+/// against a model, an equilibrium or a solver, or recommends one: PokerStars allows own
+/// stats, HUD values and the hand history only. A new command that answers while the client
+/// runs fails this test until it is listed here or goes through a gate.
+const OPEN_WHILE_PLAYING: &[&str] = &[
+    // HUD and tables.
+    "overlay_view",
+    "preview_view",
+    "layout_for",
+    "set_hit_regions",
+    "save_seat",
+    "reset_layout",
+    "client_windows",
+    "live_tables",
+    "poker_client_running",
+    // Own results, stats and hand history.
+    "dashboard",
+    "reports",
+    "tournaments",
+    "players",
+    "shown_hands",
+    "player_note",
+    "notes_sources",
+    "hand",
+    "range_groups",
+    // Settings and switches.
+    "get_settings",
+    "save_settings",
+    "export_profile",
+    "import_profile",
+    "reset_profile",
+    "import_status",
+    "detected_dirs",
+    "analysis_set_auto",
+    "library_set_mode",
+    "library_set_power",
+    "coach_status",
+    "coach_set_key",
+    "coach_test_key",
+    "coach_delete_key",
+    "coach_models",
+    "coach_set_model",
+    "coach_set_effort",
+    "cloud_settings",
+    "cloud_save_settings",
+    "cloud_ack_notice",
+    "cloud_malformed",
+    "cloud_dismiss_malformed",
+    // Stopping and clearing.
+    "preflop_cancel",
+    "solver_page",
+    "solver_cancel",
+    "solver_clear",
+    "play_pool_cancel",
+    "coach_cancel",
+    "jobs_list",
+    "jobs_cancel",
+    "jobs_clear",
+    "play_away",
+];
+
+/// Every function of the app crate with the functions it calls. Methods are left out: the gates
+/// are functions, and `db.hands()` is not the command `hands`.
+fn calls_by_function() -> BTreeMap<String, BTreeSet<String>> {
+    use syn::visit::Visit;
+
+    #[derive(Default)]
+    struct Calls(BTreeSet<String>);
+    impl<'a> Visit<'a> for Calls {
+        fn visit_expr_call(&mut self, c: &'a syn::ExprCall) {
+            if let Expr::Path(p) = &*c.func
+                && let Some(last) = p.path.segments.last()
+            {
+                self.0.insert(last.ident.to_string());
+            }
+            syn::visit::visit_expr_call(self, c);
+        }
+    }
+
+    let mut paths = Vec::new();
+    files(&root().join("src-tauri/src"), &["rs"], &mut paths);
+    let mut out: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    for path in paths {
+        let file = syn::parse_file(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        for item in file.items {
+            if let Item::Fn(f) = item {
+                let mut calls = Calls::default();
+                calls.visit_block(&f.block);
+                // Same names in several modules merge: a gate in either counts for both.
+                out.entry(f.sig.ident.to_string()).or_default().extend(calls.0);
+            }
+        }
+    }
+    out
+}
+
+/// Functions that pass a gate, directly or through functions they call.
+fn gated(calls: &BTreeMap<String, BTreeSet<String>>) -> BTreeSet<String> {
+    let mut gated: BTreeSet<String> = GATES.iter().map(|g| g.to_string()).collect();
+    loop {
+        let more: Vec<String> = calls
+            .iter()
+            .filter(|(name, called)| !gated.contains(*name) && called.iter().any(|c| gated.contains(c)))
+            .map(|(name, _)| name.clone())
+            .collect();
+        if more.is_empty() {
+            return gated;
+        }
+        gated.extend(more);
+    }
+}
+
+#[test]
+fn only_listed_commands_answer_while_pokerstars_runs() {
+    let calls = calls_by_function();
+    let gated = gated(&calls);
+    assert!(gated.contains("analysis_summary") && gated.contains("tournament_report"), "the scan misses gates");
+    let registered = registered();
+    let open: BTreeSet<&str> = registered.iter().filter(|c| !gated.contains(*c)).map(|c| c.as_str()).collect();
+    let listed: BTreeSet<&str> = OPEN_WHILE_PLAYING.iter().copied().collect();
+    let unlisted: Vec<_> = open.difference(&listed).collect();
+    assert!(
+        unlisted.is_empty(),
+        "these commands answer while PokerStars runs: gate them with unlocked()/blocking(), or, if they give no advice, list them in OPEN_WHILE_PLAYING: {unlisted:?}"
+    );
+    let stale: Vec<_> = listed.difference(&open).collect();
+    assert!(stale.is_empty(), "OPEN_WHILE_PLAYING lists commands that are gated or gone: {stale:?}");
+}
