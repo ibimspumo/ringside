@@ -159,7 +159,11 @@
 
 {#snippet nextStep(spot: SpotType, loss: number)}
   <div class="next">
-    <span class="next-label">Dein nächster Schritt</span>
+    <span class="next-label"
+      >Dein nächster Schritt{#if running && !preflopDone}<span class="early"
+          ><Term tip="Die Analyse läuft noch. Mit jeder bewerteten Hand kann sich die teuerste Baustelle ändern.">vorläufig</Term></span
+        >{/if}</span
+    >
     <p><b>{SPOT[spot]}</b> kostet dich bisher am meisten: {bb(loss)}. {SPOT_HINT[spot]}</p>
     {#if onLearn}
       <Button variant="primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</Button>
@@ -231,7 +235,7 @@
             <div>
               <dt><Term tip={BOUNTY_HELP}>Bounties</Term></dt>
               <dd class="num bounties" class:pos={!!bounties}>
-                {#each bounties ? bounties.split(" · ") : ["–"] as b (b)}<span>{b}</span>{/each}
+                {#each bounties ? bounties.split(" · ") : ["–"] as b, i (b)}<span class:more={i > 0}>{b}</span>{/each}
               </dd>
               <small>{bounties ? "Zusätzlich gewonnen durch Knockouts." : "Noch kein Knockout-Geld."}</small>
             </div>
@@ -455,6 +459,15 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
+  }
+  .bounties .more {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+  }
+  .early {
+    margin-left: var(--sp-2);
+    color: var(--amber);
+    font-weight: var(--fw-regular);
   }
   .facts {
     display: flex;

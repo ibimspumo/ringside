@@ -530,9 +530,6 @@
   }
   .verdict.bare {
     grid-template-columns: 1fr;
-    width: 100%;
-    max-width: 820px;
-    margin-inline: auto;
   }
   .answer h2 {
     margin: 0;
@@ -954,7 +951,6 @@
   .sources-line {
     margin: 0;
     padding: 0 4px;
-    text-align: center;
     font-size: var(--fs-md);
     color: var(--text-2);
   }
@@ -980,9 +976,19 @@
     color: var(--text-2);
   }
 
+  /* Wide windows: the answer keeps a readable line and the counts take the rest in one row. */
   @container (min-width: 1900px) {
     .leaks {
       max-width: none;
+    }
+    .verdict {
+      grid-template-columns: minmax(0, 760px) minmax(0, 1fr);
+    }
+    .counts {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+    .body {
+      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     }
   }
   @container (max-width: 1080px) {
