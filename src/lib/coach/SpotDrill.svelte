@@ -225,8 +225,9 @@
   }
   .table {
     display: flex;
-    height: clamp(500px, 68vh, 740px);
+    height: clamp(560px, 70vh, 780px);
     min-width: 0;
+    overflow: hidden;
     padding: 10px;
     border-radius: var(--r-sm);
     background: var(--bg);
@@ -396,7 +397,7 @@
       order: -1;
     }
     .table {
-      height: clamp(400px, 56vh, 560px);
+      height: 560px;
     }
     .choices {
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
