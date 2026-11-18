@@ -608,8 +608,17 @@ fn withdraw(db: &impl Sql, which: &str, arg: SqlValue, reason: &str) -> Result<V
         .collect())
 }
 
-/// Drops solution URLs from the CDN cache, so a withdrawn solution is gone at once and
-/// not only when its cache time runs out. Only for a ringside-* host.
+/// How long the API lets the CDN keep an accepted solution (`ACCEPTED_MAX_AGE_S` in
+/// server/edge/api.ts): a withdrawn one has left every edge after this, purged or not.
+pub const ACCEPTED_MAX_AGE_S: u64 = 300;
+/// Pause between a purge and looking whether it took.
+const PURGE_WAIT: Duration = Duration::from_secs(5);
+/// Purge rounds: until the cache time has run out, with a minute to spare.
+const PURGE_ROUNDS: usize = ((ACCEPTED_MAX_AGE_S + 60) / PURGE_WAIT.as_secs()) as usize;
+
+/// Asks the CDN to drop solution URLs. Its answer comes before every edge has dropped
+/// them, and now and then one never does, so withdrawals go through [`purge_confirmed`].
+/// Only for a ringside-* host.
 pub fn purge(base: &str, api_key: &str, keys: &[(String, String)]) -> Result<(), String> {
     let host = base.trim_start_matches("https://");
     if !host.starts_with("ringside-") || host.contains('/') {
@@ -626,9 +635,53 @@ pub fn purge(base: &str, api_key: &str, keys: &[(String, String)]) -> Result<(),
     Ok(())
 }
 
-/// [`purge`] on the public API.
-pub fn purge_public(api_key: &str, keys: &[(String, String)]) -> Result<(), String> {
-    purge(DEFAULT_BASE_URL, api_key, keys)
+/// Purges `keys` until the CDN answers each URL with what `fresh(status, cache_control)`
+/// accepts, here at the edge this process reaches; other edges drop them within
+/// [`ACCEPTED_MAX_AGE_S`]. A look that re-fills the cache from a database replica still
+/// behind is purged again in the next round.
+pub fn purge_confirmed(
+    base: &str,
+    api_key: &str,
+    keys: &[(String, String)],
+    fresh: impl Fn(u16, &str) -> bool,
+) -> Result<(), String> {
+    let agent = ureq::AgentBuilder::new().timeout(Duration::from_secs(30)).build();
+    let stale = |(kind, key): &(String, String)| {
+        let (status, cache) = match agent.get(&format!("{base}/v1/solutions/{kind}/{key}")).call() {
+            Ok(r) => (r.status(), r.header("Cache-Control").unwrap_or_default().to_string()),
+            Err(ureq::Error::Status(code, _)) => (code, String::new()),
+            Err(ureq::Error::Transport(_)) => return true,
+        };
+        !fresh(status, &cache)
+    };
+    purge_until(keys, |k| purge(base, api_key, k), stale, std::thread::sleep, PURGE_ROUNDS)
+}
+
+/// [`purge_confirmed`] of withdrawn solutions on the public API: done once they answer 404.
+pub fn purge_withdrawn(api_key: &str, keys: &[(String, String)]) -> Result<(), String> {
+    purge_confirmed(DEFAULT_BASE_URL, api_key, keys, |status, _| status == 404)
+}
+
+fn purge_until(
+    keys: &[(String, String)],
+    mut purge: impl FnMut(&[(String, String)]) -> Result<(), String>,
+    mut stale: impl FnMut(&(String, String)) -> bool,
+    mut sleep: impl FnMut(Duration),
+    rounds: usize,
+) -> Result<(), String> {
+    let mut left = keys.to_vec();
+    for _ in 0..rounds {
+        if left.is_empty() {
+            break;
+        }
+        purge(&left)?;
+        sleep(PURGE_WAIT);
+        left.retain(&mut stale);
+    }
+    match left.as_slice() {
+        [] => Ok(()),
+        [(kind, key), ..] => Err(format!("{} URL(s) still served after {rounds} purges, first {kind}/{key}", left.len())),
+    }
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -1054,6 +1107,57 @@ mod tests {
             assert_eq!(input.payouts_ppm.iter().sum::<u32>(), POOL_PPM);
             assert!(input.payouts_ppm.len() < input.stacks_mbb.len() || input.payouts_ppm.len() == input.stacks_mbb.len());
         }
+    }
+
+    fn url(key: char) -> (String, String) {
+        ("pushfold-hu".to_string(), key.to_string().repeat(64))
+    }
+
+    #[test]
+    fn a_purge_that_did_not_take_is_repeated_until_the_edge_answers_fresh() {
+        let (a, b) = (url('a'), url('b'));
+        let mut purged: Vec<Vec<(String, String)>> = Vec::new();
+        let mut looks = HashMap::new();
+        let mut waited = Duration::ZERO;
+        // `a` is still served twice: the first purge never took, the next look re-filled
+        // the cache from a replica behind; `b` is gone after the first purge.
+        let r = purge_until(
+            &[a.clone(), b.clone()],
+            |k| {
+                purged.push(k.to_vec());
+                Ok(())
+            },
+            |k| {
+                let n = looks.entry(k.clone()).or_insert(0);
+                *n += 1;
+                *k == a && *n <= 2
+            },
+            |d| waited += d,
+            PURGE_ROUNDS,
+        );
+        assert_eq!(r, Ok(()));
+        assert_eq!(purged, vec![vec![a.clone(), b], vec![a.clone()], vec![a]]);
+        assert_eq!(waited, PURGE_WAIT * 3, "it looks only after waiting for the purge");
+    }
+
+    #[test]
+    fn an_edge_that_keeps_serving_fails_after_the_cache_time() {
+        let mut purges = 0;
+        let mut waited = Duration::ZERO;
+        let purge = |_: &[(String, String)]| {
+            purges += 1;
+            Ok(())
+        };
+        let r = purge_until(&[url('c')], purge, |_| true, |d| waited += d, PURGE_ROUNDS);
+        assert!(r.is_err_and(|e| e.contains(&"c".repeat(64))));
+        assert_eq!(purges, PURGE_ROUNDS);
+        assert!(waited > Duration::from_secs(ACCEPTED_MAX_AGE_S), "by then the edge's copy has run out");
+    }
+
+    #[test]
+    fn the_cache_time_is_the_apis() {
+        let api = include_str!("../../../server/edge/api.ts");
+        assert!(api.contains(&format!("export const ACCEPTED_MAX_AGE_S = {ACCEPTED_MAX_AGE_S};")));
     }
 
     #[test]
