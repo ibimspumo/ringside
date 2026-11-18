@@ -94,8 +94,10 @@
 </script>
 
 <div class="page roomy" bind:clientWidth={width}>
+  <div class="split" class:docked={docked && !!selected}>
+  <div class="tables">
   {#if pokerClient.running}
-    <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du erst wieder, wenn du PokerStars schließt. Die Werte aus dem HUD bleiben sichtbar.</SourceNote>
+    <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar.</SourceNote>
   {/if}
   {#if tables.some((t) => t.table)}
     <div class="tools">
@@ -113,8 +115,6 @@
     </div>
   {/if}
 
-  <div class="split" class:docked={docked && !!selected}>
-  <div class="tables">
   {#each tables as t (t.table_key)}
     {@const [name, detail] = titleParts(t.title)}
     <section class="table-card" aria-label={t.title}>
@@ -203,6 +203,7 @@
     grid-template-columns: minmax(0, 1fr) clamp(380px, 30%, 500px);
   }
   .tables {
+    container: player-list / inline-size;
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
@@ -210,7 +211,7 @@
   }
   .tools {
     display: flex;
-    flex-wrap: wrap-reverse;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-3) var(--sp-4);

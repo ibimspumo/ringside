@@ -223,7 +223,7 @@
   }
   /* With scales the number opens the cell, so its title stands left above it. */
   th.core {
-    width: 120px;
+    width: 15%;
     text-align: left;
   }
   @container player-list (max-width: 760px) {

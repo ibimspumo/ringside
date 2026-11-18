@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from "../api";
   import PlayingCard from "../PlayingCard.svelte";
-  import { STAT_META, compact, fmtUnit, stat, tone, toneColor } from "../stats";
+  import { STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
   import type { HudConfig, PlayerNote, PlayerView, ShownHand, StatId } from "../types";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
@@ -73,7 +73,7 @@
 {#if !docked}<div class="backdrop" onclick={onClose} aria-hidden="true"></div>{/if}
 <aside class="detail" class:docked class:drawer={!docked} bind:this={panel} tabindex="-1" aria-label="Spieler {player.name}">
   <header>
-    <Wheel stats={player.stats} {hud} size={48} hands={compact(hands)} />
+    <Wheel stats={player.stats} {hud} size={44} />
     <div class="who">
       <h2 title={player.name}>{player.name}</h2>
       <span class="sub">
@@ -89,7 +89,7 @@
     {#if hero}
       <p class="self">Das bist du. Wie gut deine eigenen Werte sind, zeigt dir die Seite <b>Leaks</b>.</p>
     {:else if !advice}
-      <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte unten bleiben sichtbar.</SourceNote>
+      <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar.</SourceNote>
     {:else if r?.type}
       {@const t = TYPE[r.type]}
       <section class="read" aria-label="Spielertyp">
@@ -97,7 +97,7 @@
           <span class="kicker">Spielertyp</span>
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
         </div>
-        <p class="type"><b>{t.name}{#if t.long !== t.name}<small> · {t.long.slice(t.name.length).replace(/[()]/g, "").trim()}</small>{/if}</b> <span>{t.sketch}</span></p>
+        <p class="type"><b>{t.name}{#if t.long !== t.name}<small>· {t.long.slice(t.name.length).replace(/[()]/g, "").trim()}</small>{/if}</b> <span>{t.sketch}</span></p>
         <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
         <p class="why">{t.why}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>
@@ -147,7 +147,6 @@
               <dt>
                 <Term tip={STAT_META[id].help} side="bottom">{STAT_META[id].name}</Term>
                 <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
-                {#if hint}<span class="hint">→ {hint}</span>{/if}
               </dt>
               <dd>
                 {#if range}
@@ -163,6 +162,7 @@
                 {/if}
                 <b class="num" style="color:{toneColor(hud, s, 'var(--text-3)')}">{fmtUnit(s)}</b>
               </dd>
+              {#if hint}<dd class="hint">→ {hint}</dd>{/if}
             </div>
           {/each}
         </dl>
@@ -321,6 +321,7 @@
     line-height: var(--lh-tight);
   }
   .type small {
+    margin-left: var(--sp-2);
     color: var(--text-2);
     font-family: var(--font-ui);
     font-size: var(--fs-lg);
@@ -436,6 +437,9 @@
   }
   dt small {
     display: block;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     margin-top: 1px;
     color: var(--text-2);
     font-size: var(--fs-sm);
@@ -452,9 +456,10 @@
     font-weight: var(--fw-semibold);
     text-align: right;
   }
-  .hint {
+  dd.hint {
     display: block;
-    margin-top: 2px;
+    grid-column: 1 / -1;
+    margin-top: calc(-1 * var(--sp-2));
     color: var(--text);
     font-size: var(--fs-md);
   }

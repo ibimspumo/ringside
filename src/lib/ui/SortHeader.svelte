@@ -37,9 +37,9 @@
     border: 0;
     border-radius: var(--r-xs);
     background: none;
-    color: var(--text-3);
+    color: var(--text-2);
     font: inherit;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
     letter-spacing: 0.06em;
     text-transform: uppercase;
