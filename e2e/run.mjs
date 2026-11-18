@@ -25,6 +25,7 @@ import { createWriteStream, cpSync, mkdirSync, readdirSync, rmSync, writeFileSyn
 import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { checkLayout } from "./layout.mjs";
 import { Session } from "./webdriver.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -215,8 +216,31 @@ function waitText(pattern, timeout) {
   return waitFor(`text /${source}/`, `return new RegExp(arguments[0]).test(document.querySelector("main")?.innerText ?? "")`, [source], timeout);
 }
 
+/**
+ * Opens a page like a user: Start and the pages of the open area are one click away in the top bar
+ * and the row below it; any other page sits in the menu of its area.
+ */
+/** A visible menu entry by its name alone: entries carry a live value beside the name. */
+const ENTRY = `
+  const [sel, text] = arguments;
+  const hit = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length && e.textContent.trim() === text);
+  return hit?.closest("button") ?? null;`;
+
 async function nav(label) {
-  await click("nav button", label);
+  const TRIGGERS = "[role=banner] nav button[aria-haspopup]";
+  // Einstellungen is the gear at the end of the bar, named by its label.
+  let button =
+    (await s.exec(ENTRY, "[role=banner] nav button .label", label)) ??
+    (await s.exec(`return document.querySelector(\`[role=banner] button[aria-label="\${arguments[0]}"]\`)`, label));
+  const areas = button ? 0 : await s.exec(`return document.querySelectorAll(arguments[0]).length`, TRIGGERS);
+  for (let i = 0; i < areas && !button; i++) {
+    const trigger = await s.exec(`return document.querySelectorAll(arguments[0])[arguments[1]]`, TRIGGERS, i);
+    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await s.click(trigger);
+    await waitFor("the menu", `return document.querySelector("#nav-menu")`);
+    button = await s.exec(ENTRY, "#nav-menu button .label", label);
+  }
+  if (!button) throw new Error(`no menu entry „${label}“`);
+  await s.click(button);
   await find("main h1", label);
 }
 
@@ -267,7 +291,7 @@ const step = (name, fn) => steps.push({ name, fn });
 const tauriOnly = (name, fn) => TAURI && step(name, fn);
 
 step("App startet", async () => {
-  await find("nav button", "Übersicht", { timeout: 60_000 });
+  await find("[role=banner] nav button", "Start", { timeout: 60_000 });
   await s.exec(HOOK);
   if (TAURI && !(await s.exec(`return "__TAURI_INTERNALS__" in window`))) throw new Error("not running in Tauri");
   // Proves the console check below every step can see errors at all.
@@ -309,7 +333,7 @@ tauriOnly("Hand-Histories einlesen", async () => {
   log(`stored hands: ${n}`);
 });
 
-step("Übersicht", () => nav("Übersicht"));
+step("Start", () => nav("Start"));
 step("Statistik", () => nav("Statistik"));
 step("Turniere", async () => {
   await nav("Turniere");
@@ -449,9 +473,9 @@ step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", as
     await find("main .cell.hero");
   });
 
-step("Leaks", () => nav("Leaks"));
-step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", async () => {
-  await nav("Deine Ranges");
+step("Schwachstellen", () => nav("Schwachstellen"));
+step("Meine Starthände: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", async () => {
+  await nav("Meine Starthände");
   await waitText(/öffnest du|spielst du|callst du/);
   await find("main figure figcaption b", "Du");
   // A changed filter can be reset to the opening selection.
@@ -497,7 +521,7 @@ step("Live-Tische", () => nav("Live-Tische"));
     await s.exec(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
     await waitFor("Detail geschlossen", `return !document.querySelector("aside[aria-label='Spieler Kestrel']")`);
   });
-step("HUD", () => nav("HUD"));
+step("HUD am Tisch", () => nav("HUD am Tisch"));
 
 step("Training: Pot Odds, Stufe 1", async () => {
   await nav("Lernen");
@@ -698,8 +722,8 @@ async function stackTo(bb) {
   );
 }
 
-step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () => {
-  await nav("Ranges nach Stack");
+step("Starthand-Tabellen: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () => {
+  await nav("Starthand-Tabellen");
   await find(".stepper span");
   await tableSize(6);
   await find("#stack-axis");
@@ -709,13 +733,13 @@ step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () 
   await waitText("Gleichgewicht");
 });
 
-step("Ranges nach Stack: Modell mit 50 BB", async () => {
+step("Starthand-Tabellen: Modell mit 50 BB", async () => {
   await stackTo(50);
   await waitText(/erhöhst du mit etwa \d+ %/);
   await waitText("Modell");
 });
 
-step("Ranges nach Stack: Satz oben und Range nennen denselben Platz, auch nach dem Wechsel der Tischgröße", async () => {
+step("Starthand-Tabellen: Satz oben und Range nennen denselben Platz, auch nach dem Wechsel der Tischgröße", async () => {
   // 25 BB is the model, 10 BB push/fold: both name the seat from the same list.
   for (const [n, bb] of [[9, 25], [9, 10], [6, 25]]) {
     await tableSize(n);
@@ -733,7 +757,7 @@ step("Ranges nach Stack: Satz oben und Range nennen denselben Platz, auch nach d
   }
 });
 
-step("Ranges nach Stack: Tischgrößen-Vergleich, Klick auf heads-up wechselt den Tisch", async () => {
+step("Starthand-Tabellen: Tischgrößen-Vergleich, Klick auf heads-up wechselt den Tisch", async () => {
   const panel = "main section[aria-label='Andere Tischgröße']";
   await find(panel);
   await waitText(/Als Erster am Zug spielst du an 9-max \d+\s%, heads-up \d+\s%/);
@@ -754,7 +778,7 @@ step("Ranges nach Stack: Tischgrößen-Vergleich, Klick auf heads-up wechselt de
   await find(".stepper span", "6 Spieler");
 });
 
-step("Ranges nach Stack: Schnellwahl „10 BB“ ändert Wert und Satz", async () => {
+step("Starthand-Tabellen: Schnellwahl „10 BB“ ändert Wert und Satz", async () => {
   await click("main [role='group'][aria-label='Schnellwahl Dein Stack'] button", "10");
   await waitFor("10 BB oben rechts", `return document.querySelector("main output.val")?.textContent.replace(/\\s+/g, " ").trim() === "10 BB"`);
   await waitText(/Vo[nm] [^\n]*mit 10 BB (erhöhst|foldest) du/);
@@ -788,7 +812,7 @@ async function fill(sel, text) {
 }
 
 step("Solver: Durchspielen erklärt vor dem Lösen, was dort kommt", async () => {
-  await nav("Solver");
+  await nav("Nachrechnen");
   await click("main [role='tab']", "Durchspielen", { exact: false });
   // A spot opened from the hand analysis is solved already; without it the tab explains itself.
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Verwerfen")?.click()`);
@@ -830,17 +854,17 @@ step("Solver: die Lösung steht in „Meine Lösungen“ und öffnet ohne Rechne
 });
 
 step("Aufgaben: der Solve steht erledigt im Panel", async () => {
-  await click("aside button.dock");
+  await click("button.dock");
   await find(TAURI ? "#jobs-panel .job.done" : "#jobs-panel");
   await click("#jobs-panel button.close");
 });
 
 step("Bibliothek: Mitrechnen startet von Hand, steht in den Aufgaben und hält an", async () => {
-  await nav("Bibliothek");
+  await nav("Gelöste Situationen");
   await click("main button.go", "Jetzt mitrechnen");
   await find("main button.go", "Anhalten");
   if (TAURI) {
-    await click("aside button.dock");
+    await click("button.dock");
     await find("#jobs-panel .job", "Bibliothek: Mitrechnen", { exact: false });
     await click("#jobs-panel button.close");
   }
@@ -902,8 +926,7 @@ async function nextHandFromEnd() {
 }
 
 step("Hände spielen: eine Hand startet", async () => {
-  await click("nav button", "Hände spielen");
-  await find("main h1", "Hände spielen");
+  await nav("Hände spielen");
   await click("main .tiles button.tile");
   await waitText("Tipp anzeigen");
 });
@@ -1068,7 +1091,7 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
     }
   };
   const reopen = async () => {
-    await nav("Übersicht");
+    await nav("Start");
     await nav("Einstellungen");
   };
   await waitText("Solange PokerStars läuft, rechnet Ringside nie");
@@ -1082,6 +1105,14 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
     await shows(on);
   }
 });
+
+// The browser demo sizes its window over chromedriver's DevTools endpoint; the layout check of
+// every page at every width runs there (e2e/layout.mjs), last, since it reloads the page.
+if (!TAURI)
+  step("Layout: alle Seiten in allen Breiten, obere Leiste ohne Überlauf", async () => {
+    const problems = await checkLayout(s, DEMO_URL, log);
+    if (problems.length) throw new Error(`${problems.length} Layout-Fehler:\n  ${problems.slice(0, 20).join("\n  ")}`);
+  });
 
 // ---------------------------------------------------------------------------------
 // Run.
