@@ -118,7 +118,7 @@
       </ol>
     {/if}
     {#if st.kind !== "running"}
-      <IconButton label="Analyse schließen" onclick={onClose}>{@render closeIcon()}</IconButton>
+      <span class="close"><IconButton label="Analyse schließen" onclick={onClose}>{@render closeIcon()}</IconButton></span>
     {/if}
   </header>
 
@@ -307,6 +307,15 @@
   .titles {
     min-width: 0;
     margin-right: auto;
+  }
+  @container (max-width: 1100px) {
+    .close {
+      order: 1;
+    }
+    .stepper {
+      order: 2;
+      flex-basis: 100%;
+    }
   }
   .eyebrow {
     margin: 0;

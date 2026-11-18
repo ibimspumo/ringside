@@ -161,7 +161,7 @@
         <div class="score">
           <div class="score-top">
             <ProgressRing value={spots.length ? good / spots.length : 0} size={76} stroke={7} tone="good" label="Gut gespielt">
-              <span class="ring-n num">{good}/{spots.length}</span>
+              <span class="ring"><span class="ring-n num">{good}/{spots.length}</span><span class="ring-l">gut</span></span>
             </ProgressRing>
             <p class="big">
               {#if weak.length}
@@ -353,6 +353,16 @@
     display: flex;
     align-items: center;
     gap: var(--sp-4);
+  }
+  .ring {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1.1;
+  }
+  .ring-l {
+    font-size: var(--fs-xs);
+    color: var(--text-2);
   }
   .ring-n {
     font-size: var(--fs-lg);
