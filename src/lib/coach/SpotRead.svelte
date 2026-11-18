@@ -56,6 +56,7 @@
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && onBack()} />
 
+{#snippet arrow()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>{/snippet}
 {#snippet backIcon()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>{/snippet}
 
 <div class="read" bind:this={top}>
@@ -86,7 +87,7 @@
           <Figures numbers={spot.numbers} hero={spot.hero_cards} />
         {/if}
         <div class="row">
-          <Button onclick={onDrill}>Diesen Spot üben</Button>
+          <Button icon={arrow} onclick={onDrill}>Diesen Spot üben</Button>
           {#if practice.articles.length > 1 && current}
             <SegmentedControl
               options={practice.articles.map((a) => ({ value: a.id, label: a.title }))}

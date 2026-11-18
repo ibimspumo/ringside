@@ -247,8 +247,8 @@
           </PageHeader>
         </div>
         <div class="frame wide-frame">
-          <PageHeader demo title="Coach" sub="Breites Fenster: Kopf und Inhalt teilen die linke und rechte Kante." frame={{ max: "640px", pad: "30px" }} />
-          <div class="frame-page"><Card tone="sunken"><span class="muted">Inhalt der Seite (.page, hier 640 px breit)</span></Card></div>
+          <PageHeader demo title="Coach" sub="Breites Fenster: Kopf und Inhalt teilen die linke und rechte Kante." frame={{ left: 330, right: 330 }} />
+          <div class="frame-page"><Card tone="sunken"><span class="muted">Inhalt der Seite (.page)</span></Card></div>
         </div>
         <p class="muted">Der Kopf folgt Breite und Rand der Seite darunter (<code>use:followPage</code> am Inhaltsbereich); ohne Seite läuft er über die volle Breite.</p>
         <p class="muted">Seiten melden Zeile und Bereiche mit <code>usePageHead(() =&gt; ({"{"} sub, tabs, value, onchange {"}"}))</code> an. Ein eigenes <code>&lt;h1&gt;</code> meldet die Prüfung.</p>
@@ -1044,8 +1044,6 @@
     gap: var(--sp-6);
   }
   .frame-page {
-    max-width: 640px;
-    margin: var(--sp-4) auto;
-    padding-inline: 30px;
+    margin: var(--sp-4) 330px;
   }
 </style>

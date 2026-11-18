@@ -43,8 +43,8 @@
 <header
   class="ui-page-header"
   class:tabbed={!!sections?.tabs?.length}
-  style:--frame-max={box?.max ?? "none"}
-  style:--frame-pad={box?.pad ?? "var(--sp-6)"}
+  style:--frame-left={box ? `${box.left}px` : "var(--sp-6)"}
+  style:--frame-right={box ? `${box.right}px` : "var(--sp-6)"}
 >
   <div class="bar">
     <div class="title">
@@ -71,10 +71,8 @@
   /* Title and tabs share the left and right edge of the page content below. */
   .bar,
   .sections {
-    box-sizing: border-box;
-    max-width: var(--frame-max);
-    margin-inline: auto;
-    padding-inline: var(--frame-pad);
+    padding-left: var(--frame-left);
+    padding-right: var(--frame-right);
   }
   .bar {
     display: flex;

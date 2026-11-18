@@ -241,7 +241,7 @@
         <Card tone="sunken">
           <div class="fact">
             <Stat label="Ringside hat gerechnet" value={st.estimate.spots + finished(p) ? `${st.estimate.spots + finished(p)}-mal` : "noch nichts"}
-              meaning={st.estimate.spots ? `davon ${st.estimate.spots} vorab` : undefined} />
+              meaning={st.estimate.spots ? `${st.estimate.spots} davon schon vor dem Senden` : undefined} />
             <span class="tools">
               {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
                   >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
@@ -572,6 +572,7 @@
     font-weight: var(--fw-semibold);
   }
   .figs {
+    align-items: start;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--sp-3);
@@ -581,7 +582,6 @@
     flex-wrap: wrap;
     align-content: flex-start;
     gap: var(--sp-1);
-    min-height: 48px;
   }
   .wait {
     padding: var(--sp-3) var(--sp-4);

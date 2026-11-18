@@ -673,8 +673,6 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
-    /* A scrollbar takes room on both sides alike, so centred pages stay under the header. */
-    scrollbar-gutter: stable both-edges;
     container-type: inline-size;
   }
   .content.fill {

@@ -18,10 +18,10 @@
   import SectionHead from "../ui/SectionHead.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
-  import { cost, duration, tokens } from "./api";
+  import { duration, tokens } from "./api";
   import { conceptName } from "./concepts";
   import type { Choice } from "./drill";
-  import { COACH_GRADES, VERDICTS, shortModel, toPractise, verdictOf, say } from "./meaning";
+  import { COACH_GRADES, VERDICTS, money, shortModel, toPractise, verdictOf, say } from "./meaning";
   import { rise } from "./motion";
   import SpotCard from "./SpotCard.svelte";
   import type { CoachReport } from "./types";
@@ -242,7 +242,7 @@
     <SectionHead level={3} title="So ist der Bericht entstanden" />
     <dl class="how">
       <div><dt>Modell</dt><dd class="num">{shortModel(report.meta.model)}</dd></div>
-      <div><dt>Kosten</dt><dd class="num">{cost(report.meta.cost_usd)}</dd></div>
+      <div><dt>Kosten</dt><dd class="num">{report.meta.cost_usd == null ? "–" : money(report.meta.cost_usd)}</dd></div>
       <div><dt>Dauer</dt><dd class="num">{duration(report.meta.seconds)}</dd></div>
       <div>
         <dt>Gesendet</dt>

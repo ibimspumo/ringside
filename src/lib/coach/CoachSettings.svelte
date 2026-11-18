@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { EFFORTS, coachApi, cost, errorText, usd } from "./api";
+  import { EFFORTS, coachApi, errorText, usd } from "./api";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import KeyForm from "./KeyForm.svelte";
+  import { money } from "./meaning";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
 
   let { onClose, onChange }: { onClose?: () => void; onChange?: (s: CoachStatus) => void } = $props();
@@ -172,7 +173,7 @@
           {#if current}
             {@const t = perTournament(current)}
             <div class="price" title={RICHTWERT}>
-              <b class="num">{t == null ? "–" : `ca. ${cost(t)}`}</b>
+              <b class="num">{t == null ? "–" : `ca. ${money(t)}`}</b>
               <span class="fine">je Turnier</span>
             </div>
           {/if}
@@ -225,7 +226,7 @@
                     </span>
                     <span class="cost">
                       <span class="pbar" aria-hidden="true"><i style="width:{priceShare(t)}%"></i></span>
-                      <span class="num strong">{t == null ? "–" : cost(t)}</span>
+                      <span class="num strong">{t == null ? "–" : money(t)}</span>
                     </span>
                     {#if technical}
                       <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>

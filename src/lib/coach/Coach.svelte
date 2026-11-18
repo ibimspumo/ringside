@@ -188,7 +188,8 @@
 <ClientLock feature="Der Coach">
   <div class="page wide">
     {#if list}
-      <div class="layout" class:busy={runFor !== null || focus !== null || setupOpen || !status?.has_key}>
+      <div class="layout" class:busy={runFor !== null || focus !== null || setupOpen || !status?.has_key}
+        class:drilling={focus?.mode === "drill"}>
         <aside class="rail">
           <Card pad="sm" aria-labelledby="start-title">
             <h2 id="start-title" class="rail-title">Turnier besprechen</h2>
@@ -694,6 +695,15 @@
   }
 
 
+  /* Practising needs the whole width for the table; the report row is one click away. */
+  @container (max-width: 1640px) {
+    .drilling {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .drilling .rail {
+      display: none;
+    }
+  }
   @container (max-width: 1040px) {
     .steps {
       grid-template-columns: minmax(0, 1fr);
