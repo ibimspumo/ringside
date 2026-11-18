@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { call, inTauri, on } from "../api";
 import type { Hand, TournamentRow } from "../types";
 import * as demo from "./demo";
+import * as reportDemo from "../report/demo";
+import type { AskAbout, AskAnswer, AskEstimate } from "../report/types";
 import type {
   CoachSpot,
   CoachProgress,
@@ -37,6 +39,12 @@ export const coachApi = {
   /** The hand of a spot, for practising its decision. */
   spotHand: (spot: CoachSpot): Promise<Hand | null> =>
     inTauri ? invoke<Hand | null>("hand", { id: spot.hand_id }) : Promise.resolve(demo.spotHand(spot)),
+  /** Builds the anonymous facts of a question and estimates its cost; nothing is sent. */
+  askPrepare: (about: AskAbout, question: string): Promise<AskEstimate> =>
+    inTauri ? invoke<AskEstimate>("coach_ask_prepare", { about, question }) : reportDemo.demoAskPrepare(about, question),
+  /** Sends the question of the estimate that carried `token`. */
+  ask: (token: string, about: AskAbout): Promise<AskAnswer> =>
+    inTauri ? invoke<AskAnswer>("coach_ask", { token }) : reportDemo.demoAsk(about),
   /** Concepts of all stored reports, weakest first ("Deine Schwachstellen"). */
   concepts: () => call<ConceptCount[]>("coach_concepts", {}, demo.concepts),
 };

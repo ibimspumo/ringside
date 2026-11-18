@@ -8,6 +8,8 @@ import type { DrillResult, DrillSpot, PlayProfile } from "./learn/profile";
 import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
+import * as reportDemo from "./report/demo";
+import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots } from "./charts/preflop-types";
 import * as solverDemo from "./solver/demo";
@@ -136,6 +138,11 @@ export const api = {
     call<boolean>("poker_client_running", {}, () => new URLSearchParams(window.location.search).get("locked") === "1"),
   tournaments: (filter: Filter) =>
     sample<Tournaments>("tournaments", { filter }, demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
+  /** The report of one tournament from Ringside's own numbers; locked while PokerStars runs. */
+  tournamentReport: (tournamentId: number) => {
+    const made = () => reportDemo.demoReport(tournamentId);
+    return sample<TournamentReport>("tournament_report", { tournamentId }, made, made, made);
+  },
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
