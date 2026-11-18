@@ -198,7 +198,7 @@
             {:else}
               <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
             {/if}
-            {#if key.length}
+            {#if key.length && !contrast}
               <ul class="key">
                 {#each key as f, i (i)}<li><span><CardText hands text={say(ownCards(f.label, spot.hero_cards))} /></span><b class="num">{say(f.value)}</b></li>{/each}
               </ul>
