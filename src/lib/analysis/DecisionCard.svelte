@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import ChartsButton, { chartable } from "../charts/ChartsButton.svelte";
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import { EV_LOSS_EXPLAIN, LEARN, RATING, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct } from "./labels";
@@ -108,8 +109,9 @@
     </details>
   {/if}
 
-  {#if (prefill && d.status === "rated") || (onLearn && d.rating && d.rating !== "best")}
+  {#if (prefill && d.status === "rated") || (onLearn && d.rating && d.rating !== "best") || chartable(d)}
     <div class="actions">
+      <ChartsButton decision={d} />
       {#if prefill && d.status === "rated"}
         <button class="btn" onclick={() => openInSolver(prefill)} title="Öffnet den Flop dieser Hand mit denselben Ranges im Solver.">
           Im Solver öffnen

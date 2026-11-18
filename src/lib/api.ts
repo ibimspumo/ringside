@@ -5,6 +5,7 @@ import type { AnalysisStatus, AnalysisSummary, Decision } from "./analysis/types
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
 import * as chartsDemo from "./charts/demo";
+import type { ChartTarget } from "./charts/handoff.svelte";
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots } from "./charts/preflop-types";
 import * as solverDemo from "./solver/demo";
 import type {
@@ -142,6 +143,16 @@ export const api = {
   analysisCancel: () => call<void>("analysis_cancel", {}, analysisDemo.demoCancel),
   /** Stops one hand: its postflop spot goes back in line. */
   analysisCancelHand: (handId: number) => call<void>("analysis_cancel_hand", { handId }, () => analysisDemo.demoCancelHand(handId)),
+  /** Where a rated preflop decision sits in the charts; null when no bundled table fits. */
+  analysisChartTarget: (handId: number, actionIndex: number) =>
+    call<ChartTarget | null>("analysis_chart_target", { handId, actionIndex }, () => {
+      const d = analysisDemo.demoDecisions(handId).find((x) => x.action_index === actionIndex);
+      if (!d || d.street !== "preflop" || d.status !== "rated" || d.source === "solver") return null;
+      const call = d.spot === "call_shove";
+      return d.source === "equilibrium"
+        ? { action_index: actionIndex, kind: "pushfold", ante: "big_blind", players: 6, stack_bb: 10, seat: call ? 5 : 3, shover: call ? 3 : null, callers: [], node: null, hand: call ? "K9o" : "K6o" }
+        : { action_index: actionIndex, kind: "preflop", ante: "big_blind", players: 6, stack_bb: 40, seat: 0, shover: null, callers: [], node: 0, hand: "A5s" };
+    }),
   analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, () => analysisDemo.demoDecisions(handId)),
   analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
   hand: (id: number) => call<Hand | null>("hand", { id }, () => learnDemo.demoSpotHand(id) ?? demo.demoHandById(id)),
@@ -158,7 +169,7 @@ export const api = {
   learnProgress: () => call<LearnProgress>("learn_progress", {}, learnDemo.demoProgress),
   pushfoldGrid: () => call<PushFoldGrid>("pushfold_grid", {}, chartsDemo.demoGrid),
   pushfoldChart: (ante: PushFoldAnte, players: number, stackBb: number) =>
-    call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, chartsDemo.demoChart),
+    call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, () => chartsDemo.demoChart(stackBb, players)),
   // The preview sample is large, so the browser loads it only when asked.
   preflopGrid: () =>
     inTauri ? invoke<PreflopGrid>("preflop_grid") : import("./charts/preflop-demo").then((d) => d.demoGrid()),
