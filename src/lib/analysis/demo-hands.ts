@@ -751,28 +751,28 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "status": "rated",
       "strategy": [
         {
-          "ev_bb": 7.541,
+          "ev_bb": 0.0,
           "freq": 0.0,
           "kind": "fold",
           "label": "Fold",
           "played": false
         },
         {
-          "ev_bb": 11.497,
+          "ev_bb": 3.956,
           "freq": 0.0,
           "kind": "call",
           "label": "Call",
           "played": false
         },
         {
-          "ev_bb": 11.602,
+          "ev_bb": 4.061,
           "freq": 0.5,
           "kind": "raise",
           "label": "Raise auf 10,5 BB",
           "played": false
         },
         {
-          "ev_bb": 11.602,
+          "ev_bb": 4.061,
           "freq": 0.5,
           "kind": "raise",
           "label": "Raise auf 8 BB",
@@ -908,21 +908,21 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "status": "rated",
       "strategy": [
         {
-          "ev_bb": 97.649,
+          "ev_bb": 0.0,
           "freq": 0.0,
           "kind": "fold",
           "label": "Fold",
           "played": false
         },
         {
-          "ev_bb": 117.88,
+          "ev_bb": 20.231,
           "freq": 0.0,
           "kind": "call",
           "label": "Call",
           "played": true
         },
         {
-          "ev_bb": 119.084,
+          "ev_bb": 21.435,
           "freq": 1.0,
           "kind": "all_in",
           "label": "All-in",
@@ -1106,21 +1106,21 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "status": "rated",
       "strategy": [
         {
-          "ev_bb": 16.492,
+          "ev_bb": 0.0,
           "freq": 0.0,
           "kind": "fold",
           "label": "Fold",
           "played": false
         },
         {
-          "ev_bb": 19.886,
+          "ev_bb": 3.394,
           "freq": 0.0,
           "kind": "call",
           "label": "Call",
           "played": true
         },
         {
-          "ev_bb": 20.112,
+          "ev_bb": 3.62,
           "freq": 1.0,
           "kind": "raise",
           "label": "Raise auf 28,6 BB",

@@ -1,4 +1,5 @@
-import { assert, assertEquals } from "jsr:@std/assert@1";
+import { assert, assertAlmostEquals, assertEquals } from "jsr:@std/assert@1";
+import { storedSpot } from "./stored_testutil.ts";
 import { memorySql } from "../lib/sqlite_memory.ts";
 import { createHandler, LEASE_S, MAX_LEASES } from "./api.ts";
 import { canonicalize, solutionKey } from "./canonical.ts";
@@ -53,10 +54,10 @@ Deno.test("a leased spot goes to nobody else until the lease runs out, then agai
   assertEquals(row.leases, 2);
 });
 
-Deno.test("a spot with a submitted or verified solution is not handed out", async () => {
+Deno.test("a spot with a served or waiting solution is not handed out", async () => {
   const { sql, handle } = setup();
   const key = await seed(sql, "AsKhTd");
-  for (const status of ["rejected", "submitted", "verified"]) {
+  for (const status of ["rejected", "submitted", "accepted", "verified"]) {
     sql.db.prepare("DELETE FROM solutions").run();
     sql.db.prepare(
       "INSERT INTO solutions (key, kind, engine_version, input, result, result_size, status, submitter, submitted_at) " +
@@ -148,22 +149,19 @@ Deno.test("work and requests have their own rate limits", async () => {
   assertEquals((await handle(post("/v1/work/request", body))).status, 429);
 });
 
-Deno.test("a shared spot is served only once the verifier has checked it", async () => {
+Deno.test("a shared spot is served as soon as its form checks out", async () => {
   const { sql, handle } = setup();
-  const bytes = [..."RSLS"].map((c) => c.charCodeAt(0));
-  bytes.push(1, 0, 0, 4, ...[..."spot" + (SPOT.board as string)].map((c) => c.charCodeAt(0)));
-  while (bytes.length % 3 !== 0) bytes.push(0);
-  const data = btoa(String.fromCharCode(...bytes));
+  const data = await storedSpot("spot", SPOT.board as string, { catalog: 0 });
   const res = await handle(post("/v1/solutions", { kind: "spot", engine_version: 1, input: SPOT, result: { data } }));
-  assertEquals(res.status, 202);
-  const { key } = await res.json();
-  assertEquals(key, shared.keys[0].key);
+  assertEquals(res.status, 201);
+  const { key, status } = await res.json();
+  assertEquals([key, status], [shared.keys[0].key, "accepted"]);
   const url = `${BASE}/v1/solutions/spot/${key}`;
-  assertEquals((await handle(new Request(url))).status, 404, "submitted is not served");
-  sql.db.prepare("UPDATE solutions SET status = 'rejected' WHERE key = ?").run(key);
-  assertEquals((await handle(new Request(url))).status, 404, "rejected is not served");
-  sql.db.prepare("UPDATE solutions SET status = 'verified', exploitability = 0.8, checked_at = 2 WHERE key = ?").run(key);
   const served = await handle(new Request(url));
   assertEquals(served.status, 200);
-  assertEquals((await served.json()).result, { data });
+  const body = await served.json();
+  assertEquals([body.result, body.status], [{ data }, "accepted"]);
+  assertAlmostEquals(body.exploitability, 0.5, 1e-6);
+  sql.db.prepare("UPDATE solutions SET status = 'rejected' WHERE key = ?").run(key);
+  assertEquals((await handle(new Request(url))).status, 404, "a withdrawn spot is not served");
 });

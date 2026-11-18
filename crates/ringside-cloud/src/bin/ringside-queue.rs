@@ -13,8 +13,8 @@ Usage: ringside-queue [--seed catalog|preflop|all] [--dry-run] [--env-file PATH]
 
 Shows the open spots of Ringside Cloud's community queue by kind and source. With
 --seed, first adds the library catalog's spots, the push/fold ICM gaps, or both; spots
-already queued or verified are left alone, and catalog scenarios a signed library pack
-ships are taken out. Reads BUNNY_DATABASE_URL and
+already queued or served are left alone (a withdrawn one goes back in), and catalog
+scenarios a signed library pack ships are taken out. Reads BUNNY_DATABASE_URL and
 BUNNY_DATABASE_AUTH_TOKEN from .env (searched from the working directory upwards) or the
 environment.
 

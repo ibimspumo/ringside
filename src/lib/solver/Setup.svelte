@@ -75,6 +75,7 @@
     solver.notes = { oop: d.oopNote, ip: d.ipNote };
     solver.labels = d.labels;
     solver.origin = origin;
+    solver.model = d.model;
     solver.custom = { oop: false, ip: false };
     // A hand handed over belongs to that hand's spot; your own pick stays with you.
     if (solver.source) solver.hero = null;

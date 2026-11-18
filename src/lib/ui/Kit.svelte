@@ -476,6 +476,11 @@
           <Card onclick={() => {}} selected><SectionHead level={3} title="Ausgewählt" sub="Rahmen in Textfarbe." /></Card>
           <Card onclick={() => {}} disabled title="Gerade nicht wählbar"><SectionHead level={3} title="Gesperrt" sub="Klickbar, aber gerade nicht wählbar." /></Card>
         </div>
+        <div class="tiles">
+          <span class="muted">Kacheln im Raster (<code>pad="xs"</code>):</span>
+          <Card pad="xs" onclick={() => {}}><span class="tile">{#each ["Ah", "Kd", "7c"] as c (c)}<MiniCard card={c} />{/each}</span></Card>
+          <Card pad="xs" onclick={() => {}} disabled><span class="tile">{#each ["Qs", "Qh", "5d"] as c (c)}<MiniCard card={c} />{/each}</span></Card>
+        </div>
         <Panel title="Panel mit Kopf" sub="Titel, Erklärzeile und Aktionen rechts.">
           {#snippet actions()}<Button size="sm" variant="quiet">Alle ansehen</Button>{/snippet}
           <p class="muted">Inhalt mit 16 px Rand. Mit <code>flush</code> läuft er bis an die Kante, etwa für Tabellen.</p>
@@ -1112,6 +1117,19 @@
     border-bottom: 1px solid var(--line);
   }
 
+  .tiles {
+    display: grid;
+    grid-template-columns: auto repeat(2, 112px);
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    margin: var(--sp-3) 0;
+  }
+  .tile {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    font-size: var(--fs-base);
+  }
   .cards-row {
     align-items: flex-end;
   }

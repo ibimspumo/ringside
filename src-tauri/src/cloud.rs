@@ -18,11 +18,9 @@ use ringside_cloud::kinds::spot::MAX_BYTES as SPOT_MAX_BYTES;
 use ringside_cloud::kinds::{Kind, PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution};
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
 use ringside_engine::multiway::{self, Params, Solution as PushFoldSolution};
-use ringside_engine::preflop_table::ModelLine;
-use ringside_solver::library::Catalog;
 use ringside_solver::library::format::{Stored, encode};
 use ringside_solver::saved::spot_key;
-use ringside_solver::{Solution, Spot};
+use ringside_solver::Solution;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
 
@@ -94,7 +92,7 @@ pub(crate) fn may_talk(app: &AppHandle) -> bool {
 ///
 /// Blocking (seconds when it has to solve), so call it from a blocking task. Order:
 /// 1. the solutions cached on this computer;
-/// 2. with `cloud.fetch`, the cloud's verified solution, checked here again (its
+/// 2. with `cloud.fetch`, the cloud's solution, checked here again (its
 ///    exploitability is measured with the engine) and dropped if it fails;
 /// 3. otherwise solved here and, with `cloud.share`, offered to the cloud in the
 ///    background.
@@ -230,29 +228,18 @@ fn update_spot_log(app: &AppHandle, f: impl FnOnce(&mut SpotLog)) {
     }
 }
 
-/// The cloud input of a local flop spot, if its ranges are exactly the model's along the
-/// line; spots with edited ranges (or the hero's hand added) are never shared.
-pub(crate) fn spot_input(model: &ModelLine, spot: &Spot) -> Option<SpotInput> {
-    SpotInput::from_model(model, spot).ok()
-}
-
 fn compact(board: &str) -> String {
     board.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
-/// With `cloud.fetch`: the cloud's verified solution of `input`, renamed to the local
-/// `board`, with the one-spot catalog to view it.
-pub(crate) fn fetch_spot(app: &AppHandle, input: &SpotInput, board: &str) -> Option<(Catalog, Stored)> {
+/// With `cloud.fetch`: the cloud's solution of `input` on its canonical flop, served as
+/// accepted or verified, its form checked here (`Client::get_solution`).
+pub(crate) fn download_spot(app: &AppHandle, input: &SpotInput) -> Option<Stored> {
     if !cloud_settings_of(app).fetch || !may_talk(app) {
         return None;
     }
     match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<SpotKind>(input) {
-        Ok(Some(found)) => {
-            let board = compact(board);
-            let catalog = input.catalog(Some(&board)).ok()?;
-            let stored = found.stored(input).ok()?.renamed(&catalog.scenarios[0], &board).ok()?;
-            Some((catalog, stored))
-        }
+        Ok(Some(found)) => found.stored(input).ok(),
         Ok(None) => None,
         Err(e) => {
             eprintln!("cloud spot lookup: {e}");
@@ -260,6 +247,25 @@ pub(crate) fn fetch_spot(app: &AppHandle, input: &SpotInput, board: &str) -> Opt
             None
         }
     }
+}
+
+/// Which of `keys` the cloud serves (accepted or verified); empty when it may not be asked.
+pub(crate) fn served(app: &AppHandle, keys: &[String]) -> Vec<String> {
+    if !cloud_settings_of(app).fetch || !may_talk(app) || keys.is_empty() {
+        return Vec::new();
+    }
+    let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient());
+    let mut out = Vec::new();
+    for chunk in keys.chunks(MAX_STATUS_KEYS) {
+        match client.statuses(chunk) {
+            Ok(list) => out.extend(list.into_iter().filter(|(_, s)| matches!(s, KeyStatus::Accepted | KeyStatus::Verified)).map(|(k, _)| k)),
+            Err(e) => {
+                app.state::<CloudState>().note(&e);
+                break;
+            }
+        }
+    }
+    out
 }
 
 /// With `cloud.share`: asks the community queue to solve a spot this computer could not.
@@ -304,7 +310,7 @@ pub(crate) fn share_spot(app: &AppHandle, input: SpotInput, solution: &mut Solut
             let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
             match Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&stored)) {
                 Ok(SubmitStatus::Submitted) => Shared { state: ShareState::Submitted, at, note: None },
-                Ok(SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Verified, at, note: None },
+                Ok(SubmitStatus::Accepted | SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Served, at, note: None },
                 Err(e) => {
                     app.state::<CloudState>().note(&e);
                     Shared { state: ShareState::Failed, at, note: Some(e.to_string()) }
@@ -335,7 +341,7 @@ pub(crate) fn check_spots(app: &AppHandle) -> Result<(), Error> {
         for ((local, _), (_, status)) in waiting.iter().zip(statuses) {
             if let Some(entry) = log.get_mut(local) {
                 entry.shared.state = match status {
-                    KeyStatus::Verified => ShareState::Verified,
+                    KeyStatus::Accepted | KeyStatus::Verified => ShareState::Served,
                     KeyStatus::Submitted => ShareState::Submitted,
                     KeyStatus::Rejected(note) => {
                         entry.shared.note = note;
@@ -581,6 +587,14 @@ pub fn anonymize(hand: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use ringside_engine::preflop_table::ModelLine;
+    use ringside_solver::Spot;
+
+    /// The cloud input of a local flop spot, as the store files it.
+    fn spot_input(model: &ModelLine, spot: &Spot) -> Option<SpotInput> {
+        SpotInput::from_model(model, spot).ok()
+    }
 
     const HAND: &str = "PokerStars Hand #260000000002: Tournament #4046789301, $10+$10+$2 USD Hold'em No Limit - Level IX (300/600) - 2026/11/16 21:00:00 CET\r
 Table '4046789301 3' 9-max Seat #1 is the button\r

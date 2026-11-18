@@ -614,6 +614,14 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await click("main .drill .choices button");
   await find("main .drill .verdict");
   await find("main .drill .verdict .ui-reason", "Warum?", { exact: false });
+  // An estimate's table counts from folding: Fold brings 0,00 BB, its cost is the gap to the best move.
+  const fold = await s.exec(`
+    const card = document.querySelector("main .drill .verdict");
+    if (!card || !card.textContent.includes("geschätzt")) return null;
+    const row = [...card.querySelectorAll(".options li")].find((li) => li.querySelector(".label")?.textContent.trim().startsWith("Fold"));
+    return row ? { gain: row.querySelector(".gain").textContent.trim(), cost: row.querySelector(".ev").textContent.trim() } : null;`);
+  if (fold && fold.gain !== "0,00 BB") throw new Error(`an estimated fold brings „${fold.gain}“`);
+  if (!TAURI && fold?.cost !== "−3,62 BB") throw new Error(`the demo fold costs „${fold?.cost}“, not −3,62 BB as before`);
   await waitText("Damals hast du");
   await click("main .drill button", "Weiter", { exact: false });
   // The round goes on with the next spot of the same kind: real or dealt anew, it says which.
@@ -770,6 +778,7 @@ step("Solver: kleiner River-Spot mit deiner Hand", async () => {
 
 step("Solver: die Lösung steht in „Meine Lösungen“ und öffnet ohne Rechnen", async () => {
   await click("main [role='tab']", "Meine Lösungen");
+  await waitText("Selbst gerechnet");
   await click("main .saved li.card button.ui-btn.primary");
   await find("main [role='group'][aria-label='Aktionen']");
 });
@@ -990,8 +999,9 @@ step("Einstellungen: Cloud-Schalter aus", async () => {
     `const boxes = [...document.querySelectorAll("main #s-cloud [role=switch]")].map((b) => b.getAttribute("aria-checked") === "true");
      return boxes.length ? boxes : null;`,
   );
-  if (boxes.length !== 2) throw new Error(`expected 2 cloud switches, found ${boxes.length}`);
-  if (TAURI && boxes.some(Boolean)) throw new Error("cloud switches are on");
+  if (boxes.length !== 3) throw new Error(`expected 3 cloud switches, found ${boxes.length}`);
+  if (TAURI && (boxes[0] || boxes[1])) throw new Error("cloud switches are on");
+  if (!boxes[2]) throw new Error("„Üben mit fertigen Spots anderer“ is off by default");
 });
 
 step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt gespeichert", async () => {

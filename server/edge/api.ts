@@ -7,7 +7,7 @@ import { CanonicalError, canonicalize, solutionKey } from "./canonical.ts";
 import { InvalidError, KINDS, kindSpec } from "./kinds.ts";
 import { decide, hitStatements, MemoryCounter, pruneStatement, RULES, type Rule } from "./ratelimit.ts";
 
-export const API_VERSION = "1.3.0";
+export const API_VERSION = "1.4.0";
 const MAX_BODY = 256 * 1024;
 const MAX_INPUT = 4 * 1024;
 const MAX_HAND = 20_000;
@@ -16,6 +16,8 @@ const MAX_ERROR = 2_000;
 export const MAX_STATUS_KEYS = 200;
 const MAX_NOTE = 300;
 const KEEP_VERIFIED = 100_000;
+/** How long the CDN may keep an accepted solution; it is withdrawn if its client turns out to cheat. */
+const ACCEPTED_MAX_AGE_S = 86_400;
 /** How long a computer may work on a spot before it is handed out again, by kind. */
 export const LEASE_S: Readonly<Record<string, number>> = {
   "pushfold-hu": 600,
@@ -125,7 +127,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const reads = new MemoryCounter();
   const pruneChance = deps.pruneChance ?? 0.01;
-  // A verified key never changes again, so the isolate answers for it without the database.
+  // A verified key never changes again, so the isolate answers for it without the database;
+  // an accepted one can still be withdrawn.
   const verified = new Set<string>();
 
   async function limitWrites(rules: readonly Rule[], client: string) {
@@ -157,26 +160,32 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       throw new HttpError(429, "rate_limited", `too many requests (${d.rule})`, { "Retry-After": String(d.retryAfter) });
     }
     const [r] = await deps.sql.execute([{
-      sql: "SELECT engine_version, input, result, exploitability, checked_at FROM solutions " +
-        "WHERE key = ? AND kind = ? AND status = 'verified'",
+      sql: "SELECT engine_version, input, result, status, exploitability, checked_at FROM solutions " +
+        "WHERE key = ? AND kind = ? AND status IN ('accepted', 'verified')",
       args: [key, kind],
     }]);
     const row = r.rows[0];
-    if (!row) throw new HttpError(404, "not_found", "no verified solution for this key");
+    if (!row) throw new HttpError(404, "not_found", "no solution for this key");
+    const verifiedRow = row.status === "verified";
     const body = `{"kind":${JSON.stringify(kind)},"engine_version":${Number(row.engine_version)},"key":"${key}",` +
       `"input":${row.input},"result":${await gunzip(row.result as Uint8Array<ArrayBuffer>)},` +
-      `"exploitability":${JSON.stringify(row.exploitability)},"verified_at":${Number(row.checked_at)}}`;
+      `"status":"${verifiedRow ? "verified" : "accepted"}","exploitability":${JSON.stringify(row.exploitability)},` +
+      `"verified_at":${verifiedRow ? Number(row.checked_at) : null}}`;
     // The key fixes kind, engine version and input; a verified result for it never changes.
     return new Response(body, {
       status: 200,
       headers: {
         "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "public, max-age=31536000, immutable",
+        "Cache-Control": verifiedRow ? "public, max-age=31536000, immutable" : `public, max-age=${ACCEPTED_MAX_AGE_S}`,
       },
     });
   }
 
-  /** Where each key stands: verified, submitted (waits for the verifier), rejected (with the verifier's note) or unknown. */
+  /**
+   * Where each key stands: accepted (served), verified (served, re-solved by the verifier),
+   * submitted (from before accepting, waits for the verifier's form check), rejected (with
+   * the verifier's note) or unknown.
+   */
   async function statuses(req: Request, client: string): Promise<Response> {
     const t = now();
     const d = decide(RULES.status.map((rule) => ({ rule, count: reads.hit(rule, client, t) })), t);
@@ -220,32 +229,37 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     await limitWrites(RULES.submit, client);
     const body = exactFields(await readBody(req), ["kind", "engine_version", "input", "result"]);
     const { kind, spec, version, input, key } = await solutionInput(body);
-    const result = JSON.stringify(spec.normalizeResult(body.result, body.input));
+    const normalized = await spec.normalizeResult(body.result, body.input);
+    const result = JSON.stringify(normalized.result);
     if (result.length > spec.maxResultBytes) throw new InvalidError("result too large");
     const t = now();
+    const allowed = "NOT EXISTS (SELECT 1 FROM banned_clients WHERE submitter = ?)";
 
-    const [outcome] = await deps.sql.batch([
+    const [outcome, , stored] = await deps.sql.batch([
       {
         sql: "INSERT INTO submissions (key, kind, submitter, received_at, size, outcome) " +
           "SELECT ?, ?, ?, ?, ?, CASE (SELECT status FROM solutions WHERE key = ?) " +
-          "WHEN 'rejected' THEN 'replaced' WHEN 'submitted' THEN 'pending' WHEN 'verified' THEN 'verified' " +
-          "ELSE 'new' END RETURNING outcome",
-        args: [key, kind, client, t, result.length, key],
+          "WHEN 'rejected' THEN 'replaced' WHEN 'verified' THEN 'verified' WHEN 'submitted' THEN 'pending' " +
+          `WHEN 'accepted' THEN 'pending' ELSE 'new' END WHERE ${allowed} RETURNING outcome`,
+        args: [key, kind, client, t, result.length, key, client],
       },
       {
-        sql: "INSERT INTO solutions (key, kind, engine_version, input, result, result_size, status, submitter, " +
-          "submitted_at) VALUES (?, ?, ?, ?, ?, ?, 'submitted', ?, ?) " +
+        sql: "INSERT INTO solutions (key, kind, engine_version, input, result, result_size, status, exploitability, " +
+          `submitter, submitted_at) SELECT ?, ?, ?, ?, ?, ?, 'accepted', ?, ?, ? WHERE ${allowed} ` +
           "ON CONFLICT (key) DO UPDATE SET input = excluded.input, result = excluded.result, " +
-          "result_size = excluded.result_size, status = 'submitted', exploitability = NULL, " +
+          "result_size = excluded.result_size, status = 'accepted', exploitability = excluded.exploitability, " +
           "submitter = excluded.submitter, submitted_at = excluded.submitted_at, checked_at = NULL, " +
           "check_note = NULL WHERE solutions.status = 'rejected'",
-        args: [key, kind, version, input, await gzip(result), result.length, client, t],
+        args: [key, kind, version, input, await gzip(result), result.length, normalized.exploitability, client, t, client],
       },
+      { sql: "SELECT status FROM solutions WHERE key = ?", args: [key] },
     ]);
+    if (outcome.rows.length === 0) {
+      throw new HttpError(403, "banned", "this address may not submit: a solution from it failed the verifier's check");
+    }
     const o = String(outcome.rows[0].outcome);
-    return o === "verified"
-      ? json(200, { key, status: "verified" })
-      : json(202, { key, status: "submitted", outcome: o });
+    const status = String(stored.rows[0].status);
+    return json(o === "new" || o === "replaced" ? 201 : 200, { key, status, outcome: o });
   }
 
   /** The kind, engine version and canonical input of a body, with its key; throws on anything malformed. */
@@ -266,7 +280,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   /**
    * Hands out the open spot first in line (most requested, least handed out, oldest)
    * among the kinds the client can solve, leased for the kind's time. A spot whose lease
-   * ran out is open again; one with a submitted or verified solution is not.
+   * ran out is open again; one with a solution that is served or waits for a check is not.
    */
   async function nextWork(req: Request, client: string): Promise<Response> {
     await limitWrites(RULES.work, client);
@@ -301,7 +315,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         sql: `UPDATE work SET lease_until = ? + ${leaseCase}, leased_to = ?, leases = leases + 1 ` +
           "WHERE key = (SELECT w.key FROM work w WHERE (" + filter + ") " +
           "AND (w.lease_until IS NULL OR w.lease_until <= ?) " +
-          "AND NOT EXISTS (SELECT 1 FROM solutions s WHERE s.key = w.key AND s.status IN ('submitted', 'verified')) " +
+          "AND NOT EXISTS (SELECT 1 FROM solutions s WHERE s.key = w.key AND s.status != 'rejected') " +
           "ORDER BY w.priority DESC, w.leases, w.created_at LIMIT 1) " +
           "AND (lease_until IS NULL OR lease_until <= ?) " +
           "RETURNING key, kind, engine_version, input, lease_until",
@@ -339,13 +353,13 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
     if (!REQUESTABLE.includes(kind)) throw new InvalidError(`only ${REQUESTABLE.join(", ")} can be requested`);
     const [r] = await deps.sql.batch([
       {
-        sql: "SELECT status FROM solutions WHERE key = ? AND status IN ('submitted', 'verified')",
+        sql: "SELECT status FROM solutions WHERE key = ? AND status != 'rejected'",
         args: [key],
       },
       {
         sql: "INSERT INTO work (key, kind, engine_version, input, source, priority, created_at) " +
           "SELECT ?, ?, ?, ?, 'request', 1, ? " +
-          "WHERE NOT EXISTS (SELECT 1 FROM solutions WHERE key = ? AND status IN ('submitted', 'verified')) " +
+          "WHERE NOT EXISTS (SELECT 1 FROM solutions WHERE key = ? AND status != 'rejected') " +
           "ON CONFLICT (key) DO UPDATE SET priority = priority + 1",
         args: [key, kind, version, input, now(), key],
       },

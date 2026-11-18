@@ -1,10 +1,11 @@
-//! Trusted verifier: checks submitted solutions with Ringside's engine and marks them
-//! verified or rejected. Runs hourly in the repository's `verify` workflow, or by hand
-//! with the full database token.
+//! Trusted verifier. Solutions are served as soon as the API finds their form right; this
+//! re-solves a sample of them, clients new to it first, and bans a client whose sample
+//! fails, withdrawing all its accepted solutions. Runs hourly in the repository's
+//! `verify` workflow, or by hand with the full database token.
 //!
 //! Anyone can submit, so every check runs in a child process that is killed after a time
 //! limit, and a run stops starting checks once its budget is used up. A check that runs
-//! out of time or crashes gives no verdict: the solution stays pending for the next run.
+//! out of time or crashes gives no verdict: the solution stays as it is.
 
 use std::io::{Read, Write};
 use std::path::PathBuf;
@@ -12,44 +13,45 @@ use std::process::{Command, ExitCode, ExitStatus, Stdio};
 use std::time::{Duration, Instant};
 
 use ringside_cloud::kinds::{self, KINDS, KindEntry, Verdict};
-use ringside_cloud::operator::{Attempt, Db, VerifyOptions, load_env, now, prune, verify_pending};
+use ringside_cloud::operator::{
+    Attempt, Db, Form, SampleOptions, accept_submitted, ban_client, is_client_id, load_env, now, prune, purge_public,
+    sample, unban_client, withdraw_client,
+};
 use serde::{Deserialize, Serialize};
 
 const HELP: &str = "\
-Usage: ringside-verify [--limit N] [--max-slow N] [--minutes M] [--max-seconds S]
-                       [--budget-seconds S] [--dry-run] [--env-file PATH]
+Usage: ringside-verify [--samples N] [--minutes M] [--max-seconds S] [--budget-seconds S]
+                       [--dry-run] [--env-file PATH]
+       ringside-verify --ban-client ID | --withdraw-client ID | --unban-client ID
+                       [--env-file PATH]
 
-Checks pending solutions in Ringside Cloud, oldest first, and sets each to verified or
-rejected. Reads BUNNY_DATABASE_URL and BUNNY_DATABASE_AUTH_TOKEN from .env (searched from
-the working directory upwards) or the environment. Also deletes rate-limit counters older
-than two days and parser reports and submission log entries older than 90 days.
+Ringside Cloud serves every solution whose form checks out at once. A run of this tool
+  1. checks the form of rows still waiting from before that and accepts or rejects them,
+  2. re-solves one random accepted solution of each of N clients, the ones it has
+     verified least first; a client whose sample fails is banned and all its accepted
+     solutions are withdrawn (verified ones stay),
+  3. deletes rate-limit counters older than two days, parser reports and submission log
+     entries older than 90 days and queue entries whose spot is served.
+Reads BUNNY_DATABASE_URL and BUNNY_DATABASE_AUTH_TOKEN from .env (searched from the
+working directory upwards) or the environment; with BUNNY_API_KEY it also drops
+withdrawn solutions from the CDN, else they leave it within a day.
 
-To check many by hand, run it locally with the operator's .env, e.g.
+  --samples N          clients to sample (default 5)
+  --minutes M          start no check that could end after M minutes (same as
+                       --budget-seconds M*60)
+  --max-seconds S      a check that takes longer gives no verdict (default: the kind's
+                       own limit, 120 s for push/fold, 900 s for postflop)
+  --budget-seconds S   start no check that could end after S seconds (default 2400)
+  --dry-run            only print what would happen, change and delete nothing
+  --ban-client ID      withdraw all accepted solutions of a client and refuse its
+                       submissions; ID is the 32-digit hash in solutions.submitter
+  --withdraw-client ID only withdraw its accepted solutions
+  --unban-client ID    accept its submissions again (withdrawn ones stay withdrawn)
+  --env-file PATH      use this .env file
+  --help               this text
 
-  cargo run --release -p ringside-cloud --bin ringside-verify -- \\
-    --env-file path/to/.env --limit 1000 --max-slow 1000 --minutes 120
-
-  --limit N           check at most N solutions, read 50 at a time (default 50)
-  --max-slow N        check at most N postflop spots (catalog or shared, each several
-                      solves); the rest waits for the next run (default 4)
-  --minutes M         start no check that could end after M minutes (same as
-                      --budget-seconds M*60)
-  --max-seconds S     reject a solution whose check takes longer (default: the kind's
-                      own limit, 120 s for push/fold, 900 s for postflop)
-  --budget-seconds S  start no check that could end after S seconds; the rest waits
-                      (default 2400)
-  --dry-run           only print verdicts, change and delete nothing
-  --env-file PATH     use this .env file
-  --help              this text
-
-Prints solution keys and verdicts only, never the database's address or token.
-Exit code 0 when the run completed (rejections included), 1 on errors.";
-
-/// Rows read per query: a postflop result is up to 180 KB.
-const BATCH: u32 = 50;
-
-/// Kinds whose check may take longer than this count against `--max-slow`.
-const SLOW_SECONDS: u64 = 120;
+Prints solution keys, client hashes and verdicts only, never the database's address or a
+key. Exit code 0 when the run completed (failed samples included), 1 on errors.";
 
 /// Internal: check one row read from stdin and print the verdict; used for the child.
 const CHECK_ONE: &str = "--check-one";
@@ -69,18 +71,38 @@ fn number<T: std::str::FromStr>(args: &mut impl Iterator<Item = String>, flag: &
     args.next().and_then(|v| v.parse().ok()).ok_or_else(|| format!("{flag} needs a number"))
 }
 
+/// What a client command does.
+#[derive(Clone, Copy, PartialEq)]
+enum ClientAction {
+    Ban,
+    Withdraw,
+    Unban,
+}
+
 fn run() -> Result<(), String> {
-    let mut limit = 50u32;
-    let mut max_slow = 4u32;
+    let mut samples = 5usize;
     let mut max_seconds: Option<u64> = None;
     let mut budget_seconds = 2400u64;
     let mut dry_run = false;
     let mut env_file: Option<PathBuf> = None;
+    let mut client: Option<(ClientAction, String)> = None;
     let mut args = std::env::args().skip(1);
     while let Some(arg) = args.next() {
+        let action = match arg.as_str() {
+            "--ban-client" => Some(ClientAction::Ban),
+            "--withdraw-client" => Some(ClientAction::Withdraw),
+            "--unban-client" => Some(ClientAction::Unban),
+            _ => None,
+        };
+        if let Some(action) = action {
+            let id = args.next().filter(|id| is_client_id(id)).ok_or(format!("{arg} needs a 32-digit client hash"))?;
+            if client.replace((action, id)).is_some() {
+                return Err("only one client command at a time".into());
+            }
+            continue;
+        }
         match arg.as_str() {
-            "--limit" => limit = number(&mut args, "--limit")?,
-            "--max-slow" => max_slow = number(&mut args, "--max-slow")?,
+            "--samples" => samples = number(&mut args, "--samples")?,
             "--minutes" => budget_seconds = number::<u64>(&mut args, "--minutes")? * 60,
             "--max-seconds" => max_seconds = Some(number(&mut args, "--max-seconds")?),
             "--budget-seconds" => budget_seconds = number(&mut args, "--budget-seconds")?,
@@ -93,88 +115,99 @@ fn run() -> Result<(), String> {
             other => return Err(format!("unknown argument {other}; see --help")),
         }
     }
-    let db = Db::from_env(&load_env(env_file.as_deref())?)?;
+    let env = load_env(env_file.as_deref())?;
+    let db = Db::from_env(&env)?;
+    let api_key = env.get("BUNNY_API_KEY").filter(|k| !k.is_empty()).cloned();
+    let purge = |withdrawn: &[(String, String)]| {
+        if withdrawn.is_empty() {
+            return Ok(());
+        }
+        match &api_key {
+            Some(key) => purge_public(key, withdrawn).map(|()| println!("cdn: purged {} URL(s)", withdrawn.len())),
+            None => {
+                println!("cdn: BUNNY_API_KEY not set, withdrawn solutions leave the CDN within a day");
+                Ok(())
+            }
+        }
+    };
+
+    if let Some((action, id)) = client {
+        if action == ClientAction::Unban {
+            let lifted = unban_client(&db, &id)?;
+            println!("{}", if lifted { format!("client {id} may submit again") } else { format!("client {id} was not banned") });
+            return Ok(());
+        }
+        let reason = "withdrawn by the operator";
+        if action == ClientAction::Ban {
+            ban_client(&db, &id, reason)?;
+            println!("client {id} banned");
+        }
+        let withdrawn = withdraw_client(&db, &id, reason)?;
+        println!("{} solutions of client {id} withdrawn", withdrawn.len());
+        return purge(&withdrawn);
+    }
+
     let kinds: Vec<String> = KINDS.iter().map(|k| format!("{}/{}", k.name, k.engine_version)).collect();
     println!("kinds: {}", kinds.join(", "));
+    let started_run = Instant::now();
+    let started_unix = now();
+
+    let formed = accept_submitted(&db, dry_run)?;
+    let mut counts = (0, 0, 0);
+    for f in &formed {
+        match &f.form {
+            Form::Accepted(_) => counts.0 += 1,
+            Form::Rejected(reason) => {
+                counts.1 += 1;
+                println!("rejected {} {} form: {reason}", f.kind, f.key);
+            }
+            Form::Unknown => counts.2 += 1,
+        }
+    }
+    if !formed.is_empty() {
+        println!("waiting rows: {} accepted, {} rejected, {} of unknown kind or version left", counts.0, counts.1, counts.2);
+    }
 
     let exe = std::env::current_exe().map_err(|e| format!("own executable: {e}"))?;
-    let started_run = Instant::now();
     let deadline = started_run + Duration::from_secs(budget_seconds);
-    let slow_started = std::cell::Cell::new(0u32);
     let check = |entry: &KindEntry, key: &str, input: &str, result: &str| {
-        let slow = entry.check_seconds > SLOW_SECONDS;
-        if slow && slow_started.get() >= max_slow {
-            return Attempt::PutOff;
-        }
         let limit = Duration::from_secs(max_seconds.unwrap_or(entry.check_seconds));
-        // A slow kind starts only if its check can end within the budget; the row stays
-        // pending for the next run.
+        // A check starts only if it can end within the budget; the row waits for the next run.
         if Instant::now() + limit > deadline + Duration::from_secs(budget_slack(budget_seconds)) {
             return Attempt::PutOff;
-        }
-        if slow {
-            slow_started.set(slow_started.get() + 1);
         }
         let started = Instant::now();
         let attempt = in_child(&exe, entry, key, input, result, limit);
         println!("  checked {} {key} in {:.1}s", entry.name, started.elapsed().as_secs_f64());
         attempt
     };
-    let started_unix = now();
-    let (mut verified, mut rejected, mut no_verdict, mut skipped) = (0, 0, 0, 0);
-    let mut read = 0u32;
-    // Rows a batch leaves pending stay first in line, so the next batch passes over them.
-    let mut pending_ahead = 0u32;
-    while read < limit && Instant::now() < deadline {
-        let batch = BATCH.min(limit - read);
-        let opts = VerifyOptions {
-            keys: None,
-            limit: batch,
-            offset: pending_ahead,
-            tried_since: Some(started_unix),
-            deadline: Some(deadline),
-            dry_run,
-        };
-        let checked = verify_pending(&db, &opts, &check)?;
-        read += checked.len() as u32;
-        for c in &checked {
-            match &c.attempt {
-                Attempt::Verdict(Verdict::Verified { exploitability, .. }) => {
-                    verified += 1;
-                    println!("verified {} {} exploitability {exploitability:.2e}", c.kind, c.key);
-                }
-                Attempt::Verdict(Verdict::Rejected { reason, .. }) => {
-                    rejected += 1;
-                    println!("rejected {} {} {reason}", c.kind, c.key);
-                }
-                Attempt::NoVerdict(reason) => {
-                    no_verdict += 1;
-                    println!("pending  {} {} no verdict: {reason}", c.kind, c.key);
-                }
-                Attempt::PutOff => {
-                    skipped += 1;
-                    println!(
-                        "skipped  {} {} (unknown kind or engine version, no time left or slow checks used up)",
-                        c.kind, c.key
-                    );
+    let opts = SampleOptions { clients: samples, tried_since: started_unix, deadline: Some(deadline), dry_run };
+    let sampled = sample(&db, &opts, &check)?;
+    let mut withdrawn = Vec::new();
+    for s in &sampled {
+        match &s.attempt {
+            Attempt::Verdict(Verdict::Verified { exploitability, .. }) => {
+                println!("verified {} {} of client {} exploitability {exploitability:.2e}", s.kind, s.key, s.submitter);
+            }
+            Attempt::Verdict(Verdict::Rejected { reason, .. }) => {
+                println!("FAILED   {} {} of client {}: {reason}", s.kind, s.key, s.submitter);
+                if !dry_run {
+                    println!("         client {} banned, {} solutions withdrawn", s.submitter, s.withdrawn.len());
                 }
             }
-            // Rows tried without a verdict leave the line (`tried_since`); put-off ones and,
-            // in a dry run, all stay in place.
-            if dry_run || c.attempt == Attempt::PutOff {
-                pending_ahead += 1;
-            }
+            Attempt::NoVerdict(reason) => println!("no verdict {} {} of client {}: {reason}", s.kind, s.key, s.submitter),
+            Attempt::PutOff => println!("skipped  {} {} (unknown kind or engine version, or no time left)", s.kind, s.key),
         }
-        if checked.len() < batch as usize {
-            break;
-        }
+        withdrawn.extend(s.withdrawn.iter().cloned());
     }
     println!(
-        "{verified} verified, {rejected} rejected, {no_verdict} without verdict (still pending), {skipped} skipped in {:.1} min{}",
+        "{} samples in {:.1} min{}",
+        sampled.len(),
         started_run.elapsed().as_secs_f64() / 60.0,
         if dry_run { " (dry run, nothing stored)" } else { "" }
     );
     if !dry_run {
+        purge(&withdrawn)?;
         let p = prune(&db)?;
         println!(
             "deleted {} rate-limit counters, {} reports, {} submission log entries and {} solved queue entries",

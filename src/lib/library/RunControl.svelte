@@ -1,63 +1,70 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
+  import Button from "../ui/Button.svelte";
+  import CardText from "../ui/CardText.svelte";
+  import MiniCard from "../ui/MiniCard.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
   import { libraryApi } from "./api";
-  import { flopName, threadsFor, titleOf } from "./labels";
-  import type { LibraryOverview, LibraryPower, WorkerStatus } from "./types";
+  import { cards, titleOf } from "./labels";
+  import type { LibraryOverview, WorkerStatus } from "./types";
 
-  /** The start/stop button with the worker's state in words and the power choice. */
-  let { data, worker, onChange }: { data: LibraryOverview; worker: WorkerStatus; onChange: () => void } = $props();
+  /** What the worker does, in words, and the one button that starts or stops it. */
+  let {
+    data,
+    worker,
+    primary = false,
+    onChange,
+    after,
+  }: { data: LibraryOverview; worker: WorkerStatus; primary?: boolean; onChange: () => void; after?: Snippet } = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
 
   const running = $derived(worker.manual || worker.state === "solving" || worker.state === "cloud");
   const done = $derived(worker.state === "done");
-  const spot = $derived.by(() => {
-    if (worker.community) return worker.community;
-    const s = data.scenarios.find((x) => x.id === worker.scenario);
-    return s && worker.flop ? `${titleOf(s)}, Flop ${flopName(worker.flop)}` : null;
-  });
   /** The library is complete; with sharing on, a run solves what other users need. */
   const forOthers = $derived(done && data.share);
+  const scenario = $derived(data.scenarios.find((x) => x.id === worker.scenario) ?? null);
   const pct = $derived(worker.state === "solving" && worker.progress !== null ? Math.round(worker.progress * 100) : null);
+  const tone = $derived(running ? "live" : worker.reason === "client" ? "warn" : done ? "done" : "idle");
 
   /** Headline and the sentence under it. */
   const words = $derived.by((): [string, string] => {
-    const how = worker.manual
-      ? "Von dir gestartet. Läuft, bis du anhältst, PokerStars startet oder alle Spots fertig sind."
-      : "Die Automatik rechnet, solange du die App nicht benutzt.";
     switch (worker.state) {
       case "solving":
         return worker.community
-          ? [
-              "Rechnet für andere Ringside-Nutzer:",
-              "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen, und lädt sie hoch. Ein Prüfer rechnet jeden nach, bevor ihn alle bekommen.",
-            ]
-          : ["Rechnet gerade:", how];
+          ? ["Rechnet für andere", "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen; sobald einer oben ist, bekommen ihn alle."]
+          : [
+              "Rechnet gerade",
+              worker.manual ? "Läuft, bis du anhältst, PokerStars startet oder alles fertig ist." : "Die Automatik rechnet, solange du die App nicht benutzt.",
+            ];
       case "cloud":
-        return ["Schaut in der Cloud nach:", "Hat schon jemand diesen Spot gerechnet? Dann lädt Ringside ihn, statt selbst zu rechnen."];
+        return ["Schaut in der Cloud nach", "Hat schon jemand diesen Spot gerechnet? Dann lädt Ringside ihn, statt selbst zu rechnen."];
       case "packs":
         return ["Lädt fertige Spots herunter", "Das kostet deinen PC keine Rechenzeit."];
       case "done":
         return forOthers
           ? [
               "Bibliothek komplett",
-              `Alle Spots sind gelöst. Mit „Für andere mitrechnen“ löst dein PC Spots, die andere Ringside-Nutzer noch brauchen${worker.community_done ? ` – ${worker.community_done} hat dein PC seit dem Start schon beigetragen` : ""}. Danke!`,
+              `Willst du helfen, rechnet dein PC Spots, die andere noch brauchen${worker.community_done ? ` – ${worker.community_done} hat er seit dem Start schon beigetragen` : ""}. Danke!`,
             ]
-          : ["Fertig", "Alle Spots der Bibliothek sind gelöst. Danke fürs Mitrechnen!"];
+          : ["Bibliothek komplett", "Alle Spots sind gelöst. Danke fürs Mitrechnen!"];
       case "off":
-        return ["Aus", "Die Automatik ist aus. Mit „Jetzt mitrechnen“ startest du selbst."];
+        return ["Automatik aus", "Dein PC rechnet nur, wenn du hier startest."];
     }
     switch (worker.reason) {
       case "client":
-        return ["Wartet: PokerStars läuft", "Solange PokerStars offen ist, rechnet Ringside nie."];
+        return ["Pause: PokerStars läuft", "Solange PokerStars offen ist, rechnet Ringside nie."];
       case "halted":
-        return ["Angehalten", "Die Automatik ruht, bis du wieder startest oder bei „Automatik“ etwas anderes wählst."];
+        return ["Angehalten", "Die Automatik ruht, bis du wieder startest."];
       case "idle":
-        return ["Wartet auf eine Pause", "Die Automatik legt los, wenn fünf Minuten niemand Maus oder Tastatur benutzt. Oder starte gleich selbst."];
+        return ["Wartet auf eine Pause", "Die Automatik legt los, wenn fünf Minuten niemand Maus oder Tastatur benutzt."];
       case "idle_unknown":
         return ["Wartet", "Ob der PC gerade frei ist, erkennt Ringside nur unter Windows. Starte hier selbst."];
+      case "busy":
+        return ["Wartet: Wichtigeres geht vor", "Was du gerade ansiehst, deine neuen Hände und der Übungsvorrat rechnen zuerst. Danach geht es hier weiter."];
       case "in_use":
-        return ["Wartet, solange du Ringside benutzt", "Die Automatik lässt dich in Ruhe arbeiten. Mit „Jetzt mitrechnen“ geht es sofort los, auch während du Ringside benutzt."];
+        return ["Wartet, bis du Ringside nicht benutzt", "So bleibt die App flott. Mit dem Knopf geht es sofort los."];
     }
     return ["Startet …", ""];
   });
@@ -74,31 +81,42 @@
       busy = false;
     }
   }
-
-  const POWERS: { id: LibraryPower; label: string; text: string }[] = [
-    { id: "gentle", label: "Sanft", text: "Leise und sparsam. Dauert länger, der PC bleibt kühl." },
-    { id: "normal", label: "Normal", text: "Empfohlen. Schnell genug, und der PC bleibt flott." },
-    { id: "full", label: "Volle Kraft", text: "Am schnellsten, braucht aber deutlich mehr Strom, und der Lüfter wird hörbar." },
-  ];
-  const power = $derived(POWERS.find((p) => p.id === data.power) ?? POWERS[1]);
-
-  function setPower(p: LibraryPower) {
-    data.power = p;
-    libraryApi.setPower(p).catch((e) => (error = String(e)));
-  }
 </script>
 
 <div class="run">
-  <button
+  <div class="say" class:live={running} aria-live="polite">
+    <p class="head">
+      {#if worker.state === "solving"}
+        <span class="ring"><ProgressRing value={worker.progress} size={16} stroke={2.5} tone="good" label="Fortschritt des aktuellen Spots" /></span>
+      {:else}
+        <span class="dot {tone}" aria-hidden="true"></span>
+      {/if}
+      <span>{words[0]}{#if pct !== null}<span class="pct num">&nbsp;·&nbsp;{pct}&nbsp;%</span>{/if}</span>
+    </p>
+    {#if worker.state === "solving" && worker.community}
+      {@const [where, flop] = worker.community.split(/,\s*Flop\s+/)}
+      <p class="spot"><span>{where}</span>{#if flop}<span class="flop"><CardText text={flop} /></span>{/if}</p>
+    {:else if scenario && worker.flop && (worker.state === "solving" || worker.state === "cloud")}
+      <p class="spot">
+        <span>{titleOf(scenario)}</span>
+        <span class="flop">{#each cards(worker.flop) as [r, s], k (k)}<MiniCard card={r + s} />{/each}</span>
+      </p>
+    {/if}
+    {#if words[1]}<p class="sub">{words[1]}</p>{/if}
+    {#if error}<p class="err" role="alert">{error}</p>{/if}
+  </div>
+
+  <div class="acts">
+  <Button
     class="go"
-    class:running
-    style="--p:{running ? (worker.progress ?? 0) : 0}"
-    disabled={busy || (done && !running && !forOthers)}
+    variant={primary && !running ? "primary" : "secondary"}
+    loading={busy}
+    disabled={done && !running && !forOthers}
     aria-pressed={running}
     onclick={toggle}
   >
-    <span class="face">
-      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+    {#snippet icon()}
+      <svg viewBox="0 0 24 24" width="14" height="14">
         {#if running}
           <rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" />
           <rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" />
@@ -106,178 +124,99 @@
           <path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor" />
         {/if}
       </svg>
-      <b>{running ? "Anhalten" : forOthers ? "Für andere mitrechnen" : done ? "Alles fertig" : "Jetzt mitrechnen"}</b>
-    </span>
-  </button>
-
-  <div class="say" aria-live="polite">
-    <p class="head" class:live={running}>
-      {words[0]}
-      {#if spot && (worker.state === "solving" || worker.state === "cloud")}
-        <span class="spot">{spot}{#if pct !== null}&nbsp;<span class="pct num">–&nbsp;{pct}&nbsp;%</span>{/if}</span>
-      {/if}
-    </p>
-    {#if worker.state === "solving"}
-      <div class="track" aria-hidden="true"><i style="width:{Math.max(2, (worker.progress ?? 0) * 100)}%"></i></div>
-    {/if}
-    {#if words[1]}<p class="sub">{words[1]}</p>{/if}
-    {#if error}<p class="err">{error}</p>{/if}
+    {/snippet}
+    {running ? "Anhalten" : forOthers ? "Für andere mitrechnen" : done ? "Alles fertig" : "Jetzt mitrechnen"}
+  </Button>
+  {@render after?.()}
   </div>
-</div>
-
-<div class="power">
-  <span class="label" id="power-label">Kraft</span>
-  <div class="seg" role="radiogroup" aria-labelledby="power-label">
-    {#each POWERS as p (p.id)}
-      <button role="radio" aria-checked={data.power === p.id} class:on={data.power === p.id} onclick={() => setPower(p.id)}>{p.label}</button>
-    {/each}
-  </div>
-  <p>
-    <b class="num">{threadsFor(data.power, data.cores)} von {data.cores}</b> Rechenkernen. {power.text}
-    <span class="faint">Gilt ab dem nächsten Spot; Arbeitsspeicher höchstens ein Viertel.</span>
-  </p>
 </div>
 
 <style>
+  /* Text and button side by side when there is room, the button under the text when not. */
   .run {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 20px;
-    align-items: center;
-  }
-  /* The button is its own progress ring: the current spot fills it while it runs. */
-  .go {
-    --p: 0;
-    display: grid;
-    place-items: center;
-    width: 124px;
-    height: 124px;
-    padding: 0;
-    border: 0;
-    border-radius: 50%;
-    cursor: pointer;
-    background: conic-gradient(var(--pos) calc(var(--p) * 100%), var(--surface-3) 0);
-    transition: transform 0.12s;
-  }
-  .go:not(:disabled):hover {
-    transform: scale(1.03);
-  }
-  .go:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 3px;
-  }
-  .go:disabled {
-    cursor: default;
-    opacity: 0.55;
-  }
-  .face {
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
     align-items: center;
-    justify-content: center;
-    gap: 6px;
-    width: 112px;
-    height: 112px;
-    border-radius: 50%;
-    padding: 0 14px;
-    background: var(--pos);
-    color: #0f1a08;
-    text-align: center;
-  }
-  .face b {
-    font-size: 13.5px;
-    line-height: 1.2;
-    font-weight: 650;
-  }
-  .running .face {
-    background: var(--surface);
-    color: var(--text);
-  }
-  .say {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    gap: var(--sp-3) var(--sp-6);
     min-width: 0;
   }
-  .head {
-    margin: 0;
-    font-size: 16px;
-    font-weight: 600;
-    line-height: 1.4;
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
   }
-  .head.live {
-    color: var(--pos);
+  .say {
+    flex: 1 1 22em;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-width: 0;
+  }
+  p {
+    margin: 0;
+  }
+  .head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    color: var(--text);
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
+  }
+  .dot {
+    flex: none;
+    transform: translateY(-1px);
+    width: 8px;
+    height: 8px;
+    border-radius: var(--r-pill);
+    background: var(--text-3);
+  }
+  .dot.live {
+    background: var(--pos);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--pos) 25%, transparent);
+  }
+  .dot.warn {
+    background: var(--amber);
+  }
+  .dot.done {
+    background: var(--info);
   }
   .spot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-2);
     color: var(--text);
-    font-weight: 500;
+    font-size: var(--fs-md);
+  }
+  .flop {
+    display: inline-flex;
+    gap: 2px;
+    white-space: nowrap;
+  }
+  .ring {
+    align-self: center;
+    display: grid;
+    line-height: 0;
   }
   .pct {
-    white-space: nowrap;
     color: var(--pos);
-    font-weight: 600;
   }
   .sub {
-    margin: 0;
     color: var(--text-2);
-    font-size: 12.5px;
-    line-height: 1.5;
-    max-width: 70ch;
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
   }
   .err {
-    margin: 0;
-    color: #ff9d93;
-    font-size: 12.5px;
+    color: var(--neg);
+    font-size: var(--fs-md);
   }
-  .track {
-    height: 6px;
-    max-width: 560px;
-    overflow: hidden;
-    border-radius: 99px;
-    background: var(--surface-3);
-  }
-  .track i {
-    display: block;
-    height: 100%;
-    background: var(--pos);
-    transition: width 0.4s;
-  }
-  .power {
-    display: grid;
-    grid-template-columns: 76px auto minmax(0, 1fr);
-    gap: 8px 14px;
-    align-items: center;
-  }
-  .power .seg {
-    justify-self: start;
-  }
-  .label {
-    color: var(--text-2);
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  .power p {
-    margin: 0;
-    color: var(--text-2);
-    font-size: 12.5px;
-    line-height: 1.5;
-  }
-  .power b {
-    color: var(--text);
-    font-weight: 600;
-  }
-  @container (max-width: 1240px) {
-    .power {
-      grid-template-columns: 76px minmax(0, 1fr);
-    }
-    .power p {
-      grid-column: 2;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .go,
-    .track i {
-      transition: none;
+  /* Narrow windows: while it runs, spot and progress say enough; the flops stay in view. */
+  @container (max-width: 1100px) {
+    .live .sub {
+      display: none;
     }
   }
 </style>

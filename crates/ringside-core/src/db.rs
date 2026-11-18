@@ -20,8 +20,10 @@ mod analysis;
 mod report;
 mod ranges;
 mod solutions;
+mod store;
 pub use ranges::{RangeCounts, RangeFilter, RangeGroup};
 pub use solutions::{NewSolution, SavedSolution, SolutionSource};
+pub use store::{StoreFormat, StoreRow};
 pub use analysis::{
     AnalysisCounts, AnalysisSince, AnalysisSummary, Choice, CostlyDecision, Decision, DecisionBrief, DecisionFilter, HandAnalysis, Rating,
     Source, SpotLoss, SpotType, Status,
@@ -331,6 +333,7 @@ impl Db {
         ))?;
         conn.execute_batch(analysis::SCHEMA)?;
         conn.execute_batch(solutions::SCHEMA)?;
+        conn.execute_batch(store::SCHEMA)?;
         conn.execute_batch(ranges::SCHEMA)?;
         let added: &[(&str, &str, &str)] = &[
             ("hands", "hero_position", "TEXT"),

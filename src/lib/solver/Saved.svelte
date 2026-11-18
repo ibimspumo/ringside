@@ -2,7 +2,7 @@
   import { MARK_NAME, markOf, markText } from "../library/labels";
   import ShareMark from "../library/ShareMark.svelte";
   import PlayingCard from "../PlayingCard.svelte";
-  import { openSaved, solutionsApi, type SavedSolution, type SolutionsView } from "./solutions";
+  import { openSaved, solutionsApi, type Origin, type SavedSolution, type SolutionsView } from "./solutions";
   import { solver } from "./store.svelte";
   import Term from "./Term.svelte";
   import Button from "../ui/Button.svelte";
@@ -21,6 +21,18 @@
     library: "aus der Bibliothek",
     training: "fürs Training",
   };
+
+  const ORIGIN: Record<Origin, string> = {
+    own: "Selbst gerechnet",
+    library: "Aus der Bibliothek",
+    cloud: "Aus der Cloud",
+  };
+
+  /** Why a solution was not offered to the cloud. */
+  function notShared(s: SavedSolution, share: boolean): string {
+    if (!s.shareable) return "Bleibt auf deinem PC: eigene Ranges werden nie geteilt.";
+    return share ? "Noch nicht geteilt." : "Nicht geteilt: „Eigene Lösungen teilen“ ist aus.";
+  }
 
   function load() {
     solutionsApi
@@ -160,9 +172,11 @@
             <p class="cloud" title={markText(s.shared, data.share)}>
               <ShareMark mark={markOf(s.shared)} />{MARK_NAME[markOf(s.shared)]}
             </p>
+          {:else}
+            <p class="cloud">{notShared(s, data.share)}</p>
           {/if}
           <p class="meta">
-            {when(s.created_at)} · {SOURCE[s.source]} · {size(s.bytes)}
+            {when(s.created_at)} · {ORIGIN[s.origin]}, {SOURCE[s.source]} · {size(s.bytes)}
             {#if !s.complete}· <span title="Tiefer rechnet Ringside bei Bedarf neu.">{street(s.board)} vollständig, danach nur der Einstieg</span>{/if}
           </p>
           <div class="acts">
@@ -188,6 +202,45 @@
         </li>
       {/each}
     </ul>
+  {/if}
+
+  {#if data && (data.fetched.length || data.library.own + data.library.library > 0)}
+    <header class="bar">
+      <div class="intro">
+        {#if data.fetched.length}
+          <p>
+            <b>Fertige Spots von anderen.</b> Diese Spots hat die Community gerechnet; Ringside hat beim Laden ihre Form
+            geprüft. Ringside nimmt sie beim Üben und in der Hand-Analyse, statt selbst zu rechnen.
+          </p>
+        {/if}
+        {#if data.library.own + data.library.library > 0}
+          <p>
+            Dazu kommen {data.library.own + data.library.library} Spots der Bibliothek ({data.library.own} selbst gerechnet,
+            {data.library.library} aus Paketen und der Cloud) – zu sehen auf der Seite „Bibliothek“.
+          </p>
+        {/if}
+      </div>
+    </header>
+    {#if data.fetched.length}
+      <ul class="grid">
+        {#each data.fetched as f (f.id)}
+          <li class="card">
+            <div class="board" aria-label="Board {f.board}">
+              {#each cards(f.board) as c (c)}<PlayingCard card={c} size={34} />{/each}
+              <span class="street">ab Flop</span>
+            </div>
+            <div class="who"><h3>{f.title}</h3></div>
+            <dl class="facts">
+              <div>
+                <dt><Term term="exploit">Genauigkeit</Term></dt>
+                <dd class="num" title="Abweichung vom perfekten Spiel: {num(f.exploitability_pct, 2)} % des Pots">{cap(precision(f.exploitability_pct))}</dd>
+              </div>
+            </dl>
+            <p class="meta">{when(f.created_at)} · {ORIGIN[f.origin]} · {size(f.bytes)} · Flop vollständig, danach der Einstieg</p>
+          </li>
+        {/each}
+      </ul>
+    {/if}
   {/if}
 </section>
 

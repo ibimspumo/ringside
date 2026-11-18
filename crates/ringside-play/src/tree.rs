@@ -12,7 +12,7 @@ pub enum TreeSource {
     Solved,
     /// Solved while a hand waited, less exact ([`crate::pool::LIVE_PCT`]).
     Live,
-    /// From the spot library (downloaded or solved in the background).
+    /// In the library format: a library spot, or a spot another player shared.
     Library,
     /// A solve the user saved.
     Saved,
@@ -71,13 +71,16 @@ impl Tree for ringside_solver::saved::Snapshot {
     }
 }
 
-/// A library spot with its catalog entry.
-pub struct LibraryTree(pub ringside_solver::library::Stored);
+/// A spot in the library format (a catalog spot, or a model flop from the cloud) with the
+/// catalog that describes its ranges and sizes.
+pub struct StoredTree {
+    pub stored: ringside_solver::library::Stored,
+    pub catalog: ringside_solver::library::Catalog,
+}
 
-impl Tree for LibraryTree {
+impl Tree for StoredTree {
     fn node(&mut self, path: &[Step]) -> Result<Node, Error> {
-        let catalog = ringside_solver::library::catalog();
-        ringside_solver::library::format::View::new(&self.0, catalog)?.node(path)
+        ringside_solver::library::format::View::new(&self.stored, &self.catalog)?.node(path)
     }
 
     fn complete(&self) -> bool {
@@ -89,6 +92,6 @@ impl Tree for LibraryTree {
     }
 
     fn exploitability_pct(&self) -> f64 {
-        self.0.exploitability_pct as f64
+        self.stored.exploitability_pct as f64
     }
 }

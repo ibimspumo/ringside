@@ -2,12 +2,15 @@
 //!
 //! A worker keeps up to [`TARGET`] spots ready for the tables of the current plan. For each
 //! it picks one of the model's heads-up flops (weighted by how often the model plays there,
-//! and with the hero's seat in it when the seat is fixed) and a flop. It first asks the
-//! [`Lookup`] (spot library, saved solves): those open at once but know only the first
-//! street and the first decision on the turn. Otherwise it solves with the solver page's
+//! and with the hero's seat in it when the seat is fixed) and a flop, one that is solved
+//! already when the [`Lookup`] knows one ([`Lookup::flops`]: the app's spot store, with
+//! spots of the library and of other players). It first asks the [`Lookup`] for it:
+//! stored spots open at once but know only the first street and the first decision on
+//! the turn. Otherwise it takes a [`Slot`] (the right to solve that spot now, see
+//! [`Lookup::slot`]) and solves with the solver page's
 //! default precision ([`TARGET_PCT`], [`MAX_ITERATIONS`]) on few threads and 16-bit
 //! storage, which halves the memory, and hands the solve to [`Lookup::save`], so the
-//! solver page opens the same solution for the same spot. A spot serves up to
+//! solver page and every other area find the same solution for the same spot. A spot serves up to
 //! [`MAX_USES`] hands with different cards, then makes room for a new one.
 //!
 //! A hand that reaches a spot nobody prepared (another line, a stored spot that ends)
@@ -47,26 +50,55 @@ pub const LIVE_PCT: f64 = 2.0;
 pub const LIVE_MAX_ITERATIONS: u32 = 400;
 const LIVE_FIRST_GUESS_SECS: f64 = 10.0;
 
+/// The preflop line a spot's ranges come from: the table and the non-fold actions.
+pub type Line<'a> = Option<(TableKey, &'a [ringside_engine::preflop::Step])>;
+
+/// The right to solve one spot now: the app hands it out one solve at a time, the most
+/// urgent first, and never for a spot another area is solving.
+pub trait Slot: Send {
+    /// Waits up to `timeout` for the turn; true once the solve may start.
+    fn hold(&self, timeout: Duration) -> bool;
+    /// A more urgent solve waits: stop and try again later.
+    fn should_yield(&self) -> bool;
+}
+
+/// A slot that is always free, for a pool on its own.
+pub struct Free;
+
+impl Slot for Free {
+    fn hold(&self, _timeout: Duration) -> bool {
+        true
+    }
+
+    fn should_yield(&self) -> bool {
+        false
+    }
+}
+
 /// Stored solutions the worker looks at before it solves.
 pub trait Lookup: Send + Sync {
     /// A stored solution of exactly this spot, at most `max_pct` exploitable.
-    fn load(&self, spot: &Spot, max_pct: f64) -> Option<Box<dyn Tree>>;
-    /// Flops stored for the spot's ranges, pot, stack and sizes (its board is ignored).
-    fn flops(&self, _spot: &Spot) -> Vec<String> {
+    fn load(&self, spot: &Spot, line: Line, max_pct: f64) -> Option<Box<dyn Tree>>;
+    /// Flops that are solved already for the scenario's line at `table`, as the cards are
+    /// to be dealt.
+    fn flops(&self, _table: TableKey, _scenario: &Scenario) -> Vec<String> {
         Vec::new()
     }
+    /// The right to solve `spot` now; `None` while another area solves the same spot.
+    /// `urgent`: a hand waits for it.
+    fn slot(&self, _spot: &Spot, _line: Line, _urgent: bool) -> Option<Box<dyn Slot>> {
+        Some(Box::new(Free))
+    }
     /// Keeps a fresh solve where [`Lookup::load`] and the solver page find it; `seats` are
-    /// OOP and IP.
-    fn save(&self, _table: TableKey, _seats: [usize; 2], _solution: &mut Solution, _settings: &Settings) {}
-    /// A background solve of the model's flop after `line` at `table`, solved to [`TARGET_PCT`]
-    /// (live solves are too rough to pass on).
-    fn solved(&self, _table: TableKey, _line: &[ringside_engine::preflop::Step], _solution: &mut Solution) {}
+    /// OOP and IP, `line` the model's line for a stock spot (solved to [`TARGET_PCT`], so
+    /// it may be shared), `None` for a live spot (too rough to pass on).
+    fn save(&self, _table: TableKey, _seats: [usize; 2], _line: Option<&[ringside_engine::preflop::Step]>, _solution: &mut Solution, _settings: &Settings) {}
 }
 
 pub struct NoLookup;
 
 impl Lookup for NoLookup {
-    fn load(&self, _spot: &Spot, _max_pct: f64) -> Option<Box<dyn Tree>> {
+    fn load(&self, _spot: &Spot, _line: Line, _max_pct: f64) -> Option<Box<dyn Tree>> {
         None
     }
 }
@@ -105,6 +137,8 @@ pub struct PoolStatus {
     /// Average solve time measured in this session.
     pub solve_secs: Option<f64>,
     pub solved: u32,
+    /// Stock spots that were solved already (own, library, other players): no wait.
+    pub from_store: u32,
     pub error: Option<String>,
 }
 
@@ -204,6 +238,7 @@ struct Inner {
     live_times: Vec<f64>,
     /// Live trees handed to hands, with their size, while a hand holds them.
     held: Vec<(Held, u64)>,
+    from_store: u32,
 }
 
 impl Inner {
@@ -253,6 +288,7 @@ impl Pool {
                 live_progress: 0.0,
                 live_times: Vec::new(),
                 held: Vec::new(),
+                from_store: 0,
             }),
             wake: Condvar::new(),
             cancel: AtomicBool::new(false),
@@ -490,8 +526,15 @@ impl Pool {
             return;
         };
         let spot = scenario.spot(&flop.iter().map(|c| c.to_string()).collect::<String>());
-        if let Some(tree) = self.lookup.load(&spot, TARGET_PCT) {
+        let line = Some((table, scenario.line.as_slice()));
+        if let Some(tree) = self.lookup.load(&spot, line, TARGET_PCT) {
+            self.inner.lock().unwrap().from_store += 1;
             self.add(generation, table, scenario, flop, tree, 0, report);
+            return;
+        }
+        // Another area solves this spot: the next round finds it stored or picks another.
+        let Some(slot) = self.lookup.slot(&spot, line, false) else { return };
+        if !slot.hold(Duration::from_secs(1)) {
             return;
         }
         let fits = |bytes: u64| used + bytes <= self.budget;
@@ -541,14 +584,18 @@ impl Pool {
             },
             || {
                 let inner = self.inner.lock().unwrap();
-                self.cancel.load(Ordering::Relaxed) || paused() || inner.generation != generation || inner.live_waiting()
+                self.cancel.load(Ordering::Relaxed)
+                    || paused()
+                    || inner.generation != generation
+                    || inner.live_waiting()
+                    || slot.should_yield()
             },
         );
         let secs = start.elapsed().as_secs_f64();
         match result {
             Ok(mut solution) => {
-                self.lookup.save(table, scenario.seats(), &mut solution, &settings);
-                self.lookup.solved(table, &scenario.line, &mut solution);
+                self.lookup.save(table, scenario.seats(), Some(&scenario.line), &mut solution, &settings);
+                drop(slot);
                 let memory = solution.summary.memory_bytes;
                 self.inner.lock().unwrap().times.push(secs);
                 self.add(generation, table, scenario, flop, Box::new(solution), memory, report);
@@ -584,8 +631,18 @@ impl Pool {
                 live(&live_status_of(&inner, &inner.live[i]));
             }
         };
+        let requeue = || {
+            let mut inner = self.inner.lock().unwrap();
+            inner.live_solving = None;
+            if let Some(j) = inner.live.iter_mut().find(|j| j.need == need && matches!(j.state, LiveState::Running)) {
+                j.state = LiveState::Queued;
+            }
+            if let Some(j) = inner.live.iter().find(|j| j.need == need) {
+                live(&live_status_of(&inner, j));
+            }
+        };
         if !need.complete
-            && let Some(tree) = self.lookup.load(&need.spot, LIVE_PCT)
+            && let Some(tree) = self.lookup.load(&need.spot, None, LIVE_PCT)
         {
             let ready = Ready {
                 id: self.next_id.fetch_add(1, Ordering::Relaxed),
@@ -595,6 +652,17 @@ impl Pool {
                 tree: Arc::new(Mutex::new(tree)),
             };
             return finish(LiveState::Ready(ready, 0));
+        }
+        let urgent = self.inner.lock().unwrap().live.iter().any(|j| j.need == need && j.urgency == Urgency::Now);
+        // Solved elsewhere right now, or a more urgent solve runs: asked again next round.
+        let Some(slot) = self.lookup.slot(&need.spot, None, urgent) else {
+            requeue();
+            let inner = self.inner.lock().unwrap();
+            let _ = self.wake.wait_timeout(inner, Duration::from_millis(300));
+            return;
+        };
+        if !slot.hold(Duration::from_secs(1)) {
+            return requeue();
         }
         let full = match estimate(&need.spot, u64::MAX, self.live_threads) {
             Ok(e) => e.memory_bytes,
@@ -626,11 +694,12 @@ impl Pool {
                     live(&live_status_of(&inner, j));
                 }
             },
-            || paused() || self.inner.lock().unwrap().live_generation != generation,
+            || paused() || self.inner.lock().unwrap().live_generation != generation || slot.should_yield(),
         );
         match result {
             Ok(mut solution) => {
-                self.lookup.save(need.table, need.seats, &mut solution, &settings);
+                self.lookup.save(need.table, need.seats, None, &mut solution, &settings);
+                drop(slot);
                 self.inner.lock().unwrap().live_times.push(start.elapsed().as_secs_f64());
                 let bytes = solution.summary.memory_bytes;
                 let ready = Ready {
@@ -642,17 +711,8 @@ impl Pool {
                 };
                 finish(LiveState::Ready(ready, bytes));
             }
-            Err(Error::Cancelled) => {
-                let mut inner = self.inner.lock().unwrap();
-                inner.live_solving = None;
-                // Stopped for PokerStars: it starts again afterwards.
-                if let Some(j) = inner.live.iter_mut().find(|j| j.need == need && matches!(j.state, LiveState::Running)) {
-                    j.state = LiveState::Queued;
-                }
-                if let Some(j) = inner.live.iter().find(|j| j.need == need) {
-                    live(&live_status_of(&inner, j));
-                }
-            }
+            // Stopped for PokerStars or a more urgent solve: it starts again afterwards.
+            Err(Error::Cancelled) => requeue(),
             Err(e) => finish(LiveState::Failed(e.to_string())),
         }
     }
@@ -738,14 +798,14 @@ impl Pool {
             r -= s.reach;
             r < 0.0
         })?;
-        let flop = self.stored_flop(scenario, rng).unwrap_or_else(|| random_flop(rng));
+        let flop = self.stored_flop(table.key, scenario, rng).unwrap_or_else(|| random_flop(rng));
         Some((table.key, scenario.clone(), flop))
     }
 
-    fn stored_flop(&self, scenario: &Scenario, rng: &mut ChaCha8Rng) -> Option<[Card; 3]> {
+    fn stored_flop(&self, table: TableKey, scenario: &Scenario, rng: &mut ChaCha8Rng) -> Option<[Card; 3]> {
         let taken: Vec<[Card; 3]> = self.inner.lock().unwrap().ready.iter().map(|e| e.flop).collect();
         let flops: Vec<[Card; 3]> =
-            self.lookup.flops(&scenario.spot("")).iter().filter_map(|f| parse_flop(f)).filter(|f| !taken.contains(f)).collect();
+            self.lookup.flops(table, scenario).iter().filter_map(|f| parse_flop(f)).filter(|f| !taken.contains(f)).collect();
         (!flops.is_empty()).then(|| flops[rng.random_range(0..flops.len())])
     }
 }
@@ -821,6 +881,7 @@ fn status_of(inner: &Inner) -> PoolStatus {
         next_secs: solving,
         solve_secs: avg,
         solved: inner.times.len() as u32,
+        from_store: inner.from_store,
         error: inner.error.clone(),
     }
 }

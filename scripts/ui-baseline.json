@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 150,
+      "total": 147,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
@@ -35,8 +35,6 @@
         "learn/wissen/Preview.svelte": 1,
         "learn/wissen/widgets/Outs.svelte": 4,
         "learn/wissen/widgets/StackRuler.svelte": 1,
-        "library/Library.svelte": 1,
-        "library/RunControl.svelte": 2,
         "Logo.svelte": 5,
         "play/VerdictCard.svelte": 1,
         "ranges/labels.ts": 2,
@@ -48,7 +46,7 @@
       }
     },
     "font-size": {
-      "total": 214,
+      "total": 195,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
@@ -86,8 +84,6 @@
         "learn/wissen/widgets/PotOdds.svelte": 1,
         "learn/wissen/widgets/StackRuler.svelte": 3,
         "learn/wissen/Wissen.svelte": 4,
-        "library/Library.svelte": 14,
-        "library/RunControl.svelte": 5,
         "play/InfoPanel.svelte": 5,
         "play/VerdictCard.svelte": 4,
         "ranges/RangeGrid.svelte": 3,
@@ -103,7 +99,7 @@
       }
     },
     "button-style": {
-      "total": 141,
+      "total": 133,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -129,8 +125,6 @@
         "learn/wissen/widgets/CbetRange.svelte": 2,
         "learn/wissen/widgets/Outs.svelte": 5,
         "learn/wissen/Wissen.svelte": 3,
-        "library/Library.svelte": 7,
-        "library/RunControl.svelte": 1,
         "play/InfoPanel.svelte": 4,
         "play/Play.svelte": 5,
         "play/Start.svelte": 2,
@@ -147,7 +141,7 @@
       }
     },
     "global-class-override": {
-      "total": 82,
+      "total": 81,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
@@ -171,7 +165,6 @@
         "learn/wissen/blocks/TableDiagram.svelte": 4,
         "learn/wissen/widgets/Combos.svelte": 3,
         "learn/wissen/Wissen.svelte": 3,
-        "library/RunControl.svelte": 1,
         "play/InfoPanel.svelte": 3,
         "ranges/RangeGrid.svelte": 1,
         "ranges/Ranges.svelte": 3,
@@ -189,7 +182,7 @@
       "files": {}
     },
     "motion": {
-      "total": 47,
+      "total": 44,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -215,8 +208,6 @@
         "learn/wissen/widgets/PotOdds.svelte": 2,
         "learn/wissen/widgets/StackRuler.svelte": 2,
         "learn/wissen/Wissen.svelte": 1,
-        "library/Library.svelte": 1,
-        "library/RunControl.svelte": 2,
         "solver/Term.svelte": 1
       }
     },

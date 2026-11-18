@@ -48,12 +48,17 @@ pub trait Kind: Sized {
     }
 
     /// What the app checks before using a download: by default the full check. A kind
-    /// whose check costs a solve only checks the form and relies on the verifier.
+    /// whose check costs a solve only checks the form; the verifier re-solves samples.
     fn check_download(input: &Self::Input, solution: &Self::Solution) -> Result<(), String> {
         match verdict::<Self>(input, solution) {
             Verdict::Verified { .. } => Ok(()),
             Verdict::Rejected { reason, .. } => Err(reason),
         }
+    }
+
+    /// The exploitability a solution reports about itself, if its kind stores one.
+    fn reported(_solution: &Self::Solution) -> Result<Option<f64>, String> {
+        Ok(None)
     }
 
     fn key(input: &Self::Input) -> Result<String, CanonicalError> {
@@ -77,6 +82,8 @@ pub struct KindEntry {
     pub check_seconds: u64,
     /// (key, canonical input JSON, result JSON) → verdict.
     pub check: fn(&str, &str, &str) -> Verdict,
+    /// (key, canonical input JSON, result JSON) → [`accept`]'s answer, without solving.
+    pub accept: fn(&str, &str, &str) -> Result<Option<f64>, String>,
 }
 
 pub const KINDS: &[KindEntry] =
@@ -94,27 +101,45 @@ const fn entry<K: Kind>() -> KindEntry {
         engine_version: K::ENGINE_VERSION,
         check_seconds: K::CHECK_SECONDS,
         check: check_stored::<K>,
+        accept: accept_stored::<K>,
     }
 }
 
-fn check_stored<K: Kind>(key: &str, input_json: &str, result_json: &str) -> Verdict {
-    let reject = |reason: String| Verdict::Rejected { exploitability: None, reason };
-    let input: K::Input = match serde_json::from_str(input_json) {
-        Ok(i) => i,
-        Err(e) => return reject(format!("input: {e}")),
-    };
+fn read_stored<K: Kind>(key: &str, input_json: &str, result_json: &str) -> Result<(K::Input, K::Solution), String> {
+    let input: K::Input = serde_json::from_str(input_json).map_err(|e| format!("input: {e}"))?;
     // The server derived the key from this input; recomputing it here means a row whose
     // key and input disagree can never be served.
-    match K::key(&input) {
-        Ok(k) if k == key => {}
-        Ok(_) => return reject("key does not match input".into()),
-        Err(e) => return reject(e.to_string()),
+    if K::key(&input).map_err(|e| e.to_string())? != key {
+        return Err("key does not match input".into());
     }
-    let solution: K::Solution = match serde_json::from_str(result_json) {
-        Ok(s) => s,
-        Err(e) => return reject(format!("result: {e}")),
-    };
-    verdict::<K>(&input, &solution)
+    let solution = serde_json::from_str(result_json).map_err(|e| format!("result: {e}"))?;
+    Ok((input, solution))
+}
+
+fn accept_stored<K: Kind>(key: &str, input_json: &str, result_json: &str) -> Result<Option<f64>, String> {
+    let (input, solution) = read_stored::<K>(key, input_json, result_json)?;
+    accept::<K>(&input, &solution)
+}
+
+fn check_stored<K: Kind>(key: &str, input_json: &str, result_json: &str) -> Verdict {
+    match read_stored::<K>(key, input_json, result_json) {
+        Ok((input, solution)) => verdict::<K>(&input, &solution),
+        Err(reason) => Verdict::Rejected { exploitability: None, reason },
+    }
+}
+
+/// Whether `solution` may be served without re-solving it: its form and what the app
+/// checks on a download, and a reported exploitability within the kind's tolerance.
+/// Returns that exploitability.
+pub fn accept<K: Kind>(input: &K::Input, solution: &K::Solution) -> Result<Option<f64>, String> {
+    K::check_download(input, solution)?;
+    let reported = K::reported(solution)?;
+    if let Some(e) = reported
+        && !(e.is_finite() && (0.0..=K::TOLERANCE).contains(&e))
+    {
+        return Err(format!("reported exploitability {e:.3e} outside 0 to {:.1e}", K::TOLERANCE));
+    }
+    Ok(reported)
 }
 
 /// Whether `solution` passes for `input`: well-formed and within the kind's tolerance.

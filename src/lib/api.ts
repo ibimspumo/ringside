@@ -13,7 +13,9 @@ import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./charts/preflop-types";
 import * as solverDemo from "./solver/demo";
+import type { Scenario } from "./solver/scenario";
 import type {
+  ModelSpot,
   SolveInfo,
   SolverDone,
   SolverEstimate,
@@ -242,6 +244,9 @@ export const api = {
    */
   solverStart: (spot: SolverSpot, settings: SolverSettings, run: number, info: SolveInfo, fresh: boolean) =>
     call<void>("solver_start", { spot, settings, run, info, fresh }, () => solverDemo.demoStart(spot, settings, run)),
+  /** The model's exact ranges, pot and stack for a pick, so the spot can be shared. */
+  solverModelSpot: (pick: Pick<Scenario, "players" | "ante" | "stack" | "seats" | "pot">) =>
+    call<ModelSpot | null>("solver_model_spot", { pick }, () => null),
   solverCancel: () => call<void>("solver_cancel", {}, solverDemo.demoCancel),
   solverClear: () => call<void>("solver_clear", {}, solverDemo.demoClear),
   solverNode: (path: SolverStep[]) => call<SolverNode>("solver_node", { path }, () => solverDemo.demoNode(path)),

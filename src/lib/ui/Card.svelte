@@ -15,7 +15,8 @@
     children,
     ...rest
   }: {
-    pad?: "sm" | "md" | "lg";
+    /** `xs` for small tiles in a dense grid, e.g. one flop of three cards. */
+    pad?: "xs" | "sm" | "md" | "lg";
     tone?: "default" | "raised" | "sunken";
     selected?: boolean;
     /** A clickable card that cannot be chosen right now; say why in a title. */
@@ -43,6 +44,9 @@
     color: inherit;
     font: inherit;
     text-align: left;
+  }
+  .xs {
+    padding: var(--sp-2);
   }
   .sm {
     padding: var(--sp-3);

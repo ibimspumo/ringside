@@ -27,12 +27,33 @@ export interface SavedSolution {
   bytes: number;
   created_at: number;
   pinned: boolean;
+  /** Where it came from; own solves are always "own". */
+  origin: Origin;
+  /** Its ranges are the preflop model's, so it can be shared. */
+  shareable: boolean;
   /** What became of it in Ringside Cloud; null if it was never offered (own ranges, sharing off). */
   shared: Shared | null;
 }
 
+/** Where a spot in the store came from, see `ringside_store::Origin`. */
+export type Origin = "own" | "library" | "cloud";
+
+/** A spot another player solved, kept from the cloud. */
+export interface FetchedSpot {
+  id: number;
+  origin: Origin;
+  board: string;
+  exploitability_pct: number;
+  bytes: number;
+  created_at: number;
+  title: string;
+}
+
 export interface SolutionsView {
   items: SavedSolution[];
+  fetched: FetchedSpot[];
+  /** Library spots in the store: solved here, and from packs or the cloud. */
+  library: { own: number; library: number };
   bytes: number;
   max_mb: number;
   /** The user shares own solutions. */
@@ -75,15 +96,29 @@ let demo: SavedSolution[] = [
   bytes: bytes as number,
   created_at: at as number,
   pinned: pinned as boolean,
+  origin: "own" as const,
+  shareable: source !== "own",
   shared:
     source === "hand"
-      ? { state: i === 1 ? "verified" : "submitted", at: (at as number) + 60 }
+      ? { state: i === 1 ? "served" : "submitted", at: (at as number) + 60 }
       : null,
 }));
 let demoMax = 500;
 
+const demoFetched: FetchedSpot[] = [
+  { id: 101, origin: "cloud", board: "Ks7h2s", exploitability_pct: 0.44, bytes: 96_000, created_at: now - 2 * 3600, title: "9 Spieler, 40 BB: BTN gegen BB" },
+  { id: 102, origin: "cloud", board: "QhJh5d", exploitability_pct: 0.38, bytes: 88_000, created_at: now - 2 * DAY, title: "6 Spieler, 25 BB: CO gegen BTN" },
+];
+
 function demoView(): SolutionsView {
-  return { items: structuredClone(demo), bytes: demo.reduce((s, x) => s + x.bytes, 0), max_mb: demoMax, share: true };
+  return {
+    items: structuredClone(demo),
+    fetched: structuredClone(demoFetched),
+    library: { own: 12, library: 1840 },
+    bytes: demo.reduce((s, x) => s + x.bytes, 0),
+    max_mb: demoMax,
+    share: true,
+  };
 }
 
 function demoOpen(id: number): Opened {

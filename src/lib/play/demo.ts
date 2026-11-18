@@ -411,8 +411,11 @@ const RELIABILITY: Record<Street, number> = { preflop: 0.87, flop: 0.76, turn: 0
 
 /** After a stopped solve the app grades by the estimate; the demo reuses the spot's numbers in its sentences. */
 function estimated(d: Decide, pot: number, toCall: number, cls: string): Lesson {
-  const top = Math.max(...d.evs);
-  const near = d.evs.map((e) => ((top - e) / pot) * 100 <= 0.5);
+  // As the app's estimate: folding brings 0, every other move what it brings over it.
+  const fold = d.choices.findIndex((c) => c.kind === "fold");
+  const evs = fold < 0 ? d.evs : d.evs.map((e) => e - d.evs[fold]);
+  const top = Math.max(...evs);
+  const near = evs.map((e) => ((top - e) / pot) * 100 <= 0.5);
   const share = 1 / near.filter(Boolean).length;
   const equity = d.equity ?? 0.5;
   const pct = (x: number) => `${Math.round(x * 100)} %`;
@@ -428,7 +431,7 @@ function estimated(d: Decide, pot: number, toCall: number, cls: string): Lesson 
     source: "estimate",
     strategy: near.map((x) => (x ? share : 0)),
     unrated: null,
-    evs: d.evs,
+    evs,
     pot,
     to_call: toCall,
     equity,

@@ -70,6 +70,24 @@ export interface SolveInfo {
   ranges: string;
   source: "own" | "hand" | "library" | "training" | null;
   hand_id: number | null;
+  /** The preflop line the ranges come from, when they are the model's own: shared then. */
+  model?: ModelLine | null;
+}
+/** Mirrors `ModelLine` in ringside-engine: a table and the non-fold actions to the flop. */
+export interface ModelLine {
+  family: "plain" | "limps";
+  ante: string;
+  players: number;
+  stack_bb: number;
+  line: { seat: number; action: { kind: string; to_bb: number } }[];
+}
+/** The model's own flop for a pick on the solver page. */
+export interface ModelSpot {
+  model: ModelLine;
+  oop_range: string;
+  ip_range: string;
+  pot: number;
+  stack: number;
 }
 export type SolverPlayer = "oop" | "ip";
 export type SolverActionKind = "fold" | "check" | "call" | "bet" | "raise" | "all_in";

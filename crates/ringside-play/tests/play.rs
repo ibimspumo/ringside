@@ -232,10 +232,10 @@ fn every_hand_shows_every_action_in_turn() {
 struct Saving(std::sync::Mutex<Option<Vec<u8>>>);
 
 impl ringside_play::Lookup for Saving {
-    fn load(&self, _spot: &ringside_solver::Spot, _max_pct: f64) -> Option<Box<dyn ringside_play::tree::Tree>> {
+    fn load(&self, _spot: &ringside_solver::Spot, _line: ringside_play::pool::Line, _max_pct: f64) -> Option<Box<dyn ringside_play::tree::Tree>> {
         None
     }
-    fn save(&self, _t: TableKey, _seats: [usize; 2], solution: &mut ringside_solver::Solution, settings: &Settings) {
+    fn save(&self, _t: TableKey, _seats: [usize; 2], _line: Option<&[ringside_engine::preflop::Step]>, solution: &mut ringside_solver::Solution, settings: &Settings) {
         let snapshot = ringside_solver::saved::Snapshot::take(solution, settings).unwrap();
         *self.0.lock().unwrap() = Some(snapshot.to_bytes());
     }
@@ -251,7 +251,7 @@ fn practice_and_solver_page_show_the_same_numbers() {
     let mut solution = solve(&scenario.spot("Jd9h6h"), &settings, 4 << 30, |_| {}, || false).unwrap();
     // What the stock does with a fresh solve: save it for the solver page, then deal from it.
     let saving = Saving(std::sync::Mutex::new(None));
-    ringside_play::Lookup::save(&saving, key, scenario.seats(), &mut solution, &settings);
+    ringside_play::Lookup::save(&saving, key, scenario.seats(), Some(&scenario.line), &mut solution, &settings);
     let saved = ringside_solver::saved::Snapshot::from_bytes(saving.0.lock().unwrap().as_ref().unwrap()).unwrap();
     let pool = Pool::new(Box::new(NoLookup), 1, 4 << 30);
     pool.insert(key, scenario, flop, Box::new(solution));
