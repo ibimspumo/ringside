@@ -196,6 +196,7 @@ async function click(sel, text = null, opts) {
 const mainText = () => s.exec(`return document.querySelector("main")?.innerText ?? ""`);
 
 function waitText(pattern, timeout) {
+  if (typeof pattern === "string" && pattern.includes("|")) throw new Error(`waitText("${pattern}") is literal text: pass a RegExp for alternatives`);
   const source = pattern instanceof RegExp ? pattern.source : pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return waitFor(`text /${source}/`, `return new RegExp(arguments[0]).test(document.querySelector("main")?.innerText ?? "")`, [source], timeout);
 }
@@ -481,7 +482,7 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await click("main [role='tab']", "Heute");
   await waitText("Runde starten");
   if (TAURI && !/Zuerst: aus deinem Spiel/.test(await mainText())) {
-    await waitText("Schwachstellen erscheinen nach der Analyse|Deine Schwachstellen");
+    await waitText(/Schwachstellen erscheinen nach der Analyse|Deine Schwachstellen/);
     return;
   }
   await waitText("Zuerst: aus deinem Spiel");
