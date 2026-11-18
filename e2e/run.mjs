@@ -337,6 +337,8 @@ step("HUD", () => nav("HUD"));
 
 step("Training: Pot Odds, Stufe 1", async () => {
   await nav("Lernen");
+  // PokerStars is closed, so the header must not claim the page is locked.
+  if (await s.exec(`return !!document.querySelector("main .ui-source.locked")`)) throw new Error("lock note shown while PokerStars is closed");
   await click("main button", "Trainer");
   // Skill and level buttons also show the user's level and the level's name.
   await click("main button.skill", "Pot Odds", { exact: false });
@@ -590,8 +592,13 @@ step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async
   );
   await s.click(move);
   await waitFor("your move in the history", `return document.querySelector("main nav.timeline button.move.hero") ?? null`);
-  // Your next decision or the end of the hand: everyone has acted on the street by then.
-  await waitFor("the next decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+  // Your next decision, a live solve of the flop or the end: everyone has acted preflop by then.
+  await waitFor(
+    "the next decision, a live solve or the end",
+    `return document.querySelector("main .actions button.act, main [data-part='solving'], main section.end") ?? null`,
+    [],
+    60_000,
+  );
   const preflop = await s.exec(
     `const street = document.querySelector("main nav.timeline section");
      return [...street.querySelectorAll("button.move")].map((b) => b.dataset.pos);`,
