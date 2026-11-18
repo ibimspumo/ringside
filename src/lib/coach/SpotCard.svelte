@@ -46,7 +46,7 @@
   <div class="visual" aria-label="Deine Karten {street}">
     <Felt>
       <span class="seat-tag at-left" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
-      <span class="seat-tag at-right num" title="Dein Stack in Big Blinds zu Beginn der Hand">{stack} BB</span>
+      <span class="seat-tag at-right num" title="Dein Stack in Big Blinds zu Beginn der Hand">Start {stack} BB</span>
       {#if spot.board.length}
         <div class="board">
           {#each spot.board as c (c)}<PlayingCard card={c} size={26} />{/each}

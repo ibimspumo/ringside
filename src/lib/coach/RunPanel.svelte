@@ -149,8 +149,8 @@
               <Stat size="lg" label="Das kostet die Analyse" value="unbekannt" />
             {/if}
             {#if e.cost_usd != null && e.max_cost_usd != null}
-              <ProgressBar value={e.cost_usd / e.max_cost_usd} size="md" label="Geschätzte Kosten im Verhältnis zum Deckel" />
-              <p class="note">Wird es teurer als der Deckel, bricht Ringside ab. Bezahlt wird direkt bei OpenRouter.</p>
+              <ProgressBar value={e.cost_usd / e.max_cost_usd} size="md" label="Geschätzte Kosten im Verhältnis zur Obergrenze" />
+              <p class="note">Würde es teurer, bricht Ringside ab. Bezahlt wird direkt bei OpenRouter.</p>
             {:else}
               <p class="note">Der Preis des Modells ist nicht geladen, deshalb gibt es keine Schätzung.</p>
             {/if}
@@ -232,8 +232,8 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Bisher bezahlt" value={money(p?.cost_usd ?? 0)} unit="$" meaning={max != null ? `Deckel ${cost(max)}` : "kein Deckel bekannt"} />
-            {#if max != null}<ProgressBar value={(p?.cost_usd ?? 0) / max} label="Bezahlt im Verhältnis zum Deckel" />{/if}
+            <Stat label="Bisher bezahlt" value={money(p?.cost_usd ?? 0)} unit="$" meaning={max != null ? `höchstens ${cost(max)}` : "keine Obergrenze bekannt"} />
+            {#if max != null}<ProgressBar value={(p?.cost_usd ?? 0) / max} label="Bezahlt im Verhältnis zur Obergrenze" />{/if}
           </div>
         </Card>
         <Card tone="sunken">
@@ -242,7 +242,9 @@
             <span class="tools">
               {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
                   >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
-                >{:else}<span class="note">Jede Zahl rechnet Ringside nach.</span>{/each}
+                >{:else}<span class="note"
+                  >{st.estimate.spots ? `${st.estimate.spots} Spots schon vorab gerechnet. ` : ""}Jede weitere Zahl rechnet Ringside nach.</span
+                >{/each}
             </span>
           </div>
         </Card>

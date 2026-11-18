@@ -143,7 +143,7 @@
             {#if view.board.length}
               <span class="board">{#each view.board as c (c)}<PlayingCard card={c} size={20} />{/each}</span>
             {/if}
-            <span>Pot <b class="num">{view.pot}</b>{#if view.betIn} mit seiner Bet{/if}</span>
+            <span>{view.betIn ? "Pot mit seiner Bet" : "Pot"} <b class="num">{view.pot}</b></span>
             <span class="facing">{view.facing}</span>
           </p>
         {/if}

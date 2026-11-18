@@ -182,7 +182,7 @@
 <ClientLock feature="Der Coach">
   <div class="page wide">
     {#if list}
-      <div class="layout">
+      <div class="layout" class:busy={runFor !== null || focus !== null || setupOpen || !status?.has_key}>
         <aside class="rail">
           <Card pad="sm" aria-labelledby="start-title">
             <h2 id="start-title" class="rail-title">Turnier besprechen</h2>
@@ -697,12 +697,17 @@
       position: static;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
     }
     .reports {
       grid-row: span 2;
     }
     .reports ul {
       max-height: 260px;
+    }
+    /* While a task runs, it comes first; the lists follow. */
+    .busy .main {
+      order: -1;
     }
   }
 </style>
