@@ -270,8 +270,8 @@ const SUBMIT_PATIENCE: Duration = Duration::from_secs(70 * 60);
 
 /// What [`run`] reports as it goes.
 pub enum Event<'a> {
-    /// A spot was taken and is being solved: kind and short name.
-    Started(&'a str, &'a str),
+    /// A spot was taken and is being solved.
+    Started { key: &'a str, kind: &'a str, name: &'a str },
     Done(&'a Done),
 }
 
@@ -300,7 +300,7 @@ pub fn run(queue: &mut impl Queue, opts: &RunOptions, stop: &dyn Fn() -> bool, m
         let started = Instant::now();
         let task = Task::parse(&work);
         let name = task.as_ref().map_or_else(|_| work.key.chars().take(12).collect(), Task::short_name);
-        report(Event::Started(&work.kind, &name));
+        report(Event::Started { key: &work.key, kind: &work.kind, name: &name });
         let solved = task.and_then(|t| solve(&t, opts.power, |_| {}, stop));
         let seconds = started.elapsed().as_secs_f64();
         let exploitability = solved.as_ref().ok().and_then(Option::as_ref).map(Solved::exploitability);

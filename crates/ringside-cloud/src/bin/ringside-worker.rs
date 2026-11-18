@@ -33,7 +33,7 @@ checks them before anyone gets them. Needs no keys or .env. Build and run it wit
   --base URL       another API (default https://ringside-api.bunny.run)
   --help           this text
 
-One line per spot: kind, spot, time, exploitability (postflop and spot in percent of the
+One line per spot: kind, start of its key, spot, time, exploitability (postflop and spot in percent of the
 pot, push/fold in BB or percent of the prize pool) and whether it went up; a summary at
 the end. Ctrl+C stops the solve, submits nothing and gives the lease back; a second
 Ctrl+C quits at once. The tool does not start while a PokerStars client runs here and
@@ -159,8 +159,8 @@ fn run() -> Result<ExitCode, String> {
     let mut client = Client::with_policy(&base, RetryPolicy::default());
     let mut done: Vec<Done> = Vec::new();
     let end = worker::run(&mut client, &opts, &stop, |e| match e {
-        Event::Started(kind, name) => {
-            print!("{kind:<12} {name:<28} ");
+        Event::Started { key, kind, name } => {
+            print!("{kind:<12} {} {name:<28} ", &key[..key.len().min(8)]);
             let _ = std::io::stdout().flush();
         }
         Event::Done(d) => {
