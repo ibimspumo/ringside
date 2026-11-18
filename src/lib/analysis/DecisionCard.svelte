@@ -46,7 +46,7 @@
   function shade(c: Choice): string {
     if (gap(c) === "beste") return "var(--grade-best)";
     if (c.played && d.rating) return `var(--grade-${gradeOf(d.rating)})`;
-    return "var(--surface-3)";
+    return "var(--text-3)";
   }
 
   function gap(c: Choice): string {
@@ -100,6 +100,7 @@
       </ul>
     </div>
 
+    <p class="legend">„so oft“: wie oft die Lösung das mit deiner Hand spielt · „kostet“: was es im Schnitt weniger bringt als die beste Wahl.</p>
     {#if sized}
       <p class="sized">Du hast {sized.played} gesetzt; die Lösung rechnet mit der nächsten Größe, die sie kennt: {sized.as}.</p>
     {/if}
@@ -163,6 +164,10 @@
     color: var(--text);
     font-size: var(--fs-sm);
     cursor: help;
+  }
+  .legend {
+    color: var(--text-2);
+    font-size: var(--fs-xs);
   }
   .sized {
     color: var(--text-2);

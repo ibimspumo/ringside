@@ -344,9 +344,9 @@
   let ctrlH = $state(40);
   const LOG_MIN = 150;
   const besides = $derived(boxW >= (aside ? 860 : 1150));
-  const sideW = $derived(besides ? Math.round(aside ? Math.min(420, Math.max(300, boxW * 0.28)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
+  const sideW = $derived(besides ? Math.round(aside ? Math.min(460, Math.max(300, boxW * 0.28)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
   const fit = $derived.by(() => {
-    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 1000);
+    const room = Math.min(besides ? boxW - sideW - 20 : boxW, aside ? 1300 : 1000);
     const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
     return fitTable(free, room);
   });
@@ -548,6 +548,7 @@
             ></button>
           {/each}
         </div>
+        <i class="break" aria-hidden="true"></i>
         <span class="steps" title="Schritt {step} von {events.length}: {lastSaid}">{lastSaid}</span>
         <div class="extras">
         <SegmentedControl
@@ -691,8 +692,13 @@
     stroke-width: 2.2;
     stroke-linecap: round;
   }
+  /* First line: buttons and the full-width timeline; second line: what just happened, unit and solver. */
+  .break {
+    flex-basis: 100%;
+    height: 0;
+  }
   .steps {
-    flex: 0 0 190px;
+    flex: 1 1 0;
     min-width: 0;
     overflow: hidden;
     color: var(--text);

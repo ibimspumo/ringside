@@ -593,7 +593,9 @@
 
             </span>
             {#if locked}
-              <span class="verdict"><span>Bewertung gesperrt</span></span>
+              <span class="verdict locked" title="Bewertung gesperrt, solange PokerStars läuft"
+                ><svg viewBox="0 0 16 16" width="12" height="12" aria-label="Bewertung gesperrt"><rect x="3" y="7" width="10" height="7" rx="1.6" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg></span
+              >
             {:else if w && v}
               <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""}` : (w.reason ?? "")}>
                 {#if w.rating}<GradeIcon grade={gradeOf(w.rating)} size={14} />{:else}<i class:wait={w.status === "pending"}></i>{/if}
@@ -987,6 +989,11 @@
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  .verdict.locked svg {
+    fill: none;
+    stroke: var(--text-3);
+    stroke-width: 1.5;
   }
   .verdict i {
     flex-shrink: 0;
