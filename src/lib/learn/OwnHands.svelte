@@ -118,13 +118,6 @@
 
 <div class="own">
   <header class="head">
-    <div>
-      <h1>Aus deinen Händen</h1>
-      <p class="dim">
-        Deine All-ins und Push/Fold-Spots aus jeder Position. Der Replayer hält vor deiner Entscheidung an, das Ergebnis bleibt
-        verdeckt, bis du geantwortet hast.
-      </p>
-    </div>
     <div class="seg" role="group" aria-label="Art der Spots">
       {#each KINDS as k (k.label)}
         <button class:on={kind === k.id} onclick={() => (kind = k.id)}>{k.label}</button>
@@ -244,16 +237,6 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px 20px;
-  }
-  h1 {
-    margin: 0;
-    font-family: var(--font-num);
-    font-size: 26px;
-    font-weight: 600;
-  }
-  .head p {
-    margin: 3px 0 0;
-    max-width: 70ch;
   }
   .head .seg {
     flex-wrap: wrap;

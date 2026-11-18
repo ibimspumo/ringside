@@ -1,4 +1,7 @@
-import type { ClassicPreset, GameKind, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
+import type { ClassicPreset, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
+import { cash, compact, moneyShort } from "./ui/format";
+
+export { cash, compact, money, moneyShort } from "./ui/format";
 
 /** `plain` + value + `after` reads as a sentence in the "Klartext" preset. */
 export const STAT_META: Record<StatId, { short: string; name: string; plain: string; after?: string; help: string; ratio?: boolean }> = {
@@ -79,37 +82,6 @@ export function fill(s: StatValue | undefined): number {
   if (!s || s.value === null) return 0;
   if (STAT_META[s.id].ratio) return Math.min(s.value / 5, 1);
   return Math.min(Math.max(s.value / 100, 0), 1);
-}
-
-export function compact(n: number): string {
-  if (n >= 10000) return `${Math.round(n / 1000)}k`;
-  if (n >= 1000) return `${de1(n / 1000)}k`;
-  return Math.round(n).toString();
-}
-
-const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
-
-/** Amounts are stored in hundredths. */
-export function money(amount: number, currency: string | null, game: GameKind = "cash"): string {
-  if (game === "tournament" || !currency) return Math.round(amount / 100).toLocaleString("de-DE");
-  const v = (amount / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  // Symbol first, as the client writes it: "$11,40".
-  return SYMBOL[currency] ? `${amount < 0 ? "−" : ""}${SYMBOL[currency]}${v.replace("-", "")}` : `${v} ${currency}`;
-}
-
-/** Short money for tight spaces: "$1,25", "€12". */
-export function moneyShort(amount: number, currency: string | null): string {
-  const v = amount / 100;
-  const text = v.toLocaleString("de-DE", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 });
-  return `${SYMBOL[currency ?? ""] ?? ""}${text}`;
-}
-
-/** Tournament money in hundredths; play chips and points have no decimals. */
-export function cash(amount: number, currency: string | null): string {
-  const whole = Math.round(amount / 100).toLocaleString("de-DE");
-  if (!currency || currency === "PLAY") return whole;
-  if (currency === "FPP" || currency === "SC") return `${whole} ${currency}`;
-  return money(amount, currency);
 }
 
 /** The name from the table window, else the game: "NL Hold'em #4046789300". */

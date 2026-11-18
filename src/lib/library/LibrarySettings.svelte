@@ -27,7 +27,7 @@
 </script>
 
 <section class="panel">
-  <div class="panel-head"><h2 class="panel-title">Bibliothek im Hintergrund erweitern</h2></div>
+  <div class="panel-head"><h2 class="panel-title">Bibliothek automatisch erweitern</h2></div>
   <div class="body">
     {#if mode}
       <BackgroundMode {mode} onChange={change} />

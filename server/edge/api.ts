@@ -12,6 +12,10 @@ const MAX_BODY = 256 * 1024;
 const MAX_INPUT = 4 * 1024;
 const MAX_HAND = 20_000;
 const MAX_ERROR = 2_000;
+/** Keys per status request; an app asks for all its pending spots at once. */
+export const MAX_STATUS_KEYS = 200;
+const MAX_NOTE = 300;
+const KEEP_VERIFIED = 100_000;
 
 export interface Deps {
   sql: Sql;
@@ -110,6 +114,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   const now = deps.now ?? (() => Math.floor(Date.now() / 1000));
   const reads = new MemoryCounter();
   const pruneChance = deps.pruneChance ?? 0.01;
+  // A verified key never changes again, so the isolate answers for it without the database.
+  const verified = new Set<string>();
 
   async function limitWrites(rules: readonly Rule[], client: string) {
     const t = now();
@@ -157,6 +163,46 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         "Cache-Control": "public, max-age=31536000, immutable",
       },
     });
+  }
+
+  /** Where each key stands: verified, submitted (waits for the verifier), rejected (with the verifier's note) or unknown. */
+  async function statuses(req: Request, client: string): Promise<Response> {
+    const t = now();
+    const d = decide(RULES.status.map((rule) => ({ rule, count: reads.hit(rule, client, t) })), t);
+    if (!d.ok) {
+      throw new HttpError(429, "rate_limited", `too many requests (${d.rule})`, { "Retry-After": String(d.retryAfter) });
+    }
+    const { keys } = exactFields(await readBody(req), ["keys"]);
+    if (!Array.isArray(keys) || keys.length < 1 || keys.length > MAX_STATUS_KEYS) {
+      throw new InvalidError(`keys must be a list of 1 to ${MAX_STATUS_KEYS} keys`);
+    }
+    if (keys.some((k) => typeof k !== "string" || !/^[0-9a-f]{64}$/.test(k))) {
+      throw new InvalidError("every key must be 64 lowercase hex digits");
+    }
+    const out: Record<string, { status: string; note?: string }> = {};
+    const ask = [...new Set(keys as string[])].filter((k) => {
+      if (verified.has(k)) out[k] = { status: "verified" };
+      return !verified.has(k);
+    });
+    if (ask.length > 0) {
+      const [r] = await deps.sql.execute([{
+        sql: `SELECT key, status, check_note FROM solutions WHERE key IN (${ask.map(() => "?").join(",")})`,
+        args: ask,
+      }]);
+      for (const row of r.rows) {
+        const key = String(row.key);
+        const status = String(row.status);
+        out[key] = status === "rejected" && row.check_note
+          ? { status, note: String(row.check_note).slice(0, MAX_NOTE) }
+          : { status };
+        if (status === "verified") {
+          if (verified.size >= KEEP_VERIFIED) verified.clear();
+          verified.add(key);
+        }
+      }
+      for (const k of ask) out[k] ??= { status: "unknown" };
+    }
+    return json(200, { statuses: out });
   }
 
   async function submitSolution(req: Request, client: string): Promise<Response> {
@@ -234,6 +280,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
         });
       }
       const client = await hmacHex(deps.salt, clientIp(req));
+      if (path === "/v1/solutions/status") {
+        if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
+        return await statuses(req, client);
+      }
       const sol = path.match(/^\/v1\/solutions\/([a-z0-9-]{1,40})\/([^/]+)$/);
       if (sol) {
         if (method !== "GET" && method !== "HEAD") throw new HttpError(405, "method_not_allowed", "use GET");

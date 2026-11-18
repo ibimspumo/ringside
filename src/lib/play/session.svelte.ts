@@ -120,6 +120,10 @@ export async function resume() {
   if (view && !session.hand) {
     session.hand = view;
     session.playing = true;
+  } else if (!view && session.hand?.outcome) {
+    // Freed while the page was closed; the hand stays in the session list.
+    session.hand = null;
+    session.playing = false;
   }
 }
 
@@ -139,7 +143,7 @@ export interface Stats {
 }
 
 export function stats(hands: SessionHand[]): Stats {
-  const counts: Record<Grade, number> = { best: 0, good: 0, inaccurate: 0, mistake: 0, blunder: 0 };
+  const counts: Record<Grade, number> = { best: 0, mix: 0, good: 0, inaccurate: 0, mistake: 0, blunder: 0 };
   let moves = 0;
   let graded = 0;
   let points = 0;
@@ -172,7 +176,7 @@ export function stats(hands: SessionHand[]): Stats {
 
 /** The worst grade of a hand, for the session list. */
 export function worst(view: HandView): Grade | null {
-  const order: Grade[] = ["best", "good", "inaccurate", "mistake", "blunder"];
+  const order: Grade[] = ["best", "mix", "good", "inaccurate", "mistake", "blunder"];
   let w = -1;
   for (const v of view.verdicts) if (v.judgement) w = Math.max(w, order.indexOf(v.judgement.grade));
   return w < 0 ? null : order[w];

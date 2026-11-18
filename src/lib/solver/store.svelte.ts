@@ -1,8 +1,8 @@
-import { api, onSolverDone, onSolverProgress } from "../api";
+import { api, onSolverDone, onSolverProgress, onSolverReleased } from "../api";
 import type { Crumb } from "./play";
 import { defaultSpot } from "./presets";
 import { oopIp, positionsFor, type Scenario } from "./scenario";
-import type { SolveInfo, SolverPrefill, SolverProgress, SolverSettings, SolverSpot, SolverSummary } from "./types";
+import type { SolveInfo, SolverPlayer, SolverPrefill, SolverProgress, SolverSettings, SolverSpot, SolverStep, SolverSummary } from "./types";
 
 /** What the table shows around a spot: its size, seats and the preflop action. */
 export interface TableInfo {
@@ -19,6 +19,9 @@ function defaultThreads(): number {
   return Math.max(1, n - 1);
 }
 
+/** Who sits at the bottom: the hero of a hand, else your choice ("Ich bin"), else OOP. */
+export const meSide = (): SolverPlayer => solver.hero?.player ?? solver.me ?? "oop";
+
 /** The solver page's state; it lives here so a running solve survives switching tabs. */
 export const solver = $state({
   spot: defaultSpot() as SolverSpot,
@@ -28,6 +31,8 @@ export const solver = $state({
   positions: { oop: "BB", ip: "BTN" },
   source: "",
   hero: null as SolverPrefill["hero"],
+  /** Which of the two you are when no hand says so; you sit at the bottom of the table. */
+  me: null as SolverPlayer | null,
   scenario: { players: 6, seats: ["BTN", "BB"], pot: "srp", stack: 40, ante: "big_blind" } as Scenario,
   /** Ranges changed by hand since they were derived. */
   custom: { oop: false, ip: false },
@@ -51,8 +56,16 @@ export const solver = $state({
   /** Set with the run it belongs to; spots opened from elsewhere bring their own run. */
   solvedTable: null as (TableInfo & { run: number }) | null,
   error: null as string | null,
-  /** A line to walk again once the next solve is done, ending in a size typed in. */
-  replay: null as { line: Crumb[]; then: { kind: "bet" | "raise"; amount: number } | null } | null,
+  /**
+   * A line to walk again once the next solve is done, ending in a size typed in; or the exact
+   * `path` of a hand. `notice` says why the page solves meanwhile.
+   */
+  replay: null as {
+    line: Crumb[];
+    then: { kind: "bet" | "raise"; amount: number } | null;
+    path?: SolverStep[];
+    notice?: string;
+  } | null,
 });
 
 /** How the spot on the page is listed in "Meine Lösungen". */
@@ -124,6 +137,9 @@ export function listen() {
       solver.status = "failed";
       solver.error = d.error;
     }
+  });
+  onSolverReleased(() => {
+    if (solver.status === "solved") solver.partial = boardCards(solver.solved?.board ?? "") < 5;
   });
 }
 

@@ -24,6 +24,7 @@ export const RULES = {
     { name: "report-global", scope: "global", windowS: 3600, max: 300 },
   ],
   read: [{ name: "read-min", scope: "client", windowS: 60, max: 300 }],
+  status: [{ name: "status-min", scope: "client", windowS: 60, max: 20 }],
 } as const satisfies Record<string, readonly Rule[]>;
 
 /** Counters older than this are deleted; longer than the longest window. */

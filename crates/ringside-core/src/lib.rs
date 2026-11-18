@@ -10,6 +10,7 @@ pub mod leaks;
 pub mod model;
 pub mod notes;
 pub mod parser;
+pub mod ranges;
 pub mod stats;
 pub mod table;
 pub mod tournament;

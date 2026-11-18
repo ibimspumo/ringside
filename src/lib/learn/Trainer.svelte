@@ -101,7 +101,7 @@
       <div class="title">
         <SkillBadge {kind} skill={byKind.get(kind)} size={46} />
         <div class="tt">
-          <h1>{meta.short}</h1>
+          <h2 class="lead-title">{meta.short}</h2>
           <span class="session">
             {#if count}
               Diese Sitzung: <b class="num">{count}</b> {count === 1 ? "Aufgabe" : "Aufgaben"} · <b class="num">{right}</b> richtig · <b class="num"
@@ -236,10 +236,10 @@
     gap: 2px;
     min-width: 0;
   }
-  h1 {
+  .lead-title {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 22px;
+    font-size: var(--fs-2xl);
     font-weight: 600;
   }
   .session {

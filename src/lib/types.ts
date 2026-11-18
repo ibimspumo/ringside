@@ -1,4 +1,5 @@
 import type { DecisionBrief, DecisionFilter } from "./analysis/types";
+import type { RangeFilter } from "./ranges/types";
 export type StatId =
   | "hands"
   | "vpip"
@@ -238,6 +239,8 @@ export interface HandQuery extends Filter {
   decisions?: DecisionFilter | null;
   /** Costliest decision first instead of newest first. */
   sort_by_loss?: boolean;
+  /** Hands with a matching preflop decision of yours. */
+  range?: RangeFilter | null;
   limit: number;
   offset: number;
 }

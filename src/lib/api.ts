@@ -5,6 +5,8 @@ import type { AnalysisStatus, AnalysisSummary, Decision } from "./analysis/types
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
 import * as chartsDemo from "./charts/demo";
+import * as rangesDemo from "./ranges/demo";
+import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots } from "./charts/preflop-types";
 import * as solverDemo from "./solver/demo";
 import type {
@@ -126,6 +128,9 @@ export const api = {
   dashboard: (filter: Filter) => call<Dashboard>("dashboard", { filter }, () => demo.demoDashboard(filter)),
   reports: (filter: Filter) => call<Reports>("reports", { filter }, () => demo.demoReports(filter)),
   leaks: (filter: Filter) => call<LeakReport>("leaks", { filter }, () => demo.demoLeaks(filter)),
+  rangeGroups: (filter: Filter) => call<RangeGroup[]>("range_groups", { filter }, () => rangesDemo.demoGroups(filter)),
+  rangeChart: (filter: Filter, range: RangeFilter) =>
+    call<RangeChart>("range_chart", { filter, range }, () => rangesDemo.demoChart(filter, range)),
   players: (filter: Filter, search: string, limit = 300) =>
     call<PlayerView[]>("players", { filter, search, limit }, () =>
       demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
@@ -184,6 +189,8 @@ export const api = {
   solverCancel: () => call<void>("solver_cancel", {}, solverDemo.demoCancel),
   solverClear: () => call<void>("solver_clear", {}, solverDemo.demoClear),
   solverNode: (path: SolverStep[]) => call<SolverNode>("solver_node", { path }, () => solverDemo.demoNode(path)),
+  /** Whether the solver page is open; the solved tree is freed soon after it closed. */
+  solverPage: (open: boolean) => call<void>("solver_page", { open }, () => {}),
 };
 
 export function onSolverProgress(handler: (p: SolverProgress) => void): Promise<UnlistenFn> {
@@ -192,6 +199,11 @@ export function onSolverProgress(handler: (p: SolverProgress) => void): Promise<
 
 export function onSolverDone(handler: (d: SolverDone) => void): Promise<UnlistenFn> {
   return inTauri ? on("solver-done", handler) : Promise.resolve(solverDemo.onDone(handler));
+}
+
+/** The solved tree made room for its saved snapshot, which lacks the deeper streets. */
+export function onSolverReleased(handler: () => void): Promise<UnlistenFn> {
+  return on("solver-released", handler);
 }
 
 export function onPreflopProgress(handler: (p: PreflopProgress) => void): Promise<UnlistenFn> {
