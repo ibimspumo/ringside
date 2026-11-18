@@ -15,7 +15,7 @@ use ringside_engine::range::NUM_CLASSES;
 use crate::fmt::bb;
 use crate::replay::FlopRanges;
 use crate::seats::{Table, ante_name, nearest, table};
-use crate::{base_at, hero_actions, pot_before, pushfold, score, unrated};
+use crate::{ChartKind, ChartTarget, base_at, hero_actions, pot_before, pushfold, score, unrated};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 24;
@@ -55,6 +55,8 @@ pub struct Preflop {
     pub flop: Result<Flop, String>,
     /// The model's range of every player who sees the flop, when the line is in the model.
     pub ranges: Option<FlopRanges>,
+    /// Chart spots of the rated decisions.
+    pub targets: Vec<ChartTarget>,
 }
 
 pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
@@ -64,18 +66,19 @@ pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
         decisions: indices.iter().map(|&i| unrated(hand, i, SpotType::VsOpen, reason)).collect(),
         flop: Err(reason.to_string()),
         ranges: None,
+        targets: Vec::new(),
     };
     let t = match table(hand, hero) {
         Ok(t) => t,
         Err(reason) => return fail(&reason),
     };
     if let Some(own) = pushfold::spot(hand) {
-        let first = pushfold::evaluate(hand, &own);
+        let (first, target) = pushfold::evaluate(hand, &own);
         let decisions = indices
             .iter()
             .map(|&i| if i == first.action_index { first.clone() } else { unrated(hand, i, first.spot, "Nach dem Push/Fold-Spot nicht bewertet.") })
             .collect();
-        return Preflop { decisions, flop: Err("Push/Fold-Hand".into()), ranges: None };
+        return Preflop { decisions, flop: Err("Push/Fold-Hand".into()), ranges: None, targets: target.into_iter().collect() };
     }
     walk(hand, &t, &indices)
 }
@@ -196,6 +199,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
     let mut folded = vec![false; n];
     let mut broken: Option<String> = None;
     let mut decisions = Vec::new();
+    let mut targets = Vec::new();
     let mut size_notes: Vec<String> = Vec::new();
     let mut raises = 0;
 
@@ -267,6 +271,21 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                 }
                 note.push('.');
                 let pos = position(&a.player);
+                // The charts offer the full tables only; smaller ones stay out of sight there.
+                if preflop_table::OFFERED.contains(&players) {
+                    targets.push(ChartTarget {
+                        action_index: index,
+                        kind: ChartKind::Preflop,
+                        ante: t.ante,
+                        players,
+                        stack_bb: stack,
+                        seat,
+                        shover: None,
+                        callers: Vec::new(),
+                        node: Some(v),
+                        hand: t.class().to_string(),
+                    });
+                }
                 let pot = pot_before(hand, index);
                 decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |_| {
                     format!("Gerechnet für {pos} mit {} Tiefe.", bb(stack))
@@ -323,7 +342,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
             }
         }
     };
-    Preflop { decisions, flop, ranges }
+    Preflop { decisions, flop, ranges, targets }
 }
 
 fn range_note(line: &[Step], seat: usize, position: &str) -> String {
@@ -340,5 +359,6 @@ fn unrated_all(hand: &Hand, indices: &[usize], reason: &str) -> Preflop {
         decisions: indices.iter().map(|&i| unrated(hand, i, SpotType::VsOpen, reason)).collect(),
         flop: Err(reason.to_string()),
         ranges: None,
+        targets: Vec::new(),
     }
 }

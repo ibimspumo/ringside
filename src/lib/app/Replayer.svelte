@@ -14,7 +14,10 @@
    * before that action (an index into `actions`): no later cards, no showdown, no winner.
    * `marks` colours actions (by index into `actions`) on the log and the timeline; clicking one
    * calls `onMark`. A new `jumpTo` moves the replay to just before its action. `aside` sits
-   * above the action log.
+   * above the action log. `quiz` is for practising the hand: while the answer is open, the
+   * solver hand-off is hidden and the play button stays quiet. `inBigBlinds` starts the amounts
+   * in big blinds instead of chips. `quietPlay` keeps the play button in outline, for screens
+   * that have their own main action.
    */
   let {
     hand: full,
@@ -24,6 +27,9 @@
     jumpTo = null,
     children,
     aside,
+    quiz = false,
+    inBigBlinds = false,
+    quietPlay = false,
   }: {
     hand: Hand;
     upTo?: number | null;
@@ -32,6 +38,9 @@
     jumpTo?: { action: number } | null;
     children?: Snippet;
     aside?: Snippet;
+    quiz?: boolean;
+    inBigBlinds?: boolean;
+    quietPlay?: boolean;
   } = $props();
 
   type Event =
@@ -78,7 +87,7 @@
 
   let step = $state(0);
   let playing = $state(false);
-  let inBB = $state(false);
+  let inBB = $state(untrack(() => inBigBlinds));
   let stageWidth = $state(860);
   let logEl = $state<HTMLElement>();
   /** The stage keeps its shape, so seats, board and bets simply scale with its width. */
@@ -399,7 +408,8 @@
             <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.prev} /></svg>
           </button>
           <button
-            class="btn primary play"
+            class="btn play"
+            class:primary={!quiz && !quietPlay}
             onclick={() => {
               if (done) step = 0;
               playing = !playing;
@@ -434,14 +444,14 @@
           <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
           <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
         </div>
-        {#if solveSpot}
+        {#if solveSpot && !quiz}
           <button
             class="btn solve"
             disabled={"reason" in solveSpot}
             title={"reason" in solveSpot ? solveSpot.reason : "Board, Pot und Stack dieser Straße im Solver öffnen; die Ranges sind ein Vorschlag."}
             onclick={() => "prefill" in solveSpot && openInSolver(solveSpot.prefill)}
           >
-            Diesen Spot lösen
+            Im Solver nachrechnen
           </button>
         {/if}
       </div>

@@ -158,8 +158,7 @@ pub async fn pushfold_chart(ante: Ante, players: usize, stack_bb: f64, app: AppH
 /// at eight and nine (45–60 BB); a four-core laptop needs about twice that. So solves
 /// report progress and can be stopped.
 const PREFLOP_LIVE_MAX_PLAYERS: usize = 9;
-/// Table sizes the charts offer; the preflop tables hold smaller ones too.
-const CHART_PLAYERS: [usize; 3] = [6, 8, 9];
+const CHART_PLAYERS: [usize; 3] = preflop_table::OFFERED;
 const PREFLOP_LIVE_STACKS: (f64, f64) = (10.0, 100.0);
 
 #[derive(Serialize)]

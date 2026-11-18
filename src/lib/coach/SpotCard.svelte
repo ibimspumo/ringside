@@ -1,120 +1,136 @@
 <script lang="ts">
   import { requestAnalysis } from "../analysis/store.svelte";
   import Felt from "../Felt.svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import Badge from "../ui/Badge.svelte";
+  import Button from "../ui/Button.svelte";
+  import CardText from "../ui/CardText.svelte";
+  import GradeBadge from "../ui/GradeBadge.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { conceptName } from "./concepts";
-  import type { CoachSpot, Verdict } from "./types";
+  import { CHOICE_NAME, type Choice } from "./drill";
+  import Figures from "./Figures.svelte";
+  import { positionHint, verdictOf, say, ownCards } from "./meaning";
+  import type { Practice } from "./ReportView.svelte";
+  import type { CoachSpot } from "./types";
 
   let {
     spot,
     index,
+    practice,
     onHand,
-    onTraining,
-  }: { spot: CoachSpot; index: number; onHand: (id: number) => void; onTraining: () => void } = $props();
+    onDrill,
+    onRead,
+    practised,
+  }: {
+    spot: CoachSpot;
+    index: number;
+    practice: Practice;
+    onHand: (id: number) => void;
+    onDrill: () => void;
+    onRead: () => void;
+    practised?: { answer: Choice; right: boolean | null };
+  } = $props();
 
-  const VERDICTS: Record<Verdict, string> = { stark: "Stark", ok: "Okay", fraglich: "Fraglich", fehler: "Fehler" };
+  const verdict = $derived(verdictOf(spot.verdict));
   const stack = $derived(spot.stack_bb.toLocaleString("de-DE", { maximumFractionDigits: 1 }));
   const time = $derived(spot.played_at.slice(11, 16));
+  const street = $derived(
+    spot.board.length === 0 ? "vor dem Flop" : spot.board.length === 3 ? "am Flop" : spot.board.length === 4 ? "am Turn" : "am River",
+  );
 </script>
 
-<article class="spot v-{spot.verdict}">
-  <div class="visual">
-    <div class="table" aria-label="Board und deine Karten">
-      <Felt>
+{#snippet arrow()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>{/snippet}
+{#snippet play()}<svg class="fill" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>{/snippet}
+
+<article class="spot" style:--accent="var(--grade-{verdict.grade})" id="spot-{index}" tabindex="-1" aria-labelledby="spot-{index}-title">
+  <div class="side">
+  <div class="visual" aria-label="Deine Karten {street}">
+    <Felt>
+      <span class="seat-tag at-left" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
+      <span class="seat-tag at-right num" title="Dein Stack in Big Blinds zu Beginn der Hand">Start {stack} BB</span>
+      {#if spot.board.length}
         <div class="board">
-          {#each [0, 1, 2, 3, 4] as i (i)}
-            {#if spot.board[i]}
-              <PlayingCard card={spot.board[i]} size={26} />
-            {:else}
-              <span class="slot"></span>
-            {/if}
-          {/each}
+          {#each spot.board as c (c)}<PlayingCard card={c} size={26} />{/each}
         </div>
-        <div class="hero">
-          {#each spot.hero_cards as c (c)}<PlayingCard card={c} size={34} />{/each}
-        </div>
-      </Felt>
-    </div>
-    <div class="where">
-      <span>{spot.position ?? "–"}</span>
-      <span class="num">{stack} bb</span>
-      <span class="num faint">{time}</span>
-    </div>
+      {:else}
+        <span class="street">vor dem Flop</span>
+      {/if}
+      <div class="hero">
+        {#each spot.hero_cards as c (c)}<PlayingCard card={c} size={36} />{/each}
+      </div>
+    </Felt>
   </div>
+    <div class="hand">
+        <Button size="sm" variant="quiet" icon={play} onclick={() => onHand(spot.hand_id)}>Im Replayer ansehen</Button>
+        <Button size="sm" variant="quiet" onclick={() => requestAnalysis(spot.hand_id)} title="Ringside bewertet jede Entscheidung der Hand, kostenlos auf diesem Rechner">Diese Hand analysieren</Button>
+      </div>
+  </div>
+
 
   <div class="text">
     <header>
       <span class="idx num">{index}</span>
-      <span class="verdict">{VERDICTS[spot.verdict]}</span>
-      <button class="concept" onclick={onTraining} title="Dieses Thema im Lernbereich üben">
-        {conceptName(spot.concept)} <span aria-hidden="true">· Üben →</span>
-      </button>
+      <GradeBadge grade={verdict.grade} size="sm" />
+      <span class="meaning">{verdict.meaning}</span>
+      {#if practised}
+        <Badge size="sm" tone={practised.right === true ? "good" : practised.right === false ? "warn" : "neutral"} title="In dieser Sitzung geübt"
+          >Geübt: {CHOICE_NAME[practised.answer]}{practised.right === true
+            ? " · wie der Coach"
+            : practised.right === false
+              ? " · anders als der Coach"
+              : ""}</Badge
+        >
+      {/if}
+      <span class="time num" title="Gespielt um {time} Uhr">{time}</span>
     </header>
-    <p class="action">{spot.action}</p>
-    <p class="why">{spot.why}</p>
+    <p class="action" id="spot-{index}-title"><CardText hands text={say(ownCards(spot.action, spot.hero_cards))} /></p>
     {#if spot.better}
-      <p class="better"><span>Besser:</span> {spot.better}</p>
+      <p class="better"><span>Besser</span><b><CardText hands text={say(ownCards(spot.better, spot.hero_cards))} /></b></p>
     {/if}
+    <p class="why"><CardText hands text={say(ownCards(spot.why, spot.hero_cards))} /></p>
     {#if spot.numbers.length}
-      <dl class="figures">
-        {#each spot.numbers as n, i (i)}
-          <div class="fig">
-            <dt>{n.label}</dt>
-            <dd>
-              <b class:num={n.source === "berechnet"}>{n.value}</b>
-              <span
-                class="src {n.source === 'berechnet' ? 'calc' : 'guess'}"
-                title={n.source === "berechnet"
-                  ? "Von Ringsides Rechenkern berechnet, nicht vom Sprachmodell"
-                  : "Einschätzung des Sprachmodells, nicht nachgerechnet"}>{n.source === "berechnet" ? "berechnet" : "Einschätzung"}</span
-              >
-            </dd>
-          </div>
-        {/each}
-      </dl>
+      <Figures numbers={spot.numbers} hero={spot.hero_cards} />
     {/if}
-    <div class="actions">
-      <button class="btn" onclick={() => onHand(spot.hand_id)}>
-        <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>
-        Im Replayer ansehen
-      </button>
-      <button class="btn" onclick={() => requestAnalysis(spot.hand_id)}>Diese Hand analysieren</button>
-    </div>
+    <footer>
+      <div class="learn">
+        <span class="topic"><span class="label">Thema</span> {conceptName(spot.concept)}</span>
+        <Button size="sm" onclick={onDrill} icon={arrow} title="Die Hand hält vor deiner Entscheidung an; du entscheidest selbst">Diesen Spot üben</Button>
+        {#if practice.articles.length}
+          <Button size="sm" onclick={onRead} title={practice.articles[0].title}>Nachlesen</Button>
+        {/if}
+      </div>
+    </footer>
   </div>
 </article>
 
 <style>
   .spot {
-    --accent: var(--text-3);
     display: grid;
-    grid-template-columns: 236px minmax(0, 1fr);
-    gap: 18px;
-    padding: 16px 18px 16px 16px;
+    grid-template-columns: 252px minmax(0, 1fr);
+    gap: var(--sp-5);
+    padding: var(--sp-4) var(--sp-5) var(--sp-4) var(--sp-4);
     border: 1px solid var(--line);
-    border-left: 3px solid var(--accent);
     border-radius: var(--r-lg);
     background: var(--surface);
+    box-shadow: inset 3px 0 0 var(--accent);
+    scroll-margin-top: 16px;
   }
-  .v-stark {
-    --accent: var(--pos);
+  .spot:focus {
+    outline: none;
   }
-  .v-ok {
-    --accent: var(--text-3);
+  .spot:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
-  .v-fraglich {
-    --accent: var(--amber);
-  }
-  .v-fehler {
-    --accent: var(--neg);
-  }
-  .visual {
+  .side {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--sp-2);
+    min-width: 0;
   }
-  .table {
+  .visual {
     position: relative;
-    aspect-ratio: 1.45;
+    aspect-ratio: 1.42;
     border-radius: var(--r-sm);
     overflow: hidden;
   }
@@ -126,26 +142,44 @@
     display: flex;
     gap: 3px;
   }
-  .slot {
-    width: 26px;
-    height: 36px;
-    border-radius: 3px;
-    border: 1px dashed rgba(236, 235, 231, 0.12);
+  .street {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    font-size: var(--fs-sm);
+    letter-spacing: 0.04em;
+    color: color-mix(in srgb, var(--text) 40%, transparent);
+    white-space: nowrap;
   }
   .hero {
     position: absolute;
     left: 50%;
-    bottom: 6%;
+    bottom: 5%;
     transform: translateX(-50%);
     display: flex;
     gap: 3px;
   }
-  .where {
-    display: flex;
-    justify-content: space-between;
-    font-size: 12.5px;
-    color: var(--text-2);
+  .seat-tag {
+    position: absolute;
+    top: 7px;
+    padding: 1px 7px;
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
+    border: 1px solid var(--line-2);
+    font-size: var(--fs-sm);
+    color: var(--text);
+    cursor: help;
+    z-index: 1;
   }
+  .at-left {
+    left: 7px;
+    font-weight: var(--fw-semibold);
+  }
+  .at-right {
+    right: 7px;
+  }
+
   .text {
     display: flex;
     flex-direction: column;
@@ -155,116 +189,114 @@
   header {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 10px;
+    gap: 8px;
+    min-width: 0;
   }
   .idx {
     display: grid;
     place-items: center;
+    flex-shrink: 0;
     width: 22px;
     height: 22px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 12px;
-  }
-  .verdict {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--accent);
-  }
-  .v-ok .verdict {
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .concept {
+  .meaning {
+    font-size: var(--fs-md);
+    color: var(--text-2);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .time {
     margin-left: auto;
-    padding: 3px 9px;
-    border: 1px solid var(--line-2);
-    border-radius: 999px;
-    background: transparent;
+    font-size: var(--fs-sm);
     color: var(--text-2);
-    font-size: 12px;
-    cursor: pointer;
-  }
-  .concept:hover {
-    color: var(--text);
-    background: var(--surface-2);
   }
   p {
     margin: 0;
   }
   .action {
-    font-weight: 600;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
     line-height: 1.4;
+  }
+  .better {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    align-self: flex-start;
+    padding: 6px 12px 6px 10px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    border-left: 2px solid var(--text);
+  }
+  .better span {
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+  .better b {
+    font-weight: var(--fw-semibold);
   }
   .why {
     color: var(--text-2);
-    line-height: 1.5;
+    line-height: 1.55;
+    max-width: 72ch;
   }
-  .better span {
-    color: var(--text-3);
-  }
-  .figures {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-    gap: 6px;
-    margin: 2px 0 0;
-  }
-  .fig {
+  footer {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 7px 10px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-  }
-  dt {
-    font-size: 12px;
-    color: var(--text-3);
-  }
-  dd {
-    display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    margin: 0;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    margin-top: 4px;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
   }
-  dd b {
-    font-weight: 600;
-    font-size: 13.5px;
-    min-width: 0;
-  }
-  dd b.num {
-    font-size: 16px;
-  }
-  .src {
-    flex-shrink: 0;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-  }
-  .src.calc {
-    background: var(--surface-3);
-    color: var(--text);
-  }
-  .src.guess {
-    border: 1px dashed var(--line-2);
-    color: var(--text-3);
-  }
-  .actions {
+  .learn,
+  .hand {
     display: flex;
-    gap: 8px;
-    margin-top: 2px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 10px;
   }
-  .actions svg {
+  .hand {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
+  }
+  .topic {
+    font-size: var(--fs-md);
+  }
+  .label {
+    color: var(--text-2);
+  }
+  svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  svg.fill {
     fill: currentColor;
+    stroke: none;
   }
 
-  @container (max-width: 640px) {
+  @container (max-width: 820px) {
     .spot {
       grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
+    }
+    /* Verdict and sentence first; the table preview follows. */
+    .side {
+      order: 1;
     }
     .visual {
-      max-width: 300px;
+      width: 100%;
+      max-width: 260px;
     }
   }
 </style>

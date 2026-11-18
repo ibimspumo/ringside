@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import ChartsButton from "../charts/ChartsButton.svelte";
   import { mixText, playsLine, type MoveKind, type Who } from "../play/words";
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
@@ -90,6 +91,7 @@
     >
       <p>{reason}</p>
       {#snippet actions()}
+        <ChartsButton decision={d} />
         {#if prefill}
           <Button size="sm" onclick={() => prefill && openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">Im Solver öffnen</Button>
         {/if}

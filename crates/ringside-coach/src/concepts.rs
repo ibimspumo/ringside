@@ -8,7 +8,8 @@ use serde::Serialize;
 pub struct Concept {
     pub id: &'static str,
     pub name: &'static str,
-    /// `ringside_learn::Kind` id of the matching exercise.
+    /// `ringside_learn::Kind` id of the matching exercise. New exercise kinds (bounty, ICM,
+    /// postflop …) dock here; the coach then offers "similar spots" after a practised spot.
     pub exercise: Option<&'static str>,
     /// Article ids in the knowledge area.
     pub articles: &'static [&'static str],
@@ -30,14 +31,14 @@ pub const CONCEPTS: &[Concept] = &[
     c("pot_odds", "Pot Odds", Some("pot_odds"), &["pot-odds", "mdf"]),
     c("equity", "Equity gegen Ranges", Some("equity_range"), &["equity", "range"]),
     c("outs", "Outs und Draws", Some("outs"), &["outs", "regel-2-4", "implizite-odds"]),
-    c("position", "Position", Some("position"), &["position", "equity-realisierung"]),
+    c("position", "Position", Some("open_fold"), &["position", "equity-realisierung"]),
     c("preflop_range", "Starthände und Ranges", Some("combos"), &["range", "kombinatorik", "three-bet"]),
     c("fold_equity", "Fold Equity und Semi-Bluffs", None, &["fold-equity", "semi-bluff"]),
-    c("value_bet", "Value Bets und Bluffs", None, &["value-bluff", "alpha"]),
+    c("value_bet", "Value Bets und Bluffs", Some("river_bet"), &["value-bluff", "alpha"]),
     c("cbet", "Continuation Bet", None, &["c-bet-warum", "cbet"]),
-    c("stack_depth", "Stacktiefe und SPR", None, &["effektiver-stack", "spr"]),
-    c("icm", "ICM und Bubble", None, &["icm", "bubble-factor"]),
-    c("bounty", "Bounty-Turniere", None, &["bounty-pot-odds"]),
+    c("stack_depth", "Stacktiefe und SPR", Some("stack_depth"), &["effektiver-stack", "spr"]),
+    c("icm", "ICM und Bubble", Some("icm_call"), &["icm", "bubble-factor"]),
+    c("bounty", "Bounty-Turniere", Some("bounty_odds"), &["bounty-pot-odds"]),
     c("all_in_ev", "All-in-EV und Varianz", Some("all_in"), &["ev", "entscheidung-ergebnis"]),
 ];
 
@@ -84,6 +85,12 @@ mod tests {
         }
         let entries = text.lines().filter(|l| l.trim_end().ends_with("\",")).count();
         assert_eq!(entries, CONCEPTS.len(), "concepts.ts hat Einträge, die es nicht gibt");
+    }
+
+    #[test]
+    fn every_concept_leads_to_an_exercise_or_an_article() {
+        let gaps: Vec<_> = CONCEPTS.iter().filter(|c| c.exercise.is_none() && c.articles.is_empty()).map(|c| c.id).collect();
+        assert!(gaps.is_empty(), "Konzepte ohne Übung und ohne Artikel: {gaps:?}");
     }
 
     #[test]

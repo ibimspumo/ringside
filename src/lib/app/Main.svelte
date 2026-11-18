@@ -19,7 +19,8 @@
   import Training from "./Training.svelte";
   import PlayPage from "../play/PlayPage.svelte";
   import { playNav } from "../play/nav.svelte";
-  import PushFoldCharts from "../charts/PushFoldCharts.svelte";
+  import RangesPage from "../charts/RangesPage.svelte";
+  import { chartsHandoff } from "../charts/handoff.svelte";
   import Ranges from "../ranges/Ranges.svelte";
   import type { RangeFilter } from "../ranges/types";
   import Solver from "../solver/Solver.svelte";
@@ -32,8 +33,12 @@
   import type { JobTarget } from "../jobs/types";
   import { openSaved } from "../solver/solutions";
   import { solver } from "../solver/store.svelte";
+  import Button from "../ui/Button.svelte";
+  import Term from "../ui/Term.svelte";
+  import ChoiceMenu from "../ui/ChoiceMenu.svelte";
   import PageHeader from "../ui/PageHeader.svelte";
-  import { pageHead } from "../ui/page.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import { followPage, pageHead } from "../ui/page.svelte";
 
   type Tab =
     | "dashboard"
@@ -78,7 +83,7 @@
       items: [
         { id: "training", label: "Lernen", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
         { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
-        { id: "charts", label: "Charts", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
+        { id: "charts", label: "Ranges nach Stack", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
         { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
         { id: "library", label: "Bibliothek", icon: "M5 4.5h3v15H5zM10 4.5h3v15h-3zM15.2 5.3l2.9-.8 3.6 14.4-2.9.8z" },
       ],
@@ -95,12 +100,12 @@
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
   const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
-    tournaments: "Klick auf ein Turnier filtert alle Ansichten darauf und zeigt seine Hände.",
+    tournaments: "Klick auf ein Turnier zeigt seine Hände und filtert alle Seiten darauf.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
-    leaks: "Deine Werte je Position und Stacktiefe gegen veröffentlichte Richtwerte.",
+    leaks: "Deine Werte gegen veröffentlichte Richtwerte.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
@@ -109,7 +114,8 @@
     library: "Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
   /** Pages PokerStars' rules lock while the client runs; the PageHeader keeps saying so. */
-  const LOCKED: Tab[] = ["training", "play", "solver", "library"];
+  const LOCKED: Tab[] = ["training", "play", "charts", "solver", "library"];
+  let clientRunning = $state(false);
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
     ["cash", "Cash"],
@@ -121,6 +127,18 @@
   let tab = $state<Tab>(initialTab && NAV.some((n) => n.id === initialTab) ? initialTab : "dashboard");
   let status = $state<ImportStatus | null>(null);
   let tables = $state(0);
+  /** The menu scrolls in low windows; its end fades out while items are hidden below. */
+  let navEl = $state<HTMLElement>();
+  let navMore = $state(false);
+  function measureNav() {
+    if (navEl) navMore = navEl.scrollTop + navEl.clientHeight < navEl.scrollHeight - 2;
+  }
+  $effect(() => {
+    if (!navEl) return;
+    const ro = new ResizeObserver(measureNav);
+    ro.observe(navEl);
+    return () => ro.disconnect();
+  });
   let refresh = $state(0);
   let hud = $state<HudConfig | null>(null);
 
@@ -144,10 +162,23 @@
   /** Hands tab: optional player filter and a hand to open, set from other views. */
   let handsPlayer = $state<string | null>(null);
   let handToOpen = $state<number | null>(null);
+  let handOpenAt = $state<number | null>(null);
   /** Coach tab: a tournament to analyse, set from the tournaments page. */
   let analyzeTournament = $state<number | null>(null);
 
-  // "Diesen Spot lösen" in the replayer hands a spot over; the solver page takes it.
+  // "Range ansehen" in a hand opens the ranges page; its "Zurück zur Hand" returns.
+  let chartsBack = chartsHandoff.back;
+  $effect(() => {
+    if (chartsHandoff.target) tab = "charts";
+    // Back to the hand as it was: the list keeps its filters.
+    if (chartsHandoff.back !== chartsBack) {
+      chartsBack = chartsHandoff.back;
+      handToOpen = chartsHandoff.hand;
+      handOpenAt = chartsHandoff.at;
+      tab = "hands";
+    }
+  });
+  // "Im Solver nachrechnen" in the replayer hands a spot over; the solver page takes it.
   $effect(() => {
     if (handoff.prefill) tab = "solver";
   });
@@ -221,6 +252,7 @@
     handsPlayer = player;
     handsSpot = null;
     handToOpen = handId;
+    handOpenAt = null;
     tab = "hands";
   }
 
@@ -263,9 +295,13 @@
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
       on("tournament-named", () => refresh++),
+      on<boolean>("poker-client", (r) => (clientRunning = r)),
     ];
     // Listen first, then read the state, so nothing sent at startup is missed.
-    Promise.all(subs).then(sync);
+    Promise.all(subs).then(() => {
+      sync();
+      api.pokerClientRunning().then((r) => (clientRunning = r));
+    });
     const poll = setInterval(sync, 5000);
     return () => {
       clearInterval(poll);
@@ -282,7 +318,7 @@
       <Logo size={26} />
       <strong>Ringside</strong>
     </div>
-    <nav>
+    <nav bind:this={navEl} class:more={navMore} onscroll={measureNav}>
       {#each GROUPS as group (group.label)}
         <div class="group" role="group" aria-labelledby="nav-{group.label}">
           <span class="group-label" id="nav-{group.label}">{group.label}</span>
@@ -316,22 +352,31 @@
       {/if}
       {#if status && !upgrade && status.dirs.length === 0}
         <div class="warn">
-          <strong>PokerStars speichert noch keine Hände</strong>
-          <span>In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.</span>
-          <button onclick={chooseFolder}>Ordner selbst wählen</button>
+          <strong
+            ><Term tip="In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst."
+              >PokerStars speichert noch keine Hände</Term
+            ></strong
+          >
+          <span class="how-to">In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.</span>
+          <Button size="sm" onclick={chooseFolder}>Ordner selbst wählen</Button>
         </div>
       {/if}
-      <div class="live" class:active={tables > 0}>
-        <span class="dot"></span>
-        {tables === 0 ? "Kein Tisch offen" : tables === 1 ? "1 Tisch im Blick" : `${tables} Tische im Blick`}
+      <div class="meta">
+        <div class="live" class:active={tables > 0}>
+          <span class="dot"></span>
+          <span
+            >{#if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}<span class="long">&nbsp;im Blick</span
+              >{/if}</span
+          >
+        </div>
+        <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände<span class="long">&nbsp;gespeichert</span></div>
       </div>
-      <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände gespeichert</div>
     </footer>
   </aside>
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={LOCKED.includes(tab)}>
+    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab)}
         {@const off = tournament !== null}
@@ -339,23 +384,35 @@
         <div class="filters">
           <TournamentPicker tournaments={tournamentList} selected={tournament} onSelect={(id) => (tournament = id)} />
           {#if tab !== "tournaments"}
-            <div class="seg" class:off role="group" aria-label="Spielart" title={offTitle}>
-              {#each GAMES as [id, label] (label)}
-                <button class:on={!off && game === id} onclick={() => setGame(id)}>{label}</button>
-              {/each}
-            </div>
+            <span class="wide-game" class:dim={off} title={offTitle}>
+              <SegmentedControl
+                label="Spielart"
+                value={off ? "" : (game ?? "all")}
+                options={GAMES.map(([id, label]) => ({ value: id ?? "all", label }))}
+                onchange={(v) => setGame(v === "all" ? null : (v as GameKind))}
+              />
+            </span>
+            <span class="narrow-game">
+              <ChoiceMenu label="Spielart" dim={off} title={offTitle} options={GAMES} value={off ? undefined : game} onchange={setGame} />
+            </span>
           {/if}
-          <div class="seg" class:off role="group" aria-label="Zeitraum" title={offTitle}>
-            {#each PERIODS as [id, label] (id)}
-              <button class:on={!off && period === id} onclick={() => setPeriod(id)}>{label}</button>
-            {/each}
-          </div>
+          <span class="wide-period" class:dim={off} title={offTitle}>
+            <SegmentedControl
+              label="Zeitraum"
+              value={off ? "" : period}
+              options={PERIODS.map(([id, label]) => ({ value: id as string, label }))}
+              onchange={(v) => setPeriod(v as Period)}
+            />
+          </span>
+          <span class="narrow-period">
+            <ChoiceMenu label="Zeitraum" dim={off} title={offTitle} options={PERIODS} value={off ? undefined : period} onchange={setPeriod} />
+          </span>
         </div>
       {/if}
       {/snippet}
     </PageHeader>
 
-    <div class="content" class:fill={tab === "hands"}>
+    <div class="content" class:fill={tab === "hands"} use:followPage>
       {#if tab === "dashboard"}
         <Dashboard
           {filter}
@@ -414,8 +471,10 @@
             tournament = t;
             showHands(null, id);
           }}
-          onTraining={() => (tab = "training")}
-          onSettings={() => (tab = "settings")}
+          onTraining={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
         />
       {:else if tab === "players"}
         <Players {filter} {hud} {refresh} onHands={(name, id) => showHands(name, id ?? null)} />
@@ -426,7 +485,7 @@
       {:else if tab === "play"}
         <PlayPage />
       {:else if tab === "charts"}
-        <PushFoldCharts />
+        <RangesPage />
       {:else if tab === "solver"}
         <Solver />
       {:else if tab === "library"}
@@ -438,6 +497,7 @@
           player={handsPlayer}
           {tournamentNames}
           openId={handToOpen}
+          openAt={handOpenAt}
           spot={handsSpot}
           onClearSpot={() => (handsSpot = null)}
           onClearPlayer={() => (handsPlayer = null)}
@@ -481,7 +541,7 @@
   }
   .brand strong {
     font-family: var(--font-num);
-    font-size: 17px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     letter-spacing: 0.02em;
   }
@@ -492,18 +552,6 @@
     min-height: 0;
     overflow-y: auto;
   }
-  /* Low windows: the whole menu stays visible above the footer. */
-  @media (max-height: 760px) {
-    .brand {
-      margin-bottom: 10px;
-    }
-    nav {
-      gap: 8px;
-    }
-    nav button {
-      height: 30px;
-    }
-  }
   .group {
     display: flex;
     flex-direction: column;
@@ -511,7 +559,7 @@
   }
   .group-label {
     padding: 0 10px 4px;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--text-3);
@@ -526,7 +574,7 @@
     border-radius: var(--r-sm);
     background: transparent;
     color: var(--text-2);
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     cursor: pointer;
     text-align: left;
   }
@@ -553,7 +601,7 @@
     gap: 6px;
     padding: 12px 10px 0;
     border-top: 1px solid var(--line);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .live {
@@ -592,7 +640,7 @@
   }
   .upgrade small {
     color: var(--text-3);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
   .bar {
     height: 4px;
@@ -604,7 +652,7 @@
     display: block;
     height: 100%;
     background: var(--text);
-    transition: width 0.3s;
+    transition: width var(--dur-slow) var(--ease-standard);
   }
   .warn {
     display: grid;
@@ -615,22 +663,24 @@
     border-radius: var(--r-sm);
     background: var(--surface-2);
     color: var(--text-2);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     line-height: 1.4;
   }
   .warn strong {
     color: var(--text);
     font-weight: 600;
   }
-  .warn button {
+  .warn :global(.ui-btn) {
     justify-self: start;
-    padding: 3px 8px;
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface-3);
-    color: var(--text);
-    font-size: 12px;
-    cursor: pointer;
+  }
+  .meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  /* The last items fade out while more of the menu is below. */
+  nav.more {
+    mask-image: linear-gradient(to bottom, var(--text) calc(100% - 28px), transparent);
   }
 
   main {
@@ -645,11 +695,33 @@
     align-items: center;
     gap: 8px;
   }
-  .seg.off {
+  .dim {
     opacity: 0.45;
+    transition: opacity var(--dur-fast) var(--ease-standard);
   }
-  .seg.off:hover {
+  .dim:hover {
     opacity: 0.8;
+  }
+  /* Narrow windows: Spielart and Zeitraum as compact menus, so the filters stay in one row. */
+  .narrow-game,
+  .narrow-period {
+    display: none;
+  }
+  @media (max-width: 1279px) {
+    .wide-game {
+      display: none;
+    }
+    .narrow-game {
+      display: contents;
+    }
+  }
+  @media (max-width: 1699px) {
+    .wide-period {
+      display: none;
+    }
+    .narrow-period {
+      display: contents;
+    }
   }
   .content {
     flex: 1;
@@ -662,11 +734,35 @@
   }
   /* Short windows (700 px at the minimum size): every nav item stays visible above the footer. */
   @media (max-height: 760px) {
+    aside {
+      padding-top: 12px;
+    }
+    .brand {
+      margin-bottom: 8px;
+    }
     nav {
-      gap: 10px;
+      gap: 4px;
     }
     nav button {
-      height: 30px;
+      height: 27px;
+    }
+    .warn .how-to {
+      display: none;
+    }
+    .group-label {
+      padding-bottom: 2px;
+    }
+    footer {
+      gap: 4px;
+      padding-top: 8px;
+    }
+    .meta {
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .meta .long {
+      display: none;
     }
   }
 </style>

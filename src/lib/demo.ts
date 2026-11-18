@@ -235,6 +235,26 @@ export function demoDashboard(filter?: Filter): Dashboard {
   };
 }
 
+export function emptyDashboard(): Dashboard {
+  return {
+    hand_count: 0,
+    heroes: [],
+    results: {
+      hands: 0,
+      net: 0,
+      net_bb: 0,
+      showdown_bb: 0,
+      non_showdown_bb: 0,
+      ev_bb: 0,
+      all_ins: 0,
+      luck_bb: 0,
+      bounties: {},
+      points: [],
+    },
+    hero: null,
+  };
+}
+
 const RANKS = "AKQJT98765432";
 
 export function demoReports(filter?: Filter): Reports {
@@ -518,5 +538,77 @@ export function demoLeaks(filter?: Filter): LeakReport {
     too_small: 14,
     bands: ["unter 10 BB", "10–20 BB", "20–40 BB", "ab 40 BB"],
     sources: DEMO_SOURCES,
+  };
+}
+
+/** Browser preview `?data=big`: long names, seven-digit numbers and long lists for the edge cases. */
+export function bigDashboard(filter?: Filter): Dashboard {
+  const d = demoDashboard(filter);
+  const k = 2437;
+  const r = d.results;
+  const name = "Sehr_Langer_Spielername_2026";
+  return {
+    ...d,
+    heroes: [name],
+    hero: d.hero && { ...d.hero, name },
+    results: {
+      ...r,
+      hands: r.hands * 41,
+      net_bb: r.net_bb * k,
+      ev_bb: r.ev_bb * k,
+      showdown_bb: r.showdown_bb * k,
+      non_showdown_bb: r.non_showdown_bb * k,
+      luck_bb: r.luck_bb * k,
+      all_ins: r.all_ins * 41,
+      bounties: { USD: 123456789, EUR: 4567800 },
+      points: r.points.map((p) => ({
+        ...p,
+        n: p.n * 41,
+        net_bb: p.net_bb * k,
+        ev_bb: p.ev_bb * k,
+        showdown_bb: p.showdown_bb * k,
+        non_showdown_bb: p.non_showdown_bb * k,
+      })),
+    },
+  };
+}
+
+export function bigTournaments(): Tournaments {
+  const t = demoTournaments();
+  const rows = Array.from({ length: 5 }, (_, copy) =>
+    t.rows.map((r, i) => ({
+      ...r,
+      id: r.id + copy * 1_000_000,
+      name: i % 3 === 0 ? "$109 Sunday Million Anniversary Edition – Day 2 [Progressive Knockout, Turbo, 8-Max]" : r.name,
+      entrants: r.entrants === null ? null : r.entrants * 120,
+      place: r.place === null ? null : r.place * 120,
+      prize: r.prize === null ? null : r.prize * 1000,
+      bounties: r.bounties * 1000,
+      profit: r.profit === null ? null : r.profit * 1000,
+    })),
+  ).flat();
+  const totals = t.totals.map((x) => ({
+    ...x,
+    tournaments: x.tournaments * 5,
+    finished: x.finished * 5,
+    cashes: x.cashes * 5,
+    // Five copies of every row with prizes, bounties and results a thousand times larger.
+    cost: x.cost * 5,
+    prizes: x.prizes * 5000,
+    bounties: x.bounties * 5000,
+    profit: (x.prizes + x.bounties) * 5000 - x.cost * 5,
+    roi: x.cost > 0 ? (((x.prizes + x.bounties) * 5000 - x.cost * 5) / (x.cost * 5)) * 100 : null,
+  }));
+  return { rows, totals };
+}
+
+export function bigLeaks(filter?: Filter): LeakReport {
+  const l = demoLeaks(filter);
+  const positions = [["UTG"], ["HJ"], ["CO"], ["BTN"], ["SB", "BB"]];
+  return {
+    ...l,
+    leaks: positions.flatMap((p) => l.leaks.map((x) => ({ ...x, positions: p }))),
+    fine: positions.flatMap((p) => l.fine.map((x) => ({ ...x, positions: p }))),
+    too_small: 1234,
   };
 }

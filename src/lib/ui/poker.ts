@@ -46,13 +46,15 @@ export const GRADE: Record<Grade, { label: string; short: string; symbol: string
 
 export const gradeColor = (g: Grade) => `var(--grade-${g})`;
 
-export type Source = "model" | "equilibrium" | "solver" | "estimate" | "locked";
+export type Source = "model" | "equilibrium" | "solver" | "computed" | "estimate" | "opinion" | "locked";
 
 /** Where a number comes from, in one line a beginner understands. */
 export const SOURCE: Record<Source, { label: string; text: string }> = {
   model: { label: "Modell", text: "Vereinfachtes Rechenmodell – gut als Richtung, nicht auf die Nachkommastelle." },
   equilibrium: { label: "Gleichgewicht", text: "Strategie, die gegen jeden Gegner nichts verliert. Gegen schwache Gegner geht mehr." },
   solver: { label: "Solver", text: "Vom Solver für genau diesen Spot berechnet." },
-  estimate: { label: "Einschätzung", text: "Geschätzt statt exakt gerechnet – gut als Richtung, nicht auf die Nachkommastelle." },
+  computed: { label: "Berechnet", text: "Von Ringsides Rechenkern exakt nachgerechnet, nicht geschätzt." },
+  estimate: { label: "Einschätzung", text: "Aus deinen Händen geschätzt – mit mehr Händen wird es genauer." },
+  opinion: { label: "Einschätzung", text: "Meinung des Sprachmodells, etwa über die Ranges der Gegner – Ringside hat sie nicht nachgerechnet." },
   locked: { label: "Gesperrt, solange PokerStars läuft", text: "Hilfen während des Spiels sind bei PokerStars nicht erlaubt. Schließ den Client, dann geht es weiter." },
 };

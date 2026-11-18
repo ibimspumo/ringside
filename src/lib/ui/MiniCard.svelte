@@ -1,13 +1,21 @@
 <script lang="ts">
   import { cardFace } from "./cards";
 
-  /** A card inside text, tables and tags: rank and suit on a small face, four-colour deck. */
+  /**
+   * A card inside text, tables and tags: rank and suit on a small face, four-colour deck. A rank
+   * alone ("K") is a card of any suit, as in hand classes like K6o; it shows without a suit.
+   */
   let { card, dim = false }: { card: string; dim?: boolean } = $props();
 
   const f = $derived(cardFace(card));
+  const rank = $derived(/^(10|[2-9TJQKA])$/i.test(card.trim()) ? (/^(T|10)$/i.test(card.trim()) ? "10" : card.trim().toUpperCase()) : null);
 </script>
 
-{#if f}
+{#if rank}
+  <span class="ui-mini any" class:faded={dim} class:ten={rank === "10"} role="img" aria-label="{rank}, beliebige Farbe">
+    <b>{rank}</b>
+  </span>
+{:else if f}
   <span class="ui-mini" class:faded={dim} class:ten={f.rank === "10"} style:--c={f.suit.color} role="img" aria-label="{f.rank} {f.suit.name}">
     <b>{f.rank}</b><svg viewBox="0 0 100 100" aria-hidden="true"><path d={f.suit.path} /></svg>
   </span>
@@ -44,6 +52,10 @@
     width: 0.72em;
     height: 0.72em;
     fill: var(--c);
+  }
+  .any {
+    --c: var(--bg);
+    min-width: 1.3em;
   }
   .faded {
     opacity: 0.4;

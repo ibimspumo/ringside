@@ -97,8 +97,16 @@
   let matrix = $state<HTMLElement>();
   let hover = $state<{ i: number; anchor: Anchor } | null>(null);
   let pinAt = $state<Anchor | null>(null);
+  let pinSide = $state<"right" | "bottom">("right");
+  const PIN_WIDTH = 340;
 
   function nav(e: KeyboardEvent, i: number) {
+    // The pinned card closes from the grid too: after a click the focus stays on the cell.
+    if (e.key === "Escape" && card && selected >= 0) {
+      e.preventDefault();
+      close();
+      return;
+    }
     const step: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -13, ArrowDown: 13 };
     const d = step[e.key];
     if (d === undefined) return;
@@ -138,7 +146,17 @@
     if (!matrix || selected < 0 || !cell || !card) return void (pinAt = null);
     const m = rectOf(matrix);
     const c = rectOf(cell);
-    pinAt = { left: m.left, right: m.right, top: c.top, bottom: c.bottom };
+    // Beside the grid when there is room in the content area, otherwise under (or over) the
+    // class's row, so the card never covers the navigation.
+    const area = rectOf(matrix.closest("main") ?? document.documentElement);
+    const room = PIN_WIDTH + 16;
+    if (area.right - m.right >= room || m.left - area.left >= room) {
+      pinAt = { left: m.left, right: m.right, top: c.top, bottom: c.bottom };
+      pinSide = "right";
+    } else {
+      pinAt = { left: c.left, right: c.right, top: c.top, bottom: c.bottom };
+      pinSide = "bottom";
+    }
   }
   $effect(measure);
   $effect(() => {
@@ -218,7 +236,7 @@
 {/if}
 
 {#if card && pinAt && selected >= 0}
-  <Popover anchor={pinAt} pinned width={340} label="Hand {labels[selected]}" onclose={close}>
+  <Popover anchor={pinAt} side={pinSide} pinned width={PIN_WIDTH} label="Hand {labels[selected]}" onclose={close}>
     {@render card(selected)}
   </Popover>
 {/if}
@@ -304,12 +322,14 @@
       display: none;
     }
   }
+  /* The hero's own hand must be found at a glance on any fill: a thick light ring on a dark gap. */
   .cell.hero {
-    outline: 2px solid var(--text);
-    outline-offset: -1px;
-    z-index: 1;
+    outline: 3px solid var(--text);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 1px var(--bg);
+    z-index: 3;
   }
-  .cell.sel {
+  .cell.sel:not(.hero) {
     outline: 2px solid var(--focus);
     outline-offset: -1px;
     z-index: 2;
@@ -337,7 +357,7 @@
     margin: var(--sp-2) 0 0;
     padding-top: 6px;
     border-top: 1px solid var(--line);
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
   }
 </style>

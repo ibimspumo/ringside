@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Term from "./Term.svelte";
+
   /**
    * A figure with its meaning: label, value, and one line that says whether it is good and why.
    * `tone` colours only the value; the meaning line carries the same message in words.
@@ -18,13 +20,13 @@
     meaning?: string;
     tone?: "neutral" | "good" | "warn" | "bad";
     size?: "sm" | "md" | "lg";
-    /** Explains the term on hover. */
+    /** Explains the label on hover and keyboard focus. */
     help?: string;
   } = $props();
 </script>
 
 <div class="ui-stat {size} {tone}">
-  <span class="label" title={help} class:help={!!help}>{label}</span>
+  <span class="label">{#if help}<Term tip={help}>{label}</Term>{:else}{label}{/if}</span>
   <span class="value num">{value}{#if unit}<span class="u">{unit}</span>{/if}</span>
   {#if meaning}<span class="meaning">{meaning}</span>{/if}
 </div>
@@ -39,12 +41,6 @@
   .label {
     color: var(--text-2);
     font-size: var(--fs-sm);
-  }
-  .label.help {
-    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
-    text-underline-offset: 3px;
-    cursor: help;
-    align-self: flex-start;
   }
   .value {
     color: var(--text);

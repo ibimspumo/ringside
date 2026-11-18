@@ -25,12 +25,14 @@
   import ProgressRing from "./ProgressRing.svelte";
   import RangeGrid, { type RangeCell } from "./RangeGrid.svelte";
   import SectionHead from "./SectionHead.svelte";
+  import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
   import Tabs from "./Tabs.svelte";
   import Tag from "./Tag.svelte";
   import Toast from "./Toast.svelte";
+  import Term from "./Term.svelte";
   import Tooltip from "./Tooltip.svelte";
   import Verdict from "./Verdict.svelte";
 
@@ -246,6 +248,11 @@
             {/snippet}
           </PageHeader>
         </div>
+        <div class="frame wide-frame">
+          <PageHeader demo title="Coach" sub="Breites Fenster: Kopf und Inhalt teilen die linke und rechte Kante." frame={{ left: 330, right: 330 }} />
+          <div class="frame-page"><Card tone="sunken"><span class="muted">Inhalt der Seite (.page)</span></Card></div>
+        </div>
+        <p class="muted">Der Kopf folgt Breite und Rand der Seite darunter (<code>use:followPage</code> am Inhaltsbereich); ohne Seite läuft er über die volle Breite.</p>
         <p class="muted">Seiten melden Zeile und Bereiche mit <code>usePageHead(() =&gt; ({"{"} sub, tabs, value, onchange {"}"}))</code> an. Ein eigenes <code>&lt;h1&gt;</code> meldet die Prüfung.</p>
       </section>
     {/if}
@@ -386,11 +393,18 @@
 
     {#if show("auswahl")}
       <section id="auswahl">
-        <SectionHead title="Auswahl" sub="Segmente für wenige gleichrangige Optionen, Reiter für Bereiche einer Seite, Tags für Filter." />
+        <SectionHead
+          title="Auswahl"
+          sub="Segmente für wenige gleichrangige Optionen, das Auswahlmenü für dieselbe Wahl in schmalen Kopfzeilen, Reiter für Bereiche einer Seite, Tags für Filter."
+        />
         <div class="two">
           <div class="stack">
             <SegmentedControl label="Zeitraum" bind:value={period} options={[{ value: "today", label: "Heute" }, { value: "7d", label: "7 Tage" }, { value: "30d", label: "30 Tage" }, { value: "all", label: "Alles" }]} />
             <SegmentedControl label="Einheit" size="sm" bind:value={small} options={[{ value: "bb", label: "BB" }, { value: "money", label: "Geld" }, { value: "pct", label: "% vom Pot", disabled: true }]} />
+            <div class="row">
+              <ChoiceMenu label="Zeitraum" value={period} onchange={(v) => (period = v)} options={[["today", "Heute"], ["7d", "7 Tage"], ["30d", "30 Tage"], ["all", "Alles"]]} />
+              <ChoiceMenu label="Spielart" value={undefined} dim title="Gilt nicht, solange ein Turnier gewählt ist." onchange={() => {}} options={[["all", "Alle"], ["cash", "Cash"]]} />
+            </div>
             <Tabs label="Bereiche" bind:value={tab} tabs={[{ id: "hands", label: "Hände", count: 248 }, { id: "stats", label: "Statistik" }, { id: "leaks", label: "Leaks", count: 3 }]} />
           </div>
           <div class="stack">
@@ -411,6 +425,7 @@
           <Card tone="raised"><Stat size="lg" label="Genauigkeit" value="84" unit="%" meaning="12 von 14 Entscheidungen richtig." /></Card>
           <Card onclick={() => {}}><SectionHead level={3} title="Klickbare Karte" sub="Ganze Fläche ist ein Knopf." /></Card>
           <Card onclick={() => {}} selected><SectionHead level={3} title="Ausgewählt" sub="Rahmen in Textfarbe." /></Card>
+          <Card onclick={() => {}} disabled title="Gerade nicht wählbar"><SectionHead level={3} title="Gesperrt" sub="Klickbar, aber gerade nicht wählbar." /></Card>
         </div>
         <Panel title="Panel mit Kopf" sub="Titel, Erklärzeile und Aktionen rechts.">
           {#snippet actions()}<Button size="sm" variant="quiet">Alle ansehen</Button>{/snippet}
@@ -477,6 +492,8 @@
         <div class="two">
           <Panel title="Session" sub="Wie bei Zug-Listen: Stufe auf einen Blick, Balken je Stufe.">
             <GradeBars counts={{ best: 9, mix: 3, good: 4, inaccurate: 2, mistake: 1, blunder: 0 }} />
+            <p class="muted">Mit <code>grades</code> nur die Stufen einer Quelle, etwa die vier des Coaches:</p>
+            <GradeBars grades={["best", "good", "inaccurate", "mistake"]} counts={{ best: 2, good: 1, inaccurate: 1, mistake: 1 }} />
           </Panel>
           <Panel title="Zug-Liste" sub="Symbol trägt die Stufe, nicht nur die Wortfarbe.">
             <ol class="moves">
@@ -497,6 +514,7 @@
           <PlayingCard card="Th" size={40} /><PlayingCard card="9d" size={40} /><PlayingCard card="8c" size={40} /><PlayingCard hidden size={40} />
         </div>
         <p class="card-text"><CardText text="Zwei Paare (Th Tc 9h 9c Js) gegen Straße (Jh Tc 9c 8c 7c)." /></p>
+        <p class="card-text small">Handklassen mit <code>hands</code>: <CardText hands text="Mit 8 bb schiebst du K6o immer, 99 und T9s auch; K8+ callt." /></p>
         <p class="card-text small">Notation mit Symbolen: <CardText text="A♠K♠ auf Q♥J♦T♣" /> · einzeln: <MiniCard card="7d" /> <MiniCard card="7d" dim /> (abgeblendet)</p>
         <div class="two">
           <Card><BestHand hole={["Jh", "7c"]} board={["Tc", "9c", "8c", "Ts", "9h"]} winner /></Card>
@@ -550,9 +568,9 @@
 
     {#if show("popups")}
       <section id="popups">
-        <SectionHead title="Hinweise & Popups" sub="Tooltip erklärt ein Wort, Popover zeigt Details an der Maus, Dialog fragt nach, Toast meldet Ergebnisse." />
+        <SectionHead title="Hinweise & Popups" sub="Term erklärt ein Wort im Satz (auch per Tastatur), Tooltip ein Element, Popover zeigt Details an der Maus, Dialog fragt nach, Toast meldet Ergebnisse." />
         <div class="row">
-          <Tooltip text="Wie oft du freiwillig Geld in den Pot legst."><span class="term">VPIP</span></Tooltip>
+          <span>Dein <Term tip="Wie oft du freiwillig Geld in den Pot legst. Die Blinds zählen nicht.">VPIP</Term> liegt bei 24 %.</span>
           <Tooltip text="Erscheint auch bei Tastaturfokus." open={only === "popups"}><Button size="sm">Mit Tooltip</Button></Tooltip>
           <span bind:this={popHost}><Button size="sm" onclick={(e) => (popAnchor = popAnchor ? null : rectOf(e.currentTarget as Element))}>Popover anheften</Button></span>
           <Button size="sm" onclick={() => (dialogOpen = true)}>Dialog öffnen</Button>
@@ -1022,10 +1040,6 @@
   .small-grid {
     width: 260px;
   }
-  .term {
-    border-bottom: 1px dotted var(--text-3);
-    cursor: help;
-  }
   .toasts {
     display: flex;
     flex-wrap: wrap;
@@ -1033,5 +1047,8 @@
   }
   .progress {
     gap: var(--sp-6);
+  }
+  .frame-page {
+    margin: var(--sp-4) 330px;
   }
 </style>

@@ -1,101 +1,156 @@
 <script lang="ts">
-  import { floating, signed, type Anchor } from "../app/format";
+  import { signed } from "../app/format";
+  import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
+  import Tooltip from "../ui/Tooltip.svelte";
+  import { classCombos, classLabel } from "../solver/range";
   import type { PreflopAction, PreflopNode, PreflopStep } from "./preflop-types";
-  import { actionColor, actionName } from "./preflop-labels";
+  import { actionColor, actionName, actionPhrase } from "./preflop-labels";
+  import { TERM, amount } from "./words";
 
-  /** 13×13 starting-hand grid of one preflop decision; each cell is split by action share. */
-  let { node, actions, line }: { node: PreflopNode; actions: PreflopAction[]; line: PreflopStep[] } = $props();
+  /** 13×13 grid of one preflop decision on the shared RangeGrid; each hand split by action share. */
+  let {
+    node,
+    actions,
+    line,
+    pin = null,
+    only = null,
+  }: {
+    node: PreflopNode;
+    actions: PreflopAction[];
+    line: PreflopStep[];
+    /** Hand to show pinned and outlined, e.g. the one played in a hand history. */
+    pin?: string | null;
+    /** From the action bar: show only hands that take this action. */
+    only?: number | null;
+  } = $props();
 
-  const RANKS = "AKQJT98765432";
   type Part = { a: number; freq: number; ev: number | null };
   /** `inRange` false: the hand left the range earlier, all its frequencies are 0. */
-  type Cell = { i: number; key: string; combos: number; parts: Part[]; inRange: boolean };
-
-  let hover = $state<{ cell: Cell; anchor: Anchor } | null>(null);
+  type Hand = { key: string; combos: number; parts: Part[]; inRange: boolean };
 
   // HandClass::index is row * 13 + col with the ace first, suited above the diagonal.
-  const cells = $derived(
-    Array.from({ length: 169 }, (_, i): Cell => {
-      const r = Math.floor(i / 13);
-      const c = i % 13;
-      const hi = RANKS[Math.min(r, c)];
-      const lo = RANKS[Math.max(r, c)];
-      const key = r === c ? hi + lo : r < c ? `${hi}${lo}s` : `${hi}${lo}o`;
+  const hands = $derived(
+    Array.from({ length: 169 }, (_, i): Hand => {
       const parts = actions.map((_, a) => ({
         a,
         freq: (node.freq[a]?.[i] ?? 0) / 255,
         ev: node.ev[a] ? node.ev[a][i] / 100 : null,
       }));
-      return { i, key, combos: r === c ? 6 : r < c ? 4 : 12, parts, inRange: parts.some((p) => p.freq > 0) };
+      return { key: classLabel(i), combos: classCombos(i), parts, inRange: parts.some((p) => p.freq > 0) };
     }),
   );
 
-  /** Played actions stack from the left, fold stays as the empty rest. */
-  function fill(c: Cell): string {
-    const stops: string[] = [];
-    let x = 0;
-    for (const p of c.parts) {
-      if (actions[p.a].kind === "fold" || p.freq < 0.005) continue;
-      const end = Math.min(100, x + p.freq * 100);
-      stops.push(`${actionColor(actions[p.a].kind)} ${x.toFixed(1)}% ${end.toFixed(1)}%`);
-      x = end;
-    }
-    if (!stops.length) return "var(--surface-2)";
-    stops.push(`var(--surface-2) ${x.toFixed(1)}% 100%`);
-    return `linear-gradient(to right, ${stops.join(", ")})`;
+  const pct = (f: number) => `${Math.round(f * 100)} %`;
+
+  /** Parts with fold last, the same order as everywhere on the page. */
+  const ordered = (h: Hand) => [...h.parts.filter((p) => actions[p.a].kind !== "fold"), ...h.parts.filter((p) => actions[p.a].kind === "fold")];
+
+  /** How often the hand is played (not folded), shown for mixed hands only. */
+  function playedShare(h: Hand): string | undefined {
+    const played = h.parts.filter((p) => actions[p.a].kind !== "fold").reduce((t, p) => t + p.freq, 0);
+    const v = Math.round(played * 100);
+    return v > 0 && v < 100 ? String(v) : undefined;
   }
 
-  /** Share of the cell that is not folded: decides the ink colour. */
-  const played = (c: Cell) => c.parts.filter((p) => actions[p.a].kind !== "fold").reduce((s, p) => s + p.freq, 0);
+  const cells = $derived(
+    hands.map((h): RangeCell =>
+      h.inRange
+        ? {
+            mix: ordered(h).map((p) => ({ color: actionColor(actions[p.a].kind), share: p.freq })),
+            value: playedShare(h),
+            note: h.parts.map((p) => `${actionName(actions[p.a], line)} ${pct(p.freq)}`).join(", "),
+          }
+        : null,
+    ),
+  );
 
-  /** The action played most, unless the hand is mixed: then nothing is printed. */
-  function mixedShare(c: Cell): number | null {
-    const top = Math.max(...c.parts.map((p) => p.freq));
-    return top > 0.995 ? null : Math.round(top * 100);
+  const pinIndex = $derived(pin ? hands.findIndex((h) => h.key === pin) : -1);
+  let selected = $state(-1);
+  let box = $state<HTMLDivElement>();
+  // A hand handed over is pinned and scrolled into view, so its card sits beside it.
+  $effect(() => {
+    if (pinIndex < 0) return;
+    selected = pinIndex;
+    const t = setTimeout(() => box?.querySelector(`[data-i="${pinIndex}"]`)?.scrollIntoView({ block: "center" }), 150);
+    return () => clearTimeout(t);
+  });
+
+  const bestEv = (h: Hand) => Math.max(...h.parts.filter((p) => p.ev !== null).map((p) => p.ev as number));
+  /** Actions this hand takes, most often first. */
+  const taken = (h: Hand) => h.parts.filter((p) => p.freq >= 0.005).sort((a, b) => b.freq - a.freq);
+
+  function verdict(h: Hand): string {
+    if (!h.inRange) return "Im Modell schon vorher gefoldet";
+    const t = taken(h);
+    if (t.length === 1) return `Immer ${actionPhrase(actions[t[0].a], line)}`;
+    return `Gemischt: ${t.map((p) => `${pct(p.freq)} ${actionPhrase(actions[p.a], line)}`).join(", ")}`;
   }
 
-  function pct(f: number): string {
-    return `${Math.round(f * 100)} %`;
+  /** Why the pure choice is right (its EV lead over the next best action), or why mixing is fine. */
+  function why(h: Hand): string {
+    const t = taken(h);
+    if (!h.inRange || !t.length) return "";
+    if (t.length > 1) return "Die gespielten Aktionen bringen fast gleich viel.";
+    const own = h.parts[t[0].a].ev;
+    const next = h.parts.filter((p) => p.a !== t[0].a && p.ev !== null).sort((x, y) => (y.ev as number) - (x.ev as number))[0];
+    if (own === null || !next) return "";
+    return `Bringt ${amount(own - (next.ev as number))} BB mehr als ${actionPhrase(actions[next.a], line)}.`;
   }
 
-  function show(e: MouseEvent, cell: Cell) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    hover = { cell, anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } };
+  /** The cell's mix as a bar, the same colours as the grid. */
+  function mixBar(h: Hand): string {
+    let at = 0;
+    const stops = ordered(h)
+      .filter((p) => p.freq > 0)
+      .map((p) => {
+        const from = at;
+        at += p.freq * 100;
+        return `${actionColor(actions[p.a].kind)} ${from.toFixed(1)}% ${at.toFixed(1)}%`;
+      });
+    return stops.length ? `linear-gradient(to right, ${stops.join(", ")})` : "var(--grid-cell-out)";
   }
-
-  const bestEv = (c: Cell) => Math.max(...c.parts.filter((p) => p.ev !== null).map((p) => p.ev as number));
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="matrix" onmouseleave={() => (hover = null)}>
-  {#each cells as c (c.i)}
-    {@const share = c.inRange ? mixedShare(c) : null}
-    <div
-      class="cell"
-      class:on={played(c) >= 0.6}
-      class:out={!c.inRange}
-      style={c.inRange ? `background:${fill(c)}` : undefined}
-      aria-label={c.inRange
-        ? `${c.key}: ${c.parts.map((p) => `${actionName(actions[p.a], line)} ${pct(p.freq)}`).join(", ")}`
-        : `${c.key}: nicht in der Range`}
-      onmouseenter={(e) => show(e, c)}
-    >
-      <span class="k">{c.key}</span>
-      {#if share !== null}<span class="v num">{share}</span>{/if}
-    </div>
-  {/each}
-  {#if hover}
-    {@const c = hover.cell}
-    {@const best = bestEv(c)}
-    <div class="tip" use:floating={{ anchor: hover.anchor }}>
-      <header><b>{c.key}</b> · {c.combos} Kombos</header>
-      {#if !c.inRange}
-        <p class="out-note">Nicht in der Range: Diese Hand hat vorher anders gespielt und kommt hier nicht an.</p>
-      {:else}
-      <table>
-        <thead><tr><th></th><th>Anteil</th><th>EV</th></tr></thead>
+<div bind:this={box}>
+<RangeGrid
+  {cells}
+  label="Preflop-Range als 13 mal 13 Raster"
+  hero={pinIndex}
+  {selected}
+  dimmed={only === null ? undefined : (i) => (hands[i].parts[only]?.freq ?? 0) < 0.005}
+  onSelect={(i) => (selected = selected === i ? -1 : i)}
+  onClose={() => (selected = -1)}
+>
+  {#snippet tip(i)}
+    {@const h = hands[i]}
+    <p class="t-head"><b class="t-key">{h.key}</b></p>
+    <p class="t-verdict">{verdict(h)}</p>
+    {#if h.inRange}
+      <div class="bar" aria-hidden="true" style="background:{mixBar(h)}"></div>
+      {#if why(h)}<p class="t-why">{why(h)}</p>{/if}
+    {/if}
+  {/snippet}
+  {#snippet card(i)}
+    {@const h = hands[i]}
+    {@const best = bestEv(h)}
+    <header class="c-head">
+      <b class="c-key">{h.key}</b>
+      <Tooltip text={TERM.combos}><span class="term">{h.combos} Kombos</span></Tooltip>
+    </header>
+    <p class="verdict">{verdict(h)}.</p>
+    {#if !h.inRange}
+      <p class="why">Diese Hand hat vorher anders gespielt (meist gefoldet) und erreicht diese Situation nie.</p>
+    {:else}
+      {#if why(h)}
+        <p class="why">
+          {why(h)}{#if taken(h).length > 1}{" "}<Tooltip text={TERM.mixed}><span class="term">Warum gemischt?</span></Tooltip>{/if}
+        </p>
+      {/if}
+      <div class="bar split" aria-hidden="true" style="background:{mixBar(h)}"></div>
+      <table class="acts">
+        <thead><tr><th>Aktion</th><th>Wie oft</th><th><Tooltip text={TERM.ev}><span class="term">EV</span></Tooltip></th></tr></thead>
         <tbody>
-          {#each c.parts as p (p.a)}
+          {#each ordered(h) as p (p.a)}
             <tr class:best={p.ev !== null && Math.abs(p.ev - best) < 0.005}>
               <td><i class="sw" style="background:{actionColor(actions[p.a].kind)}"></i>{actionName(actions[p.a], line)}</td>
               <td class="num">{pct(p.freq)}</td>
@@ -104,106 +159,96 @@
           {/each}
         </tbody>
       </table>
-      <footer>EV im Modell, gemessen am Stack vor der Hand.</footer>
-      {/if}
-    </div>
-  {/if}
+      <p class="foot">Fett: die Aktion mit dem höchsten EV. EV im Modell, gemessen am Stack vor der Hand.</p>
+    {/if}
+  {/snippet}
+</RangeGrid>
 </div>
 
 <style>
-  .matrix {
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(13, minmax(0, 1fr));
-    gap: 2px;
+  .t-head {
+    margin: 0;
   }
-  .cell {
-    position: relative;
-    aspect-ratio: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 3px 4px;
-    border-radius: 3px;
-    overflow: hidden;
-    cursor: default;
-    min-width: 0;
-    color: var(--text-3);
-  }
-  .cell.on {
-    color: #121418;
-  }
-  .cell.out {
-    background: transparent;
-    box-shadow: inset 0 0 0 1px var(--line);
-    color: var(--text-3);
-    opacity: 0.55;
-  }
-  .cell:hover {
-    outline: 1px solid var(--text);
-    z-index: 1;
-  }
-  .k {
+  .t-key {
     font-family: var(--font-num);
-    font-size: 11px;
-    font-weight: 600;
+    font-size: var(--fs-base);
+  }
+  .c-key {
+    font-family: var(--font-num);
+    font-size: var(--fs-3xl);
     line-height: 1;
   }
-  .v {
-    align-self: flex-end;
-    font-size: 10.5px;
-    line-height: 1;
+  .t-verdict {
+    margin: 2px 0 0;
   }
-  .tip table {
-    border-collapse: collapse;
-    font-size: 12.5px;
-    margin-top: 6px;
-  }
-  .tip th {
-    font-weight: 500;
-    color: var(--text-3);
-    text-align: right;
-    padding: 0 0 2px 12px;
-  }
-  .tip td {
-    padding: 2px 0 2px 12px;
-    text-align: right;
-  }
-  .tip td:first-child {
-    text-align: left;
-    padding-left: 0;
-    white-space: nowrap;
-  }
-  .tip tr.best td {
-    font-weight: 600;
-  }
-  .out-note {
-    margin: 6px 0 0;
-    max-width: 220px;
-    font-size: 12px;
+  .t-why {
+    margin: 0;
     color: var(--text-2);
   }
-  .tip footer {
-    margin-top: 6px;
-    font-size: 11.5px;
-    color: var(--text-3);
+  .c-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-2);
+  }
+  .term {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
+    text-underline-offset: 3px;
+  }
+  .bar {
+    height: 5px;
+    margin: var(--sp-2) 0 var(--sp-1);
+    border-radius: 3px;
+  }
+  .bar.split {
+    height: 8px;
+    margin: var(--sp-3) 0;
+  }
+  .verdict {
+    margin: 0;
+    font-size: var(--fs-base);
+    font-weight: 600;
+  }
+  .why {
+    margin: 2px 0 0;
+    color: var(--text-2);
+  }
+  .acts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+  }
+  .acts th {
+    font-weight: 500;
+    color: var(--text-2);
+    text-align: right;
+    padding: 0 0 var(--sp-1);
+  }
+  .acts td {
+    padding: var(--sp-1) 0;
+    text-align: right;
+    border-top: 1px solid var(--line);
+  }
+  .acts th:first-child,
+  .acts td:first-child {
+    text-align: left;
+    white-space: nowrap;
+  }
+  .acts tr.best td {
+    font-weight: 600;
+  }
+  .foot {
+    margin: var(--sp-2) 0 0;
+    font-size: var(--fs-xs);
+    color: var(--text-2);
   }
   .sw {
     display: inline-block;
     width: 9px;
     height: 9px;
     border-radius: 2px;
-    margin-right: 6px;
-  }
-  @container (max-width: 520px) {
-    .cell {
-      padding: 2px;
-    }
-    .k {
-      font-size: 9px;
-    }
-    .v {
-      display: none;
-    }
+    margin-right: 7px;
   }
 </style>

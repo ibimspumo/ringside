@@ -9,10 +9,17 @@
 //! storage, which halves the memory, and hands the solve to [`Lookup::save`], so the
 //! solver page opens the same solution for the same spot. A spot serves up to
 //! [`MAX_USES`] hands with different cards, then makes room for a new one.
+//!
+//! A hand that reaches a spot nobody prepared (another line, a stored spot that ends)
+//! asks for it with [`Pool::request`]: the worker solves it before anything else, faster
+//! and less exact ([`LIVE_PCT`]), looks for a stored solution first and saves the solve
+//! the same way. While the hero thinks, the spot the hand most likely needs next is
+//! solved ahead. Live spots count against the same memory budget; unused stock spots
+//! make room for them.
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::{Duration, Instant};
 
 use rand::{Rng, SeedableRng};
@@ -21,6 +28,7 @@ use ringside_engine::{Card, CardSet};
 use ringside_solver::{Error, Settings, Solution, Spot, estimate, solve};
 use serde::Serialize;
 
+use crate::hand::Need;
 use crate::scenario::Scenario;
 use crate::table::{Deep, TableKey, deep};
 use crate::tree::{Tree, TreeSource};
@@ -33,23 +41,29 @@ pub const MAX_ITERATIONS: u32 = 1000;
 pub const MAX_USES: u32 = 3;
 /// Seconds a solve is assumed to take before one was measured.
 const FIRST_GUESS_SECS: f64 = 30.0;
+/// Exploitability of a spot solved while a hand waits, in percent of the pot: fast enough
+/// to keep playing, and the page says how exact it is.
+pub const LIVE_PCT: f64 = 2.0;
+pub const LIVE_MAX_ITERATIONS: u32 = 400;
+const LIVE_FIRST_GUESS_SECS: f64 = 10.0;
 
 /// Stored solutions the worker looks at before it solves.
 pub trait Lookup: Send + Sync {
-    /// A stored solution of exactly this spot.
-    fn load(&self, spot: &Spot) -> Option<Box<dyn Tree>>;
+    /// A stored solution of exactly this spot, at most `max_pct` exploitable.
+    fn load(&self, spot: &Spot, max_pct: f64) -> Option<Box<dyn Tree>>;
     /// Flops stored for the spot's ranges, pot, stack and sizes (its board is ignored).
     fn flops(&self, _spot: &Spot) -> Vec<String> {
         Vec::new()
     }
-    /// Keeps a fresh solve where [`Lookup::load`] and the solver page find it.
-    fn save(&self, _table: TableKey, _scenario: &Scenario, _solution: &mut Solution, _settings: &Settings) {}
+    /// Keeps a fresh solve where [`Lookup::load`] and the solver page find it; `seats` are
+    /// OOP and IP.
+    fn save(&self, _table: TableKey, _seats: [usize; 2], _solution: &mut Solution, _settings: &Settings) {}
 }
 
 pub struct NoLookup;
 
 impl Lookup for NoLookup {
-    fn load(&self, _spot: &Spot) -> Option<Box<dyn Tree>> {
+    fn load(&self, _spot: &Spot, _max_pct: f64) -> Option<Box<dyn Tree>> {
         None
     }
 }
@@ -110,17 +124,63 @@ impl Entry {
     }
 }
 
-/// What a hand takes from the pool.
+/// A solved spot a hand plays in.
 #[derive(Clone)]
-pub struct Taken {
+pub struct Ready {
     pub id: u64,
-    pub table: TableKey,
-    pub scenario: Scenario,
-    pub flop: [Card; 3],
     pub source: TreeSource,
     pub complete: bool,
     pub exploitability_pct: f64,
     pub tree: Arc<Mutex<Box<dyn Tree>>>,
+}
+
+/// What a hand takes from the pool.
+#[derive(Clone)]
+pub struct Taken {
+    pub table: TableKey,
+    pub scenario: Scenario,
+    pub flop: [Card; 3],
+    pub ready: Ready,
+}
+
+/// How soon a hand needs a live spot.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Urgency {
+    /// The hand waits for it.
+    Now,
+    /// The hand will most likely need it after the hero's next move.
+    Ahead,
+}
+
+type Held = Weak<Mutex<Box<dyn Tree>>>;
+
+enum LiveState {
+    Queued,
+    Running,
+    Ready(Ready, u64),
+    Failed(String),
+    Cancelled,
+}
+
+struct LiveJob {
+    need: Need,
+    urgency: Urgency,
+    state: LiveState,
+}
+
+/// A live spot's solve, for the table and the task center.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct LiveStatus {
+    pub urgency: Urgency,
+    /// `waiting` (queued), `running`, `paused_client`, `done`, `cancelled` or `error`.
+    pub status: Status,
+    /// 0–1.
+    pub fraction: f64,
+    pub secs_left: Option<f64>,
+    /// The precision it solves to, percent of the pot.
+    pub target_pct: f64,
+    pub error: Option<String>,
 }
 
 struct Inner {
@@ -133,6 +193,30 @@ struct Inner {
     times: Vec<f64>,
     status: Status,
     error: Option<String>,
+    live: Vec<LiveJob>,
+    /// Changes whenever the running live solve is no longer wanted.
+    live_generation: u64,
+    live_solving: Option<(Instant, f64)>,
+    live_progress: f64,
+    live_times: Vec<f64>,
+    /// Live trees handed to hands, with their size, while a hand holds them.
+    held: Vec<(Held, u64)>,
+}
+
+impl Inner {
+    /// Memory of everything solved that is still held: stock, live spots in hands, live
+    /// spots ready to be taken.
+    fn used(&mut self) -> u64 {
+        self.held.retain(|(w, _)| w.strong_count() > 0);
+        let stock: u64 = self.ready.iter().map(|e| e.memory_bytes).sum();
+        let held: u64 = self.held.iter().map(|(_, b)| b).sum();
+        let live: u64 = self.live.iter().map(|j| if let LiveState::Ready(_, b) = j.state { b } else { 0 }).sum();
+        stock + held + live
+    }
+
+    fn live_waiting(&self) -> bool {
+        self.live.iter().any(|j| matches!(j.state, LiveState::Queued))
+    }
 }
 
 pub struct Pool {
@@ -142,7 +226,9 @@ pub struct Pool {
     next_id: AtomicU64,
     lookup: Box<dyn Lookup>,
     threads: usize,
-    /// For all ready spots together, and the largest single one.
+    /// Threads of a live solve, which a hand waits for.
+    live_threads: usize,
+    /// For all ready spots together (live ones included), and the largest single one.
     budget: u64,
 }
 
@@ -158,14 +244,104 @@ impl Pool {
                 times: Vec::new(),
                 status: Status::Waiting,
                 error: None,
+                live: Vec::new(),
+                live_generation: 0,
+                live_solving: None,
+                live_progress: 0.0,
+                live_times: Vec::new(),
+                held: Vec::new(),
             }),
             wake: Condvar::new(),
             cancel: AtomicBool::new(false),
             next_id: AtomicU64::new(1),
             lookup,
             threads: threads.max(1),
+            live_threads: threads.max(1),
             budget,
         }
+    }
+
+    pub fn with_live_threads(mut self, threads: usize) -> Pool {
+        self.live_threads = threads.max(1);
+        self
+    }
+
+    // -----------------------------------------------------------------------------
+    // Live spots.
+
+    /// Asks for `need`. `Now` drops whatever else was asked for: the hand has moved on.
+    pub fn request(&self, need: Need, urgency: Urgency) {
+        let mut inner = self.inner.lock().unwrap();
+        let running = |j: &LiveJob| matches!(j.state, LiveState::Running);
+        let mut stopped = false;
+        if let Some(j) = inner.live.iter_mut().find(|j| j.need == need) {
+            if urgency == Urgency::Now {
+                j.urgency = Urgency::Now;
+            }
+        } else {
+            stopped |= inner.live.iter().any(|j| j.urgency == urgency && running(j));
+            inner.live.retain(|j| j.urgency != urgency);
+            inner.live.push(LiveJob { need: need.clone(), urgency, state: LiveState::Queued });
+        }
+        if urgency == Urgency::Now {
+            stopped |= inner.live.iter().any(|j| j.need != need && running(j));
+            inner.live.retain(|j| j.need == need);
+        }
+        if stopped {
+            inner.live_generation += 1;
+        }
+        self.wake.notify_all();
+    }
+
+    /// The solve of `need` once it is done: the spot, or why there is none.
+    pub fn take_live(&self, need: &Need) -> Option<Result<Ready, String>> {
+        let mut inner = self.inner.lock().unwrap();
+        let i = inner.live.iter().position(|j| &j.need == need)?;
+        if matches!(inner.live[i].state, LiveState::Queued | LiveState::Running) {
+            return None;
+        }
+        match inner.live.remove(i).state {
+            LiveState::Ready(r, bytes) => {
+                inner.held.push((Arc::downgrade(&r.tree), bytes));
+                Some(Ok(r))
+            }
+            LiveState::Failed(e) => Some(Err(e)),
+            _ => Some(Err(Error::Cancelled.to_string())),
+        }
+    }
+
+    /// Stops the solve the hand waits for (the hand then plays on without it) and drops
+    /// the one solved ahead.
+    pub fn cancel_live(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        let open = |j: &LiveJob| matches!(j.state, LiveState::Queued | LiveState::Running);
+        let stopped = inner.live.iter().any(|j| matches!(j.state, LiveState::Running));
+        inner.live.retain(|j| j.urgency == Urgency::Now || !open(j));
+        for j in inner.live.iter_mut().filter(|j| open(j)) {
+            j.state = LiveState::Cancelled;
+        }
+        if stopped {
+            inner.live_generation += 1;
+        }
+        inner.live_solving = None;
+        self.wake.notify_all();
+    }
+
+    /// Drops every live spot asked for (a new hand starts).
+    pub fn forget_live(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.live.iter().any(|j| matches!(j.state, LiveState::Running)) {
+            inner.live_generation += 1;
+        }
+        inner.live.clear();
+        inner.live_solving = None;
+        self.wake.notify_all();
+    }
+
+    /// The spot the hand waits for, if any.
+    pub fn live_status(&self) -> Option<LiveStatus> {
+        let inner = self.inner.lock().unwrap();
+        inner.live.iter().find(|j| j.urgency == Urgency::Now).map(|j| live_status_of(&inner, j))
     }
 
     /// Prepares for `plan` from now on; ready spots of other tables are dropped. Restarts
@@ -208,9 +384,9 @@ impl Pool {
         self.wake.notify_all();
     }
 
-    /// Memory of the solved spots ready now.
+    /// Memory of the solved spots held now, live ones included.
     pub fn memory_bytes(&self) -> u64 {
-        self.inner.lock().unwrap().ready.iter().map(|e| e.memory_bytes).sum()
+        self.inner.lock().unwrap().used()
     }
 
     /// A ready spot of `table`s with `hero_seat` in it (if fixed), complete trees and
@@ -225,14 +401,10 @@ impl Pool {
         let e = &mut inner.ready[i];
         e.uses += 1;
         let taken = Taken {
-            id: e.id,
             table: e.table,
             scenario: e.scenario.clone(),
             flop: e.flop,
-            source: e.source,
-            complete: e.complete,
-            exploitability_pct: e.exploitability_pct,
-            tree: e.tree.clone(),
+            ready: Ready { id: e.id, source: e.source, complete: e.complete, exploitability_pct: e.exploitability_pct, tree: e.tree.clone() },
         };
         if e.uses >= MAX_USES {
             inner.ready.remove(i);
@@ -254,16 +426,17 @@ impl Pool {
     }
 
     /// Runs the worker until `quit` answers true. `paused` (PokerStars runs) stops a solve
-    /// and waits; `report` hears every change of the status.
-    pub fn run(&self, quit: impl Fn() -> bool, paused: impl Fn() -> bool, report: impl Fn(&PoolStatus)) {
+    /// and waits; `report` hears every change of the stock's status, `live` of a live spot's.
+    pub fn run(&self, quit: impl Fn() -> bool, paused: impl Fn() -> bool, report: impl Fn(&PoolStatus), live: impl Fn(&LiveStatus)) {
         let mut rng = ChaCha8Rng::from_os_rng_or_time();
         while !quit() {
-            self.step(&mut rng, &paused, &report);
+            self.step(&mut rng, &paused, &report, &live);
         }
     }
 
-    /// One round of the worker: adds at most one spot or waits a little.
-    pub fn step(&self, rng: &mut ChaCha8Rng, paused: &dyn Fn() -> bool, report: &dyn Fn(&PoolStatus)) {
+    /// One round of the worker: solves a live spot, adds at most one spot to the stock or
+    /// waits a little.
+    pub fn step(&self, rng: &mut ChaCha8Rng, paused: &dyn Fn() -> bool, report: &dyn Fn(&PoolStatus), live: &dyn Fn(&LiveStatus)) {
         let set = |status: Status, inner: &mut Inner| {
             if inner.status != status {
                 inner.status = status;
@@ -271,13 +444,22 @@ impl Pool {
             }
         };
         let mut inner = self.inner.lock().unwrap();
-        if self.cancel.load(Ordering::Relaxed) {
-            set(Status::Cancelled, &mut inner);
+        if paused() {
+            set(Status::PausedClient, &mut inner);
+            if let Some(j) = inner.live.iter().find(|j| j.urgency == Urgency::Now && matches!(j.state, LiveState::Queued)) {
+                let mut s = live_status_of(&inner, j);
+                s.status = Status::PausedClient;
+                live(&s);
+            }
             let _ = self.wake.wait_timeout(inner, Duration::from_secs(1));
             return;
         }
-        if paused() {
-            set(Status::PausedClient, &mut inner);
+        if inner.live_waiting() {
+            drop(inner);
+            return self.solve_live(paused, live);
+        }
+        if self.cancel.load(Ordering::Relaxed) {
+            set(Status::Cancelled, &mut inner);
             let _ = self.wake.wait_timeout(inner, Duration::from_secs(1));
             return;
         }
@@ -286,7 +468,7 @@ impl Pool {
             let _ = self.wake.wait_timeout(inner, Duration::from_secs(1));
             return;
         };
-        let used: u64 = inner.ready.iter().map(|e| e.memory_bytes).sum();
+        let used = inner.used();
         let complete = inner.ready.iter().filter(|e| e.complete).count();
         if complete >= TARGET || inner.ready.len() >= 2 * TARGET {
             set(Status::Done, &mut inner);
@@ -305,7 +487,7 @@ impl Pool {
             return;
         };
         let spot = scenario.spot(&flop.iter().map(|c| c.to_string()).collect::<String>());
-        if let Some(tree) = self.lookup.load(&spot) {
+        if let Some(tree) = self.lookup.load(&spot, TARGET_PCT) {
             self.add(generation, table, scenario, flop, tree, 0, report);
             return;
         }
@@ -342,10 +524,7 @@ impl Pool {
             &settings,
             limit,
             |p| {
-                // Exploitability falls about geometrically, so its logarithm measures progress.
-                let e0 = *first.get_or_insert(p.exploitability_pct.max(TARGET_PCT * 1.01));
-                let f = ((e0 / p.exploitability_pct.max(1e-9)).ln() / (e0 / TARGET_PCT).ln()).clamp(0.0, 1.0);
-                let f = f.max(p.iteration as f64 / MAX_ITERATIONS as f64);
+                let f = progress(&mut first, p, TARGET_PCT, MAX_ITERATIONS);
                 let mut inner = self.inner.lock().unwrap();
                 inner.progress = f;
                 if f > 0.05 {
@@ -357,12 +536,15 @@ impl Pool {
                     report(&status_of(&inner));
                 }
             },
-            || self.cancel.load(Ordering::Relaxed) || paused() || self.inner.lock().unwrap().generation != generation,
+            || {
+                let inner = self.inner.lock().unwrap();
+                self.cancel.load(Ordering::Relaxed) || paused() || inner.generation != generation || inner.live_waiting()
+            },
         );
         let secs = start.elapsed().as_secs_f64();
         match result {
             Ok(mut solution) => {
-                self.lookup.save(table, &scenario, &mut solution, &settings);
+                self.lookup.save(table, scenario.seats(), &mut solution, &settings);
                 let memory = solution.summary.memory_bytes;
                 self.inner.lock().unwrap().times.push(secs);
                 self.add(generation, table, scenario, flop, Box::new(solution), memory, report);
@@ -374,6 +556,118 @@ impl Pool {
             }
             Err(e) => self.fail(e, report),
         }
+    }
+
+    /// Solves the live spot asked for most urgently: from a stored solution if one fits,
+    /// else with the live precision.
+    fn solve_live(&self, paused: &dyn Fn() -> bool, live: &dyn Fn(&LiveStatus)) {
+        let (need, generation) = {
+            let mut inner = self.inner.lock().unwrap();
+            let pick = |u: Urgency| inner.live.iter().position(|j| j.urgency == u && matches!(j.state, LiveState::Queued));
+            let Some(i) = pick(Urgency::Now).or_else(|| pick(Urgency::Ahead)) else { return };
+            inner.live[i].state = LiveState::Running;
+            let guess = live_average(&inner.live_times).unwrap_or(LIVE_FIRST_GUESS_SECS);
+            inner.live_solving = Some((Instant::now(), guess));
+            inner.live_progress = 0.0;
+            live(&live_status_of(&inner, &inner.live[i]));
+            (inner.live[i].need.clone(), inner.live_generation)
+        };
+        let finish = |state: LiveState| {
+            let mut inner = self.inner.lock().unwrap();
+            inner.live_solving = None;
+            if let Some(i) = inner.live.iter().position(|j| j.need == need && matches!(j.state, LiveState::Running)) {
+                inner.live[i].state = state;
+                live(&live_status_of(&inner, &inner.live[i]));
+            }
+        };
+        if !need.complete
+            && let Some(tree) = self.lookup.load(&need.spot, LIVE_PCT)
+        {
+            let ready = Ready {
+                id: self.next_id.fetch_add(1, Ordering::Relaxed),
+                source: tree.source(),
+                complete: tree.complete(),
+                exploitability_pct: tree.exploitability_pct(),
+                tree: Arc::new(Mutex::new(tree)),
+            };
+            return finish(LiveState::Ready(ready, 0));
+        }
+        let full = match estimate(&need.spot, u64::MAX, self.live_threads) {
+            Ok(e) => e.memory_bytes,
+            Err(e) => return finish(LiveState::Failed(e.to_string())),
+        };
+        if !self.make_room(full / 2, &need) {
+            let needed = Error::TooLarge { needed: full / 2, limit: self.budget };
+            return finish(LiveState::Failed(needed.to_string()));
+        }
+        let settings = Settings { target_pct: LIVE_PCT, max_iterations: LIVE_MAX_ITERATIONS, threads: self.live_threads };
+        let start = Instant::now();
+        let mut first: Option<f64> = None;
+        let mut last_report = Instant::now();
+        let result = solve(
+            &need.spot,
+            &settings,
+            full.saturating_sub(1),
+            |p| {
+                let f = progress(&mut first, p, LIVE_PCT, LIVE_MAX_ITERATIONS);
+                let mut inner = self.inner.lock().unwrap();
+                inner.live_progress = f;
+                if f > 0.05 {
+                    inner.live_solving = Some((start, start.elapsed().as_secs_f64() / f));
+                }
+                if last_report.elapsed() >= Duration::from_millis(250)
+                    && let Some(j) = inner.live.iter().find(|j| j.need == need)
+                {
+                    last_report = Instant::now();
+                    live(&live_status_of(&inner, j));
+                }
+            },
+            || paused() || self.inner.lock().unwrap().live_generation != generation,
+        );
+        match result {
+            Ok(mut solution) => {
+                self.lookup.save(need.table, need.seats, &mut solution, &settings);
+                self.inner.lock().unwrap().live_times.push(start.elapsed().as_secs_f64());
+                let bytes = solution.summary.memory_bytes;
+                let ready = Ready {
+                    id: self.next_id.fetch_add(1, Ordering::Relaxed),
+                    source: TreeSource::Live,
+                    complete: true,
+                    exploitability_pct: solution.summary.exploitability_pct,
+                    tree: Arc::new(Mutex::new(Box::new(solution) as Box<dyn Tree>)),
+                };
+                finish(LiveState::Ready(ready, bytes));
+            }
+            Err(Error::Cancelled) => {
+                let mut inner = self.inner.lock().unwrap();
+                inner.live_solving = None;
+                // Stopped for PokerStars: it starts again afterwards.
+                if let Some(j) = inner.live.iter_mut().find(|j| j.need == need && matches!(j.state, LiveState::Running)) {
+                    j.state = LiveState::Queued;
+                }
+                if let Some(j) = inner.live.iter().find(|j| j.need == need) {
+                    live(&live_status_of(&inner, j));
+                }
+            }
+            Err(e) => finish(LiveState::Failed(e.to_string())),
+        }
+    }
+
+    /// Frees unused stock spots, oldest first, until `bytes` more fit the budget.
+    fn make_room(&self, bytes: u64, need: &Need) -> bool {
+        let mut inner = self.inner.lock().unwrap();
+        let urgent = inner.live.iter().any(|j| &j.need == need && j.urgency == Urgency::Now);
+        while inner.used() + bytes > self.budget {
+            // Only a hand that waits pushes stock spots out; one asked for ahead does not.
+            let free = urgent.then(|| inner.ready.iter().position(|e| Arc::strong_count(&e.tree) == 1)).flatten();
+            match free {
+                Some(i) => {
+                    inner.ready.remove(i);
+                }
+                None => return false,
+            }
+        }
+        true
     }
 
     fn average(&self) -> Option<f64> {
@@ -449,6 +743,46 @@ impl Pool {
         let flops: Vec<[Card; 3]> =
             self.lookup.flops(&scenario.spot("")).iter().filter_map(|f| parse_flop(f)).filter(|f| !taken.contains(f)).collect();
         (!flops.is_empty()).then(|| flops[rng.random_range(0..flops.len())])
+    }
+}
+
+/// How far a solve is, 0–1. Exploitability falls about geometrically, so its logarithm
+/// measures progress.
+fn progress(first: &mut Option<f64>, p: &ringside_solver::Progress, target_pct: f64, max_iterations: u32) -> f64 {
+    let e0 = *first.get_or_insert(p.exploitability_pct.max(target_pct * 1.01));
+    let f = ((e0 / p.exploitability_pct.max(1e-9)).ln() / (e0 / target_pct).ln()).clamp(0.0, 1.0);
+    f.max(p.iteration as f64 / max_iterations as f64)
+}
+
+fn live_average(times: &[f64]) -> Option<f64> {
+    (!times.is_empty()).then(|| times.iter().sum::<f64>() / times.len() as f64)
+}
+
+fn live_status_of(inner: &Inner, job: &LiveJob) -> LiveStatus {
+    let (status, error) = match &job.state {
+        LiveState::Queued => (Status::Waiting, None),
+        LiveState::Running => (Status::Running, None),
+        LiveState::Ready(..) => (Status::Done, None),
+        LiveState::Failed(e) => (Status::Error, Some(e.clone())),
+        LiveState::Cancelled => (Status::Cancelled, None),
+    };
+    let running = matches!(job.state, LiveState::Running);
+    let secs_left = match (running, inner.live_solving) {
+        (true, Some((start, total))) => Some((total - start.elapsed().as_secs_f64()).max(1.0)),
+        (false, _) if matches!(job.state, LiveState::Queued) => live_average(&inner.live_times),
+        _ => None,
+    };
+    LiveStatus {
+        urgency: job.urgency,
+        status,
+        fraction: match job.state {
+            LiveState::Running => inner.live_progress,
+            LiveState::Ready(..) => 1.0,
+            _ => 0.0,
+        },
+        secs_left,
+        target_pct: LIVE_PCT,
+        error,
     }
 }
 

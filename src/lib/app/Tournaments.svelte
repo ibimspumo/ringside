@@ -1,9 +1,14 @@
 <script lang="ts">
   import { api } from "../api";
+  import { notAnalyzable } from "../coach/meaning";
   import { buyInText, cash, tournamentName } from "../stats";
   import type { Filter, TournamentRow, Tournaments } from "../types";
   import { dateTime, int, sign, signed } from "./format";
   import ResultsChart, { type Series } from "./ResultsChart.svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import Panel from "../ui/Panel.svelte";
+  import Term from "../ui/Term.svelte";
 
   let {
     filter,
@@ -18,14 +23,6 @@
     onHands: (tournament: number) => void;
     onAnalyze: (tournament: number) => void;
   } = $props();
-
-  /** Why the coach cannot analyse this tournament yet, or null. */
-  function notAnalyzable(r: TournamentRow): string | null {
-    if (r.prize === null) return "Erst wenn das Turnier für dich vorbei ist";
-    if (r.game && !r.game.includes("Hold")) return "Der Coach analysiert bisher nur Hold'em";
-    if (r.hands === 0) return "Keine Hände von diesem Turnier gespeichert";
-    return null;
-  }
 
   type Point = { n: number; played_at: string; profit: number; bounties: number };
   type Col = "date" | "game" | "buy_in" | "entrants" | "place" | "prize" | "bounties" | "profit" | "hands";
@@ -44,12 +41,14 @@
 
   let data = $state<Tournaments | null>(null);
   let failed = $state(false);
+  let retry = $state(0);
   let picked = $state<string | null>(null);
   let sortBy = $state<Col>("date");
   let asc = $state(false);
 
   $effect(() => {
     void refresh;
+    void retry;
     const f = { ...filter };
     let live = true;
     api
@@ -69,8 +68,15 @@
   const totals = $derived(currencies.find((t) => t.currency === picked) ?? currencies[0] ?? null);
   const cur = $derived(totals?.currency ?? null);
 
+  const ROI_HELP = "ROI (Return on Investment): Gewinn je eingesetztem Buy-in. +10 % heißt: Für 1 $ Buy-in kamen im Schnitt 1,10 $ zurück.";
+  const ITM_HELP = "ITM (In the Money): Anteil der Turniere, in denen du Preisgeld gewonnen hast.";
+  const BUYIN_HELP = "Buy-in: was du für die Teilnahme zahlst, mit Gebühr, Bounty-Anteil und Re-Entrys.";
+  const BOUNTY_HELP = "Bounty: Geld, das du bekommst, wenn du in einem Knockout-Turnier einen Spieler rauswirfst.";
+  /** Below this many tournaments the ROI is mostly variance. */
+  const FEW = 200;
+
   const signedCash = (amount: number, currency: string | null) => (amount > 0 ? "+" : "") + cash(amount, currency);
-  const percent = (v: number | null, digits = 1) => (v === null ? "–" : `${signed(v, digits)} %`);
+  const percent = (v: number | null, digits = 1) => (v === null ? "–" : `${signed(v, digits)}\u00a0%`);
 
   const points = $derived.by<Point[]>(() => {
     if (!data || !cur) return [];
@@ -87,7 +93,7 @@
   });
   const series = $derived<Series<Point>[]>([
     { key: "profit", label: "Gewinn", color: "var(--text)", width: 2 },
-    ...(totals?.bounties ? [{ key: "bounties" as const, label: "Davon Bounties", color: "var(--sd)", width: 1.5 }] : []),
+    ...(totals?.bounties ? [{ key: "bounties" as const, label: "Bounties (Summe)", color: "var(--sd)", width: 1.5 }] : []),
   ]);
 
   function key(r: TournamentRow, col: Col): number | string | null {
@@ -144,6 +150,12 @@
     return parts.join(" + ");
   }
 
+  /** Share of the field this finish beat, 0–1; null without a place or field size. */
+  function depth(r: TournamentRow): number | null {
+    if (r.place === null || !r.entrants) return null;
+    return Math.min(1, Math.max(0, 1 - (r.place - 1) / r.entrants));
+  }
+
   function resultTitle(r: TournamentRow): string {
     if (r.profit !== null) return `Preis + Bounties − Buy-in${r.has_summary ? "" : " (aus deinen Händen, ohne Zusammenfassung)"}`;
     const chips = r.hands ? ` Chips über ${int(r.hands)} Hände: ${signed(r.chips / 100, 0)}.` : "";
@@ -151,75 +163,121 @@
   }
 </script>
 
-<div class="page">
-  {#if failed}
-    <div class="panel empty-state">Die Turniere konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
-  {:else if data && data.rows.length === 0}
-    <div class="panel empty-state">
-      Noch keine Turniere in diesem Zeitraum. Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem
-      Ordner „TournSummary“ neben „HandHistory“.
-    </div>
-  {:else if data}
-    {#if currencies.length > 1}
-      <div class="seg cur" role="group" aria-label="Währung">
-        {#each currencies as t (t.currency)}
-          <button class:on={t.currency === cur} onclick={() => (picked = t.currency)}>{NAMES[t.currency] ?? t.currency}</button>
-        {/each}
-      </div>
-    {/if}
+{#snippet coachIcon()}<svg class="coach-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"
+    ><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" /></svg
+  >{/snippet}
 
+<div class="page tours">
+  {#if failed}
+    <Panel>
+      <EmptyState
+        tone="error"
+        title="Die Turniere konnten nicht geladen werden."
+        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+      >
+        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+      </EmptyState>
+    </Panel>
+  {:else if data && data.rows.length === 0}
+    <Panel>
+      <EmptyState
+        title="Noch keine Turniere in diesem Zeitraum"
+        text="Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem Ordner „TournSummary“ neben „HandHistory“. Hast du schon gespielt{filter.since !==
+        null
+          ? ', wähle oben „Alles“'
+          : ', prüfe in den Einstellungen den Ordner der Hand-Historys'}."
+      />
+    </Panel>
+  {:else if data}
     {#if totals}
-      <section class="panel kpis">
-        <div class="kpi">
-          <span class="label">Turniere</span>
-          <strong class="num">{int(totals.tournaments)}</strong>
-          <small
-            >{totals.finished === totals.tournaments ? "alle mit Ergebnis" : `${int(totals.finished)} mit Ergebnis`}{unknown
-              ? ` · ${int(unknown)} ohne Währung`
-              : ""}</small
-          >
-        </div>
-        <div class="kpi">
-          <span class="label">Buy-ins gesamt</span>
-          <strong class="num">{cash(totals.cost, cur)}</strong>
-          <small>{totals.finished ? `Ø ${cash(Math.round(totals.cost / totals.finished), cur)}` : "–"}</small>
-        </div>
-        <div class="kpi">
-          <span class="label">Preisgeld</span>
-          <strong class="num">{cash(totals.prizes, cur)}</strong>
-          <small>{int(totals.cashes)}× im Geld</small>
-        </div>
-        <div class="kpi">
-          <span class="label">Bounties</span>
-          <strong class="num">{totals.bounties ? cash(totals.bounties, cur) : "–"}</strong>
-          <small>aus Knockouts</small>
-        </div>
-        <div class="kpi">
-          <span class="label">Gewinn</span>
-          <strong class="num {sign(totals.profit)}">{signedCash(totals.profit, cur)}</strong>
-          <small>nach Buy-ins</small>
-        </div>
-        <div class="kpi split">
-          <div class="pair" title="Return on Investment: Gewinn je eingesetztem Buy-in">
-            <span>ROI</span>
-            <b class="num {sign(totals.roi)}">{percent(totals.roi)}</b>
+      {@const back = totals.prizes + totals.bounties}
+      {@const most = Math.max(totals.cost, back, 1)}
+      <section class="panel verdict">
+        <div class="answer">
+          <div class="eyebrow">
+            <span>Dein Turnier-Ergebnis</span>
+            {#if currencies.length > 1}
+              <div class="seg cur" role="group" aria-label="Währung">
+                {#each currencies as t (t.currency)}
+                  <button class:on={t.currency === cur} onclick={() => (picked = t.currency)}>{NAMES[t.currency] ?? t.currency}</button>
+                {/each}
+              </div>
+            {/if}
           </div>
-          <div class="pair" title="In the Money: Anteil der Turniere mit Preisgeld">
-            <span>ITM</span>
-            <b class="num">{totals.itm === null ? "–" : `${int(totals.itm)} %`}</b>
+          <strong class="big num {sign(totals.profit)}">{signedCash(totals.profit, cur)}</strong>
+          <p class="say">
+            {totals.profit >= 0 ? "Du liegst im Plus" : "Du liegst im Minus"} nach {int(totals.tournaments)}
+            {totals.tournaments === 1 ? "Turnier" : "Turnieren"}, Preisgeld und Bounties minus Buy-ins.
+            {#if totals.tournaments < FEW}<span class="chance"
+                >Turnierergebnisse schwanken stark – unter {FEW} Turnieren ist das vor allem ein Zwischenstand.</span
+              >{/if}
+          </p>
+        </div>
+
+        <div class="flow" aria-label="Eingezahlt und zurückbekommen">
+          <div class="flow-row">
+            <span class="flow-label"><Term tip={BUYIN_HELP}>Buy-ins gesamt</Term></span>
+            <span class="flow-bar"><i class="paid" style="width:{(totals.cost / most) * 100}%"></i></span>
+            <b class="num">{cash(totals.cost, cur)}</b>
+          </div>
+          <div class="flow-row">
+            <span class="flow-label">Zurück</span>
+            <span class="flow-bar">
+              <i class="prize" style="width:{(totals.prizes / most) * 100}%"></i>
+              <i class="bounty" style="width:{(totals.bounties / most) * 100}%"></i>
+            </span>
+            <b class="num">{cash(back, cur)}</b>
+          </div>
+          <div class="flow-key">
+            <span><i class="prize"></i>Preisgeld <b class="num">{cash(totals.prizes, cur)}</b> · {int(totals.cashes)}× im Geld</span>
+            <span
+              ><i class="bounty"></i><Term tip={BOUNTY_HELP}>Bounties</Term>
+              <b class="num">{totals.bounties ? cash(totals.bounties, cur) : "–"}</b> aus Knockouts</span
+            >
           </div>
         </div>
+
+        <dl class="facts">
+          <div>
+            <dt><Term tip={ROI_HELP}>ROI</Term></dt>
+            <dd class="num {sign(totals.roi)}">{percent(totals.roi)}</dd>
+            <small
+              >{totals.roi === null
+                ? "noch kein Buy-in mit Ergebnis"
+                : cur && NAMES[cur]
+                  ? "Gewinn je eingesetztem Buy-in."
+                  : `Für ${cash(100, cur)} Buy-in kamen im Schnitt ${cash(Math.round(100 + totals.roi), cur)} zurück.`}</small
+            >
+          </div>
+          <div>
+            <dt><Term tip={ITM_HELP}>ITM</Term></dt>
+            <dd class="num">{totals.itm === null ? "–" : `${int(totals.itm)}\u00a0%`}</dd>
+            <small>{totals.itm === null ? "noch kein Turnier beendet" : `${int(totals.cashes)} von ${int(totals.finished)} Turnieren mit Preisgeld.`}</small>
+          </div>
+          <div>
+            <dt>Turniere</dt>
+            <dd class="num">{int(totals.tournaments)}</dd>
+            <small
+              >{totals.finished === totals.tournaments ? "alle mit Ergebnis" : `${int(totals.finished)} mit Ergebnis, ${int(totals.tournaments - totals.finished)} noch offen`}{unknown
+                ? ` · ${int(unknown)} ohne Währung`
+                : ""} · Ø Buy-in {totals.finished ? cash(Math.round(totals.cost / totals.finished), cur) : "–"}</small
+            >
+          </div>
+        </dl>
       </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <h2 class="panel-title">Gewinn-Verlauf <span class="faint">· {NAMES[totals.currency] ?? totals.currency}</span></h2>
+      <Panel
+        flush
+        title="Gewinn-Verlauf · {NAMES[totals.currency] ?? totals.currency}"
+        sub="Jeder Schritt ist ein Turnier: nach oben mit Preisgeld oder Bounties, nach unten, wenn der Buy-in weg ist."
+      >
+        {#snippet actions()}
           {#if series.length > 1}
             <div class="legend">
               {#each series as s (s.key)}<span><i class="sw" style="background:{s.color}"></i>{s.label}</span>{/each}
             </div>
           {/if}
-        </div>
+        {/snippet}
         <div class="chart">
           <ResultsChart
             {points}
@@ -233,12 +291,11 @@
             empty="Noch kein Turnier mit Ergebnis in dieser Währung. Ergebnisse kommen aus den Turnier-Zusammenfassungen."
           />
         </div>
-      </section>
+      </Panel>
     {/if}
 
-    <section class="panel list">
-      <div class="scroll">
-        <table class="table">
+    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · Zeile anklicken: Hände ansehen">
+      <table class="table tours-table">
           <thead>
             <tr>
               {#each COLS as [col, label] (col)}
@@ -250,28 +307,38 @@
                   onclick={() => sortOn(col)}>{label}</th
                 >
               {/each}
-              <th><span class="sr">Coach</span></th>
+              <th class="coach-head">Coach</th>
             </tr>
           </thead>
           <tbody>
             {#each rows as r (r.id)}
+              {@const d = depth(r)}
               <tr
                 class:on={r.id === selected}
                 aria-selected={r.id === selected}
                 onclick={() => onHands(r.id)}
                 title="Nur dieses Turnier zeigen und seine Hände öffnen"
               >
-                <td class="date">{r.started_at ? dateTime(r.started_at) : "–"}</td>
+                <td class="date"
+                  >{#if r.started_at}{@const [day, clock] = dateTime(r.started_at).split(". ")}<span class="day">{day}.</span
+                    ><span class="clock">{clock}</span>{:else}–{/if}</td
+                >
                 <td class="game">
                   <span class="gcell">
-                    <span class="gname" title={r.name ? `${r.name} · ${r.game}` : r.game}>{r.name || r.game || "Turnier"}</span>
-                    <span class="faint">#{r.id}</span>
+                    <span class="gname" title="{r.name ? `${r.name} · ${r.game}` : r.game} · #{r.id}">{(r.name || r.game || "Turnier").replace(/ (\S{1,3})$/, "\u00a0$1")}</span>
+                    <span class="gid">#{r.id}</span>
                   </span>
                 </td>
                 <td title={buyInTitle(r)}>{buyInText(r)}</td>
                 <td>{r.entrants === null ? "–" : int(r.entrants)}</td>
                 {#if r.place !== null}
-                  <td>{int(r.place)}.</td>
+                  <td
+                    class="place"
+                    title={d === null ? undefined : `Weiter gekommen als ${Math.round(d * 100)} % des Feldes`}
+                  >
+                    {#if d !== null}<span class="depth" class:paid={!!r.prize} aria-hidden="true"><i style="width:{d * 100}%"></i></span>{/if}
+                    {int(r.place)}.{#if r.entrants}<span class="of">von {int(r.entrants)}</span>{/if}
+                  </td>
                 {:else if r.prize !== null}
                   <td title="Ausgeschieden ohne Preisgeld; den Platz nennt nur die Turnier-Zusammenfassung.">raus</td>
                 {:else}
@@ -279,19 +346,21 @@
                 {/if}
                 <td class:pos={!!r.prize}>{r.prize ? cash(r.prize, r.currency) : "–"}</td>
                 <td>{r.bounties ? cash(r.bounties, r.currency) : "–"}</td>
-                <td class={sign(r.profit)} title={resultTitle(r)}>
+                <td class="{sign(r.profit)} profit" title={resultTitle(r)}>
                   {#if r.profit === null}<span class="unknown">offen</span>{:else}{signedCash(r.profit, r.currency)}{/if}
                 </td>
                 <td>{int(r.hands)}</td>
                 <td class="coach">
                   {#if notAnalyzable(r) === null}
-                    <button
-                      class="btn analyze"
+                    <Button
+                      size="sm"
+                      variant="quiet"
+                      icon={coachIcon}
                       title="Vom KI-Coach analysieren lassen. Vorher siehst du, was gesendet wird und was es kostet."
-                      onclick={(e) => {
+                      onclick={(e: MouseEvent) => {
                         e.stopPropagation();
                         onAnalyze(r.id);
-                      }}>Analysieren</button
+                      }}>Analyse</Button
                     >
                   {:else}
                     <span class="na" title={notAnalyzable(r)}>–</span>
@@ -300,87 +369,165 @@
               </tr>
             {/each}
           </tbody>
-        </table>
-      </div>
-    </section>
+      </table>
+    </Panel>
   {/if}
 </div>
 
 <style>
-  .page {
+  .tours {
+    padding-inline: 24px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 18px;
     padding-top: 20px;
   }
-  .cur {
-    align-self: flex-start;
-  }
-  .kpis {
+
+  /* The answer, where the money went, and what it means. */
+  .verdict {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    grid-template-columns: minmax(260px, 0.9fr) minmax(300px, 1.3fr) minmax(220px, 0.8fr);
   }
-  .kpi {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 14px 16px 15px;
-    border-left: 1px solid var(--line);
+  .verdict > * {
+    padding: 20px 22px 18px;
     min-width: 0;
   }
-  .kpi:first-child {
-    border-left: 0;
+  .verdict > * + * {
+    border-left: 1px solid var(--line);
   }
-  .label {
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .kpi strong {
-    font-size: 24px;
-    font-weight: 600;
-    line-height: 1.15;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .kpi.split {
-    justify-content: center;
+  .answer {
+    display: flex;
+    flex-direction: column;
     gap: 6px;
   }
-  .pair {
+  .eyebrow {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 10px;
-    font-size: 12.5px;
+    min-height: 26px;
+    font-size: var(--fs-md);
     color: var(--text-2);
-    cursor: help;
   }
-  .pair b {
-    font-size: 19px;
+  .cur {
+    flex-shrink: 0;
+  }
+  .big {
+    font-size: var(--fs-hero);
     font-weight: 600;
-    color: var(--text);
-  }
-  .pair b.pos {
-    color: var(--pos);
-  }
-  .pair b.neg {
-    color: var(--neg);
-  }
-  .kpi small {
-    font-size: 12px;
-    color: var(--text-3);
-    overflow: hidden;
-    text-overflow: ellipsis;
+    line-height: 1.05;
     white-space: nowrap;
   }
-  .panel-title .faint {
-    font-weight: 400;
+  .say {
+    margin: 2px 0 0;
+    font-size: var(--fs-base);
+    line-height: 1.5;
   }
+  .say .chance {
+    display: block;
+    margin-top: 4px;
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .flow {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+  }
+  .flow-row {
+    display: grid;
+    grid-template-columns: 104px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+  }
+  .flow-label {
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .flow-row b {
+    min-width: 76px;
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    text-align: right;
+  }
+  .flow-bar {
+    display: flex;
+    gap: 2px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--surface-2);
+    overflow: hidden;
+  }
+  .flow-bar i {
+    transform-origin: left;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
+    display: block;
+    height: 100%;
+  }
+  i.paid {
+    background: var(--text-3);
+  }
+  i.prize {
+    background: var(--pos);
+  }
+  i.bounty {
+    background: var(--sd);
+  }
+  .flow-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    padding-left: 116px;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+  .flow-key i {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    margin-right: 6px;
+    border-radius: 2px;
+  }
+  .flow-key b {
+    font-weight: 500;
+    color: var(--text);
+  }
+  .facts {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+  }
+  .facts div {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    column-gap: 10px;
+  }
+  .facts dt {
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .facts dd {
+    margin: 0;
+    font-size: var(--fs-xl);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .facts small {
+    grid-column: 1 / -1;
+    font-size: var(--fs-md);
+    line-height: 1.4;
+    color: var(--text-2);
+  }
+
   .legend {
     display: flex;
-    gap: 16px;
-    font-size: 12.5px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px 16px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .sw {
@@ -393,16 +540,20 @@
   .chart {
     padding: 10px 14px 10px 4px;
   }
-  .list {
-    overflow: hidden;
+  .tours-table th:nth-child(n + 3) {
+    padding-left: 16px;
   }
-  .scroll {
-    overflow-x: auto;
+  .tours-table th {
+    color: var(--text-2);
   }
-  .table td {
+  .tours-table th:first-child,
+  .tours-table td:first-child {
+    padding-left: var(--sp-4);
+  }
+  .tours-table td {
     padding: 0 10px;
-    height: 32px;
-    font-size: 13.5px;
+    height: 34px;
+    font-size: var(--fs-base);
     white-space: nowrap;
   }
   tbody tr {
@@ -417,10 +568,13 @@
   td.date {
     color: var(--text-2);
   }
+  .clock::before {
+    content: " ";
+  }
   td.game {
     text-align: left;
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .gcell {
     display: flex;
@@ -436,40 +590,138 @@
   th:nth-child(2) {
     text-align: left;
   }
-  .game .faint {
+  .gid {
     flex-shrink: 0;
+    color: var(--text-2);
     font-family: var(--font-num);
-    font-size: 12px;
+    font-size: var(--fs-sm);
+  }
+  td.place {
+    min-width: 96px;
+  }
+  .depth {
+    display: inline-block;
+    width: 40px;
+    height: 4px;
+    margin-right: 8px;
+    vertical-align: 3px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .depth i {
+    transform-origin: left;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
+    display: block;
+    height: 100%;
+    background: var(--text-3);
+  }
+  .depth.paid i {
+    background: var(--pos);
+  }
+  td.profit {
+    font-weight: 600;
   }
   td.coach {
     width: 1%;
     padding-right: 12px;
   }
-  .analyze {
-    height: 24px;
-    padding: 0 9px;
-    font-size: 12px;
+  .coach-icon {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
   }
   .na {
     color: var(--text-3);
     cursor: help;
   }
-  .sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
   .unknown {
     font-family: var(--font-ui);
-    font-size: 12.5px;
-    color: var(--text-3);
+    font-weight: 400;
+    font-size: var(--fs-md);
+    color: var(--text-2);
   }
 
-  @container (max-width: 820px) {
-    .legend {
-      display: none;
+  @container (min-width: 1900px) {
+    .tours {
+      max-width: none;
     }
   }
+  @container (max-width: 1180px) {
+    .verdict {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .flow {
+      grid-column: 1 / -1;
+      grid-row: 2;
+      border-left: 0 !important;
+      border-top: 1px solid var(--line);
+    }
+  }
+  .of {
+    display: block;
+    font-size: var(--fs-xs);
+    line-height: 1.1;
+    color: var(--text-2);
+  }
+  td.place {
+    line-height: 1.2;
+  }
+  /* Narrow windows: the field size moves into the place column so every column fits without scrolling. */
+  @container (max-width: 1000px) {
+    .gcell {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0;
+      line-height: 1.25;
+    }
+    .gid {
+      display: none;
+    }
+    .gname {
+      max-width: 100%;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      white-space: normal;
+      line-height: 1.2;
+    }
+    .tours-table th:nth-child(4),
+    .tours-table td:nth-child(4),
+    .depth {
+      display: none;
+    }
+    .of {
+      display: block;
+      font-size: var(--fs-xs);
+      line-height: 1.1;
+    }
+    td.place {
+      min-width: 0;
+    }
+    .gcell {
+      max-width: 132px;
+    }
+
+    td.date span {
+      display: block;
+      line-height: 1.2;
+    }
+    .clock::before {
+      content: none;
+    }
+    .clock {
+      font-size: var(--fs-sm);
+      color: var(--text-2);
+    }
+    .tours-table td,
+    .tours-table th {
+      padding-left: 6px;
+      padding-right: 6px;
+    }
+  }
+
 </style>

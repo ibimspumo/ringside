@@ -47,6 +47,8 @@ pub const MAX_ITERATIONS: u32 = 4000;
 /// enough hands reach every spot behind a limp for its strategy to mean something.
 pub const OPEN_LIMPS: f64 = 0.03;
 pub const PLAYERS: [usize; 7] = [2, 3, 4, 5, 6, 8, 9];
+/// Table sizes the practice, the charts and the range comparison offer so far.
+pub const OFFERED: [usize; 3] = [6, 8, 9];
 /// Stack depths in BB.
 pub const STACKS: [f64; 8] = [15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 75.0, 100.0];
 const C: usize = NUM_CLASSES;

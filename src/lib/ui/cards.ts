@@ -35,7 +35,8 @@ export function cardFace(card: string): { rank: string; suit: (typeof SUITS)[str
 export function splitCards(text: string): ({ text: string } | { card: string })[] {
   const out: ({ text: string } | { card: string })[] = [];
   // Cards may touch ("AsKs", "A♠K♠"); a lowercase letter or digit after one means it is a word.
-  const re = /(?<=^|[^A-Za-z0-9]|[shdc♠♥♦♣])(10|[2-9TJQKA])([shdc♠♥♦♣])(?![a-z0-9])/g;
+  // A digit may follow only as the rank of the next card ("Kh6d").
+  const re = /(?<=^|[^A-Za-z0-9]|[shdc♠♥♦♣])(10|[2-9TJQKA])([shdc♠♥♦♣])(?![a-z]|\d(?![shdc♠♥♦♣]))/g;
   let at = 0;
   for (const m of text.matchAll(re)) {
     if (m.index > at) out.push({ text: text.slice(at, m.index) });
@@ -43,5 +44,35 @@ export function splitCards(text: string): ({ text: string } | { card: string })[
     at = m.index + m[0].length;
   }
   if (at < text.length) out.push({ text: text.slice(at) });
+  return out;
+}
+
+export type TextPart = { text: string } | { card: string } | { hand: string[]; kind: string; title: string };
+
+const KIND: Record<string, string> = { s: "suited, gleiche Farbe", o: "offsuit, verschiedene Farben", "+": "und besser" };
+
+/**
+ * Like `splitCards`, and also hand classes ("K6o", "99", "T9s", "K8+") as rank pairs. Two digits
+ * alone ("22") count only when they are a pair, and nothing touching a unit (bb, %, $) is a hand.
+ */
+export function splitHands(text: string): TextPart[] {
+  const out: TextPart[] = [];
+  const re = /(?<![\w,.])([AKQJT2-9])([AKQJT2-9])([so]?\+?)(?![\w+]|[,.]\d|\s?(?:bb|BB|%|\$|Tsd))/g;
+  for (const part of splitCards(text)) {
+    if (!("text" in part)) {
+      out.push(part);
+      continue;
+    }
+    let at = 0;
+    for (const m of part.text.matchAll(re)) {
+      const [whole, a, b, kind] = m;
+      if (/\d/.test(a) && /\d/.test(b) && a !== b && !kind) continue;
+      if (m.index > at) out.push({ text: part.text.slice(at, m.index) });
+      const title = [`${a}${b}`, ...[...kind].map((k) => KIND[k])].join(", ");
+      out.push({ hand: [a, b], kind, title });
+      at = m.index + whole.length;
+    }
+    if (at < part.text.length) out.push({ text: part.text.slice(at) });
+  }
   return out;
 }
