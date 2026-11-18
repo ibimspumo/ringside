@@ -234,13 +234,37 @@ impl Db {
     }
 }
 
+/// What became of one pending solution in a run.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Attempt {
+    Verdict(Verdict),
+    /// Not tried: unknown kind or engine version, no time left or slow checks used up.
+    PutOff,
+    /// Tried without a verdict (time limit, crash): a running out clock says nothing about
+    /// the solution, so it stays pending and the try is noted for the next run.
+    NoVerdict(String),
+}
+
+impl Attempt {
+    pub fn verdict(self) -> Option<Verdict> {
+        match self {
+            Attempt::Verdict(v) => Some(v),
+            Attempt::PutOff | Attempt::NoVerdict(_) => None,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Checked {
     pub key: String,
     pub kind: String,
-    /// `None` if this verifier does not know the kind or engine version, or the check was
-    /// put off (left pending).
-    pub verdict: Option<Verdict>,
+    pub attempt: Attempt,
+}
+
+/// The note of a pending row after one more try without a verdict, counting the tries.
+pub fn no_verdict_note(previous: Option<&str>, reason: &str) -> String {
+    let tries = previous.and_then(|n| n.split_once(" tries")).and_then(|(n, _)| n.parse::<u32>().ok()).unwrap_or(0);
+    format!("{} tries without verdict, last: {reason}", tries + 1)
 }
 
 fn gunzip(bytes: &[u8]) -> Result<String, String> {
@@ -261,40 +285,50 @@ fn gzip(text: &str) -> Vec<u8> {
     e.finish().expect("writing to memory")
 }
 
-/// Checks a stored row: (kind, key, canonical input JSON, result JSON) → verdict, or
-/// `None` to leave it pending.
-pub type Check<'a> = &'a dyn Fn(&KindEntry, &str, &str, &str) -> Option<Verdict>;
+/// Checks a stored row: (kind, key, canonical input JSON, result JSON) → attempt.
+pub type Check<'a> = &'a dyn Fn(&KindEntry, &str, &str, &str) -> Attempt;
 
 /// Runs a kind's check in this process.
-pub fn check_here(entry: &KindEntry, key: &str, input: &str, result: &str) -> Option<Verdict> {
-    Some((entry.check)(key, input, result))
+pub fn check_here(entry: &KindEntry, key: &str, input: &str, result: &str) -> Attempt {
+    Attempt::Verdict((entry.check)(key, input, result))
 }
 
 pub struct VerifyOptions<'a> {
     /// Only these keys, if given.
     pub keys: Option<&'a [String]>,
-    /// Most solutions read in one run.
+    /// Most solutions read in one call.
     pub limit: u32,
+    /// Pending solutions to pass over first: the ones an earlier call left in line.
+    pub offset: u32,
+    /// Leave out rows tried without a verdict at or after this (unix seconds), i.e. in
+    /// this run.
+    pub tried_since: Option<i64>,
     /// Start no further check after this; the rest stays pending for the next run.
     pub deadline: Option<Instant>,
     /// Only report verdicts.
     pub dry_run: bool,
 }
 
-/// Checks pending solutions oldest first with `check` and stores each verdict unless
-/// `dry_run`.
+/// Checks pending solutions with `check`, never tried ones oldest first, then the ones
+/// that went without a verdict longest ago, and stores each outcome unless `dry_run`.
 pub fn verify_pending(db: &Db, opts: &VerifyOptions, check: Check) -> Result<Vec<Checked>, String> {
     let (keys, limit, dry_run) = (opts.keys, opts.limit, opts.dry_run);
     let mut sql = String::from(
-        "SELECT key, kind, engine_version, input, result, submitted_at FROM solutions WHERE status = 'submitted'",
+        "SELECT key, kind, engine_version, input, result, submitted_at, check_note FROM solutions \
+         WHERE status = 'submitted'",
     );
     let mut args: Vec<SqlValue> = Vec::new();
     if let Some(keys) = keys {
         sql.push_str(&format!(" AND key IN ({})", vec!["?"; keys.len()].join(",")));
         args.extend(keys.iter().map(|k| SqlValue::from(k.as_str())));
     }
-    sql.push_str(" ORDER BY submitted_at LIMIT ?");
+    if let Some(t) = opts.tried_since {
+        sql.push_str(" AND (checked_at IS NULL OR checked_at < ?)");
+        args.push(t.into());
+    }
+    sql.push_str(" ORDER BY checked_at IS NOT NULL, checked_at, submitted_at LIMIT ? OFFSET ?");
     args.push(SqlValue::Integer(limit as i64));
+    args.push(SqlValue::Integer(opts.offset as i64));
     let [rows] = <[Rows; 1]>::try_from(db.execute(&[(&sql, args)])?).map_err(|_| "one result expected")?;
 
     let mut out = Vec::new();
@@ -306,61 +340,69 @@ pub fn verify_pending(db: &Db, opts: &VerifyOptions, check: Check) -> Result<Vec
         let kind = rows.col(i, "kind").as_str().unwrap_or_default().to_string();
         let version = rows.col(i, "engine_version").as_i64().unwrap_or(-1);
         let Some(entry) = u32::try_from(version).ok().and_then(|v| kinds::find(&kind, v)) else {
-            out.push(Checked { key, kind, verdict: None });
+            out.push(Checked { key, kind, attempt: Attempt::PutOff });
             continue;
         };
         let input = rows.col(i, "input").as_str().unwrap_or_default();
-        let verdict = match rows.col(i, "result") {
+        let attempt = match rows.col(i, "result") {
             SqlValue::Blob(b) => match gunzip(b) {
                 Ok(result) => check(entry, &key, input, &result),
-                Err(reason) => Some(Verdict::Rejected { exploitability: None, reason }),
+                Err(reason) => Attempt::Verdict(Verdict::Rejected { exploitability: None, reason }),
             },
-            _ => Some(Verdict::Rejected { exploitability: None, reason: "result is not a blob".into() }),
-        };
-        let Some(verdict) = verdict else {
-            out.push(Checked { key, kind, verdict: None });
-            continue;
+            _ => Attempt::Verdict(Verdict::Rejected { exploitability: None, reason: "result is not a blob".into() }),
         };
         if !dry_run {
-            let (status, exploitability, note) = match &verdict {
-                Verdict::Verified { exploitability, .. } => ("verified", Some(*exploitability), None),
-                Verdict::Rejected { exploitability, reason } => ("rejected", *exploitability, Some(reason.as_str())),
-            };
             let submitted_at = rows.col(i, "submitted_at").clone();
-            let mut stmts = vec![(
-                "UPDATE solutions SET status = ?, exploitability = ?, checked_at = ?, check_note = ? \
-                 WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
-                vec![
-                    status.into(),
-                    exploitability.map_or(SqlValue::Null, SqlValue::Float),
-                    now().into(),
-                    note.map_or(SqlValue::Null, SqlValue::from),
-                    key.as_str().into(),
-                    submitted_at.clone(),
-                ],
-            )];
-            // The verifier's own rebuild replaces the submitted result first, so a row
-            // never turns verified with the submitted one.
-            if let Verdict::Verified { result: Some(result), .. } = &verdict {
-                stmts.insert(
-                    0,
-                    (
-                        "UPDATE solutions SET result = ?, result_size = ? \
-                         WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
-                        vec![
-                            SqlValue::Blob(gzip(result)),
-                            (result.len() as i64).into(),
-                            key.as_str().into(),
-                            submitted_at,
-                        ],
-                    ),
-                );
+            let stmts = match &attempt {
+                Attempt::PutOff => Vec::new(),
+                Attempt::NoVerdict(reason) => vec![(
+                    "UPDATE solutions SET checked_at = ?, check_note = ? \
+                     WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
+                    vec![
+                        now().into(),
+                        no_verdict_note(rows.col(i, "check_note").as_str(), reason).as_str().into(),
+                        key.as_str().into(),
+                        submitted_at,
+                    ],
+                )],
+                Attempt::Verdict(verdict) => verdict_statements(verdict, &key, submitted_at),
+            };
+            if !stmts.is_empty() {
+                db.execute(&stmts)?;
             }
-            db.execute(&stmts)?;
         }
-        out.push(Checked { key, kind, verdict: Some(verdict) });
+        out.push(Checked { key, kind, attempt });
     }
     Ok(out)
+}
+
+fn verdict_statements(verdict: &Verdict, key: &str, submitted_at: SqlValue) -> Vec<(&'static str, Vec<SqlValue>)> {
+    let (status, exploitability, note) = match verdict {
+        Verdict::Verified { exploitability, .. } => ("verified", Some(*exploitability), None),
+        Verdict::Rejected { exploitability, reason } => ("rejected", *exploitability, Some(reason.as_str())),
+    };
+    let mut stmts = Vec::new();
+    // The verifier's own rebuild replaces the submitted result first, so a row never
+    // turns verified with the submitted one.
+    if let Verdict::Verified { result: Some(result), .. } = verdict {
+        stmts.push((
+            "UPDATE solutions SET result = ?, result_size = ? WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
+            vec![SqlValue::Blob(gzip(result)), (result.len() as i64).into(), key.into(), submitted_at.clone()],
+        ));
+    }
+    stmts.push((
+        "UPDATE solutions SET status = ?, exploitability = ?, checked_at = ?, check_note = ? \
+         WHERE key = ? AND status = 'submitted' AND submitted_at = ?",
+        vec![
+            status.into(),
+            exploitability.map_or(SqlValue::Null, SqlValue::Float),
+            now().into(),
+            note.map_or(SqlValue::Null, SqlValue::from),
+            key.into(),
+            submitted_at,
+        ],
+    ));
+    stmts
 }
 
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -558,6 +600,14 @@ mod tests {
         }
         let padded = json!({"type": "blob", "base64": "AP8H"});
         assert_eq!(SqlValue::from_wire(&padded).unwrap(), SqlValue::Blob(vec![0, 255, 7]));
+    }
+
+    #[test]
+    fn tries_without_verdict_are_counted_in_the_note() {
+        let first = no_verdict_note(None, "check took longer than 900s");
+        assert_eq!(first, "1 tries without verdict, last: check took longer than 900s");
+        assert_eq!(no_verdict_note(Some(&first), "check crashed"), "2 tries without verdict, last: check crashed");
+        assert_eq!(no_verdict_note(Some("something else"), "x"), "1 tries without verdict, last: x");
     }
 
     #[test]

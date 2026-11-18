@@ -105,8 +105,8 @@ fn served<K: Kind>(client: &Client, input: &K::Input) -> Result<Option<K::Soluti
 /// Checks only this run's keys, in this process.
 fn verify(db: &Db, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
     let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
-    let opts = VerifyOptions { keys: Some(&plain), limit: 10, deadline: None, dry_run: false };
-    Ok(verify_pending(db, &opts, &check_here)?.into_iter().map(|c| (c.key, c.verdict)).collect())
+    let opts = VerifyOptions { keys: Some(&plain), limit: 10, offset: 0, tried_since: None, deadline: None, dry_run: false };
+    Ok(verify_pending(db, &opts, &check_here)?.into_iter().map(|c| (c.key, c.attempt.verdict())).collect())
 }
 
 fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
