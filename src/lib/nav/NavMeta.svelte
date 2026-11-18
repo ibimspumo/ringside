@@ -3,15 +3,24 @@
 
   /**
    * Open tables and stored hands in the top bar: is Ringside watching, and how much does it know.
-   * `words` adds "im Blick" and "gespeichert"; the hand count stays in the page even when hidden.
+   * `words` adds "im Blick" and "gespeichert", `short` leaves the dot and the number of tables. The
+   * hand count stays in the page even when hidden.
    */
-  let { tables, hands, words, showHands }: { tables: number; hands: number; words: boolean; showHands: boolean } = $props();
+  let {
+    tables,
+    hands,
+    words,
+    showHands,
+    short = false,
+  }: { tables: number; hands: number; words: boolean; showHands: boolean; short?: boolean } = $props();
 </script>
 
 <span class="meta">
-  <span class="live" class:active={tables > 0}>
+  <span class="live" class:active={tables > 0} title={short ? (tables === 0 ? "Kein Tisch offen" : `${tables} ${tables === 1 ? "Tisch" : "Tische"} im Blick`) : undefined}>
     <span class="dot"></span>
-    <span>{#if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}{#if words}&nbsp;im Blick{/if}{/if}</span>
+    <span
+      >{#if short}{tables}{:else if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}{#if words}&nbsp;im Blick{/if}{/if}</span
+    >
   </span>
   <span class="stored" class:gone={!showHands}><b class="num">{int(hands)}</b> Hände{#if words}&nbsp;gespeichert{/if}</span>
 </span>

@@ -33,7 +33,11 @@
   </div>
 {:else if status && status.dirs.length === 0 && !settingsOpen}
   <div class="strip warn">
-    <b><Term tip={HOW}>PokerStars speichert noch keine Hände</Term></b>
+    <b class="title"
+      ><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13zM8 6.5v3.5M8 11.8v.2" /></svg><Term tip={HOW}
+        >PokerStars speichert noch keine Hände</Term
+      ></b
+    >
     <span class="how long">{HOW}</span>
     <span class="how short" title={HOW}>In PokerStars: Einstellungen → Spielhistorie → speichern.</span>
     <Button size="sm" onclick={onChooseFolder}>Ordner selbst wählen</Button>
@@ -78,8 +82,23 @@
       display: none;
     }
   }
+  /* Something to do: amber edge and sign, louder than the notes that only inform. */
   .warn {
     background: var(--surface-2);
+    box-shadow: inset 3px 0 0 var(--amber);
+  }
+  .title {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+  }
+  .title svg {
+    flex-shrink: 0;
+    fill: none;
+    stroke: var(--amber);
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .warn :global(.ui-btn) {
     grid-column: 3;

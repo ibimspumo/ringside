@@ -125,7 +125,8 @@
   /** What a tab shows at rest: the first value in its area that calls for something. */
   function badge(area: Area): Live | undefined {
     if (longMark && area.id === "spiel") return { text: longMark, long: longMark, line: longMark, tone: "warn" };
-    for (const p of area.pages) {
+    // Open tables have their own place at the right of the bar.
+    for (const p of area.pages.filter((p) => p !== "live")) {
       const l = navLive.of(p, locked);
       if (l && l.tone !== "neutral") return l;
     }
@@ -134,12 +135,12 @@
 
   /*
    * Folding of the bar when room runs short, one step at a time. What also shows elsewhere goes
-   * first, the marks keep words as long as they can, the lock note goes last:
+   * first; marks and open tables keep words as long as they can:
    *   1 status without "im Blick" / "gespeichert"   2 hand count off
    *   3 lock note short ("PokerStars läuft")         4 name "Ringside" off
-   *   5 open tables off (the Gegner mark keeps them) 6 tasks as their ring only
+   *   5 tasks as their ring only                     6 lock note as its icon (tabs and page keep theirs)
    *   7 tab icons off                                8 marks shorter ("4 gefunden")
-   *   9 marks as a number ("4")                     10 lock note as its icon only
+   *   9 marks as a number ("4")                     10 open tables as dot and number
    *  11 marks off (the menus keep them)
    */
   let step = $state(0);
@@ -198,7 +199,7 @@
         {#each AREAS as area (area.id)}
           {@const single = area.pages.length === 1}
           {@const mark = badge(area)}
-          {@const shut = area.pages.some(lockedNow)}
+          {@const shut = area.pages.every(lockedNow)}
           <NavItem
             size="top"
             label={area.label}
@@ -209,7 +210,7 @@
             status={mark && step < 11 ? (step < 8 ? (mark.line ?? mark.long) : step < 9 ? mark.long : mark.text) : undefined}
             tone={mark?.tone}
             locked={shut}
-            title={shut ? "Teile sind gesperrt, solange PokerStars läuft" : undefined}
+            title={shut ? "Gesperrt, solange PokerStars läuft" : undefined}
             aria-haspopup={single ? undefined : "true"}
             aria-expanded={single ? undefined : open === area.id}
             aria-controls={single ? undefined : "nav-menu"}
@@ -223,13 +224,11 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 3 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "PokerStars läuft" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 3 ? "PokerStars läuft: Teile gesperrt" : step < 6 ? "PokerStars läuft" : ""} />
           </span>
         {/if}
-        {#if step < 5}
-          <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} /></span>
-        {/if}
-        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 6} /></span>
+        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 10} /></span>
+        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 5} /></span>
         <span class="item gear" class:on={tab === "settings"} data-bar-item>
           <IconButton label="Einstellungen" aria-current={tab === "settings" ? "page" : undefined} onclick={() => go("settings")}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={PAGES.settings.icon} /></svg>

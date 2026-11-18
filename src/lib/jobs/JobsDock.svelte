@@ -10,7 +10,7 @@
     onView,
     placement = "side",
     compact = false,
-  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** Only the ring; its name says the state. */ compact?: boolean } = $props();
+  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** The ring and the state in one short line, without the word "Aufgaben". */ compact?: boolean } = $props();
 
   onMount(startJobs);
 
@@ -71,10 +71,14 @@
   onclick={() => (jobs.open = !jobs.open)}
 >
   <ChipRing {share} count={active.length} dim={jobs.locked} size={30} />
-  <span class="txt">
-    <b>Aufgaben</b>
-    <small>{summary}</small>
-  </span>
+  {#if !compact}
+    <span class="txt">
+      <b>Aufgaben</b>
+      <small>{summary}</small>
+    </span>
+  {:else if active.length}
+    <span class="txt"><small>{summary}</small></span>
+  {/if}
 </button>
 
 {#if jobs.open}
@@ -188,9 +192,6 @@
   .dock[aria-expanded="true"] {
     background: var(--surface);
     border-color: var(--line);
-  }
-  .compact .txt {
-    display: none;
   }
   .txt {
     display: grid;

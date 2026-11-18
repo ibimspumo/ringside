@@ -180,7 +180,8 @@
     bottom: -10px;
   }
 
-  /* Tab of the row under the top bar: quieter, the page on screen underlined like the bar above. */
+  /* Tab of the row under the top bar: quieter; the page on screen is a filled pill, so this level
+     reads apart from the bar above and the page's own sections below. */
   .sub {
     height: 32px;
     padding: 0 10px;
@@ -191,10 +192,11 @@
     width: 16px;
     height: 16px;
   }
-  .sub::before {
-    left: 10px;
-    right: 10px;
-    bottom: -4px;
+  .sub.on {
+    background: var(--surface-2);
+  }
+  .sub.on::before {
+    content: none;
   }
 
   /* Menu entry: name, a sentence and the live value below. */
