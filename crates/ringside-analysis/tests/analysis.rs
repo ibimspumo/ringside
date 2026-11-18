@@ -53,7 +53,7 @@ fn push_fold_mistake_is_found() {
     assert_eq!(d.best.as_deref(), Some("All-in"));
     assert!(d.rating >= Some(Rating::Inaccuracy), "{d:?}");
     assert!(d.ev_loss_bb.unwrap() > 0.2, "{d:?}");
-    assert!(d.why.contains("Shove-Range"), "{}", d.why);
+    assert!(d.why.contains("K6o gehört zu den besten"), "{}", d.why);
     assert!(a.job.is_none());
 }
 
@@ -209,6 +209,10 @@ fn postflop_spot_is_queued_and_rated() {
     let [d] = solved.as_slice() else { panic!("{solved:?}") };
     assert_eq!((d.status, d.source, d.spot), (Status::Rated, Some(Source::Solver), SpotType::CBet));
     assert!(d.solver.as_deref().unwrap().contains("\"path\""));
+    assert!(d.why.contains("Drittel deiner Range") && d.why.contains("Equity"), "{}", d.why);
+    if std::env::var_os("RINGSIDE_PRINT_WHY").is_some() {
+        println!("Solver {}: {}", d.played, d.why);
+    }
     db.finish_postflop(id, &solved).unwrap();
     let counts = db.analysis_counts(ringside_analysis::ENGINE).unwrap();
     assert_eq!((counts.queued, counts.pending, counts.rated), (0, 0, 2));

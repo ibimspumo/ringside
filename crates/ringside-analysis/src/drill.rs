@@ -150,8 +150,6 @@ pub fn answer(d: &Decision, choice: usize) -> Result<Answered, String> {
     out.played_freq = Some(j.frequency);
     out.rating = Some(rating(j.grade));
     out.ev_loss_bb = Some(j.loss_bb.unwrap_or(0.0).max(0.0));
-    // The stored reason speaks of the action played back then.
-    out.why = String::new();
     Ok(Answered { decision: out, score: j.grade.points() / 100.0 })
 }
 

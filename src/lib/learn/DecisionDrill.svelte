@@ -57,14 +57,7 @@
     return `${base} In etwa ${Math.round(spot.reliability * 10)} von 10 Prüf-Spots lag sie höchstens eine Stufe neben der Lösung.`;
   });
   const then = $derived(result?.then ?? null);
-  /**
-   * The verdict with the reason from the hand analysis: the drill drops it because it may speak of
-   * the action played then, but the estimate's reason is about the hand (equity, pot odds) and holds
-   * for the same cards.
-   */
-  const decision = $derived(
-    result && real && result.decision.source === "estimate" && !result.decision.why && then?.why ? { ...result.decision, why: then.why } : (result?.decision ?? null),
-  );
+  const decision = $derived(result?.decision ?? null);
   /** "Verlässlichkeit 7 von 10" beside an estimate, so its weight is seen without hovering. */
   const reliability = $derived(spot.source === "estimate" && spot.reliability !== null ? `liegt in ${Math.round(spot.reliability * 10)} von 10 geprüften Lagen richtig` : null);
 

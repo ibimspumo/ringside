@@ -10,12 +10,12 @@ use ringside_core::stats::position_labels;
 use ringside_engine::preflop::{Kind, Solution, Step, taken};
 use ringside_engine::preflop_table::{self, Ante, Family, LIMP_PLAYERS, ModelLine, STACKS};
 use ringside_engine::pushfold_table::{BB_ANTE_BB, CLASSIC_ANTE_BB};
-use ringside_engine::range::NUM_CLASSES;
+use ringside_engine::range::{HandClass, NUM_CLASSES};
 
 use crate::fmt::bb;
 use crate::replay::FlopRanges;
 use crate::seats::{Table, ante_name, nearest, table};
-use crate::{ChartKind, ChartTarget, base_at, hero_actions, pot_before, pushfold, score, unrated};
+use crate::{ChartKind, ChartTarget, base_at, hero_actions, pot_before, pushfold, score, unrated, why};
 
 type Key = (Family, Ante, usize, u64);
 const CACHE_LIMIT: usize = 24;
@@ -299,8 +299,9 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                     });
                 }
                 let pot = pot_before(hand, index);
-                decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |_| {
-                    format!("Gerechnet für {pos} mit {} Tiefe.", bb(stack))
+                let facts = ranked(node, class, &t.class().to_string(), format!("Als {pos} bei {} Tiefe", bb(stack)));
+                decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |d| {
+                    why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0))
                 }));
             }
         }
@@ -356,6 +357,33 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
         }
     };
     Preflop { decisions, flop, ranges, targets }
+}
+
+/// Where class `class` stands among the hands that reach `node`: the moves other than the
+/// passive one (fold, else check or call), how much of the range takes them, and the share
+/// of the range for which they bring more over the passive move than for the hero's hand.
+fn ranked(node: &ringside_engine::preflop::Node, class: usize, name: &str, place: String) -> why::Ranked {
+    let kinds: Vec<why::Move> = node.actions.iter().map(|a| why::Move::of(kind_key(a.kind))).collect();
+    let base = kinds.iter().position(|&m| m == why::Move::Fold).or_else(|| kinds.iter().position(|m| !m.aggressive())).unwrap_or(0);
+    let others: Vec<usize> = (0..kinds.len()).filter(|&k| k != base).collect();
+    let mut moves: Vec<why::Move> = others.iter().map(|&k| kinds[k]).collect();
+    moves.dedup();
+    let act = match moves.as_slice() {
+        [one] => Some(*one),
+        _ if kinds[base] == why::Move::Fold => None,
+        _ => Some(why::Move::Raise),
+    };
+    let combos = |c: usize| HandClass::from_index(c).combo_count() as f64;
+    let reach = |c: usize| node.freq.iter().map(|f| f[c]).sum::<f64>();
+    let margin = |c: usize| others.iter().map(|&k| node.ev[k][c]).fold(f64::NEG_INFINITY, f64::max) - node.ev[base][c];
+    let total: f64 = (0..NUM_CLASSES).map(|c| combos(c) * reach(c)).sum();
+    let share = (0..NUM_CLASSES).map(|c| combos(c) * others.iter().map(|&k| node.freq[k][c]).sum::<f64>()).sum::<f64>() / total.max(1e-9);
+    let mine = margin(class);
+    let above: f64 = (0..NUM_CLASSES)
+        .filter(|&c| reach(c) > 0.0)
+        .map(|c| combos(c) * reach(c) * if c == class { 0.5 } else if margin(c) > mine { 1.0 } else { 0.0 })
+        .sum();
+    why::Ranked { chart: why::Chart::Model, place, act, share, all_hands: false, class: name.to_string(), rank: above / total.max(1e-9) }
 }
 
 fn range_note(line: &[Step], seat: usize, position: &str) -> String {

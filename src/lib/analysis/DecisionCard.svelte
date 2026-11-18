@@ -56,27 +56,26 @@
   /** A mistake that still wins: counted from now on, the played move brings a profit, just less. */
   const stillWins = $derived.by(() => {
     if (!played || played.ev_bb === null || !d.source || EV_FROM[d.source] !== "now" || !better || grade === "best" || grade === "mix") return null;
-    if (played.ev_bb < 0.005) return null;
+    // Folding wins nothing; a positive number there is the estimate's shrunken gap, not a profit.
+    if (played.ev_bb < 0.005 || played.kind === "fold") return null;
     return `Dein ${played.label} bringt auch Gewinn (${fmtBb(played.ev_bb, { digits: 2, sign: true })}), ${better} bringt noch mehr.`;
   });
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
 
-  /** The reason under the verdict: the practice's sentences, then what the source adds. */
-  const reason = $derived.by(() => {
-    if (!d.source || !played) return d.why;
+  /** What the source plays with the hand, in the practice's sentences; the reason itself stands in "Warum?". */
+  const plays = $derived.by(() => {
+    if (!d.source || !played) return "";
     if (d.source === "estimate") {
       // The estimate rates the kind of move, not its size.
       const word = (c: Choice) => (c.kind ? MOVE_WORD[c.kind] : "Setzen oder Erhöhen");
       const kinds = [...new Set(d.strategy.filter((c) => c.freq > 0).map(word))];
-      const lead = kinds.length ? `Nach der Einschätzung ist hier ${kinds.join(" oder ")} am besten; die Größe bewertet sie nicht.` : "";
-      return `${lead} ${d.why}`.trim();
+      return kinds.length ? `Nach der Einschätzung ist hier ${kinds.join(" oder ")} am besten; die Größe bewertet sie nicht.` : "";
     }
     const who = WHO[d.source];
     if (d.rating === "mix" && main) {
       return mixText(who, "deiner Hand", { kind: kind(main), f: main.freq, ev: main.ev_bb }, { kind: kind(played), f: played.freq, ev: played.ev_bb });
     }
-    const plays = playsLine(who, "deiner Hand", d.strategy.map((c) => ({ kind: kind(c), f: c.freq })));
-    return d.why ? `${plays} ${d.why}` : plays;
+    return playsLine(who, "deiner Hand", d.strategy.map((c) => ({ kind: kind(c), f: c.freq })));
   });
 
   const prefill = $derived.by((): SolverPrefill | null => {
@@ -120,10 +119,11 @@
       {potShare}
       context={d.source === "estimate" ? `${context} · geschätzt` : context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
+      reason={d.why || undefined}
       source={quiet && kit ? kit : undefined}
     >
       {#if stillWins}<p class="still">{stillWins}</p>{/if}
-      <p>{reason}{#if mainBelowTop}{" "}{mainBelowTop}{/if}</p>
+      {#if plays || mainBelowTop}<p>{plays}{#if mainBelowTop}{" "}{mainBelowTop}{/if}</p>{/if}
       {#snippet actions()}
         {#if onLearn && grade !== "best" && grade !== "mix"}
           {#each LEARN[d.spot] as l (l.label)}
