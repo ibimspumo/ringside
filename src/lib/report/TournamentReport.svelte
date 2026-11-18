@@ -255,7 +255,11 @@
           <GradeBars counts={gradeCounts} label="Deine Entscheidungen nach Stufe" />
         {:else}
           <strong class="big">Noch nichts bewertet</strong>
-          <span class="say">Ringside bewertet die Hände, sobald PokerStars geschlossen ist. Danach steht hier, wie gut du gespielt hast.</span>
+          <span class="say"
+            >{t.game && !t.game.includes("Hold'em")
+              ? "Ringside bewertet bisher nur No-Limit Hold'em. Ergebnis, Glück und Verlauf stehen trotzdem hier."
+              : "Ringside bewertet die Hände, sobald PokerStars geschlossen ist. Danach steht hier, wie gut du gespielt hast."}</span
+          >
         {/if}
       </div>
     </section>
