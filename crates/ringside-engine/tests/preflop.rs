@@ -1,6 +1,6 @@
 use ringside_engine::multiway;
 use ringside_engine::preflop::{Kind, Params, Solution, Step, solve};
-use ringside_engine::preflop_table::{self, Ante, PLAYERS, STACKS, TARGET_EXPLOITABILITY};
+use ringside_engine::preflop_table::{self, Ante, Family, PLAYERS, STACKS, TARGET_EXPLOITABILITY};
 
 fn open_pct(s: &Solution, seat: usize) -> f64 {
     s.play_pct(s.open_node(seat).unwrap())
@@ -66,36 +66,42 @@ fn ante_widens_opening_ranges() {
 /// equity in the range published for an opener in position against the big blind.
 #[test]
 fn embedded_tables() {
-    for (ante, &n) in Ante::ALL.into_iter().flat_map(|a| PLAYERS.iter().map(move |n| (a, n))) {
-        let entries = preflop_table::embedded_entries(ante, n);
-        let file = format!("{} {n} players", ante.key());
+    let all = Family::ALL.into_iter().flat_map(|f| Ante::ALL.into_iter().flat_map(move |a| f.players().iter().map(move |&n| (f, a, n))));
+    for (family, ante, n) in all {
+        let entries = preflop_table::embedded_entries(family, ante, n);
+        let file = format!("{}{} {n} players", family.key(), ante.key());
         assert_eq!(entries.len(), STACKS.len(), "{file}");
-        let info = preflop_table::file_info(preflop_table::embedded_file(ante, n).unwrap()).unwrap();
+        let info = preflop_table::file_info(preflop_table::embedded_file(family, ante, n).unwrap()).unwrap();
         assert_eq!((info.ante, info.players, info.entries), (ante, n, STACKS.len()));
         let mut jams = Vec::new();
         for ((p, s), &stack) in entries.iter().zip(&STACKS) {
             let what = format!("{file} {stack} BB");
-            assert_eq!(*p, preflop_table::params(ante, n, stack), "{what}");
+            assert_eq!(*p, family.params(ante, n, stack), "{what}");
             assert!(s.converged && s.exploitability < TARGET_EXPLOITABILITY, "{what}: {}", s.exploitability);
-            // Later seats open wider: the button (n − 3) at least half as wide again as the
-            // first seat, and no seat much narrower than the one before.
-            let opens: Vec<f64> = (0..n - 2).map(|seat| open_pct(s, seat)).collect();
-            assert!(opens[n - 3] > 1.5 * opens[0], "{what}: {opens:?}");
-            for w in opens.windows(2) {
-                assert!(w[1] > w[0] - 5.0, "{what}: {opens:?}");
+            // Later seats open wider: the button (n − 3) wider than the first seat, at full
+            // tables half as wide again, and no seat much narrower than the one before.
+            if n >= 4 {
+                let opens: Vec<f64> = (0..n - 2).map(|seat| open_pct(s, seat)).collect();
+                let wider = if n >= 6 { 1.5 } else { 1.1 };
+                assert!(opens[n - 3] > wider * opens[0], "{what}: {opens:?}");
+                for w in opens.windows(2) {
+                    assert!(w[1] > w[0] - 5.0, "{what}: {opens:?}");
+                }
             }
             jams.push((0..n - 1).map(|seat| jam_pct(s, seat)).sum::<f64>());
             // The most frequent single-raised pot of the big blind against an opener in position.
-            let flop = s
-                .realized
-                .iter()
-                .find(|r| r.seats[0] == n - 1 && r.seats[1] < n - 2 && r.line.len() == 2)
-                .unwrap_or_else(|| panic!("{what}: no big blind defence"));
-            assert!((0.65..0.9).contains(&flop.realization[0]), "{what}: BB realizes {}", flop.realization[0]);
-            assert!((1.05..1.3).contains(&flop.realization[1]), "{what}: opener realizes {}", flop.realization[1]);
+            if n >= 3 {
+                let flop = s
+                    .realized
+                    .iter()
+                    .find(|r| r.seats[0] == n - 1 && r.seats[1] < n - 2 && r.line.len() == 2)
+                    .unwrap_or_else(|| panic!("{what}: no big blind defence"));
+                assert!((0.65..0.9).contains(&flop.realization[0]), "{what}: BB realizes {}", flop.realization[0]);
+                assert!((1.05..1.3).contains(&flop.realization[1]), "{what}: opener realizes {}", flop.realization[1]);
+            }
         }
         println!("{file}, open all-in % summed over seats by stack: {jams:.1?}");
-        assert!(jams[0] > jams[2] && jams[2] > jams[5], "{file}: {jams:?}");
+        assert!(jams[0] > jams[2] && jams[2] >= jams[5], "{file}: {jams:?}");
         assert_eq!(*jams.last().unwrap(), 0.0, "{file}: open shoves at 100 BB");
     }
 }

@@ -19,11 +19,13 @@ pub fn num(x: f64) -> String {
     }
 }
 
-/// What a player did, sizes in BB: "Fold", "Call 3 BB", "Raise auf 2,2 BB", "All-in 14 BB".
+/// What a player did, sizes in BB: "Fold", "Call 3 BB", "Raise auf 2,2 BB", "All-in 14 BB",
+/// "Call 0,5 BB (all-in)".
 pub fn real_action(hand: &Hand, a: &Action) -> String {
     let big = hand.big_blind.max(1) as f64;
     let to = a.to.unwrap_or(a.amount) as f64 / big;
     match a.kind {
+        ActionKind::Call if a.all_in => format!("Call {} (all-in)", bb(a.amount as f64 / big)),
         _ if a.all_in && a.kind != ActionKind::Fold => format!("All-in {}", bb(to)),
         ActionKind::Fold => "Fold".into(),
         ActionKind::Check => "Check".into(),

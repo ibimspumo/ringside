@@ -1,72 +1,91 @@
-//! Rating thresholds. Losses are in big blinds per decision, the unit every source shares.
-//!
-//! - Below [`BEST_BB`] the difference is within what the sources resolve: tables store
-//!   EVs in 0.01 BB steps and are solved to a NashConv of 0.001–0.01 BB, the postflop
-//!   solver stops at about 1 % of the pot.
-//! - [`GOOD_BB`]: a few hundredths of a BB are noise of the model assumptions (equal
-//!   stacks, standard sizes), so these still count as good.
-//! - [`INACCURACY_BB`]: half a big blind per decision is about what a typical leak costs
-//!   per hand where it comes up; repeated, it shows in the results.
-//! - [`MISTAKE_BB`]: from 1.5 BB on, a decision costs more than the blinds of a whole
-//!   orbit at a nine-handed table.
-//!
-//! Mixed strategies are not mistakes: an action the source takes at least
-//! [`MIXED_FREQ`] of the time with this hand is at worst "good", one it takes at least
-//! [`MAIN_FREQ`] of the time is the best choice, and either counts as no loss (see
-//! `score` in the crate root).
+//! Grades of the analysis. They are the practice's ([`ringside_play::grade`]): cut in
+//! percent of the pot at the decision, a mix is never a mistake, so a real hand reads the
+//! same as a practice hand or a spot on the solver page.
 
-use ringside_core::db::Rating;
+use ringside_core::db::{Choice, Decision, Rating, Source, Status};
+use ringside_play::grade::{BEST_PCT, GOOD_PCT, Grade, INACCURATE_PCT, MISTAKE_PCT, MIX_MIN_FREQUENCY, judge};
 
-pub const BEST_BB: f64 = 0.05;
-pub const GOOD_BB: f64 = 0.15;
-pub const INACCURACY_BB: f64 = 0.5;
-pub const MISTAKE_BB: f64 = 1.5;
-pub const MIXED_FREQ: f64 = 0.10;
-pub const MAIN_FREQ: f64 = 0.5;
-
-/// Rating from the EV loss and how often the source plays the chosen action. Without an
-/// EV the frequency alone decides.
-pub fn rate(loss_bb: Option<f64>, freq: f64) -> Rating {
-    let by_freq = if freq >= MAIN_FREQ {
-        Rating::Best
-    } else if freq >= MIXED_FREQ {
-        Rating::Good
-    } else if freq >= 0.03 {
-        Rating::Inaccuracy
-    } else if freq >= 0.005 {
-        Rating::Mistake
-    } else {
-        Rating::Blunder
-    };
-    let Some(loss) = loss_bb else { return by_freq };
-    let by_loss = if loss < BEST_BB {
-        Rating::Best
-    } else if loss < GOOD_BB {
-        Rating::Good
-    } else if loss < INACCURACY_BB {
-        Rating::Inaccuracy
-    } else if loss < MISTAKE_BB {
-        Rating::Mistake
-    } else {
-        Rating::Blunder
-    };
-    if freq >= MIXED_FREQ { by_loss.min(by_freq) } else { by_loss }
+pub fn rating(g: Grade) -> Rating {
+    match g {
+        Grade::Best => Rating::Best,
+        Grade::Mix => Rating::Mix,
+        Grade::Good => Rating::Good,
+        Grade::Inaccurate => Rating::Inaccuracy,
+        Grade::Mistake => Rating::Mistake,
+        Grade::Blunder => Rating::Blunder,
+    }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// The grade of the played choice of `strategy` at a pot of `pot_bb`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Verdict {
+    pub rating: Rating,
+    /// The choice with the highest EV.
+    pub best: usize,
+    /// The choice played most often.
+    pub main: usize,
+    pub freq: f64,
+    pub loss_bb: Option<f64>,
+    pub loss_pct: Option<f64>,
+}
 
-    #[test]
-    fn thresholds() {
-        assert_eq!(rate(Some(0.0), 0.0), Rating::Best);
-        assert_eq!(rate(Some(0.1), 0.0), Rating::Good);
-        assert_eq!(rate(Some(0.3), 0.0), Rating::Inaccuracy);
-        assert_eq!(rate(Some(1.0), 0.0), Rating::Mistake);
-        assert_eq!(rate(Some(2.0), 0.0), Rating::Blunder);
-        // A mixed action played often enough is no mistake, whatever the rounding left.
-        assert_eq!(rate(Some(2.0), 0.2), Rating::Good);
-        assert_eq!(rate(Some(2.0), 0.6), Rating::Best);
-        assert_eq!(rate(None, 0.02), Rating::Mistake);
+/// `None` when no choice is marked as played.
+pub fn verdict(strategy: &[Choice], pot_bb: f64) -> Option<Verdict> {
+    let chosen = strategy.iter().position(|c| c.played)?;
+    let freqs: Vec<f64> = strategy.iter().map(|c| c.freq).collect();
+    let evs: Option<Vec<f64>> = strategy.iter().map(|c| c.ev_bb).collect();
+    let j = judge(&freqs, evs.as_deref(), chosen, pot_bb);
+    Some(Verdict { rating: rating(j.grade), best: j.best, main: j.main, freq: j.frequency, loss_bb: j.loss_bb, loss_pct: j.loss_pct })
+}
+
+/// What every stored decision promises; the tests and the coverage tool check it.
+///
+/// - exactly one source, and it fits the status: pending only for the solver, forced
+///   moves only as such, rated with any source that computes; nothing stays unrated;
+/// - a rated decision has a rating, a loss of at least 0 and the pot it is cut by;
+/// - the loss fits the rating: best and mix cost nothing, the other levels follow the
+///   thresholds of the practice; an action played at least as often as a mix is never
+///   worse than "mix";
+/// - the best action (highest EV) costs nothing.
+pub fn check(d: &Decision) -> Result<(), String> {
+    let fail = |m: &str| Err(format!("#{} @{}: {m} ({d:?})", d.hand_id, d.action_index));
+    let Some(source) = d.source else { return fail("keine Quelle") };
+    match (d.status, source) {
+        (Status::Forced, Source::Forced) | (Status::Pending, Source::Solver) => {}
+        (Status::Rated, s) if s != Source::Forced => {}
+        _ => return fail("Status passt nicht zur Quelle"),
     }
+    if d.status != Status::Rated {
+        return if d.rating.is_some() || d.ev_loss_bb.is_some() { fail("Bewertung ohne Status „bewertet“") } else { Ok(()) };
+    }
+    let (Some(r), Some(loss), Some(pot)) = (d.rating, d.ev_loss_bb, d.pot_bb) else { return fail("Bewertung unvollständig") };
+    if !(loss >= 0.0 && loss.is_finite()) {
+        return fail("Verlust negativ");
+    }
+    if pot <= 0.0 {
+        return fail("Pot fehlt");
+    }
+    if source == Source::Estimate && !d.reliability.is_some_and(|x| (0.0..=1.0).contains(&x)) {
+        return fail("Einschätzung ohne Verlässlichkeit");
+    }
+    let pct = loss / pot * 100.0;
+    let freq = d.played_freq.unwrap_or(0.0);
+    let fits = match r {
+        Rating::Best | Rating::Mix => pct <= BEST_PCT + 1e-9 || loss == 0.0,
+        Rating::Good => pct <= GOOD_PCT + 1e-9,
+        Rating::Inaccuracy => pct > GOOD_PCT && pct <= INACCURATE_PCT + 1e-9,
+        Rating::Mistake => pct > INACCURATE_PCT && pct <= MISTAKE_PCT + 1e-9,
+        Rating::Blunder => pct > MISTAKE_PCT,
+    };
+    if !fits {
+        return fail("Stufe passt nicht zum Verlust");
+    }
+    if freq >= MIX_MIN_FREQUENCY && r > Rating::Mix {
+        return fail("gemischte Aktion schlechter als „Mix“");
+    }
+    let top = d.strategy.iter().filter_map(|c| c.ev_bb).fold(f64::NEG_INFINITY, f64::max);
+    if d.strategy.iter().any(|c| c.played && c.ev_bb == Some(top)) && loss != 0.0 {
+        return fail("beste Aktion mit Verlust");
+    }
+    Ok(())
 }

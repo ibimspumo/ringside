@@ -1,7 +1,8 @@
 /** Browser stand-ins for the hand analysis, shaped like the real commands. `?analysis=0` starts unanalysed. */
 import type { HandQuery, HandSummary } from "../types";
+import { DEMO_DECISIONS } from "./demo-hands";
 import { RATINGS } from "./labels";
-import type { AnalysisStatus, AnalysisSummary, Choice, Decision, DecisionBrief, JobProgress, Rating } from "./types";
+import type { AnalysisStatus, AnalysisSummary, Decision, DecisionBrief, JobProgress } from "./types";
 
 const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("analysis") === "0";
 let enabled = !fresh;
@@ -11,134 +12,10 @@ let solvingHand: number | null = null;
 const listeners = new Set<(s: AnalysisStatus) => void>();
 const handListeners = new Set<(id: number) => void>();
 
-const MODEL_NOTE =
-  "Preflop-Modell (kein Gleichgewicht des echten Spiels): 6 Spieler, alle mit 100 BB, Ante für alle; nächste vorgerechnete Tiefe: 100 BB statt 110,7 BB.";
-const SOLVER_NOTE =
-  "Postflop-Solver heads-up, Ranges aus dem Preflop-Modell (6 Spieler, 100 BB). Einsatzgrößen Flop 33 %, Raise 60 %, Turn 75 %, River 75 %, All-in ab 150 % Pot; Bet von 45 % Pot als 50 % gerechnet. Gelöst bis 0,9 % des Pots Ausbeutbarkeit (210 Iterationen).";
-
-/** The line to each street's decision, checked down in the demo tree. */
-const DEMO_PATH = {
-  flop: [],
-  turn: [{ action: 0 }, { action: 0 }, { card: "Kd" }],
-  river: [{ action: 0 }, { action: 0 }, { card: "Kd" }, { action: 0 }, { action: 0 }, { card: "5c" }],
-};
-
-function choice(label: string, freq: number, ev: number, played = false): Choice {
-  return { label, freq, ev_bb: ev, played };
-}
-
-function rated(
-  index: number,
-  street: Decision["street"],
-  spot: Decision["spot"],
-  source: Decision["source"],
-  played: string,
-  strategy: Choice[],
-  rating: Rating,
-  why: string,
-): Decision {
-  const best = strategy.reduce((a, b) => (b.freq > a.freq ? b : a));
-  const top = Math.max(...strategy.map((c) => c.ev_bb ?? 0));
-  const mine = strategy.find((c) => c.played)!;
-  return {
-    hand_id: 0,
-    action_index: index,
-    street,
-    spot,
-    status: "rated",
-    played,
-    best: best.label,
-    strategy,
-    played_freq: mine.freq,
-    ev_loss_bb: Math.max(0, top - (mine.ev_bb ?? 0)),
-    rating,
-    source,
-    why,
-    note: source === "model" ? MODEL_NOTE : SOLVER_NOTE,
-    reason: null,
-    solver:
-      source === "solver"
-        ? JSON.stringify({
-            board: ["9c", "4h", "2s"],
-            pot: 6.5,
-            stack: 104.2,
-            oop: { position: "SB", range: "22+,A2s+,K9s+,QTs+,JTs,ATo+,KJo+", note: "SB: Limp" },
-            ip: { position: "BB", range: "random", note: "BB: Check im Big Blind" },
-            hero: { player: "oop", cards: ["9s", "9d"] },
-            players: 6,
-            source: "Hand #250000000002, Analyse",
-            path: DEMO_PATH[street as keyof typeof DEMO_PATH] ?? [],
-          })
-        : null,
-    engine: "demo",
-  };
-}
+const MAIN = 250000000002;
 
 function demoHandDecisions(id: number): Decision[] {
-  const list: Decision[] = [
-    rated(
-      6,
-      "preflop",
-      "open",
-      "model",
-      "Limp",
-      // The same numbers as the sample range for 99 in the small blind at 100 BB (charts demo).
-      [choice("Fold", 0, -0.5), choice("Limp", 0, 2.9, true), choice("Raise auf 3 BB", 1, 2.92)],
-      "good",
-      "Fast gleich gut: Raise auf 3 BB bringt nur etwa 0,02 BB mehr. Grund: Mit 99 im Small Blind spielt das Modell bei 100 BB Tiefe hier zu 100 % Raise auf 3 BB.",
-    ),
-    rated(
-      8,
-      "flop",
-      "flop",
-      "solver",
-      "Check",
-      [choice("Check", 0.81, 3.9, true), choice("Bet 2,2 BB", 0.19, 3.88)],
-      "best",
-      "Gut gespielt: dein Check ist hier die beste Wahl. Grund: Deine Hand hat hier gegen die Range des Gegners etwa 88 % Equity; der Solver spielt sie zu 81 % Check.",
-    ),
-    rated(
-      11,
-      "flop",
-      "flop",
-      "solver",
-      "Raise auf 8 BB",
-      [choice("Fold", 0, -2), choice("Call", 0.64, 6.1), choice("Raise auf 7,6 BB", 0.31, 6.02, true), choice("All-in", 0.05, 5.7)],
-      "good",
-      "Passt: der Solver spielt dein Raise mit deiner Hand zu 31 %, meist aber Call. Grund: Deine Hand hat hier gegen die Range des Gegners etwa 86 % Equity; der Solver spielt sie zu 64 % Call.",
-    ),
-    rated(
-      14,
-      "turn",
-      "turn",
-      "solver",
-      "Bet 15 BB",
-      [choice("Check", 0.12, 9.1), choice("Bet 13,5 BB", 0.71, 9.6, true), choice("All-in", 0.17, 9.4)],
-      "best",
-      "Gut gespielt: dein Bet ist hier die beste Wahl. Grund: Deine Hand hat hier gegen die Range des Gegners etwa 82 % Equity; der Solver spielt sie zu 71 % Bet 13,5 BB.",
-    ),
-    rated(
-      16,
-      "river",
-      "river",
-      "solver",
-      "Bet 30 BB",
-      [choice("Check", 0.68, 7.4), choice("Bet 27 BB", 0.29, 7.1, true), choice("All-in", 0.03, 5.9)],
-      "good",
-      "Passt: der Solver spielt dein Bet mit deiner Hand zu 29 %, meist aber Check. Grund: Deine Hand hat hier gegen die Range des Gegners etwa 61 % Equity; der Solver spielt sie zu 68 % Check.",
-    ),
-    rated(
-      18,
-      "river",
-      "river",
-      "solver",
-      "Call 46 BB",
-      [choice("Fold", 0.93, 0), choice("Call", 0.07, -2.3, true)],
-      "blunder",
-      "Hier wäre Fold besser gewesen – dein Call kostet dich etwa 2,3 BB. Grund: Deine Hand hat hier gegen die Range des Gegners etwa 24 % Equity; der Solver spielt sie zu 93 % Fold.",
-    ),
-  ];
-  return list.map((d) => ({ ...d, hand_id: id }));
+  return (DEMO_DECISIONS[id] ?? DEMO_DECISIONS[MAIN]).map((d) => ({ ...d, hand_id: id }));
 }
 
 function isAnalyzed(id: number) {
@@ -230,9 +107,9 @@ export function demoAnalyze(id: number): Decision[] {
     emit();
     handListeners.forEach((l) => l(id));
   }, 2500);
-  // Preflop is there at once; the postflop spots wait for the solver.
+  // Everything but the solver's spots is there at once; those wait for the solve.
   return demoHandDecisions(id).map((d) =>
-    d.street === "preflop" ? d : { ...d, status: "pending", rating: null, ev_loss_bb: null, why: "", reason: "Wartet auf den Postflop-Solver." },
+    d.source !== "solver" ? d : { ...d, status: "pending", rating: null, ev_loss_bb: null, why: "", reason: "Wartet auf den Postflop-Solver." },
   );
 }
 
@@ -250,14 +127,26 @@ export function onHand(handler: (id: number) => void) {
   };
 }
 
+/** The worst decision of a demo hand, as the hand list shows it. */
+function worstOf(list: Decision[]): DecisionBrief | null {
+  const order = (d: Decision) => (d.status === "rated" ? 0 : d.status === "pending" ? 1 : d.status === "unrated" ? 2 : 3);
+  const sorted = [...list].sort((a, b) => order(a) - order(b) || (b.ev_loss_bb ?? 0) - (a.ev_loss_bb ?? 0));
+  return sorted[0] ?? null;
+}
+
+const brief = (b: Omit<DecisionBrief, "pot_bb" | "reliability" | "reason" | "why"> & Partial<DecisionBrief>): DecisionBrief => ({
+  pot_bb: 4,
+  reliability: null,
+  reason: null,
+  why: "",
+  ...b,
+});
+
 const WORST: (DecisionBrief | null)[] = [
-  { action_index: 18, street: "river", spot: "river", status: "rated", played: "Call 46 BB", best: "Fold", ev_loss_bb: 2.3, rating: "blunder", source: "solver", reason: null, why: "" },
-  { action_index: 6, street: "preflop", spot: "steal", status: "rated", played: "Fold", best: "Raise auf 2,2 BB", ev_loss_bb: 0.42, rating: "inaccuracy", source: "model", reason: null, why: "" },
-  { action_index: 6, street: "preflop", spot: "shove", status: "rated", played: "Fold", best: "All-in", ev_loss_bb: 0.81, rating: "mistake", source: "equilibrium", reason: null, why: "" },
-  { action_index: 6, street: "preflop", spot: "vs_open", status: "rated", played: "Call 2 BB", best: "Call", ev_loss_bb: 0, rating: "best", source: "model", reason: null, why: "" },
-  { action_index: 8, street: "flop", spot: "c_bet", status: "pending", played: "Bet 1,5 BB", best: null, ev_loss_bb: null, rating: null, source: "solver", reason: "Wartet auf den Postflop-Solver.", why: "" },
-  { action_index: 6, street: "preflop", spot: "vs_open", status: "unrated", played: "Call 1 BB", best: null, ev_loss_bb: null, rating: null, source: null, reason: "Limp: das Preflop-Modell kennt Limps nur aus dem Small Blind.", why: "" },
-  { action_index: 6, street: "preflop", spot: "call_shove", status: "rated", played: "Call 12 BB", best: "Fold", ev_loss_bb: 1.7, rating: "blunder", source: "equilibrium", reason: null, why: "" },
+  ...[250000000002, 250000000001, 250000000000, 249999999999].map((id) => worstOf(DEMO_DECISIONS[id] ?? [])),
+  brief({ action_index: 6, street: "preflop", spot: "vs_open", status: "rated", played: "Call 2 BB", best: "Call", ev_loss_bb: 0, rating: "best", source: "model" }),
+  brief({ action_index: 8, street: "flop", spot: "c_bet", status: "pending", played: "Bet 1,5 BB", best: null, ev_loss_bb: null, rating: null, source: "solver" }),
+  brief({ action_index: 6, street: "preflop", spot: "call_shove", status: "rated", played: "Call 12 BB", best: "Fold", ev_loss_bb: 1.7, rating: "blunder", source: "equilibrium", pot_bb: 14.5 }),
 ];
 
 /** The demo hand list with the worst decision per row, narrowed and sorted like the real query. */
@@ -282,7 +171,7 @@ export function withWorst(list: HandSummary[], q: HandQuery): HandSummary[] {
 }
 
 export function demoSummary(): AnalysisSummary {
-  if (!analyzed) return { hands: 6431, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: [0, 0, 0, 0, 0], by_source: [], by_spot: [], costliest: [] };
+  if (!analyzed) return { hands: 6431, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: RATINGS.map(() => 0), by_source: [], by_spot: [], costliest: [] };
   const full = fullSummary();
   if (analyzed >= 6431) return full;
   // While the demo run is under way, the snapshot grows with it.
@@ -303,13 +192,14 @@ function fullSummary(): AnalysisSummary {
     hands: 6431,
     analyzed,
     decisions: 9120,
-    rated: 7302,
+    rated: 9120,
     loss_bb: 412.6,
-    ratings: [5810, 702, 488, 231, 71],
+    ratings: [6890, 610, 902, 488, 231, 71],
     by_source: [
-      ["model", 5120],
+      ["model", 5980],
       ["equilibrium", 1530],
       ["solver", 652],
+      ["estimate", 958],
     ],
     by_spot: [
       { spot: "call_shove", decisions: 412, rated: 405, flawed: 61, loss_bb: 118.4 },
@@ -321,8 +211,8 @@ function fullSummary(): AnalysisSummary {
     ],
     costliest: [
       { hand_id: 250000000002, played_at: "2026/11/16 22:59:10", hero_cards: "9s 9d", position: "SB", ...WORST[0]! },
-      { hand_id: 250000000010, played_at: "2026/11/16 21:12:10", hero_cards: "As 5s", position: "HJ", ...WORST[6]! },
-      { hand_id: 250000000006, played_at: "2026/11/16 22:20:10", hero_cards: "8h 6h", position: "BTN", ...WORST[2]! },
+      { hand_id: 249999999996, played_at: "2026/11/16 21:12:10", hero_cards: "As 5s", position: "HJ", ...WORST[6]! },
+      { hand_id: 250000000001, played_at: "2026/11/16 22:20:10", hero_cards: "Ah 7c", position: "BTN", ...WORST[1]! },
     ],
   };
 }

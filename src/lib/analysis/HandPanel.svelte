@@ -2,7 +2,7 @@
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
   import DecisionCard from "./DecisionCard.svelte";
-  import { RATING } from "./labels";
+  import { RATING, SOURCE } from "./labels";
   import { analysis } from "./store.svelte";
   import type { Decision } from "./types";
 
@@ -12,6 +12,7 @@
     selected,
     busy,
     locked,
+    analyzed = false,
     onAnalyze,
     onSelect,
     onLearn,
@@ -20,6 +21,8 @@
     selected: number | null;
     busy: boolean;
     locked: boolean;
+    /** Analysed just now and nothing came out: no decision of the hero to rate. */
+    analyzed?: boolean;
     onAnalyze: () => void;
     onSelect: (action: number) => void;
     onLearn?: (target: LearnTarget) => void;
@@ -38,6 +41,10 @@
   </div>
 {:else if decisions === null}
   <div class="cta"><p class="faint">Lädt …</p></div>
+{:else if decisions.length === 0 && analyzed}
+  <div class="cta">
+    <p>In dieser Hand gibt es nichts zu bewerten: Du hast nicht selbst gehandelt, oder es ist kein No-Limit Hold'em.</p>
+  </div>
 {:else if decisions.length === 0}
   <div class="cta">
     <button class="btn primary big" disabled={busy} onclick={onAnalyze}>
@@ -77,7 +84,7 @@
           style="--c:{d.rating ? RATING[d.rating].color : 'var(--text-3)'}"
           class:open={!d.rating}
           onclick={() => onSelect(d.action_index)}
-          title={d.rating ? RATING[d.rating].label : d.status === "pending" ? "Wird gerechnet" : "Nicht bewertet"}
+          title={d.rating ? `${RATING[d.rating].label} · ${SOURCE[d.source ?? "model"].label}` : d.status === "pending" ? "Wird gerechnet" : d.status === "forced" ? "Keine Entscheidung" : "Nicht bewertet"}
         >
           <i></i>{STREET[d.street]} · {d.played.split(" ")[0]}
         </button>

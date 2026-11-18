@@ -10,7 +10,8 @@
   import GradeIcon from "../ui/GradeIcon.svelte";
   import type { Grade } from "../ui/poker";
   import Term from "../ui/Term.svelte";
-  import { EV_LOSS_EXPLAIN, LEARN, RATING, RATING_RULE, RATINGS, SOURCE, SPOT, SPOT_HINT, bb } from "./labels";
+  import SourceNote from "../ui/SourceNote.svelte";
+  import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING, RATING_RULE, RATINGS, SOURCE, SPOT, SPOT_HINT, bb, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
   import type { AnalysisSummary, Rating, SpotType } from "./types";
 
@@ -51,10 +52,9 @@
   });
 
   const focus = $derived((data?.by_spot ?? []).filter((s) => s.spot && s.loss_bb > 0.5).slice(0, 3));
-  const flawed = $derived(data ? data.ratings.slice(2).reduce((a, b) => a + b, 0) : 0);
+  const flawed = $derived(data ? data.ratings.slice(RATINGS.indexOf("inaccuracy")).reduce((a, b) => a + b, 0) : 0);
   const cards = (s: string) => s.split(" ").filter(Boolean);
-  /** The analysis says "inaccuracy" where the kit's grade scale says "inaccurate". */
-  const grade = (r: Rating): Grade => (r === "inaccuracy" ? "inaccurate" : r);
+  const grade = (r: Rating): Grade => GRADE_OF[r];
 </script>
 
 
@@ -154,6 +154,9 @@
               </span>
               <span class="detail">
                 <small>{c.position ?? ""}</small>
+                {#if c.source && KIT_SOURCE[c.source]}
+                  <SourceNote kind={KIT_SOURCE[c.source]!} hint={c.source === "estimate" && c.reliability !== null ? reliabilityText(c.reliability, c.street) : SOURCE[c.source].explain} />
+                {/if}
                 {#if c.rating}<small class="loss"><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
               </span>
             </span>

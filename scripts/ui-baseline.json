@@ -1,9 +1,8 @@
 {
   "rules": {
     "color-literal": {
-      "total": 204,
+      "total": 203,
       "files": {
-        "analysis/DecisionCard.svelte": 1,
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
         "app/PlayerDetail.svelte": 2,
@@ -58,9 +57,8 @@
       }
     },
     "font-size": {
-      "total": 290,
+      "total": 283,
       "files": {
-        "analysis/DecisionCard.svelte": 7,
         "analysis/HandPanel.svelte": 2,
         "app/ClientLock.svelte": 1,
         "app/Hands.svelte": 7,
@@ -130,9 +128,8 @@
       }
     },
     "button-style": {
-      "total": 161,
+      "total": 160,
       "files": {
-        "analysis/DecisionCard.svelte": 1,
         "analysis/HandPanel.svelte": 4,
         "analysis/Summary.svelte": 2,
         "app/Hands.svelte": 5,
@@ -180,9 +177,9 @@
       }
     },
     "global-class-override": {
-      "total": 115,
+      "total": 114,
       "files": {
-        "analysis/DecisionCard.svelte": 3,
+        "analysis/DecisionCard.svelte": 2,
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
         "app/Main.svelte": 3,
@@ -233,9 +230,8 @@
       "files": {}
     },
     "motion": {
-      "total": 60,
+      "total": 58,
       "files": {
-        "analysis/DecisionCard.svelte": 2,
         "analysis/HandPanel.svelte": 1,
         "app/Replayer.svelte": 2,
         "hud/Recap.svelte": 1,

@@ -277,6 +277,17 @@ fn combo_of(text: &str) -> Option<Combo> {
     Some(Combo::new(a, b))
 }
 
+fn tree_key(kind: TreeAction) -> &'static str {
+    match kind {
+        TreeAction::Fold => "fold",
+        TreeAction::Check => "check",
+        TreeAction::Call => "call",
+        TreeAction::Bet => "bet",
+        TreeAction::Raise => "raise",
+        TreeAction::AllIn => "all_in",
+    }
+}
+
 fn label(kind: TreeAction, amount: f64) -> String {
     match kind {
         TreeAction::Fold => "Fold".into(),
@@ -434,6 +445,7 @@ pub fn rate(
                                                 freq: h.strategy[k],
                                                 ev_bb: h.evs.get(k).copied(),
                                                 played: k == i,
+                                                kind: tree_key(x.kind).into(),
                                             })
                                             .collect();
                                         let mut note = job.note.clone();
@@ -442,13 +454,10 @@ pub fn rate(
                                         }
                                         note.push_str(&accuracy);
                                         let equity = h.equity;
-                                        let mut d = score(d, Source::Solver, strategy, note, |d| {
-                                            let best = d.strategy.iter().max_by(|x, y| x.freq.total_cmp(&y.freq));
+                                        let mut d = score(d, Source::Solver, strategy, node.pot, note, |_| {
                                             format!(
-                                                "Deine Hand hat hier gegen die Range des Gegners etwa {} % Equity; der Solver spielt sie zu {} % {}.",
-                                                (equity * 100.0).round(),
-                                                best.map_or(0.0, |b| (b.freq * 100.0).round()),
-                                                best.map_or("?", |b| b.label.as_str())
+                                                "Deine Hand hat hier gegen die Range des Gegners etwa {} % Equity.",
+                                                (equity * 100.0).round()
                                             )
                                         });
                                         d.solver = Some(solver_link(job, &path, saved));

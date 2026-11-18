@@ -15,7 +15,7 @@ use ringside_learn::{Answer, Kind, OwnSpot, Prompt, TableSpot, detect_spots};
 
 use crate::fmt::{bb, num};
 use crate::seats::{ante_name, nearest};
-use crate::{ChartKind, ChartTarget, rated, unrated};
+use crate::{ChartKind, ChartTarget, base_at, pot_before, score, unrated};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 64;
@@ -79,11 +79,11 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
     let Some(s) = sol.spot(ts.hero, class, ts.shover, &ts.callers) else {
         return (unrated(hand, index, spot_type, "Diesen Spot (z. B. zu viele Caller) gibt es im Push/Fold-Modell nicht."), None);
     };
-    let act = if shover.is_some() { "Call" } else { "All-in" };
+    let (act, kind) = if shover.is_some() { ("Call", "call") } else { ("All-in", "all_in") };
     let did_act = !matches!(&own.played, Some(Answer::Choice(c)) if c == "fold");
     let strategy = vec![
-        Choice { label: act.into(), freq: s.freq, ev_bb: Some(s.ev_act), played: did_act },
-        Choice { label: "Fold".into(), freq: 1.0 - s.freq, ev_bb: Some(s.ev_fold), played: !did_act },
+        Choice { label: act.into(), freq: s.freq, ev_bb: Some(s.ev_act), played: did_act, kind: kind.into() },
+        Choice { label: "Fold".into(), freq: 1.0 - s.freq, ev_bb: Some(s.ev_fold), played: !did_act, kind: "fold".into() },
     ];
 
     let mut note = vec![format!(
@@ -141,5 +141,5 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
         node: None,
         hand: class.to_string(),
     };
-    (rated(hand, index, spot_type, Source::Equilibrium, strategy, note.join("; ") + ".", |_| reason), Some(target))
+    (score(base_at(hand, index, spot_type), Source::Equilibrium, strategy, pot_before(hand, index), note.join("; ") + ".", |_| reason), Some(target))
 }

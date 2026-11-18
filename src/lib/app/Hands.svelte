@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import AnalyzeBar from "../analysis/AnalyzeBar.svelte";
   import HandPanel from "../analysis/HandPanel.svelte";
-  import { RATING, SOURCE, SPOT, SPOT_GROUPS, SPOT_HINT, bb } from "../analysis/labels";
+  import { FILTER_SOURCES, RATING, SOURCE, SPOT, SPOT_GROUPS, SPOT_HINT, bb, reliabilityText } from "../analysis/labels";
   import { analysis, watchAnalysis } from "../analysis/store.svelte";
   import Summary from "../analysis/Summary.svelte";
   import type { Decision, DecisionBrief, DecisionFilter, Rating, Source, SpotType } from "../analysis/types";
@@ -77,6 +77,8 @@
   let chosen = $state<number | null>(null);
   let jumpTo = $state<{ action: number } | null>(null);
   let busy = $state(false);
+  /** The hand analysed last, so an empty result reads as "nothing to rate". */
+  let analyzedId = $state<number | null>(null);
   let tournamentBusy = $state(false);
 
   function readSummary(): boolean {
@@ -203,6 +205,7 @@
     busy = true;
     try {
       const d = await api.analysisHands([id]);
+      analyzedId = id;
       if (selected?.id === id) {
         decisions = d;
         chosen = worstOf(d);
@@ -256,7 +259,13 @@
     if (!decisions?.length) return null;
     const m = new Map<number, { color: string; label: string }>();
     for (const d of decisions) {
-      const label = d.rating ? `${RATING[d.rating].label}: ${d.played}` : d.status === "pending" ? `Wird gerechnet: ${d.played}` : `Nicht bewertet: ${d.played}`;
+      const label = d.rating
+        ? `${RATING[d.rating].label}: ${d.played}`
+        : d.status === "pending"
+          ? `Wird gerechnet: ${d.played}`
+          : d.status === "forced"
+            ? `Keine Entscheidung: ${d.played}`
+            : `Nicht bewertet: ${d.played}`;
       m.set(d.action_index, { color: d.rating ? RATING[d.rating].color : "var(--text-3)", label });
     }
     return m;
@@ -265,9 +274,17 @@
   const cards = (s: string) => s.split(" ").filter(Boolean);
   const netBb = (h: HandSummary) => (h.hero_net !== null && h.big_blind > 0 ? h.hero_net / h.big_blind : null);
 
+  /** Where the verdict comes from, in one line; the estimate with its measured reliability. */
+  function sourceHint(w: DecisionBrief): string {
+    if (!w.source) return "";
+    const s = `Quelle: ${SOURCE[w.source].label}`;
+    return w.source === "estimate" && w.reliability !== null ? `${s} – ${reliabilityText(w.reliability, w.street)}` : s;
+  }
+
   function verdict(w: DecisionBrief): string {
     if (w.status === "pending") return `${w.played} · wird gerechnet`;
     if (w.status === "unrated") return "nicht bewertet";
+    if (w.status === "forced") return "keine Entscheidung";
     if (w.rating === "best" || w.rating === "good" || !w.best) return `${w.played.split(" ")[0]} · ${SPOT[w.spot]}`;
     return `${w.played.split(" ")[0]} statt ${w.best}`;
   }
@@ -385,7 +402,7 @@
         </div>
         <div class="seg" role="group" aria-label="Quelle">
           <button class:on={source === null} onclick={() => (source = null)}>Alle</button>
-          {#each ["equilibrium", "model", "solver"] as const as s (s)}
+          {#each FILTER_SOURCES as s (s)}
             <button class:on={source === s} title={SOURCE[s].explain} onclick={() => (source = s)}>{SOURCE[s].label}</button>
           {/each}
         </div>
@@ -434,7 +451,7 @@
               </span>
             </span>
             {#if w}
-              <span class="verdict" style="--c:{w.rating ? RATING[w.rating].color : 'var(--text-3)'}" class:open={!w.rating} title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}` : (w.reason ?? "")}>
+              <span class="verdict" style="--c:{w.rating ? RATING[w.rating].color : 'var(--text-3)'}" class:open={!w.rating} title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]} · ${sourceHint(w)}` : (w.reason ?? "")}>
                 <i></i>{verdict(w)}
               </span>
             {:else if !locked}
@@ -482,7 +499,7 @@
             <span class="faint num">#{selected.id}</span>
           </div>
           {#snippet aside()}
-            <HandPanel {decisions} selected={chosen} {busy} {locked} onAnalyze={() => analyze()} onSelect={select} {onLearn} />
+            <HandPanel {decisions} selected={chosen} {busy} {locked} analyzed={analyzedId === selected?.id} onAnalyze={() => analyze()} onSelect={select} {onLearn} />
           {/snippet}
         </Replayer>
       {:else if loaded && list.length}

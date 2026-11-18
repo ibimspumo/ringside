@@ -28,6 +28,8 @@ pub(super) const SCHEMA: &str = "
         reason TEXT,
         solver TEXT,
         engine TEXT NOT NULL,
+        pot_bb REAL,
+        reliability REAL,
         PRIMARY KEY (hand_id, action_index)
     );
     CREATE INDEX IF NOT EXISTS hero_decisions_loss ON hero_decisions(ev_loss_bb);
@@ -49,11 +51,14 @@ pub(super) const SCHEMA: &str = "
     );
     CREATE INDEX IF NOT EXISTS postflop_queue_order ON postflop_queue(marked, priority);";
 
-/// How well a decision matches the recommendation, best first.
+/// How well a decision matches the recommendation, best first: the grades of the
+/// practice (`ringside_play::Grade`), stored by level.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Rating {
     Best,
+    /// A rarer action of a mixed strategy: as good as the main one.
+    Mix,
     Good,
     Inaccuracy,
     Mistake,
@@ -61,7 +66,7 @@ pub enum Rating {
 }
 
 impl Rating {
-    pub const ALL: [Rating; 5] = [Rating::Best, Rating::Good, Rating::Inaccuracy, Rating::Mistake, Rating::Blunder];
+    pub const ALL: [Rating; 6] = [Rating::Best, Rating::Mix, Rating::Good, Rating::Inaccuracy, Rating::Mistake, Rating::Blunder];
 
     pub fn level(self) -> i64 {
         self as i64
@@ -82,16 +87,23 @@ pub enum Source {
     Model,
     /// Heads-up postflop solve.
     Solver,
+    /// Equity against the likely ranges, pot odds and fold equity, for spots outside
+    /// model and solver; `reliability` is how often it agreed with the solver.
+    Estimate,
+    /// No decision: the hero had a single legal action.
+    Forced,
 }
 
 impl Source {
-    pub const ALL: [Source; 3] = [Source::Equilibrium, Source::Model, Source::Solver];
+    pub const ALL: [Source; 5] = [Source::Equilibrium, Source::Model, Source::Solver, Source::Estimate, Source::Forced];
 
     pub fn key(self) -> &'static str {
         match self {
             Source::Equilibrium => "equilibrium",
             Source::Model => "model",
             Source::Solver => "solver",
+            Source::Estimate => "estimate",
+            Source::Forced => "forced",
         }
     }
 
@@ -109,8 +121,10 @@ pub enum SpotType {
     Steal,
     /// Re-raising an open.
     ThreeBet,
-    /// Calling or folding against an open or a limp.
+    /// Calling or folding against an open.
     VsOpen,
+    /// Behind one or two limps: isolate, limp along, check in the big blind or shove.
+    VsLimp,
     /// Facing a 3-bet or more.
     VsThreeBet,
     /// All-in or fold, everyone before folded.
@@ -127,11 +141,12 @@ pub enum SpotType {
 }
 
 impl SpotType {
-    pub const ALL: [SpotType; 12] = [
+    pub const ALL: [SpotType; 13] = [
         SpotType::Open,
         SpotType::Steal,
         SpotType::ThreeBet,
         SpotType::VsOpen,
+        SpotType::VsLimp,
         SpotType::VsThreeBet,
         SpotType::Shove,
         SpotType::CallShove,
@@ -148,6 +163,7 @@ impl SpotType {
             SpotType::Steal => "steal",
             SpotType::ThreeBet => "three_bet",
             SpotType::VsOpen => "vs_open",
+            SpotType::VsLimp => "vs_limp",
             SpotType::VsThreeBet => "vs_three_bet",
             SpotType::Shove => "shove",
             SpotType::CallShove => "call_shove",
@@ -170,7 +186,10 @@ pub enum Status {
     Rated,
     /// Waiting for a postflop solve.
     Pending,
-    /// Outside what the engine covers; `reason` says why.
+    /// Not a decision (source [`Source::Forced`]): neither rated nor counted.
+    Forced,
+    /// Outside what the engine covers; `reason` says why. Only hands of other games and
+    /// failures end here.
     Unrated,
 }
 
@@ -179,6 +198,7 @@ impl Status {
         match self {
             Status::Rated => "rated",
             Status::Pending => "pending",
+            Status::Forced => "forced",
             Status::Unrated => "unrated",
         }
     }
@@ -187,6 +207,7 @@ impl Status {
         match s {
             "rated" => Status::Rated,
             "pending" => Status::Pending,
+            "forced" => Status::Forced,
             _ => Status::Unrated,
         }
     }
@@ -201,6 +222,9 @@ pub struct Choice {
     /// Expected result in BB, where the source has one.
     pub ev_bb: Option<f64>,
     pub played: bool,
+    /// "fold", "check", "call", "limp", "bet", "raise" or "all_in", as in the practice.
+    #[serde(default)]
+    pub kind: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -229,6 +253,11 @@ pub struct Decision {
     /// JSON for opening the spot in the solver, postflop only.
     pub solver: Option<String>,
     pub engine: String,
+    /// Pot at the decision, BB: grades are cut in percent of it.
+    pub pot_bb: Option<f64>,
+    /// For [`Source::Estimate`]: share of the calibration spots where its grade was within
+    /// one step of the solver's.
+    pub reliability: Option<f64>,
 }
 
 /// The analysis of one hand, ready to store.
@@ -255,6 +284,8 @@ pub struct DecisionBrief {
     pub source: Option<Source>,
     pub reason: Option<String>,
     pub why: String,
+    pub pot_bb: Option<f64>,
+    pub reliability: Option<f64>,
 }
 
 /// Narrows the hand list to hands with a matching decision.
@@ -300,7 +331,7 @@ impl DecisionFilter {
     pub(super) fn predicate(&self) -> String {
         let mut parts = vec!["1".to_string()];
         if self.unrated {
-            parts.push("d.status <> 'rated'".into());
+            parts.push("d.status IN ('pending', 'unrated')".into());
         }
         if let Some(r) = self.min_rating {
             parts.push(format!("d.rating >= {}", r.level()));
@@ -378,8 +409,11 @@ pub struct AnalysisSummary {
     pub costliest: Vec<CostlyDecision>,
 }
 
-const BRIEF_COLS: &str =
-    "d.action_index, d.street, d.spot, d.status, d.played, d.best, d.ev_loss_bb, d.rating, d.source, d.reason, d.why";
+/// Level from which a rating counts as flawed: inaccuracies or worse.
+const FLAWED: i64 = Rating::Inaccuracy as i64;
+
+const BRIEF_COLS: &str = "d.action_index, d.street, d.spot, d.status, d.played, d.best, d.ev_loss_bb, d.rating, d.source, d.reason, d.why,
+     d.pot_bb, d.reliability";
 
 fn brief_at(r: &rusqlite::Row, first: usize) -> rusqlite::Result<DecisionBrief> {
     Ok(DecisionBrief {
@@ -394,19 +428,21 @@ fn brief_at(r: &rusqlite::Row, first: usize) -> rusqlite::Result<DecisionBrief> 
         source: r.get::<_, Option<String>>(first + 8)?.as_deref().and_then(Source::parse),
         reason: r.get(first + 9)?,
         why: r.get(first + 10)?,
+        pot_bb: r.get(first + 11)?,
+        reliability: r.get(first + 12)?,
     })
 }
 
-/// Worst first: rated by loss, then pending, then unrated.
-const WORST_ORDER: &str =
-    "CASE d.status WHEN 'rated' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, d.ev_loss_bb DESC, d.rating DESC, d.action_index";
+/// Worst first: rated by loss, then pending, then unrated; forced moves last.
+const WORST_ORDER: &str = "CASE d.status WHEN 'rated' THEN 0 WHEN 'pending' THEN 1 WHEN 'unrated' THEN 2 ELSE 3 END, d.ev_loss_bb DESC,
+     d.rating DESC, d.action_index";
 
 fn write_decision(tx: &Transaction, d: &Decision) -> Result<(), Error> {
     let strategy = serde_json::to_string(&d.strategy).unwrap_or_else(|_| "[]".into());
     tx.prepare_cached(
         "INSERT OR REPLACE INTO hero_decisions (hand_id, action_index, street, spot, status, played, best, strategy,
-             played_freq, ev_loss_bb, rating, source, why, note, reason, solver, engine)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+             played_freq, ev_loss_bb, rating, source, why, note, reason, solver, engine, pot_bb, reliability)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
     )?
     .execute(params![
         d.hand_id as i64,
@@ -426,17 +462,20 @@ fn write_decision(tx: &Transaction, d: &Decision) -> Result<(), Error> {
         d.reason,
         d.solver,
         d.engine,
+        d.pot_bb,
+        d.reliability,
     ])?;
     Ok(())
 }
 
-/// Recomputes the summary row of `hand_id` from its decisions.
+/// Recomputes the summary row of `hand_id` from its decisions; forced moves are no
+/// decisions and not counted.
 fn write_summary(tx: &Transaction, hand_id: u64, engine: &str) -> Result<(), Error> {
     tx.prepare_cached(
         "INSERT OR REPLACE INTO hand_analysis (hand_id, engine, decisions, rated, pending, worst_loss_bb, total_loss_bb)
          SELECT ?1, ?2, COUNT(d.hand_id), COALESCE(SUM(d.status = 'rated'), 0), COALESCE(SUM(d.status = 'pending'), 0),
                 MAX(d.ev_loss_bb), COALESCE(SUM(d.ev_loss_bb), 0)
-         FROM (SELECT 1) LEFT JOIN hero_decisions d ON d.hand_id = ?1",
+         FROM (SELECT 1) LEFT JOIN hero_decisions d ON d.hand_id = ?1 AND d.status <> 'forced'",
     )?
     .execute(params![hand_id as i64, engine])?;
     Ok(())
@@ -546,7 +585,7 @@ impl Db {
     pub fn hand_decisions(&self, hand_id: u64) -> Result<Vec<Decision>, Error> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT action_index, street, spot, status, played, best, strategy, played_freq, ev_loss_bb, rating, source,
-                    note, reason, solver, engine, why
+                    note, reason, solver, engine, why, pot_bb, reliability
              FROM hero_decisions WHERE hand_id = ?1 ORDER BY action_index",
         )?;
         let rows = stmt.query_map([hand_id as i64], |r| {
@@ -568,6 +607,8 @@ impl Db {
                 solver: r.get(13)?,
                 engine: r.get(14)?,
                 why: r.get(15)?,
+                pot_bb: r.get(16)?,
+                reliability: r.get(17)?,
             })
         })?;
         rows.collect()
@@ -592,9 +633,11 @@ impl Db {
         ))?
         .query_row(args, |r| Ok((r.get(0)?, r.get(1)?)))?;
 
-        let from = format!("FROM hero_decisions d JOIN hands h ON h.id = d.hand_id WHERE {FILTER_SQL} AND ?4 IS NOT NULL");
+        let from = format!(
+            "FROM hero_decisions d JOIN hands h ON h.id = d.hand_id WHERE {FILTER_SQL} AND ?4 IS NOT NULL AND d.status <> 'forced'"
+        );
         let mut stmt = self.conn.prepare_cached(&format!(
-            "SELECT d.spot, COUNT(*), COALESCE(SUM(d.status = 'rated'), 0), COALESCE(SUM(d.rating >= 2), 0),
+            "SELECT d.spot, COUNT(*), COALESCE(SUM(d.status = 'rated'), 0), COALESCE(SUM(d.rating >= {FLAWED}), 0),
                     COALESCE(SUM(d.ev_loss_bb), 0)
              {from} GROUP BY d.spot"
         ))?;
@@ -633,7 +676,7 @@ impl Db {
 
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT h.id, h.played_at, h.hero_cards, h.hero_position, {BRIEF_COLS}
-             {from} AND d.rating >= 2 ORDER BY d.ev_loss_bb DESC LIMIT {top}"
+             {from} AND d.rating >= {FLAWED} ORDER BY d.ev_loss_bb DESC LIMIT {top}"
         ))?;
         let rows = stmt.query_map(args, |r| {
             Ok(CostlyDecision {
