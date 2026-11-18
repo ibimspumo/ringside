@@ -39,10 +39,12 @@ const PATTERNS: usize = 3;
 const CLASSES: usize = 5;
 const SWINGS: usize = 10;
 /// A pattern needs at least this many decisions and this many hands of difference.
-const PATTERN_MIN_DECISIONS: usize = 5;
+const PATTERN_MIN_DECISIONS: usize = 8;
 const PATTERN_MIN_GAP: f64 = 2.0;
 /// ... and a difference this many standard deviations off what the model would play.
 const PATTERN_Z: f64 = 2.0;
+/// A wrong decision counts as luck from this cost on; below it winning says nothing.
+const LUCK_MIN_BB: f64 = 0.5;
 /// A class counts as too loose or too tight from this many hands of difference.
 const CLASS_GAP: f64 = 0.5;
 
@@ -464,17 +466,17 @@ pub fn preflop_review(facts: &[PreflopFact], decisions: &[ReportDecision]) -> Pr
     out
 }
 
-/// One of four steps by the share of preflop decisions the model rates good or better,
-/// and in one line whether the hero plays too many or too few hands.
+/// One of four steps by how many of ten preflop decisions the model rates good or better
+/// (the number the line says), and in one line whether the hero plays too many or too few hands.
 fn verdict(p: &PreflopReview) -> Verdict {
     let share = if p.decisions > 0 { p.good as f64 / p.decisions as f64 } else { 0.0 };
-    let (level, title) = match share {
-        s if s >= 0.95 => (0, "Stark gespielt"),
-        s if s >= 0.88 => (1, "Solide gespielt"),
-        s if s >= 0.78 => (2, "Ausbaufähig"),
+    let tens = (share * 10.0).round() as usize;
+    let (level, title) = match tens {
+        10 => (0, "Stark gespielt"),
+        9 => (1, "Solide gespielt"),
+        8 => (2, "Ausbaufähig"),
         _ => (3, "Viele Fehler vor dem Flop"),
     };
-    let tens = (share * 10.0).round() as usize;
     let diff = p.you_pct.unwrap_or(0.0) - p.model_pct.unwrap_or(0.0);
     let direction = match diff {
         d if d >= 3.0 => "Du spielst etwas zu viele Hände.",
@@ -482,6 +484,15 @@ fn verdict(p: &PreflopReview) -> Verdict {
         _ => "Wie viele Hände du spielst, passt.",
     };
     Verdict { level, title: title.to_string(), line: format!("{tens} von 10 Entscheidungen vor dem Flop passen. {direction}") }
+}
+
+fn invested(d: &ReportDecision) -> bool {
+    played_kind(d).is_some_and(|k| k != "fold" && k != "check")
+}
+
+/// The action the recommendation takes most often.
+fn best_kind(d: &ReportDecision) -> Option<&str> {
+    d.strategy.iter().max_by(|a, b| a.freq.total_cmp(&b.freq)).map(|c| c.kind.as_str())
 }
 
 fn trusted(s: Option<Source>) -> bool {
@@ -521,7 +532,8 @@ fn swing(h: &SwingHand, d: &ReportDecision) -> Swing {
 /// Bad luck: the hand lost at showdown or below its all-in expectation, and every decision
 /// in it is rated good or better by the equilibrium, the model or the solver; the decision
 /// shown is the last one that put chips in. Good luck: the hand won and holds a decision
-/// rated as an inaccuracy or worse by those sources; the costliest one is shown.
+/// rated as an inaccuracy or worse by those sources that put chips in where folding or
+/// checking was best, at a cost of [`LUCK_MIN_BB`] or more; the costliest one is shown. A too passive line that won is no luck.
 pub fn swings(hands: &[SwingHand], decisions: &[ReportDecision]) -> (Vec<Swing>, Vec<Swing>) {
     let mut by_hand: BTreeMap<u64, Vec<&ReportDecision>> = BTreeMap::new();
     for d in decisions.iter().filter(|d| d.row.status != Status::Forced && d.row.source != Some(Source::Forced)) {
@@ -534,7 +546,7 @@ pub fn swings(hands: &[SwingHand], decisions: &[ReportDecision]) -> (Vec<Swing>,
         if h.net < 0 {
             let unlucky = h.showdown || h.ev.is_some_and(|ev| h.net < ev);
             let all_right = ds.iter().all(|d| d.row.status == Status::Rated && trusted(d.row.source) && is_good(d.row.rating));
-            let credited = ds.iter().rev().find(|d| played_kind(d).is_some_and(|k| k != "fold" && k != "check"));
+            let credited = ds.iter().rev().find(|d| invested(d));
             if let (true, true, Some(d)) = (unlucky, all_right, credited) {
                 let strength = h.ev.map_or(-h.net as f64, |ev| (ev - h.net) as f64) / bb;
                 bad.push((strength, swing(h, d)));
@@ -543,7 +555,8 @@ pub fn swings(hands: &[SwingHand], decisions: &[ReportDecision]) -> (Vec<Swing>,
             let worst = ds
                 .iter()
                 .filter(|d| d.row.status == Status::Rated && trusted(d.row.source) && is_flawed(d.row.rating))
-                .filter(|d| d.row.ev_loss_bb.unwrap_or(0.0) > 0.0)
+                .filter(|d| invested(d) && best_kind(d).is_some_and(|k| k == "fold" || k == "check"))
+                .filter(|d| d.row.ev_loss_bb.unwrap_or(0.0) >= LUCK_MIN_BB)
                 .max_by(|a, b| a.row.ev_loss_bb.unwrap_or(0.0).total_cmp(&b.row.ev_loss_bb.unwrap_or(0.0)));
             if let Some(d) = worst {
                 good.push((d.row.ev_loss_bb.unwrap_or(0.0), swing(h, d)));
@@ -781,8 +794,10 @@ mod tests {
         }
     }
 
+    /// A shove the recommendation takes when rated good, and folds otherwise.
     fn shove(hand_id: u64, rating: Rating, source: Source) -> ReportDecision {
-        let mut d = decision(hand_id, 4, 1.0, true, source, rating, if rating <= Rating::Good { 0.0 } else { 2.5 });
+        let right = rating <= Rating::Good;
+        let mut d = decision(hand_id, 4, if right { 1.0 } else { 0.0 }, true, source, rating, if right { 0.0 } else { 2.5 });
         d.played = "All-in 15 BB".into();
         d.strategy[1].kind = "all_in".into();
         d
@@ -796,6 +811,17 @@ mod tests {
         assert_eq!(bad.len(), 1, "a fold that lost the blind is no bad luck");
         assert_eq!((bad[0].hand_id, bad[0].luck_bb), (1, Some(-19.0)));
         assert!(good.is_empty());
+
+        // Too passive with aces and won anyway: a mistake, but winning was no luck.
+        let mut limp = shove(3, Rating::Blunder, Source::Model);
+        limp.strategy[0].freq = 0.0;
+        limp.strategy[1].freq = 1.0;
+        limp.strategy[1].kind = "call".into();
+        limp.strategy.push(Choice { label: "Raise".into(), freq: 0.0, ev_bb: Some(3.0), played: false, kind: "raise".into() });
+        limp.strategy[1].freq = 0.0;
+        limp.strategy[2].freq = 1.0;
+        let (_, good) = swings(&[hand(3, 900, None, true)], &[limp]);
+        assert!(good.is_empty(), "{good:?}");
         let report_hands: Vec<_> = hands
             .iter()
             .map(|h| crate::report::ReportHand {
@@ -851,6 +877,7 @@ mod tests {
                 assert!(hands.iter().any(|h| h.hand_id == s.hand_id && h.net > 0));
                 assert!(is_flawed(s.rating) && trusted(s.source));
             }
+            assert!(!good.is_empty() || !bad.is_empty() || hands.len() < 40, "the generator gives both kinds now and then");
         }
     }
 
