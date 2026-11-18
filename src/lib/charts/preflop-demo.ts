@@ -1,13 +1,13 @@
 // Browser-only sample: the preflop model for 6 players at 40 BB, one per ante structure,
 // cut to the open spots and the most frequent answers. Every grid request gets this sample;
 // a stack off the grid plays a short made-up live solve with progress and cancel.
-import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots } from "./preflop-types";
+import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./preflop-types";
 
 const STACKS = [15, 20, 25, 30, 40, 50, 75, 100];
 
 export function demoGrid(): PreflopGrid {
   return {
-    players: [6, 8, 9],
+    players: [2, 3, 4, 5, 6, 8, 9],
     stacks: STACKS,
     antes: [
       { ante: "none", ante_bb: 0, bb_ante_bb: 0 },
@@ -23,6 +23,12 @@ export function demoGrid(): PreflopGrid {
 
 const listeners = new Set<(p: PreflopProgress) => void>();
 let cancelled = false;
+
+/** The real comparison across table sizes, written by `demo_table_opens_are_current` in src-tauri/src/charts.rs. */
+export async function demoTableOpens(ante: PreflopAnte, stackBb: number, pushfold: boolean): Promise<TableOpens[]> {
+  const all: Record<string, TableOpens[]> = (await import("./sizes-demo.json")).default;
+  return all[`${ante}|${stackBb}|${pushfold ? "pushfold" : "model"}`] ?? [];
+}
 
 export function onProgress(handler: (p: PreflopProgress) => void): () => void {
   listeners.add(handler);

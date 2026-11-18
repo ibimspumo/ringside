@@ -118,3 +118,10 @@ export interface PreflopProgress {
   exploitability: number;
   target_exploitability: number;
 }
+
+/** Per seat (the big blind never opens) the share of hands played first in, percent. */
+export interface TableOpens {
+  players: number;
+  positions: string[];
+  pct: number[];
+}

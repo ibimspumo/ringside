@@ -713,6 +713,7 @@ pub fn run() {
             charts::pushfold_chart,
             charts::preflop_grid,
             charts::preflop_spots,
+            charts::table_opens,
             charts::preflop_node,
             charts::preflop_cancel,
             analysis::analysis_status,
