@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 206,
+      "total": 204,
       "files": {
         "analysis/DecisionCard.svelte": 1,
         "app/LiveTables.svelte": 1,
@@ -11,8 +11,6 @@
         "app/Reports.svelte": 1,
         "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 1,
-        "charts/PreflopChart.svelte": 1,
-        "charts/PushFoldChart.svelte": 1,
         "cloud/MalformedReports.svelte": 1,
         "demo.ts": 3,
         "Felt.svelte": 9,
@@ -60,7 +58,7 @@
       }
     },
     "font-size": {
-      "total": 331,
+      "total": 318,
       "files": {
         "analysis/DecisionCard.svelte": 7,
         "analysis/HandPanel.svelte": 2,
@@ -79,10 +77,6 @@
         "app/SettingsView.svelte": 5,
         "app/TournamentPicker.svelte": 1,
         "app/Tournaments.svelte": 7,
-        "charts/PreflopChart.svelte": 4,
-        "charts/PreflopCharts.svelte": 4,
-        "charts/PushFoldChart.svelte": 2,
-        "charts/PushFoldCharts.svelte": 3,
         "cloud/CloudNotice.svelte": 2,
         "cloud/CloudSettings.svelte": 1,
         "cloud/MalformedReports.svelte": 4,
@@ -194,7 +188,7 @@
       }
     },
     "global-class-override": {
-      "total": 137,
+      "total": 127,
       "files": {
         "analysis/DecisionCard.svelte": 3,
         "analysis/Summary.svelte": 1,
@@ -209,9 +203,6 @@
         "app/ResultsChart.svelte": 1,
         "app/SettingsView.svelte": 5,
         "app/Tournaments.svelte": 7,
-        "charts/PreflopChart.svelte": 6,
-        "charts/PreflopCharts.svelte": 2,
-        "charts/PushFoldCharts.svelte": 2,
         "cloud/CloudNotice.svelte": 1,
         "cloud/CloudSettings.svelte": 2,
         "cloud/MalformedReports.svelte": 1,
@@ -254,15 +245,13 @@
       "files": {}
     },
     "motion": {
-      "total": 65,
+      "total": 62,
       "files": {
         "analysis/AnalyzeBar.svelte": 1,
         "analysis/DecisionCard.svelte": 2,
         "analysis/HandPanel.svelte": 1,
         "app/Main.svelte": 1,
         "app/Replayer.svelte": 2,
-        "charts/PreflopCharts.svelte": 2,
-        "charts/PushFoldCharts.svelte": 1,
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
         "jobs/ChipRing.svelte": 2,
@@ -299,10 +288,8 @@
       }
     },
     "page-heading": {
-      "total": 2,
-      "files": {
-        "charts/PushFoldCharts.svelte": 2
-      }
+      "total": 0,
+      "files": {}
     }
   }
 }

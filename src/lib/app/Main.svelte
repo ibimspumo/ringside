@@ -19,7 +19,8 @@
   import Training from "./Training.svelte";
   import PlayPage from "../play/PlayPage.svelte";
   import { playNav } from "../play/nav.svelte";
-  import PushFoldCharts from "../charts/PushFoldCharts.svelte";
+  import RangesPage from "../charts/RangesPage.svelte";
+  import { chartsHandoff } from "../charts/handoff.svelte";
   import Ranges from "../ranges/Ranges.svelte";
   import type { RangeFilter } from "../ranges/types";
   import Solver from "../solver/Solver.svelte";
@@ -78,7 +79,7 @@
       items: [
         { id: "training", label: "Lernen", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
         { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
-        { id: "charts", label: "Charts", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
+        { id: "charts", label: "Ranges nach Stack", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
         { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
         { id: "library", label: "Bibliothek", icon: "M5 4.5h3v15H5zM10 4.5h3v15h-3zM15.2 5.3l2.9-.8 3.6 14.4-2.9.8z" },
       ],
@@ -144,9 +145,22 @@
   /** Hands tab: optional player filter and a hand to open, set from other views. */
   let handsPlayer = $state<string | null>(null);
   let handToOpen = $state<number | null>(null);
+  let handOpenAt = $state<number | null>(null);
   /** Coach tab: a tournament to analyse, set from the tournaments page. */
   let analyzeTournament = $state<number | null>(null);
 
+  // "Range ansehen" in a hand opens the ranges page; its "Zurück zur Hand" returns.
+  let chartsBack = chartsHandoff.back;
+  $effect(() => {
+    if (chartsHandoff.target) tab = "charts";
+    // Back to the hand as it was: the list keeps its filters.
+    if (chartsHandoff.back !== chartsBack) {
+      chartsBack = chartsHandoff.back;
+      handToOpen = chartsHandoff.hand;
+      handOpenAt = chartsHandoff.at;
+      tab = "hands";
+    }
+  });
   // "Im Solver nachrechnen" in the replayer hands a spot over; the solver page takes it.
   $effect(() => {
     if (handoff.prefill) tab = "solver";
@@ -221,6 +235,7 @@
     handsPlayer = player;
     handsSpot = null;
     handToOpen = handId;
+    handOpenAt = null;
     tab = "hands";
   }
 
@@ -428,7 +443,7 @@
       {:else if tab === "play"}
         <PlayPage />
       {:else if tab === "charts"}
-        <PushFoldCharts />
+        <RangesPage />
       {:else if tab === "solver"}
         <Solver />
       {:else if tab === "library"}
@@ -440,6 +455,7 @@
           player={handsPlayer}
           {tournamentNames}
           openId={handToOpen}
+          openAt={handOpenAt}
           spot={handsSpot}
           onClearSpot={() => (handsSpot = null)}
           onClearPlayer={() => (handsPlayer = null)}

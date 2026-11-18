@@ -356,30 +356,44 @@ step("Training: All-in nach Folds", async () => {
   await find("main button", "Nächste Aufgabe", { exact: false });
 });
 
-/** Picks an option the way a user's choice in the list would. */
-async function choose(select, value) {
-  const el = await find(select);
+/** Sets the table size with the − / + buttons in the middle of the table. */
+async function tableSize(n) {
   await s.exec(
-    `const [el, v] = arguments; el.value = v; el.dispatchEvent(new Event("change", { bubbles: true }));`,
-    el,
-    value,
+    `const want = arguments[0];
+     const cur = parseInt(document.querySelector(".stepper span").textContent);
+     const b = document.querySelector(cur < want ? '.stepper button[aria-label="Ein Spieler mehr"]' : '.stepper button[aria-label="Ein Spieler weniger"]');
+     for (let i = 0; i < Math.abs(want - cur); i++) b.click();`,
+    n,
   );
 }
 
-step("Charts: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () => {
-  await nav("Charts");
-  await click("main button", "Push/Fold");
-  await click("main .seg button", "6");
-  await choose("#pf-stack", "10");
-  await waitText("6 Spieler, je 10 BB");
+/** Moves the stack slider to `bb` the way dragging would: the slider runs on a log scale. */
+async function stackTo(bb) {
+  await s.exec(
+    `const el = document.querySelector("#stack-axis");
+     const st = el.dataset.stacks.split(",").map(Number);
+     const lo = Math.log(st[0]), hi = Math.log(st[st.length - 1]);
+     el.value = String(Math.round(((Math.log(arguments[0]) - lo) / (hi - lo)) * 1000));
+     el.dispatchEvent(new Event("input", { bubbles: true }));`,
+    bb,
+  );
+}
+
+step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () => {
+  await nav("Ranges nach Stack");
+  await find(".stepper span");
+  await tableSize(6);
+  await find("#stack-axis");
+  await stackTo(10);
+  await waitText("6 Spieler, alle mit 10 BB");
   await waitText(TAURI ? "Vorgerechnet" : "Quelle");
+  await waitText("Gleichgewicht");
 });
 
-step("Charts: Preflop, 6-max, 40 BB", async () => {
-  await click("main button", "Preflop");
-  await click("main .seg button", "6-max");
-  await choose("#pre-stack", "40");
-  await waitText(/spielt \d/);
+step("Ranges nach Stack: Modell mit 50 BB", async () => {
+  await stackTo(50);
+  await waitText(/eröffnest du etwa \d+ %/);
+  await waitText("Modell");
 });
 
 /** Sets a field's text the way typing would, replacing what is there. */

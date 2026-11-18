@@ -1,141 +1,217 @@
 <script lang="ts">
   import type { PushFoldNode } from "../types";
-  import { floating, signed, type Anchor } from "../app/format";
+  import { signed } from "../app/format";
+  import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
+  import Tooltip from "../ui/Tooltip.svelte";
+  import { classCombos, classLabel } from "../solver/range";
+  import { TERM, amount } from "./words";
+  import { actionColor } from "./preflop-labels";
 
-  /** 13×13 starting-hand grid of one push/fold node, filled by shove or call frequency. */
-  let { node, action }: { node: PushFoldNode; action: "shove" | "call" } = $props();
+  /** 13×13 grid of one push/fold node on the shared RangeGrid: each hand split into all-in (or call) and fold. */
+  let {
+    node,
+    action,
+    pin = null,
+    only = null,
+  }: {
+    node: PushFoldNode;
+    action: "shove" | "call";
+    /** Hand to show pinned and outlined, e.g. the one played in a hand history. */
+    pin?: string | null;
+    /** From the action bar: 0 shows only hands that shove or call, 1 only hands that fold. */
+    only?: number | null;
+  } = $props();
 
-  const RANKS = "AKQJT98765432";
-  type Cell = { i: number; key: string; combos: number; freq: number; ev: number; fold: number };
-
-  let hover = $state<{ cell: Cell; anchor: Anchor } | null>(null);
+  type Hand = { key: string; combos: number; freq: number; ev: number; fold: number };
 
   // HandClass::index is row * 13 + col with the ace first, suited above the diagonal.
-  const cells = $derived(
-    Array.from({ length: 169 }, (_, i): Cell => {
-      const r = Math.floor(i / 13);
-      const c = i % 13;
-      const hi = RANKS[Math.min(r, c)];
-      const lo = RANKS[Math.max(r, c)];
-      const key = r === c ? hi + lo : r < c ? `${hi}${lo}s` : `${hi}${lo}o`;
-      return {
-        i,
-        key,
-        combos: r === c ? 6 : r < c ? 4 : 12,
-        freq: node.freq[i] / 255,
-        ev: node.ev_act[i] / 100,
-        fold: node.ev_fold / 100,
-      };
-    }),
+  const hands = $derived(
+    Array.from({ length: 169 }, (_, i): Hand => ({
+      key: classLabel(i),
+      combos: classCombos(i),
+      freq: node.freq[i] / 255,
+      ev: node.ev_act[i] / 100,
+      fold: node.ev_fold / 100,
+    })),
   );
 
-  const verb = $derived(action === "shove" ? "Shove" : "Call");
-  const tone = $derived(action === "shove" ? "var(--shove)" : "var(--call)");
+  const verb = $derived(action === "shove" ? "All-in" : "Call");
+  const doing = $derived(action === "shove" ? "all-in" : "callen");
+  const tone = $derived(actionColor(action === "shove" ? "all_in" : "call"));
+  const FOLD = actionColor("fold");
 
-  function pct(f: number): string {
-    return `${Math.round(f * 100)} %`;
-  }
-
+  const pct = (f: number) => `${Math.round(f * 100)} %`;
   /** Whole percent; 0 and 100 count as pure. */
-  const share = (c: Cell) => Math.round(c.freq * 100);
+  const share = (h: Hand) => Math.round(h.freq * 100);
 
-  /** Fills from the bottom by frequency, so mixed hands read as partly played. */
-  function fill(c: Cell): string {
-    if (share(c) <= 0) return "var(--surface-2)";
-    if (share(c) >= 100) return tone;
-    const p = (c.freq * 100).toFixed(1);
-    return `linear-gradient(to top, ${tone} ${p}%, var(--surface-2) ${p}%)`;
+  const cells = $derived(
+    hands.map(
+      (h): RangeCell => ({
+        mix: [
+          { color: tone, share: h.freq },
+          { color: FOLD, share: 1 - h.freq },
+        ],
+        value: share(h) > 0 && share(h) < 100 ? String(share(h)) : undefined,
+        note: `${verb} ${pct(h.freq)}`,
+      }),
+    ),
+  );
+
+  const pinIndex = $derived(pin ? hands.findIndex((h) => h.key === pin) : -1);
+  let selected = $state(-1);
+  $effect(() => {
+    if (pinIndex >= 0) selected = pinIndex;
+  });
+
+  function verdict(h: Hand): string {
+    if (share(h) >= 100) return `Immer ${doing}`;
+    if (share(h) <= 0) return "Immer folden";
+    return `Gemischt: ${share(h)} % ${doing}, sonst Fold`;
   }
 
-  function show(e: MouseEvent, cell: Cell) {
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    hover = { cell, anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } };
+  function why(h: Hand): string {
+    const d = h.ev - h.fold;
+    if (Math.abs(d) < 0.005) return `${verb} und Fold bringen gleich viel.`;
+    return d > 0 ? `${verb} bringt im Schnitt ${amount(d)} BB mehr als Fold.` : `${verb} verliert im Schnitt ${amount(d)} BB gegenüber Fold.`;
   }
+  const diffTone = (h: Hand) => (h.ev - h.fold > 0.005 ? "pos" : h.ev - h.fold < -0.005 ? "neg" : "");
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="matrix" onmouseleave={() => (hover = null)}>
-  {#each cells as c (c.i)}
-    {@const mixed = share(c) > 0 && share(c) < 100}
-    <div
-      class="cell"
-      class:on={c.freq >= 0.8}
-      class:low-on={c.freq >= 0.25}
-      style="background:{fill(c)}"
-      aria-label="{c.key}: {verb} {pct(c.freq)}"
-      onmouseenter={(e) => show(e, c)}
-    >
-      <span class="k">{c.key}</span>
-      {#if mixed}<span class="v num">{share(c)}</span>{/if}
-    </div>
-  {/each}
-  {#if hover}
-    {@const c = hover.cell}
-    <div class="tip" use:floating={{ anchor: hover.anchor }}>
-      <header><b>{c.key}</b> · {c.combos} Kombos</header>
-      <div class="row"><span>{verb}</span><b>{pct(c.freq)}</b></div>
-      <div class="row"><span>EV {verb}</span><b>{signed(c.ev, 2)} BB</b></div>
-      <div class="row"><span>EV Fold</span><b>{signed(c.fold, 2)} BB</b></div>
-      <div class="row">
-        <span>Differenz</span><b class={c.ev - c.fold > 0.005 ? "pos" : c.ev - c.fold < -0.005 ? "neg" : ""}
-          >{signed(c.ev - c.fold, 2)} BB</b
-        >
-      </div>
-    </div>
-  {/if}
-</div>
+<RangeGrid
+  {cells}
+  label="Push/Fold-Range als 13 mal 13 Raster"
+  hero={pinIndex}
+  {selected}
+  dimmed={only === null ? undefined : (i) => (only === 0 ? hands[i].freq < 0.005 : hands[i].freq > 0.995)}
+  onSelect={(i) => (selected = selected === i ? -1 : i)}
+  onClose={() => (selected = -1)}
+>
+  {#snippet tip(i)}
+    {@const h = hands[i]}
+    <p class="t-head"><b class="t-key">{h.key}</b> {verdict(h)}</p>
+    <div class="bar" aria-hidden="true"><i style="width:{h.freq * 100}%;background:{tone}"></i></div>
+    <p class="t-why">{why(h).replace(/ im Schnitt/, "")}</p>
+  {/snippet}
+  {#snippet card(i)}
+    {@const h = hands[i]}
+    <header class="c-head">
+      <b class="c-key">{h.key}</b>
+      <Tooltip text={TERM.combos}><span class="term">{h.combos} Kombos</span></Tooltip>
+    </header>
+    <p class="verdict">{verdict(h)}.</p>
+    <p class="why">{why(h)}</p>
+    {#if share(h) > 0 && share(h) < 100}
+      <p class="why"><Tooltip text={TERM.mixed}><span class="term">Warum gemischt?</span></Tooltip></p>
+    {/if}
+    <div class="bar split" aria-hidden="true"><i style="width:{h.freq * 100}%;background:{tone}"></i></div>
+    <table class="acts">
+      <thead><tr><th>Aktion</th><th>Wie oft</th><th><Tooltip text={TERM.ev}><span class="term">EV</span></Tooltip></th></tr></thead>
+      <tbody>
+        <tr class:best={h.ev >= h.fold}>
+          <td><i class="sw" style="background:{tone}"></i>{verb}</td>
+          <td class="num">{pct(h.freq)}</td>
+          <td class="num">{signed(h.ev, 2)} BB</td>
+        </tr>
+        <tr class:best={h.fold > h.ev}>
+          <td><i class="sw" style="background:{FOLD}"></i>Fold</td>
+          <td class="num">{pct(1 - h.freq)}</td>
+          <td class="num">{signed(h.fold, 2)} BB</td>
+        </tr>
+      </tbody>
+      <tfoot>
+        <tr><td colspan="2">Unterschied</td><td class="num diff {diffTone(h)}">{signed(h.ev - h.fold, 2)} BB</td></tr>
+      </tfoot>
+    </table>
+  {/snippet}
+</RangeGrid>
 
 <style>
-  .matrix {
-    --shove: color-mix(in srgb, var(--neg) 78%, var(--surface-2));
-    --call: color-mix(in srgb, var(--pos) 70%, var(--surface-2));
-    position: relative;
-    display: grid;
-    grid-template-columns: repeat(13, minmax(0, 1fr));
-    gap: 2px;
-  }
-  .cell {
-    position: relative;
-    aspect-ratio: 1;
+  .t-head {
+    margin: 0;
     display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 3px 4px;
-    border-radius: 3px;
-    overflow: hidden;
-    cursor: default;
-    min-width: 0;
-    color: var(--text-3);
+    align-items: baseline;
+    gap: var(--sp-2);
   }
-  /* Ink follows the fill: the name sits at the top, the share at the bottom. */
-  .cell.on .k,
-  .cell.low-on .v {
-    color: #121418;
-  }
-  .cell:hover {
-    outline: 1px solid var(--text);
-    z-index: 1;
-  }
-  .k {
+  .t-key {
     font-family: var(--font-num);
-    font-size: 11px;
+    font-size: var(--fs-base);
+  }
+  .c-key {
+    font-family: var(--font-num);
+    font-size: var(--fs-3xl);
+    line-height: 1;
+  }
+  .t-why {
+    margin: 0;
+    color: var(--text-2);
+  }
+  .c-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-2);
+  }
+  .term {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
+    text-underline-offset: 3px;
+  }
+  .bar {
+    display: flex;
+    height: 5px;
+    margin: var(--sp-2) 0 var(--sp-1);
+    border-radius: 3px;
+    background: var(--act-fold);
+    overflow: hidden;
+  }
+  .bar.split {
+    height: 8px;
+    margin: var(--sp-3) 0;
+  }
+  .verdict {
+    margin: 0;
+    font-size: var(--fs-base);
     font-weight: 600;
-    line-height: 1;
   }
-  .v {
-    align-self: flex-end;
-    font-size: 10.5px;
-    line-height: 1;
+  .why {
+    margin: 2px 0 0;
+    color: var(--text-2);
   }
-  @container (max-width: 520px) {
-    .cell {
-      padding: 2px;
-    }
-    .k {
-      font-size: 9px;
-    }
-    .v {
-      display: none;
-    }
+  .acts {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--fs-sm);
+  }
+  .acts th {
+    font-weight: 500;
+    color: var(--text-2);
+    text-align: right;
+    padding: 0 0 var(--sp-1);
+  }
+  .acts td {
+    padding: var(--sp-1) 0;
+    text-align: right;
+    border-top: 1px solid var(--line);
+  }
+  .acts th:first-child,
+  .acts td:first-child {
+    text-align: left;
+  }
+  .acts tr.best td {
+    font-weight: 600;
+  }
+  .acts tfoot td {
+    color: var(--text-2);
+  }
+  .acts tfoot td.diff {
+    font-weight: 600;
+  }
+  .sw {
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    margin-right: 7px;
   }
 </style>
