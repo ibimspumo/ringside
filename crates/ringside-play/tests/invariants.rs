@@ -11,7 +11,7 @@ use ringside_play::assess::{Assess, Assessment, Situation};
 use ringside_play::hand::{EndReason, Event, Need, Source, Street, Unrated};
 use ringside_play::pool::{NoLookup, Pool, Ready};
 use ringside_play::scenario::PotType;
-use ringside_play::table::{Config, Mode, TableKey, deep};
+use ringside_play::table::{Config, Mode, PLAYERS, TableKey, deep};
 use ringside_play::tree::TreeSource;
 use ringside_play::{Hand, HandView};
 use ringside_solver::{Settings, solve};
@@ -108,6 +108,80 @@ fn every_hand_ends_in_a_fold_or_a_showdown() {
     }
     assert_eq!(solves, 0, "some flops were solved live");
     assert!(multiway > 0, "some hands were played multiway");
+}
+
+/// Every table size from heads-up to nine players, deep and push/fold, plays to a fold or
+/// a showdown with the chips adding up, and names one position per seat.
+#[test]
+fn every_table_size_plays_to_the_end() {
+    let mut solves = 6;
+    let mut flops = 0;
+    for &players in &PLAYERS {
+        for config in [
+            Config { players, ..Config::default() },
+            Config { players, ante: Ante::Classic, stack_bb: 100.0, ..Config::default() },
+            Config { players, mode: Mode::PushFold, stack_bb: 10.0, ..Config::default() },
+        ] {
+            config.validate().unwrap();
+            for seed in 0..40 {
+                let mut rng = ChaCha8Rng::seed_from_u64(seed ^ 0x5eed);
+                let mut hand = Hand::start(&config, seed, None).unwrap();
+                play_to_end(&mut hand, &mut rng, &mut solves);
+                let view = hand.view();
+                check(&view);
+                assert_eq!(view.positions.len(), players);
+                flops += usize::from(view.board.len() >= 3 && view.config.mode == Mode::Full);
+            }
+        }
+    }
+    assert!(flops > 0);
+    assert!(Config { players: 7, ..Config::default() }.validate().is_err(), "the model has no table of seven");
+}
+
+/// Heads-up the button posts the small blind: it acts first before the flop and last
+/// after it, and its preflop decisions are graded by the model.
+#[test]
+fn heads_up_the_button_acts_first_before_and_last_after_the_flop() {
+    let mut postflop = 0;
+    // A few flops are solved, the others played on without a solution: the order is the same.
+    let mut solves = 3usize;
+    for hero in [0, 1] {
+        let config = Config { players: 2, hero_seat: Some(hero), ..Config::default() };
+        for seed in 0..20 {
+            let mut hand = Hand::start(&config, seed, None).unwrap();
+            for _ in 0..60 {
+                if let Some(need) = hand.need().cloned() {
+                    let result = if solves > 0 { rough(&need) } else { Err("Abgebrochen".into()) };
+                    solves = solves.saturating_sub(1);
+                    hand.resume(result).unwrap();
+                    continue;
+                }
+                let Some(l) = hand.lesson() else { break };
+                let a = l.choices.iter().position(|c| c.kind == "call" || c.kind == "check").unwrap_or(0);
+                hand.act(a).unwrap();
+            }
+            assert!(hand.is_over());
+            let view = hand.view();
+            check(&view);
+            assert_eq!(view.positions, ["SB", "BB"]);
+            let mut acted: Option<Street> = None;
+            for e in &view.events {
+                let Event::Action { street, seat, .. } = e else { continue };
+                if acted == Some(*street) {
+                    continue;
+                }
+                acted = Some(*street);
+                let first = if *street == Street::Preflop { 0 } else { 1 };
+                assert_eq!(*seat, first, "{street:?} starts with the {}: {:?}", view.positions[first], view.events);
+                postflop += usize::from(*street != Street::Preflop);
+            }
+            let first = view.verdicts.first().expect("the hero decides");
+            if first.lesson.street == Street::Preflop {
+                assert_eq!(first.lesson.source, Some(Source::Model), "{:?}", first.lesson);
+            }
+        }
+    }
+    assert!(postflop > 20, "only {postflop} streets after the flop");
 }
 
 #[test]

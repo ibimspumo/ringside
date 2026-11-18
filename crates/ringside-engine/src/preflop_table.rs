@@ -2,8 +2,8 @@
 //! app: chip EV, equal stacks, each of the three ante structures of [`Ante`] on a fixed
 //! stack grid ([`STACKS`]), in two families ([`Family`]):
 //!
-//! - **plain**: 6, 8 and 9 players ([`PLAYERS`]), limps from the small blind only, as
-//!   the practice, the charts, the lessons and the spot library use them;
+//! - **plain**: 2 to 6, 8 and 9 players ([`PLAYERS`]), limps from the small blind only,
+//!   as the practice, the charts, the lessons and the spot library use them;
 //! - **limps**: 2 to 6, 8 and 9 players ([`LIMP_PLAYERS`]) with limps from every seat
 //!   ([`OPEN_LIMPS`]), for the hand analysis. Limping changes every range a little, so
 //!   the plain family stays as it is for what is built on its exact ranges (the
@@ -53,7 +53,7 @@ pub const MAX_ITERATIONS: u32 = 4000;
 /// Minimum limp share of the limp family, times [`limp_shape`](crate::preflop::limp_shape):
 /// enough hands reach every spot behind a limp for its strategy to mean something.
 pub const OPEN_LIMPS: f64 = 0.03;
-pub const PLAYERS: [usize; 3] = [6, 8, 9];
+pub const PLAYERS: [usize; 7] = [2, 3, 4, 5, 6, 8, 9];
 pub const LIMP_PLAYERS: [usize; 7] = [2, 3, 4, 5, 6, 8, 9];
 /// Stack depths in BB.
 pub const STACKS: [f64; 8] = [15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 75.0, 100.0];
@@ -166,18 +166,30 @@ struct Table {
 }
 
 /// By ante code, then player count as in [`PLAYERS`].
-static PLAIN_BYTES: [[&[u8]; 3]; 3] = [
+static PLAIN_BYTES: [[&[u8]; 7]; 3] = [
     [
+        include_bytes!("../data/preflop_none_2max.bin"),
+        include_bytes!("../data/preflop_none_3max.bin"),
+        include_bytes!("../data/preflop_none_4max.bin"),
+        include_bytes!("../data/preflop_none_5max.bin"),
         include_bytes!("../data/preflop_none_6max.bin"),
         include_bytes!("../data/preflop_none_8max.bin"),
         include_bytes!("../data/preflop_none_9max.bin"),
     ],
     [
+        include_bytes!("../data/preflop_classic_2max.bin"),
+        include_bytes!("../data/preflop_classic_3max.bin"),
+        include_bytes!("../data/preflop_classic_4max.bin"),
+        include_bytes!("../data/preflop_classic_5max.bin"),
         include_bytes!("../data/preflop_classic_6max.bin"),
         include_bytes!("../data/preflop_classic_8max.bin"),
         include_bytes!("../data/preflop_classic_9max.bin"),
     ],
     [
+        include_bytes!("../data/preflop_big_blind_2max.bin"),
+        include_bytes!("../data/preflop_big_blind_3max.bin"),
+        include_bytes!("../data/preflop_big_blind_4max.bin"),
+        include_bytes!("../data/preflop_big_blind_5max.bin"),
         include_bytes!("../data/preflop_big_blind_6max.bin"),
         include_bytes!("../data/preflop_big_blind_8max.bin"),
         include_bytes!("../data/preflop_big_blind_9max.bin"),
@@ -216,14 +228,14 @@ static LIMP_BYTES: [[&[u8]; 7]; 3] = [
 ];
 
 /// Inflated on first use, one file at a time.
-static PLAIN_TABLES: [[Idle<Table>; 3]; 3] = {
+static PLAIN_TABLES: [[Idle<Table>; 7]; 3] = {
     fn at<const A: usize, const N: usize>() -> Table {
         load(Ante::ALL[A], PLAYERS[N], PLAIN_BYTES[A][N])
     }
     [
-        [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>)],
-        [Idle::new(at::<1, 0>), Idle::new(at::<1, 1>), Idle::new(at::<1, 2>)],
-        [Idle::new(at::<2, 0>), Idle::new(at::<2, 1>), Idle::new(at::<2, 2>)],
+        [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>), Idle::new(at::<0, 3>), Idle::new(at::<0, 4>), Idle::new(at::<0, 5>), Idle::new(at::<0, 6>)],
+        [Idle::new(at::<1, 0>), Idle::new(at::<1, 1>), Idle::new(at::<1, 2>), Idle::new(at::<1, 3>), Idle::new(at::<1, 4>), Idle::new(at::<1, 5>), Idle::new(at::<1, 6>)],
+        [Idle::new(at::<2, 0>), Idle::new(at::<2, 1>), Idle::new(at::<2, 2>), Idle::new(at::<2, 3>), Idle::new(at::<2, 4>), Idle::new(at::<2, 5>), Idle::new(at::<2, 6>)],
     ]
 };
 

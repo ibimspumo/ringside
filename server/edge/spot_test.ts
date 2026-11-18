@@ -1,10 +1,11 @@
 import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
 import { canonicalize, solutionKey } from "./canonical.ts";
-import { canonicalFlop, InvalidError, kindSpec } from "./kinds.ts";
+import { canonicalFlop, InvalidError, kindSpec, SPOT_FAMILIES } from "./kinds.ts";
 
 interface Shared {
   keys: { input: Record<string, unknown>; canonical: string; key: string }[];
   flops: [string, string][];
+  families: Record<string, number[]>;
 }
 
 const shared: Shared = JSON.parse(
@@ -42,7 +43,6 @@ Deno.test("spot inputs off the model's shape are refused", () => {
     { ...good, model: 1 },
     { ...good, family: "other" },
     { ...good, players: 7 },
-    { ...good, family: "plain", players: 4 },
     { ...good, stack_bb: 41 },
     { ...good, line: [] },
     { ...good, line: [[9, "raise", 2200]] },
@@ -55,6 +55,16 @@ Deno.test("spot inputs off the model's shape are refused", () => {
     { ...good, played_at: 1763000000 },
   ];
   for (const b of bad) assertThrows(() => spec.checkInput(b), InvalidError, undefined, JSON.stringify(b));
+});
+
+Deno.test("every family takes the table sizes of Rust", () => {
+  assertEquals(SPOT_FAMILIES, shared.families);
+  const good = shared.keys[0].input;
+  for (const [family, sizes] of Object.entries(shared.families)) {
+    for (const players of sizes) {
+      spec.checkInput({ ...good, family, players, line: [[0, "raise", 2200], [players - 1, "call", 2200]] });
+    }
+  }
 });
 
 Deno.test("a stored spot must carry the spot header with the input's board", () => {

@@ -1,7 +1,9 @@
 //! Open or fold once everyone before folded, by Ringside's preflop model
-//! ([`ringside_engine::preflop`]) from the tables shipped with the app: 6, 8 and 9
-//! players, equal stacks, chip EV. The small blind (which may also limp) and the big
-//! blind (which never opens) are not asked.
+//! ([`ringside_engine::preflop`]) from the tables shipped with the app, equal stacks, chip
+//! EV: at full tables (6, 8 and 9 players) or short ones (2 to 5). The small blind (which
+//! may also limp) and the big blind (which never opens) are not asked, except heads-up,
+//! where the small blind is the button and the only seat that opens; there a limp counts
+//! as playing the hand.
 
 use rand::Rng;
 use ringside_engine::preflop::{self, Kind as Act, Solution};
@@ -20,14 +22,26 @@ pub const MODEL_NOTE: &str = "Preflop-Modell von Ringside: Strategie je Handklas
 /// Clear decisions differ by at least this much, in big blinds per hand.
 const CLEAR_BB: f64 = 0.1;
 
-/// Players, stacks and antes of each level: 6-max deep without ante; 8 and 9 players with
-/// antes; every table and depth, close spots only.
-fn table(level: u8, rng: &mut Rng8) -> (Ante, usize, f64) {
-    match level {
-        1 => (Ante::None, 6, *deal::pick(rng, &[40.0, 50.0, 75.0, 100.0])),
-        2 => (*deal::pick(rng, &[Ante::Classic, Ante::BigBlind]), *deal::pick(rng, &[8, 9]), *deal::pick(rng, &[30.0, 40.0, 50.0, 75.0, 100.0])),
-        _ => (*deal::pick(rng, &Ante::ALL), *deal::pick(rng, &preflop_table::PLAYERS), *deal::pick(rng, &preflop_table::STACKS)),
+/// Players, stacks and antes of each level. Full tables: 6-max deep without ante; 8 and 9
+/// players with antes; every table and depth, close spots only. Short tables: heads-up and
+/// three players deep without ante; four and five players with antes; every short table
+/// and depth, close spots only.
+fn table(level: u8, short: bool, rng: &mut Rng8) -> (Ante, usize, f64) {
+    const FULL: [usize; 3] = [6, 8, 9];
+    const SHORT: [usize; 4] = [2, 3, 4, 5];
+    let deep = [40.0, 50.0, 75.0, 100.0];
+    match (level, short) {
+        (1, false) => (Ante::None, 6, *deal::pick(rng, &deep)),
+        (1, true) => (Ante::None, *deal::pick(rng, &[2, 3]), *deal::pick(rng, &deep)),
+        (2, false) => (*deal::pick(rng, &[Ante::Classic, Ante::BigBlind]), *deal::pick(rng, &[8, 9]), *deal::pick(rng, &[30.0, 40.0, 50.0, 75.0, 100.0])),
+        (2, true) => (*deal::pick(rng, &[Ante::Classic, Ante::BigBlind]), *deal::pick(rng, &[4, 5]), *deal::pick(rng, &[30.0, 40.0, 50.0, 75.0, 100.0])),
+        _ => (*deal::pick(rng, &Ante::ALL), *deal::pick(rng, if short { &SHORT[..] } else { &FULL[..] }), *deal::pick(rng, &preflop_table::STACKS)),
     }
+}
+
+/// Seats asked to open: before the blinds, or heads-up the button.
+fn openers(players: usize) -> std::ops::Range<usize> {
+    if players == 2 { 0..1 } else { 0..players - 2 }
 }
 
 fn chart(ante: Ante, players: usize, stack_bb: f64) -> Result<Solution, String> {
@@ -67,11 +81,11 @@ pub fn decide(sol: &Solution, seat: usize, class: HandClass) -> Option<Decision>
     Some(d)
 }
 
-pub fn generate(level: u8, rng: &mut Rng8) -> Result<Task, String> {
-    let (ante, players, stack) = table(level, rng);
+pub fn generate(level: u8, short: bool, rng: &mut Rng8) -> Result<Task, String> {
+    let (ante, players, stack) = table(level, short, rng);
     let sol = chart(ante, players, stack)?;
     for _ in 0..10_000 {
-        let seat = rng.random_range(0..players - 2);
+        let seat = rng.random_range(openers(players));
         let mut used = CardSet::EMPTY;
         let hand = deal::cards(rng, &mut used, 2);
         let class = Combo::new(hand[0], hand[1]).class();
@@ -90,10 +104,11 @@ pub fn generate(level: u8, rng: &mut Rng8) -> Result<Task, String> {
         if bb_ante_bb > 0.0 {
             setup.push_str(&format!(", Big-Blind-Ante {}", fmt::bb(bb_ante_bb)));
         }
-        let question = format!(
-            "{setup}. Du sitzt {}, alle vor dir haben gefoldet. Öffnest du mit {class}?",
-            at(&positions[seat])
-        );
+        let question = if players == 2 {
+            format!("{setup}, heads-up. Du hast den Button und zahlst damit den Small Blind. Spielst du {class} (Raise oder Limp)?")
+        } else {
+            format!("{setup}. Du sitzt {}, alle vor dir haben gefoldet. Öffnest du mit {class}?", at(&positions[seat]))
+        };
         return Ok(Task {
             question,
             prompt: Prompt::OpenFold {
@@ -138,7 +153,7 @@ pub fn grade(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {
     let open = picked == "open";
     let correct = if open { d.open > 0.0 } else { d.open < 1.0 };
     let loss = (d.ev_open.max(d.ev_fold) - if open { d.ev_open } else { d.ev_fold }).max(0.0);
-    let ranges: Vec<(String, f64)> = (0..positions.len() - 2)
+    let ranges: Vec<(String, f64)> = openers(positions.len())
         .filter_map(|s| Some((positions[s].clone(), sol.play_pct(sol.open_node(s)?))))
         .collect();
     let mine = ranges[*hero].1;
@@ -190,34 +205,46 @@ pub fn grade(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {
 mod tests {
     use super::*;
 
-    /// Every spot is an open decision of a seat before the blinds, graded by the model's
-    /// table for exactly that table; the grid shows the same frequency for the hero's class.
+    /// Every spot is an open decision of a seat before the blinds (heads-up the button),
+    /// graded by the model's table for exactly that table; the grid shows the same
+    /// frequency for the hero's class. The short kind deals two to five players.
     #[test]
     fn spots_follow_the_preflop_tables() {
-        for level in 1..=3 {
-            for seed in 0..8 {
-                let ex = crate::generate(crate::Kind::OpenFold, level, seed).unwrap();
-                let Prompt::OpenFold { positions, hero, hand, stack_bb, ante_bb, bb_ante_bb, class, .. } = &ex.prompt else {
-                    unreachable!()
-                };
-                let n = positions.len();
-                assert!(*hero < n - 2, "no blinds");
-                match level {
-                    1 => assert!(n == 6 && *ante_bb == 0.0 && *bb_ante_bb == 0.0 && *stack_bb >= 40.0),
-                    2 => assert!(n >= 8 && ante_bb + bb_ante_bb > 0.0),
-                    _ => {}
+        for kind in [crate::Kind::OpenFold, crate::Kind::OpenFoldShort] {
+            let short = kind == crate::Kind::OpenFoldShort;
+            let mut sizes = std::collections::BTreeSet::new();
+            for level in 1..=3 {
+                for seed in 0..12 {
+                    let ex = crate::generate(kind, level, seed).unwrap();
+                    let Prompt::OpenFold { positions, hero, hand, stack_bb, ante_bb, bb_ante_bb, class, .. } = &ex.prompt else {
+                        unreachable!()
+                    };
+                    let n = positions.len();
+                    sizes.insert(n);
+                    assert!(openers(n).contains(hero), "no blinds, heads-up the button: {n} players, seat {hero}");
+                    assert_eq!(short, n <= 5, "{kind:?}: {n} players");
+                    match (level, short) {
+                        (1, false) => assert!(n == 6 && *ante_bb == 0.0 && *bb_ante_bb == 0.0 && *stack_bb >= 40.0),
+                        (1, true) => assert!(n <= 3 && *ante_bb == 0.0 && *bb_ante_bb == 0.0 && *stack_bb >= 40.0),
+                        (2, false) => assert!(n >= 8 && ante_bb + bb_ante_bb > 0.0),
+                        (2, true) => assert!((4..=5).contains(&n) && ante_bb + bb_ante_bb > 0.0),
+                        _ => {}
+                    }
+                    let c = Combo::new(hand[0], hand[1]).class();
+                    assert_eq!(c.to_string(), *class);
+                    let sol = chart(ante_of(*ante_bb, *bb_ante_bb), n, *stack_bb).unwrap();
+                    let d = decide(&sol, *hero, c).unwrap();
+                    let close = (d.open > 0.0 && d.open < 1.0) || (d.ev_open - d.ev_fold).abs() < CLEAR_BB;
+                    assert_eq!(close, level == 3);
+                    let (_, fb) = crate::check(kind, level, seed, &Answer::Choice("open".into())).unwrap();
+                    assert_eq!(fb.correct, d.open > 0.0);
+                    let grid = fb.grid.unwrap();
+                    assert!((grid.cells[c.index()].unwrap() - d.open).abs() < 0.006);
+                    assert_eq!(grid.hero, c.index());
                 }
-                let c = Combo::new(hand[0], hand[1]).class();
-                assert_eq!(c.to_string(), *class);
-                let sol = chart(ante_of(*ante_bb, *bb_ante_bb), n, *stack_bb).unwrap();
-                let d = decide(&sol, *hero, c).unwrap();
-                let close = (d.open > 0.0 && d.open < 1.0) || (d.ev_open - d.ev_fold).abs() < CLEAR_BB;
-                assert_eq!(close, level == 3);
-                let (_, fb) = crate::check(crate::Kind::OpenFold, level, seed, &Answer::Choice("open".into())).unwrap();
-                assert_eq!(fb.correct, d.open > 0.0);
-                let grid = fb.grid.unwrap();
-                assert!((grid.cells[c.index()].unwrap() - d.open).abs() < 0.006);
-                assert_eq!(grid.hero, c.index());
+            }
+            if short {
+                assert!(sizes.contains(&2), "heads-up is dealt: {sizes:?}");
             }
         }
     }

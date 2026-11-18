@@ -106,6 +106,33 @@ fn embedded_tables() {
     }
 }
 
+/// Fewer players, wider ranges: whoever acts first opens wider the fewer players sit
+/// behind, at every ante and depth. The button always has just the blinds behind, so its
+/// range barely moves from 9 to 3 players; it still grows without an ante or with a
+/// big-blind ante. With every player paying an ante a full table puts more dead money in
+/// the pot, so the button opens a little wider at 9 than at 3 players there. Heads-up the
+/// button is the small blind with one player behind and opens far wider than anywhere else.
+#[test]
+fn ranges_widen_with_fewer_players() {
+    let button = |n: usize| if n == 2 { 0 } else { n - 3 };
+    for ante in Ante::ALL {
+        for &stack in &STACKS {
+            let tables: Vec<(usize, Solution)> = PLAYERS.iter().rev().map(|&n| (n, preflop_table::chart(ante, n, stack).unwrap())).collect();
+            let first: Vec<f64> = tables.iter().map(|(_, s)| open_pct(s, 0)).collect();
+            let btn: Vec<f64> = tables.iter().map(|(n, s)| open_pct(s, button(*n))).collect();
+            let what = format!("{} {stack} BB, 9 … 2 players: first in {first:.0?}, button {btn:.0?}", ante.key());
+            assert!(first.windows(2).all(|w| w[1] > w[0] + 1.0), "{what}");
+            let (hu, rest) = btn.split_last().unwrap();
+            let (lo, hi) = rest.iter().fold((f64::MAX, f64::MIN), |(a, b), &x| (a.min(x), b.max(x)));
+            assert!(*hu > hi + 25.0, "{what}");
+            assert!(hi - lo < 8.0, "{what}");
+            if ante != Ante::Classic {
+                assert!(rest.windows(2).all(|w| w[1] >= w[0] - 1.0), "{what}");
+            }
+        }
+    }
+}
+
 /// Comparisons for the docs; run with
 /// `cargo test --release -p ringside-engine --test preflop -- --ignored --nocapture`.
 #[test]
@@ -139,3 +166,4 @@ fn comparisons() {
         println!("{n}-max 15 BB, model all-in/any open vs push/fold shove: {}", rows.join(", "));
     }
 }
+

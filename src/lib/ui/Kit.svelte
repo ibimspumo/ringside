@@ -12,6 +12,7 @@
   import { bb, cash, int, money, pct, signed } from "./format";
   import GradeBadge from "./GradeBadge.svelte";
   import GradeBars from "./GradeBars.svelte";
+  import ColumnBars from "./ColumnBars.svelte";
   import IconButton from "./IconButton.svelte";
   import Kbd from "./Kbd.svelte";
   import MiniCard from "./MiniCard.svelte";
@@ -207,6 +208,7 @@
   $effect(() => {
     if (popHost && (only === "popups" || q.get("pop") === "1")) popAnchor = rectOf(popHost);
   });
+  let kitSize = $state(6);
 </script>
 
 <div class="kit" class:gray>
@@ -521,6 +523,13 @@
             <GradeBars counts={{ best: 9, mix: 3, good: 4, inaccurate: 2, mistake: 1, blunder: 0 }} />
             <p class="muted">Mit <code>grades</code> nur die Stufen einer Quelle, etwa die vier des Coaches:</p>
             <GradeBars grades={["best", "good", "inaccurate", "mistake"]} counts={{ best: 2, good: 1, inaccurate: 1, mistake: 1 }} />
+            <p class="muted">Eine Zahl über wenige Fälle, jeder Balken wählt seinen Fall (<code>ColumnBars</code>):</p>
+            <ColumnBars
+              label="Erster am Zug nach Tischgröße"
+              selected={kitSize}
+              bars={[9, 6, 4, 3, 2].map((n, i) => ({ key: n, value: [15, 24, 37, 50, 98][i], valueText: String([15, 24, 37, 50, 98][i]), label: n === 2 ? "HU" : String(n), title: `${n} Spieler` }))}
+              onpick={(k) => (kitSize = Number(k))}
+            />
           </Panel>
           <Panel title="Zug-Liste" sub="Symbol trägt die Stufe, nicht nur die Wortfarbe.">
             <ol class="moves">

@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { ANTE_LABEL, MODE_LABEL, configLine } from "./labels";
+  import { positionsFor } from "../solver/scenario";
+  import { ANTE_LABEL, MODE_LABEL, TABLE_SIZES, configLine, tableName } from "./labels";
   import type { PlayAnte, PlayConfig, PlayMode } from "./types";
 
-  /** Three ready-made tables and one of the player's own; the panel below tunes the choice. */
+  /** Four ready-made tables and one of the player's own; the panel below tunes the choice. */
   let { config, onChange, onStart }: { config: PlayConfig; onChange: (c: PlayConfig) => void; onStart: (c: PlayConfig) => void } = $props();
 
   const DEEP = [25, 30, 40, 50, 75, 100];
@@ -15,6 +16,14 @@
       unit: "BB · 6-max",
       text: "Von Preflop bis River. Jede deiner Entscheidungen wird sofort bewertet.",
       config: { mode: "full", players: 6, ante: "big_blind", stack_bb: 40, mixed_stacks: false, hero_seat: null },
+    },
+    {
+      id: "heads-up",
+      title: "Heads-up",
+      figure: "1",
+      unit: "Gegner · 40 BB",
+      text: "Nur du und ein Gegner. Wer den Button hat, zahlt den Small Blind und spielt fast jede Hand.",
+      config: { mode: "full", players: 2, ante: "big_blind", stack_bb: 40, mixed_stacks: false, hero_seat: null },
     },
     {
       id: "short",
@@ -50,12 +59,8 @@
     queueMicrotask(() => panel?.querySelector<HTMLElement>("button")?.focus());
   }
 
-  const positions = $derived.by(() => {
-    const late = ["LJ", "HJ", "CO"];
-    const rest = config.players - 3;
-    const early = Math.max(0, rest - late.length);
-    return [...["UTG", "UTG+1", "UTG+2"].slice(0, early), ...late.slice(late.length - (rest - early)), "BTN", "SB", "BB"];
-  });
+  // Heads-up the button posts the small blind.
+  const positions = $derived(config.players === 2 ? ["SB · Button", "BB"] : positionsFor(config.players));
   const stacks = $derived(config.mode === "push_fold" ? SHORT : DEEP);
   const MODES: PlayMode[] = ["full", "push_fold", "postflop"];
   const ANTES: PlayAnte[] = ["big_blind", "classic", "none"];
@@ -95,9 +100,9 @@
     </div>
     <div class="row">
       <span class="k">Spieler</span>
-      <div class="seg" role="group" aria-label="Spieler am Tisch">
-        {#each [6, 8, 9] as n (n)}
-          <button class:on={config.players === n} onclick={() => set({ players: n })}>{n}-max</button>
+      <div class="seg wrap" role="group" aria-label="Spieler am Tisch">
+        {#each TABLE_SIZES as n (n)}
+          <button class:on={config.players === n} onclick={() => set({ players: n })}>{tableName(n)}</button>
         {/each}
       </div>
       <span class="k">Ante</span>

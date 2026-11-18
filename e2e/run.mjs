@@ -575,6 +575,27 @@ step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await waitText("Modell");
 });
 
+step("Ranges nach Stack: Tischgrößen-Vergleich, Klick auf heads-up wechselt den Tisch", async () => {
+  const panel = "main section[aria-label='Andere Tischgröße']";
+  await find(panel);
+  await waitText(/Als Erster am Zug spielst du an 9-max \d+\s%, heads-up \d+\s%/);
+  const first = `${panel} [role='group'][aria-label^='Als Erster am Zug'] button`;
+  const values = await waitFor(
+    "the bars of the first seat",
+    `const b = [...document.querySelectorAll(arguments[0])];
+     return b.length >= 7 ? b.map((x) => ({ n: x.querySelector(".lbl").textContent, v: Number(x.querySelector(".val").textContent) })) : null;`,
+    [first],
+  );
+  if (values.map((x) => x.n).join() !== "9,8,6,5,4,3,HU") throw new Error(`bars ${values.map((x) => x.n).join(", ")}`);
+  for (let i = 1; i < values.length; i++)
+    if (values[i].v <= values[i - 1].v) throw new Error(`first in does not widen with fewer players: ${values.map((x) => `${x.n} ${x.v}`).join(" · ")}`);
+  await click(first, "HU", { exact: false });
+  await find(".stepper span", "2 Spieler");
+  await waitText(/Heads-up bist du als Button selbst Small Blind|Als Erster am Zug spielst du/);
+  await tableSize(6);
+  await find(".stepper span", "6 Spieler");
+});
+
 /** Presses one key the way a keyboard would, on whatever has the focus. */
 async function press(key) {
   await s.cmd("POST", "/actions", { actions: [{ type: "key", id: "k", actions: [{ type: "keyDown", value: key }, { type: "keyUp", value: key }] }] });
@@ -725,6 +746,74 @@ step("Hände spielen: die Hand läuft bis zum Handende, auch über einen live ge
     await waitText("Du gewinnst beim Showdown");
     await click("main section[aria-label='Deine Züge in dieser Hand'] button.move", "Flop", { exact: false });
     await waitText(/Quelle: Solver, live gerechnet .* Genauigkeit 1,8 % des Pots/);
+  }
+});
+
+step("Hände spielen: heads-up ist der Button der Small Blind, zuerst vor dem Flop, zuletzt danach", async () => {
+  await click("main button.back");
+  await click("main .tiles button.tile", "Heads-up", { exact: false });
+  // Your seat is dealt at random in the app: play hands until one reaches a flop.
+  for (let hand = 0; ; hand++) {
+    if (hand >= 15) throw new Error("no heads-up flop in 15 hands");
+    await waitFor("your decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+    const table = await s.exec(
+      `const seats = [...document.querySelectorAll("main [data-part='seat']")].map((el) => {
+         const r = el.getBoundingClientRect();
+         return { name: el.querySelector(".plate b").textContent.replace("Du · ", "").trim(), x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+       });
+       const d = document.querySelector("main [data-part='dealer']").getBoundingClientRect();
+       const dx = (d.left + d.right) / 2, dy = (d.top + d.bottom) / 2;
+       const near = seats.reduce((a, b) => (Math.hypot(a.x - dx, a.y - dy) < Math.hypot(b.x - dx, b.y - dy) ? a : b));
+       return { names: seats.map((x) => x.name).sort(), button: near.name };`,
+    );
+    if (table.names.join() !== "BB,SB") throw new Error(`heads-up seats ${table.names.join(", ")}`);
+    if (table.button !== "SB") throw new Error(`the dealer button sits at ${table.button}, not at the small blind`);
+    let flop = null;
+    for (let i = 0; i < 40 && !flop; i++) {
+      const now = await s.exec(
+        `if (document.querySelector("main section.end")) return "end";
+         if (document.querySelector("main [data-part='solving']")) return "solving";
+         return document.querySelector("main .actions button.act") ? "decide" : "wait";`,
+      );
+      if (now === "end") break;
+      if (now === "solving") {
+        await click("main [data-part='solving'] button", "Abbrechen", { exact: false });
+      } else if (now === "decide") {
+        const streets = await s.exec(
+          `return [...document.querySelectorAll("main nav.timeline section.street")].map((sec) => ({
+             name: sec.querySelector(".name").textContent.trim(),
+             first: sec.querySelector("button.move")?.dataset.pos ?? null,
+           }));`,
+        );
+        if (streets[0]?.first && streets[0].first !== "SB") throw new Error(`preflop starts with ${streets[0].first}`);
+        const after = streets.find((x) => x.name === "Flop" && x.first);
+        if (after) {
+          flop = after;
+          break;
+        }
+        const move = await s.exec(
+          `const b = [...document.querySelectorAll("main .actions button.act")];
+           return b.find((x) => /Raise|Call|Check/.test(x.textContent)) ?? b[0];`,
+        );
+        await s.click(move);
+      }
+      await sleep(250);
+    }
+    if (flop) {
+      if (flop.first !== "BB") throw new Error(`the flop starts with ${flop.first}, not with the big blind`);
+      break;
+    }
+    await click("main section.end button", "Nächste Hand", { exact: false });
+  }
+  await waitText(/Heads-up: Du \((SB, mit|BB, ohne) Position\)/);
+  if (!TAURI) {
+    // The demo hand: you open on the button, the big blind calls and checks to you on every street.
+    for (let i = 0; i < 6; i++) {
+      if (await s.exec(`return !!document.querySelector("main section.end")`)) break;
+      await click("main .actions button.act", "Check", { exact: false });
+      await sleep(250);
+    }
+    await waitText("Du gewinnst beim Showdown");
   }
 });
 

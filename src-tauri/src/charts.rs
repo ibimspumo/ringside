@@ -467,6 +467,41 @@ pub async fn preflop_node(ante: Ante, players: usize, stack_bb: f64, node: usize
     .await
 }
 
+/// How much one table size plays first in: per seat (the big blind never opens) the share
+/// of hands it plays when everyone before folded, percent.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct TableOpens {
+    players: usize,
+    positions: Vec<&'static str>,
+    pct: Vec<f64>,
+}
+
+/// Every table size the engine has at this depth, from the precomputed tables only: the
+/// preflop model (raise, all-in or limp) or, with `pushfold`, the push/fold equilibrium.
+pub fn opens_by_size(ante: Ante, stack_bb: f64, pushfold: bool) -> Vec<TableOpens> {
+    let one = |x: f64| (x * 10.0).round() / 10.0;
+    let sizes: Vec<usize> = if pushfold { (MIN_PLAYERS..=MAX_PLAYERS).collect() } else { preflop_table::PLAYERS.to_vec() };
+    sizes
+        .into_iter()
+        .filter_map(|n| {
+            let pct: Option<Vec<f64>> = if pushfold {
+                let sol = lookup(&params(ante, n, stack_bb))?;
+                (0..n - 1).map(|seat| sol.node(seat, None, &[]).map(|v| one(sol.act_pct(v)))).collect()
+            } else {
+                let sol = preflop_table::chart(ante, n, stack_bb)?;
+                (0..n - 1).map(|seat| sol.open_node(seat).map(|v| one(sol.play_pct(v)))).collect()
+            };
+            Some(TableOpens { players: n, positions: ringside_engine::multiway::position_names(n), pct: pct? })
+        })
+        .collect()
+}
+
+/// [`opens_by_size`] for the comparison of one seat across table sizes.
+#[tauri::command]
+pub async fn table_opens(ante: Ante, stack_bb: f64, pushfold: bool, app: AppHandle) -> CmdResult<Vec<TableOpens>> {
+    blocking(app, move |_| Ok(opens_by_size(ante, stack_bb, pushfold))).await
+}
+
 /// Drops the cached table solutions once unused for [`CACHE_IDLE`]; decoding one again
 /// takes milliseconds. Live solves stay, they would take a while. Called by the
 /// housekeeping thread.
@@ -482,4 +517,42 @@ pub(crate) fn tick() {
 #[tauri::command]
 pub fn preflop_cancel() {
     PREFLOP_CANCEL.store(true, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The browser demo compares table sizes with the real numbers, stored in
+    /// `src/lib/charts/sizes-demo.json`. Stale fails; `RINGSIDE_WRITE_DEMO=1` writes it again.
+    #[test]
+    fn demo_table_opens_are_current() {
+        let mut all = serde_json::Map::new();
+        for ante in Ante::ALL {
+            for &stack in &preflop_table::STACKS {
+                all.insert(format!("{}|{stack}|model", ante.key()), serde_json::to_value(opens_by_size(ante, stack, false)).unwrap());
+            }
+            for &stack in stacks(ante) {
+                all.insert(format!("{}|{stack}|pushfold", ante.key()), serde_json::to_value(opens_by_size(ante, stack, true)).unwrap());
+            }
+        }
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../src/lib/charts/sizes-demo.json");
+        let text = serde_json::to_string(&all).unwrap() + "\n";
+        if std::env::var_os("RINGSIDE_WRITE_DEMO").is_some() {
+            std::fs::write(path, &text).unwrap();
+            return;
+        }
+        assert_eq!(std::fs::read_to_string(path).unwrap(), text, "run RINGSIDE_WRITE_DEMO=1 cargo test -p ringside demo_table_opens");
+    }
+
+    #[test]
+    fn every_size_of_the_model_is_compared() {
+        let rows = opens_by_size(Ante::BigBlind, 40.0, false);
+        assert_eq!(rows.iter().map(|r| r.players).collect::<Vec<_>>(), preflop_table::PLAYERS);
+        for r in &rows {
+            assert_eq!(r.pct.len(), r.players - 1);
+        }
+        assert_eq!(opens_by_size(Ante::BigBlind, 10.0, true).len(), MAX_PLAYERS - MIN_PLAYERS + 1);
+        assert!(opens_by_size(Ante::BigBlind, 41.0, false).is_empty());
+    }
 }

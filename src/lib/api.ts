@@ -11,7 +11,7 @@ import * as rangesDemo from "./ranges/demo";
 import * as reportDemo from "./report/demo";
 import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
-import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots } from "./charts/preflop-types";
+import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./charts/preflop-types";
 import * as solverDemo from "./solver/demo";
 import type {
   SolveInfo,
@@ -233,6 +233,11 @@ export const api = {
     inTauri
       ? invoke<PreflopNode>("preflop_node", { ante, players, stackBb, node })
       : import("./charts/preflop-demo").then((d) => d.demoNode(ante, players, stackBb, node)),
+  /** Every table size at this depth, from the precomputed tables only. */
+  tableOpens: (ante: PreflopAnte, stackBb: number, pushfold: boolean) =>
+    inTauri
+      ? invoke<TableOpens[]>("table_opens", { ante, stackBb, pushfold })
+      : import("./charts/preflop-demo").then((d) => d.demoTableOpens(ante, stackBb, pushfold)),
   preflopCancel: () =>
     inTauri ? invoke<void>("preflop_cancel") : import("./charts/preflop-demo").then((d) => d.demoCancel()),
   solverEstimate: (spot: SolverSpot, threads: number) =>

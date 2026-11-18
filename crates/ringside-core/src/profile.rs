@@ -207,17 +207,20 @@ impl Seat {
 #[serde(rename_all = "snake_case")]
 pub enum TableSize {
     HeadsUp,
+    /// Three to five players, e.g. at a final table: the ranges differ a lot from 6-max.
+    Few,
     Short,
     Full,
 }
 
 impl TableSize {
-    const ALL: [TableSize; 3] = [TableSize::HeadsUp, TableSize::Short, TableSize::Full];
+    const ALL: [TableSize; 4] = [TableSize::HeadsUp, TableSize::Few, TableSize::Short, TableSize::Full];
 
     pub fn of(players: usize) -> TableSize {
         match players {
             0..=2 => TableSize::HeadsUp,
-            3..=6 => TableSize::Short,
+            3..=5 => TableSize::Few,
+            6 => TableSize::Short,
             _ => TableSize::Full,
         }
     }
@@ -225,6 +228,7 @@ impl TableSize {
     pub fn key(self) -> &'static str {
         match self {
             TableSize::HeadsUp => "2",
+            TableSize::Few => "5",
             TableSize::Short => "6",
             TableSize::Full => "9",
         }
@@ -233,7 +237,8 @@ impl TableSize {
     pub fn name(self) -> &'static str {
         match self {
             TableSize::HeadsUp => "Heads-up",
-            TableSize::Short => "3–6 Spieler",
+            TableSize::Few => "3–5 Spieler",
+            TableSize::Short => "6 Spieler",
             TableSize::Full => "7–10 Spieler",
         }
     }
@@ -242,7 +247,8 @@ impl TableSize {
     pub fn players(self) -> (usize, usize) {
         match self {
             TableSize::HeadsUp => (2, 2),
-            TableSize::Short => (3, 6),
+            TableSize::Few => (3, 5),
+            TableSize::Short => (6, 6),
             TableSize::Full => (7, 10),
         }
     }
@@ -725,6 +731,12 @@ mod tests {
         }
         assert_eq!(SpotKind::parse("vs_open|BB|9|9"), None);
         assert_eq!(SpotKind::parse("nope|BB|1|9"), None);
+        // A final table of three to five players is its own group, apart from 6-max.
+        let sizes: Vec<&str> = (2..=10).map(|n| TableSize::of(n).key()).collect();
+        assert_eq!(sizes, ["2", "5", "5", "5", "6", "9", "9", "9", "9"]);
+        for t in TableSize::ALL {
+            assert_eq!(TableSize::parse(t.key()), Some(t));
+        }
     }
 
     #[test]
