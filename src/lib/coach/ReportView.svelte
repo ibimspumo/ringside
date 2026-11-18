@@ -53,6 +53,11 @@
   );
   const counts = $derived(VERDICTS.map((v) => ({ ...v, n: report.spots.filter((s) => s.verdict === v.id).length })));
   const good = $derived(spots.length - weak.length);
+  /** Long names keep their bracketed or second part out of the headline: "Day 2 · $109 … [PKO, Turbo]". */
+  const name = $derived.by(() => {
+    const cut = title.search(/\s(?:·|\[|\()/);
+    return cut > 12 ? { main: title.slice(0, cut), extra: title.slice(cut).replace(/^\s·\s/, "").trim() } : { main: title, extra: "" };
+  });
   /** The ring: one arc per verdict, worst first from the top, with a small gap between arcs. */
   const R = 32;
   const C = 2 * Math.PI * R;
@@ -110,8 +115,8 @@
   <section class="panel hero" aria-labelledby="report-title">
     <header class="top">
       <div class="titles">
-        <h2 id="report-title">{title}</h2>
-        <p class="sub">Besprochen am {created}</p>
+        <h2 id="report-title" title={title}>{name.main}</h2>
+        <p class="sub">{#if name.extra}{name.extra} · {/if}Besprochen am {created}</p>
       </div>
       <div class="buttons">
         {#if confirmDelete}

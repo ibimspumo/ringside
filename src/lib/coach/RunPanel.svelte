@@ -2,7 +2,7 @@
   import { onMount } from "svelte";
   import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
   import { shortModel } from "./meaning";
-  import { appear, pop } from "./motion";
+  import { pop } from "./motion";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
 
   let {
@@ -105,8 +105,7 @@
     {/if}
   </header>
 
-  {#key st.kind}
-  <div class="body" aria-live="polite" in:appear>
+  <div class="body" aria-live="polite">
     {#if st.kind === "preparing"}
       <div class="line">
         <span class="spinner" aria-hidden="true"></span>
@@ -286,7 +285,6 @@
       </div>
     {/if}
   </div>
-  {/key}
 </section>
 
 <style>

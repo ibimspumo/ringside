@@ -34,14 +34,38 @@ function situation(hand: Hand, index: number) {
     put.set(a.player, a.kind === "raise" && a.to != null ? a.to : (put.get(a.player) ?? 0) + a.amount);
   }
   const most = Math.max(0, ...put.values());
+  const pot = hand.actions.slice(0, index).reduce((sum, a) => sum + a.amount, 0);
+  const bettor = [...put.entries()].find(([p, v]) => v === most && p !== hand.hero)?.[0] ?? null;
   const mine = put.get(hand.hero ?? "") ?? 0;
   const stack = (hand.seats.find((s) => s.name === hand.hero)?.stack ?? 0) - earlier - mine;
   const bb = hand.big_blind || 1;
-  return { toCall: Math.max(0, Math.min(most - mine, stack)) / bb, behind: stack / bb, facing: most > mine };
+  return {
+    toCall: Math.max(0, Math.min(most - mine, stack)) / bb,
+    behind: stack / bb,
+    facing: most > mine,
+    pot: pot / bb,
+    bettor,
+    bet: most / bb,
+    street: at.street,
+  };
 }
 
 /** The hero's stack behind at the decision, in big blinds. */
 export const behind = (hand: Hand, index: number) => situation(hand, index).behind;
+
+const STREET_NAME: Record<Street, string> = { preflop: "Vor dem Flop", flop: "Flop", turn: "Turn", river: "River" };
+const BOARD_SIZE: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
+
+/** The decision in one line, for reading before the table: street, board, pot and what the hero faces. */
+export function scene(hand: Hand, index: number) {
+  const s = situation(hand, index);
+  return {
+    street: STREET_NAME[s.street],
+    board: hand.board.slice(0, BOARD_SIZE[s.street]),
+    pot: bb(s.pot),
+    facing: s.facing && s.bettor ? `${s.bettor} setzt ${bb(s.bet)}` : s.facing ? `${bb(s.toCall)} zu zahlen` : "Niemand hat gesetzt",
+  };
+}
 
 export const bb = (v: number) => `${v.toLocaleString("de-DE", { maximumFractionDigits: 1 })} BB`;
 

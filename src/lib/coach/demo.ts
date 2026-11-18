@@ -418,6 +418,9 @@ const LINES: Record<number, { steps: Step[]; board: string[]; shown?: [string, s
   },
 };
 
+/** Hands store amounts in hundredths, as Ringside's database does. */
+const C = 100;
+
 /** A made-up hand that matches a demo spot: same cards, position, stack and line. */
 export function spotHand(spot: CoachSpot): Hand {
   const n = 999 - (spot.hand_id % 1000);
@@ -427,19 +430,19 @@ export function spotHand(spot: CoachSpot): Hand {
   const seats = POSITIONS.map((pos) => ({
     seat: SEAT_OF[pos],
     name: name(pos),
-    stack: pos === heroPos ? Math.round(spot.stack_bb * 100) : 2600 + SEAT_OF[pos] * 130,
+    stack: (pos === heroPos ? Math.round(spot.stack_bb * 100) : 2600 + SEAT_OF[pos] * 130) * C,
     bounty: null,
     sitting_out: false,
   })).sort((a, b) => a.seat - b.seat);
   const actions: Hand["actions"] = [
-    { street: "preflop", player: name("SB"), kind: "post_small_blind", amount: 50, to: null, all_in: false },
-    { street: "preflop", player: name("BB"), kind: "post_big_blind", amount: 100, to: null, all_in: false },
+    { street: "preflop", player: name("SB"), kind: "post_small_blind", amount: 50 * C, to: null, all_in: false },
+    { street: "preflop", player: name("BB"), kind: "post_big_blind", amount: 100 * C, to: null, all_in: false },
     ...line.steps.map(([street, pos, kind, amount, allIn]) => ({
       street,
       player: name(pos),
       kind,
-      amount,
-      to: kind === "raise" ? amount : null,
+      amount: amount * C,
+      to: kind === "raise" ? amount * C : null,
       all_in: !!allIn,
     })),
   ];
@@ -451,8 +454,8 @@ export function spotHand(spot: CoachSpot): Hand {
     table_name: `${Math.floor(spot.hand_id / 1000)} 3`,
     max_seats: 6,
     button_seat: 4,
-    small_blind: 50,
-    big_blind: 100,
+    small_blind: 50 * C,
+    big_blind: 100 * C,
     currency: null,
     played_at: spot.played_at,
     seats,
@@ -462,9 +465,9 @@ export function spotHand(spot: CoachSpot): Hand {
     actions,
     returned: [],
     shown: [...(line.shown ?? []).map(([pos, cards]) => [name(pos), cards] as [string, string[]]), ...(line.shown ? [["Du", spot.hero_cards] as [string, string[]]] : [])],
-    collected: [[name(line.winner), line.pot]],
+    collected: [[name(line.winner), line.pot * C]],
     showdown: !!line.shown,
-    total_pot: line.pot,
+    total_pot: line.pot * C,
     rake: 0,
     bounties_won: [],
     bounty_currency: null,

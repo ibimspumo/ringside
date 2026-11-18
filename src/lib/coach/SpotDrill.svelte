@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { LearnTarget } from "../app/Leaks.svelte";
   import Replayer from "../app/Replayer.svelte";
+  import PlayingCard from "../PlayingCard.svelte";
   import type { Hand } from "../types";
   import { coachApi, errorText } from "./api";
   import CardText from "./CardText.svelte";
   import { conceptName } from "./concepts";
-  import { CHOICE_NAME, accepted, bb, behind, choices, decisionIndex, played, type Choice } from "./drill";
+  import { CHOICE_NAME, accepted, bb, behind, choices, decisionIndex, played, scene, type Choice } from "./drill";
   import Figures from "./Figures.svelte";
   import { positionHint, verdictOf } from "./meaning";
   import { appear, rise } from "./motion";
@@ -54,6 +55,7 @@
 
   const at = $derived(hand ? decisionIndex(hand, spot) : null);
   const options = $derived(hand && at !== null ? choices(hand, at) : []);
+  const view = $derived(hand && at !== null ? scene(hand, at) : null);
   const actual = $derived(hand && at !== null ? played(hand, at) : null);
   const ok = $derived(actual ? accepted(spot, actual) : null);
   const verdict = $derived(verdictOf(spot.verdict));
@@ -101,6 +103,16 @@
             text={spot.hero_cards.join("")}
           />, noch <span class="num">{stack}</span> im Stack. Was spielst du?
         </h2>
+        {#if view}
+          <p class="scene">
+            <span class="street">{view.street}</span>
+            {#if view.board.length}
+              <span class="board">{#each view.board as c (c)}<PlayingCard card={c} size={20} />{/each}</span>
+            {/if}
+            <span>Pot <b class="num">{view.pot}</b></span>
+            <span class="facing">{view.facing}</span>
+          </p>
+        {/if}
       </div>
 
       <div class="act">
@@ -205,6 +217,33 @@
     font-size: 21px;
     font-weight: 600;
     line-height: 1.35;
+  }
+  .scene {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    margin: 12px 0 0;
+    padding: 9px 12px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .scene .street {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .scene .board {
+    display: flex;
+    gap: 2px;
+  }
+  .scene b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .scene .facing {
+    color: var(--text);
   }
   abbr {
     text-decoration: underline dotted var(--text-3);
@@ -394,10 +433,13 @@
       display: contents;
     }
     .ask {
+      order: -2;
+    }
+    .act {
       order: -1;
     }
     .table {
-      height: 560px;
+      height: 600px;
     }
     .choices {
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
