@@ -295,7 +295,8 @@ step("Übersicht", () => nav("Übersicht"));
 step("Berichte", () => nav("Berichte"));
 step("Turniere", async () => {
   await nav("Turniere");
-  if (TAURI) await waitText("#3500000001");
+  // The id sits in the name's tooltip; narrow windows hide the id column.
+  if (TAURI) await find("main .gname[title*='#3500000001']");
 });
 
 step("Hände: Replayer öffnet eine Hand", async () => {
