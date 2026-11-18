@@ -362,6 +362,18 @@ step("Hände: die Analyse zeigt eine Entscheidung erst, wenn das Abspielen dort 
   await find("main .decision");
 });
 
+step("Hände: auch die beste Aktion zeigt, was sie bringt", async () => {
+  const value = await s.exec(`
+    const row = [...document.querySelectorAll("main .decision .options li")].find((li) => li.querySelector(".ev.best"));
+    return row ? row.querySelector(".gain")?.textContent.trim() ?? "" : null;`);
+  if (value === null) {
+    if (!TAURI) throw new Error("the demo decision lists its actions");
+    log("decision without a list of actions: „bringt“ not checked");
+    return;
+  }
+  if (!/^[+−]?\d+,\d\d BB$/.test(value)) throw new Error(`the best action brings „${value}“`);
+});
+
 /** Scroll boxes in "Hände" that are wider than their room, and how far the analysis sits from the right edge. */
 const OVERFLOW = `
   const boxes = [document.querySelector("main .content"), ...document.querySelectorAll("main .hands *")].filter((e) => {
