@@ -431,7 +431,12 @@
     return () => (alive = false);
   });
 
-  const mine = $derived(curve?.find((s) => s.seat === seat)?.points.find((p) => p.stack === stack)?.pct ?? null);
+  /** Open-raise share of your seat at the chosen depth, also off the grid. */
+  const mine = $derived.by(() => {
+    if (engine === "pushfold") return pf?.nodes.find((n) => n.seat === seat && n.shover === null)?.act_pct ?? null;
+    const open = spots?.nodes.find((n) => n.seat === seat && !n.line.length);
+    return open ? open.actions.filter((a) => a.kind === "raise" || a.kind === "all_in").reduce((t, a) => t + a.pct, 0) : null;
+  });
   const myName = $derived(positions.find((p) => p.seat === seat)?.name ?? "");
 
   // ── Live solve ───────────────────────────────────────────────────
@@ -478,6 +483,7 @@
             value={stack}
             onPick={pickStack}
             series={curve}
+            current={mine}
             {seat}
             onPickSeat={pickSeat}
             modelFrom={modelPlayers && !pfView ? modelFrom : null}
@@ -487,7 +493,9 @@
           />
           {#if mine !== null}
             <p class="pfr">
-              {#if seg === "open"}
+              {#if mine < 0.5}
+                <b>{fromPos(myName)} mit {bb(stack)} BB foldest du jede Hand,</b> wenn alle vor dir gefoldet haben.
+              {:else if seg === "open"}
                 <b>{fromPos(myName)} mit {bb(stack)} BB eröffnest du etwa {pct(mine, 0)} % deiner Hände</b>
                 {engine === "pushfold" ? "– jedes Mal all-in." : "– meist mit einem Raise."}
                 <span class="faint">Je kürzer der Stack, desto öfter geht es direkt all-in.</span>
@@ -521,16 +529,25 @@
             <p class="only-pf">Mit {players} Spielern gibt es nur Push/Fold bis {bb(pfMax)} BB; das Modell mit Raises kennt {preGrid.players.join(", ")} Spieler.</p>
           {/if}
 
-          {#if segments.length}
+          {#if !segments.length}
             <div class="situ">
               <span class="lbl">Situation</span>
-              <div class="segs" role="tablist" aria-label="Situation">
-                {#each segments as g (g)}
-                  <button type="button" role="tab" aria-selected={seg === g} class:on={seg === g} title={SEG_HINT[g]} onclick={() => ((segment = g), (pick = null))}>
-                    {SEG_LABEL[g]}
-                  </button>
-                {/each}
-              </div>
+              <p class="seg-hint">{loading ? "Erscheint, sobald gerechnet ist." : "An diesem Platz gibt es hier keine Entscheidung."}</p>
+            </div>
+          {:else}
+            <div class="situ">
+              <span class="lbl">Situation</span>
+              {#if segments.length === 1}
+                <span class="seg-one">{SEG_LABEL[seg]}</span>
+              {:else}
+                <div class="segs" role="tablist" aria-label="Situation">
+                  {#each segments as g (g)}
+                    <button type="button" role="tab" aria-selected={seg === g} class:on={seg === g} title={SEG_HINT[g]} onclick={() => ((segment = g), (pick = null))}>
+                      {SEG_LABEL[g]}
+                    </button>
+                  {/each}
+                </div>
+              {/if}
               <p class="seg-hint">{SEG_HINT[seg]}</p>
               {#if items.length > 1}
                 <span class="lbl">Genau: <span class="faint">die Zahl sagt, wie oft die Situation vorkommt</span></span>
@@ -593,15 +610,18 @@
                     <p>
                       <b class="num">{Math.round(done * 100)} %</b> · Live gerechnet; auf einem Laptop mit 4 Kernen
                       {players > 6 ? "etwa 4 bis 8 Minuten" : "etwa 2 bis 3 Minuten"}.
-                      {#if progress}
-                        <span class="faint num"
-                          >Durchgang {progress.last.iterations}, <Hint text={TERM.exploit}>ausnutzbar</Hint>
-                          {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)</span
-                        >
-                      {/if}
                     </p>
                     <button class="btn" onclick={() => api.preflopCancel()}>Abbrechen</button>
                   </div>
+                  {#if progress}
+                    <details class="calc">
+                      <summary>Rechendetails</summary>
+                      <p class="num">
+                        Durchgang {progress.last.iterations}, <Hint text={TERM.exploit}>ausnutzbar</Hint>
+                        {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)
+                      </p>
+                    </details>
+                  {/if}
                 {:else}
                   <div class="live-row">
                     <span class="spin" aria-hidden="true"></span>
@@ -913,6 +933,15 @@
     outline: 2px solid var(--focus);
     outline-offset: -2px;
   }
+  .seg-one {
+    align-self: flex-start;
+    padding: 4px 12px;
+    border-radius: 99px;
+    border: 1px solid var(--line-2);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+  }
   .seg-hint {
     margin: 0;
     font-size: 12.5px;
@@ -1115,6 +1144,16 @@
       opacity: 0;
       transform: translateY(4px);
     }
+  }
+  .calc {
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+  .calc p {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: var(--text-2);
   }
   .live-row {
     display: flex;

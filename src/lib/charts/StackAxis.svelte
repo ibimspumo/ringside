@@ -21,6 +21,7 @@
     onPickSeat,
     modelFrom = null,
     custom = null,
+    current = null,
   }: {
     id: string;
     /** Depths that can be picked, ascending. */
@@ -34,6 +35,8 @@
     /** First depth of the preflop model; below it the push/fold equilibrium. */
     modelFrom?: number | null;
     custom?: { digits: number; example: string; range: string | null } | null;
+    /** Your seat's share at the chosen depth, also for a depth off the curve. */
+    current?: number | null;
   } = $props();
 
   const PAD = { l: 38, r: 54, t: 22, b: 8 };
@@ -75,8 +78,8 @@
   }
 
   const at = (s: Series, stack: number) => s.points.find((p) => p.stack === stack)?.pct ?? null;
-  const current = $derived(series?.find((s) => s.seat === seat) ?? null);
-  const currentPct = $derived(current ? at(current, value) : null);
+  const mineSeries = $derived(series?.find((s) => s.seat === seat) ?? null);
+  const currentPct = $derived(current ?? (mineSeries ? at(mineSeries, value) : null));
 
   /** End labels, nudged apart so none overlap. */
   const labels = $derived.by(() => {
@@ -129,11 +132,6 @@
   <div class="top">
     <label class="lbl" for={id}><Hint text={TERM.stack}>Stack</Hint> <span class="faint">· die wichtigste Wahl</span></label>
     {#if !onGrid}<span class="own">eigener Stack</span>{/if}
-    {#if narrow}
-      <button type="button" class="more" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
-        {showCurve ? "Kurve ausblenden" : "Kurve zeigen"}
-      </button>
-    {/if}
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
 
@@ -199,6 +197,11 @@
   </div>
 
   <div class="foot">
+  {#if narrow}
+    <button type="button" class="more" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
+      {showCurve ? "Kurve ausblenden" : "Kurve zeigen"}
+    </button>
+  {/if}
   {#if custom}
     {#if open}
       <form
@@ -272,9 +275,6 @@
     margin: 2px 0 0;
     font-size: 12px;
     color: var(--text-2);
-  }
-  .top .more {
-    margin: 0;
   }
   .val {
     margin-left: auto;

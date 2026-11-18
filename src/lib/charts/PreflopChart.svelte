@@ -190,7 +190,7 @@
   }
   .acts th {
     font-weight: 500;
-    color: var(--text-3);
+    color: var(--text-2);
     text-align: right;
     padding: 0 0 4px;
   }
@@ -210,7 +210,7 @@
   .foot {
     margin: 8px 0 0;
     font-size: 11.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .sw {
     display: inline-block;

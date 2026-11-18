@@ -159,7 +159,7 @@
   }
   .acts th {
     font-weight: 500;
-    color: var(--text-3);
+    color: var(--text-2);
     text-align: right;
     padding: 0 0 4px;
   }
