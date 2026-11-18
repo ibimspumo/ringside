@@ -3,6 +3,8 @@
 
 export type PageTab = { id: string; label: string; count?: number; disabled?: boolean; hint?: string };
 
+import type { Snippet } from "svelte";
+
 export type PageSections = {
   /** Replaces the default line under the title. */
   sub?: string;
@@ -11,6 +13,8 @@ export type PageSections = {
   /** Names the tab row for screen readers. */
   label?: string;
   onchange?: (id: string) => void;
+  /** Quiet controls for the whole page at the end of the tab row, e.g. a status and a filter. */
+  end?: Snippet;
 };
 
 export const pageHead = $state<{ current: PageSections | null }>({ current: null });

@@ -5,7 +5,6 @@
   import { analysis, watchAnalysis } from "./store.svelte";
 
   /** The one-click run over the whole history, with its progress. */
-  let { compact = false }: { compact?: boolean } = $props();
 
   watchAnalysis();
   const s = $derived(analysis.status);
@@ -30,7 +29,7 @@
 </script>
 
 {#if s && c}
-  <div class="bar" class:compact>
+  <div class="bar">
     {#if !started}
       <div class="text">
         <b>Wo verlierst du Chips?</b>
@@ -116,19 +115,6 @@
     right: 0;
     background: repeating-linear-gradient(-45deg, var(--amber) 0 4px, transparent 4px 7px);
     opacity: 0.7;
-  }
-  .compact {
-    padding: 8px 14px;
-  }
-  .compact .text {
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: baseline;
-    column-gap: 12px;
-  }
-  .compact .track {
-    flex-basis: 100%;
-    margin-top: 3px;
   }
   @media (prefers-reduced-motion: reduce) {
     .track i {

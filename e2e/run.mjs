@@ -302,14 +302,14 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await nav("Hände");
   await click("main [role='option']");
   await find(".replayer");
-  await click(".replayer button[aria-label='Weiter']");
+  await click(".replayer button[aria-label^='Weiter']");
 });
 
 // The demo's decisions link the solver with the line to them; the app's need a solved spot.
 !TAURI &&
   step("Analyse: „Im Solver öffnen“ spielt die Hand bis zur Entscheidung", async () => {
-    await click("main .steps button", "Turn · Bet");
-    await click("main article.card button", "Im Solver öffnen");
+    await click("main .steps button[title^='Turn: Bet']");
+    await click("main article.ui-verdict button", "Im Solver öffnen");
     await find("main nav.line button.card.on", "Turn", { exact: false, timeout: 120_000 });
     await find("main [role='group'][aria-label='Aktionen']");
     await find("main .cell.hero");

@@ -4,6 +4,7 @@ import { RATINGS } from "./labels";
 import type { AnalysisStatus, AnalysisSummary, Choice, Decision, DecisionBrief, JobProgress, Rating } from "./types";
 
 const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("analysis") === "0";
+const pokerStars = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
 let enabled = !fresh;
 let analyzed = fresh ? 0 : 6431;
 const done = new Set<number>();
@@ -167,6 +168,7 @@ function progress(s: Omit<AnalysisStatus, "progress">): JobProgress {
   const detail = `${c.analyzed.toLocaleString("de-DE")} von ${c.hands.toLocaleString("de-DE")} Händen, ${c.rated.toLocaleString("de-DE")} Entscheidungen bewertet${c.queued ? `, ${c.queued} Flop-Spots warten` : ""}`;
   const base = { id: "analysis", detail, eta_secs: null, share: null };
   if (s.cancelled) return { ...base, title: "Hand-Analyse abgebrochen", state: "cancelled" };
+  if (s.state === "locked") return { ...base, title: "Pausiert, solange PokerStars läuft", state: "paused_pokerstars" };
   if (s.state === "preflop") return { ...base, title: "Analysiere deine Hände", state: "running", share: c.analyzed / c.hands, eta_secs: s.eta_secs };
   if (s.state === "postflop") {
     const mine = s.solving && s.solving.hand_id !== 250000000004;
@@ -185,7 +187,7 @@ export function demoStatus(): AnalysisStatus {
   const s: Omit<AnalysisStatus, "progress"> = {
     counts: { hands: 6431, analyzed, decisions: analyzed * 2, rated: Math.round(analyzed * 1.4), pending: enabled ? 412 : 0, queued: enabled ? 211 : 0 },
     enabled,
-    state: enabled ? (analyzed < 6431 ? "preflop" : "postflop") : "idle",
+    state: pokerStars ? "locked" : enabled ? (analyzed < 6431 ? "preflop" : "postflop") : "idle",
     solving:
       solvingHand !== null
         ? { hand_id: solvingHand, iteration: 120, max_iterations: 300, exploitability_pct: 1.6, elapsed_ms: 21000 }

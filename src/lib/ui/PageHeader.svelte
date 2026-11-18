@@ -47,6 +47,7 @@
   {#if sections?.tabs?.length}
     <div class="sections">
       <Tabs label={sections.label ?? `Bereiche von ${title}`} tabs={sections.tabs} bind:value={tab} onchange={(id) => sections?.onchange?.(id)} />
+      {#if sections.end}<div class="end">{@render sections.end()}</div>{/if}
     </div>
   {/if}
 </header>
@@ -99,8 +100,19 @@
     gap: var(--sp-2);
   }
   .sections {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
     padding: 0 var(--sp-6);
     margin-top: calc(-1 * var(--sp-1));
+  }
+  .end {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--sp-2);
+    min-width: 0;
   }
   .sections :global(.ui-tabs) {
     border-bottom: 0;

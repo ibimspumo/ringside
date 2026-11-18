@@ -17,6 +17,7 @@
     potShare,
     context,
     source,
+    sourceHint,
     children,
     actions,
   }: {
@@ -32,6 +33,8 @@
     /** Where the decision was: "River · Q♠8♠". */
     context?: string;
     source?: Source;
+    /** What exactly the source computed here, shown on hover instead of the general line. */
+    sourceHint?: string;
     /** The reason in one or two sentences. */
     children?: Snippet;
     actions?: Snippet;
@@ -72,7 +75,7 @@
     {#if children}<div class="why">{@render children()}</div>{/if}
     {#if source || actions}
       <footer>
-        {#if source}<SourceNote kind={source} />{/if}
+        {#if source}<SourceNote kind={source} hint={sourceHint} />{/if}
         {#if actions}<div class="actions">{@render actions()}</div>{/if}
       </footer>
     {/if}

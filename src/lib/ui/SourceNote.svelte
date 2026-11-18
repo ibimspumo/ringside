@@ -11,13 +11,20 @@
     kind,
     variant = "inline",
     children,
-  }: { kind: Source; variant?: "inline" | "block"; children?: Snippet } = $props();
+    hint,
+  }: {
+    kind: Source;
+    variant?: "inline" | "block";
+    children?: Snippet;
+    /** The inline mark's explanation, when the caller knows it more exactly than the general one. */
+    hint?: string;
+  } = $props();
 
   const s = $derived(SOURCE[kind]);
 </script>
 
 {#if variant === "inline"}
-  <span class="ui-source inline" class:locked={kind === "locked"} class:fact={kind === "computed"} title={s.text}>
+  <span class="ui-source inline" class:locked={kind === "locked"} class:fact={kind === "computed"} title={hint ?? s.text}>
     {@render mark()}{s.label}
   </span>
 {:else}

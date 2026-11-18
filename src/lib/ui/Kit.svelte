@@ -18,7 +18,7 @@
   import PageHeader from "./PageHeader.svelte";
   import Panel from "./Panel.svelte";
   import PlayingCard from "./PlayingCard.svelte";
-  import PokerTable, { type TableSeat } from "./PokerTable.svelte";
+  import PokerTable, { COMPACT_BELOW, type TableSeat } from "./PokerTable.svelte";
   import Popover from "./Popover.svelte";
   import { ACTION_NAME, GRADE, GRADES, SOURCE, type ActionKind, type Source } from "./poker";
   import ProgressBar from "./ProgressBar.svelte";
@@ -139,6 +139,14 @@
     { position: "BTN", name: "riverrat", stack: 70, folded: true, dealer: true },
     { position: "SB", name: "Luna_K", stack: 60.5, cards: "hidden", action: { kind: "bet", amount: 6, step: 2 }, bet: 6, toAct: false },
   ];
+  const REPLAY: TableSeat[] = [
+    { position: "SB", stack: 51.7, cards: ["9s", "9d"], action: { kind: "call" }, grade: "blunder" },
+    { position: "BB", name: "Eve", stack: 97, folded: true },
+    { position: "LJ", name: "Alice_im_Wunderland", stack: 76, cards: ["As", "Kc"], won: 157 },
+    { position: "HJ", name: "Bob", stack: 114, folded: true },
+    { position: "CO", name: "Carol", stack: 80, folded: true },
+    { position: "BTN", name: "Dave", stack: 99.5, folded: true, dealer: true },
+  ];
   const NINE: TableSeat[] = [
     { position: "BTN", stack: 98, cards: ["As", "Kd"], action: { kind: "raise", amount: 2.5, step: 2 }, bet: 2.5, dealer: true },
     { position: "SB", name: "Luna_K", stack: 99.5, folded: true, bet: 0.5 },
@@ -215,6 +223,11 @@
       </div>
     {/if}
 
+    {#snippet headEnd()}
+      <ProgressRing size={20} stroke={3} tone="good" value={0.7} label="Fortschritt" />
+      <span class="muted">211 Flop-Spots rechnen noch</span>
+      <Button size="sm" variant="quiet">Filter</Button>
+    {/snippet}
     {#if show("seitenkopf")}
       <section id="seitenkopf">
         <SectionHead
@@ -239,6 +252,20 @@
           />
         </div>
         <div class="frame">
+          <PageHeader
+            demo
+            title="Hände"
+            sections={{
+              value: "mistakes",
+              tabs: [
+                { id: "mistakes", label: "Meine teuersten Fehler" },
+                { id: "all", label: "Alle Hände" },
+              ],
+              end: headEnd,
+            }}
+          />
+        </div>
+        <div class="frame">
           <PageHeader demo title="Übersicht" sub="Wie läuft es – und was solltest du als Nächstes üben?">
             {#snippet actions()}
               <SegmentedControl label="Spielart" size="sm" value="all" options={[{ value: "all", label: "Alle" }, { value: "cash", label: "Cash" }, { value: "mtt", label: "Turnier" }]} />
@@ -246,7 +273,7 @@
             {/snippet}
           </PageHeader>
         </div>
-        <p class="muted">Seiten melden Zeile und Bereiche mit <code>usePageHead(() =&gt; ({"{"} sub, tabs, value, onchange {"}"}))</code> an. Ein eigenes <code>&lt;h1&gt;</code> meldet die Prüfung.</p>
+        <p class="muted">Seiten melden Zeile und Bereiche mit <code>usePageHead(() =&gt; ({"{"} sub, tabs, value, onchange, end {"}"}))</code> an; <code>end</code> sind leise Steuerungen am Ende der Reiterzeile. Ein eigenes <code>&lt;h1&gt;</code> meldet die Prüfung.</p>
       </section>
     {/if}
 
@@ -516,8 +543,15 @@
           {#key replay}
             <Card pad="sm"><PokerTable seats={SIX} board={["Qs", "9d", "3h"]} pot={13} label="6er-Tisch" /></Card>
             <Card pad="sm"><PokerTable seats={NINE} pot={44} label="9er-Tisch" /></Card>
+            <div class="replay-table">
+              <Card pad="sm"><PokerTable seats={REPLAY} board={["9c", "4h", "2s", "Kd", "3c"]} pot={0} note="River" label="Nachspielen, kompakt" /></Card>
+            </div>
           {/key}
         </div>
+        <p class="muted">
+          Unter {COMPACT_BELOW} px wird der Tisch kompakt: kleinere Schilder bei gleicher Schrift, Aktion am Schildrand. Beim Nachspielen trägt
+          deine Aktion ihre Bewertung, der Gewinner sein Plus.
+        </p>
       </section>
     {/if}
 
@@ -974,6 +1008,10 @@
     display: grid;
     gap: var(--sp-4);
     max-width: 900px;
+  }
+  .replay-table {
+    width: 620px;
+    max-width: 100%;
   }
   .tables :global(.ui-card) {
     background: var(--surface-sunken);

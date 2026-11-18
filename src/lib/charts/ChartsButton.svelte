@@ -6,7 +6,7 @@
   import Button from "../ui/Button.svelte";
 
   /** "Range ansehen" for a rated preflop decision: opens its spot on the ranges page with the hand. */
-  let { decision: d }: { decision: Decision } = $props();
+  let { decision: d, variant = "secondary" }: { decision: Decision; variant?: "primary" | "secondary" } = $props();
 
   let target = $state<ChartTarget | null>(null);
   let locked = $state(false);
@@ -40,6 +40,7 @@
 
 {#if target}
   <Button
+    {variant}
     disabled={locked}
     title={locked
       ? "Die Ranges sind gesperrt, solange PokerStars läuft – so verlangen es die PokerStars-Regeln."

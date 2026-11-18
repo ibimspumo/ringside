@@ -1,23 +1,29 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
-  import { REFERENCE_ASPECT } from "../hud/geometry";
-  import OvalFelt from "../table/OvalFelt.svelte";
-  import { clear, layout, placeOf } from "../table/seats";
-  import PlayingCard from "../PlayingCard.svelte";
+  import { preview } from "../learn/preview";
   import { openInSolver } from "../solver/handoff.svelte";
   import { spotFromHand } from "../solver/presets";
   import { money, moneyShort } from "../stats";
   import type { Action, Hand, Street } from "../types";
+  import BestHand from "../ui/BestHand.svelte";
+  import Button from "../ui/Button.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
+  import IconButton from "../ui/IconButton.svelte";
+  import PokerTable, { tableHeight, type TableSeat } from "../ui/PokerTable.svelte";
+  import type { ActionKind, Grade } from "../ui/poker";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
 
   /**
    * `children` is the hand's title line, laid out flush with the table. With `upTo` the hand ends
    * before that action (an index into `actions`): no later cards, no showdown, no winner.
-   * `marks` colours actions (by index into `actions`) on the log and the timeline; clicking one
-   * calls `onMark`. A new `jumpTo` moves the replay to just before its action. `aside` sits
-   * above the action log. `quiz` is for practising the hand: while the answer is open, the
-   * solver hand-off is hidden and the play button stays quiet. `inBigBlinds` starts the amounts
-   * in big blinds instead of chips. `quietPlay` keeps the play button in outline, for screens
-   * that have their own main action.
+   * `marks` grades actions (by index into `actions`) on the table, the log and the timeline;
+   * clicking one calls `onMark`. A new `jumpTo` moves the replay to just before its action.
+   * `aside` (e.g. the analysis) opens a column beside the table, above the log, once the
+   * replayer is wide enough; callers show it elsewhere on narrow screens (see `asideFrom`).
+   * `quiz` is for practising the hand: while the answer is open, the solver hand-off is hidden
+   * and the play button stays quiet. `inBigBlinds` starts the amounts in big blinds instead of
+   * chips. `quietPlay` keeps the play button in outline, for screens that have their own main
+   * action.
    */
   let {
     hand: full,
@@ -33,7 +39,7 @@
   }: {
     hand: Hand;
     upTo?: number | null;
-    marks?: Map<number, { color: string; label: string }> | null;
+    marks?: Map<number, { grade: Grade | null; label: string }> | null;
     onMark?: (action: number) => void;
     jumpTo?: { action: number } | null;
     children?: Snippet;
@@ -88,10 +94,8 @@
   let step = $state(0);
   let playing = $state(false);
   let inBB = $state(untrack(() => inBigBlinds));
-  let stageWidth = $state(860);
   let logEl = $state<HTMLElement>();
-  /** The stage keeps its shape, so seats, board and bets simply scale with its width. */
-  const k = $derived(Math.min(1.15, Math.max(0.8, stageWidth / 880)));
+  let sideEl = $state<HTMLElement>();
 
   // A new hand starts at the beginning, a stopped one at its stop; lifting the stop plays on.
   let shownId: number | null = null;
@@ -101,7 +105,8 @@
     untrack(() => {
       if (id !== shownId) {
         shownId = id;
-        step = stop === null ? 0 : events.length;
+        const at = preview("step");
+        step = stop === null ? (at === "end" ? events.length : Number(at ?? 0) || 0) : events.length;
         playing = false;
       } else if (stop === null) {
         playing = true;
@@ -121,10 +126,13 @@
     });
   });
 
-  /** Marked actions with their place on the timeline. */
+  /** Graded actions with their place on the timeline. */
   const pips = $derived(
     marks
-      ? events.flatMap((e, i) => (e.type === "action" && marks.has(e.index) ? [{ i, index: e.index, ...marks.get(e.index)! }] : []))
+      ? events.flatMap((e, i) => {
+          const m = e.type === "action" ? marks.get(e.index) : undefined;
+          return m && e.type === "action" ? [{ i, index: e.index, ...m }] : [];
+        })
       : [],
   );
 
@@ -140,25 +148,24 @@
   // Keep the current log row in view without moving the page around it.
   $effect(() => {
     void step;
+    const scroller = besides ? sideEl : logEl;
     const row = logEl?.querySelector<HTMLElement>("li.now");
-    if (!logEl || !row) return;
-    const box = logEl.getBoundingClientRect();
+    if (!scroller || !row) return;
+    const box = scroller.getBoundingClientRect();
     const r = row.getBoundingClientRect();
-    if (r.top < box.top + 30) logEl.scrollTop -= box.top + 30 - r.top;
-    else if (r.bottom > box.bottom) logEl.scrollTop += r.bottom - box.bottom + 4;
+    if (r.top < box.top + 30) scroller.scrollTop -= box.top + 30 - r.top;
+    else if (r.bottom > box.bottom) scroller.scrollTop += r.bottom - box.bottom + 4;
   });
 
-  const LABEL: Record<string, string> = {
-    post_small_blind: "SB",
-    post_big_blind: "BB",
+  const POST: Partial<Record<Action["kind"], string>> = {
+    post_small_blind: "Small Blind",
+    post_big_blind: "Big Blind",
     post_ante: "Ante",
-    post_both: "SB+BB",
-    fold: "Fold",
-    check: "Check",
-    call: "Call",
-    bet: "Bet",
-    raise: "Raise",
+    post_both: "SB + BB",
   };
+  const KIND: Partial<Record<Action["kind"], ActionKind>> = { fold: "fold", check: "check", call: "call", bet: "bet", raise: "raise" };
+  const WORD: Record<ActionKind, string> = { fold: "Fold", check: "Check", call: "Call", bet: "Bet", raise: "Raise", allin: "All-in", limp: "Limp" };
+  const kindOf = (a: Action): ActionKind | undefined => (a.all_in ? "allin" : KIND[a.kind]);
 
   /**
    * Position names as the stats engine assigns them: the big blind is whoever posted it, the small
@@ -196,14 +203,14 @@
   const table = $derived.by(() => {
     const stacks = new Map(hand.seats.map((s) => [s.name, s.stack]));
     const put = new Map<string, number>();
-    const label = new Map<string, string>();
+    const label = new Map<string, { kind: ActionKind; index: number }>();
     const folded = new Set<string>();
     let pot = 0;
     let board = 0;
     let revealed = false;
     let winners = new Map<string, number>();
     let street: Street = "preflop";
-    let last: string | null = null;
+    let latest = -1;
 
     const sweep = () => {
       for (const v of put.values()) pot += v;
@@ -211,15 +218,15 @@
     };
 
     for (const e of events.slice(0, step)) {
-      last = null;
       if (e.type === "action") {
         const a = e.action;
         stacks.set(a.player, (stacks.get(a.player) ?? 0) - a.amount);
         if (a.kind === "post_ante") pot += a.amount;
         else put.set(a.player, (put.get(a.player) ?? 0) + a.amount);
         if (a.kind === "fold") folded.add(a.player);
-        label.set(a.player, a.all_in ? "All-in" : LABEL[a.kind]);
-        last = a.player;
+        const kind = kindOf(a);
+        if (kind) label.set(a.player, { kind, index: e.index });
+        latest = e.index;
       } else if (e.type === "street") {
         sweep();
         street = e.street;
@@ -241,10 +248,13 @@
     }
     let inFront = 0;
     for (const v of put.values()) inFront += v;
-    return { stacks, put, label, folded, pot, total: pot + inFront, board, revealed, winners, street, last };
+    const next = events[step];
+    const toAct = next?.type === "action" ? next.action.player : null;
+    // Who folded is dimmed; the tag only shows in the step the fold happens.
+    for (const [name, l] of label) if (l.kind === "fold" && l.index !== latest) label.delete(name);
+    return { stacks, put, label, folded, pot, total: pot + inFront, board, revealed, winners, street, toAct };
   });
 
-  const heroSeat = $derived(hand.seats.find((s) => s.name === hand.hero)?.seat ?? 1);
   const done = $derived(step >= events.length);
   /** The heads-up spot at the start of the street on screen, for the solver. */
   const solveSpot = $derived(table.street === "preflop" ? null : spotFromHand(hand, table.street, positions));
@@ -261,43 +271,76 @@
     return out;
   });
 
-  // You sit at the bottom, the others clockwise by seat number (see `table/seats.ts`).
-  const stageHeight = $derived(stageWidth / REFERENCE_ASPECT);
-  // Smaller tables (e.g. beside the hand list) shrink seats and chips until nothing overlaps.
-  const sizesAt = (kk: number) => ({ seat: { w: 124 * kk, h: 92 * kk }, badge: { w: 1, h: 1 }, bet: { w: 90 * kk, h: 24 * kk }, gap: 3 * kk });
-  const middleAt = (kk: number) => [{ box: { w: 236 * kk, h: 100 * kk }, dy: 0 }];
-  const fitted = $derived.by(() => {
-    const n = Math.max(hand.max_seats, 2);
-    for (let kk = k; kk > 0.4; kk -= 0.02) {
-      const g = layout(n, stageWidth, stageHeight, sizesAt(kk));
-      if (clear(g, sizesAt(kk), middleAt(kk))) return { geo: g, kk };
-    }
-    return { geo: layout(n, stageWidth, stageHeight, sizesAt(0.4)), kk: 0.4 };
-  });
-  const geo = $derived(fitted.geo);
-  /** Seat number `seat` (1 … max) in fractions of the stage, with its chips. */
-  function place(seat: number) {
-    const n = Math.max(hand.max_seats, 2);
-    const p = geo.places[placeOf(seat - 1, heroSeat - 1, n)];
-    return { x: p.seat.x / stageWidth, y: p.seat.y / stageHeight, bx: p.bet.x / stageWidth, by: p.bet.y / stageHeight };
-  }
-
-  function amount(v: number) {
-    if (inBB && hand.big_blind > 0) return `${(v / hand.big_blind).toLocaleString("de-DE", { maximumFractionDigits: 1 })} BB`;
-    return money(v, hand.currency, hand.game);
-  }
-
-  function bbs(v: number) {
-    if (hand.big_blind <= 0) return "";
-    const n = v / hand.big_blind;
-    return n.toLocaleString("de-DE", { maximumFractionDigits: n < 10 ? 1 : 0 });
-  }
+  const unit = $derived(hand.big_blind > 0 ? hand.big_blind : 1);
+  const n = $derived(Math.max(hand.max_seats, 2));
+  const heroSeat = $derived(hand.seats.find((s) => s.name === hand.hero)?.seat ?? 1);
 
   function cardsOf(name: string): string[] | null {
     if (name === hand.hero) return hand.hero_cards;
-    if (table.revealed) return hand.shown.find(([n]) => n === name)?.[1] ?? null;
+    if (table.revealed) return hand.shown.find(([p]) => p === name)?.[1] ?? null;
     return null;
   }
+
+  // You sit at the bottom, the others clockwise by seat number (see `table/seats.ts`).
+  const seats = $derived.by((): TableSeat[] =>
+    Array.from({ length: n }, (_, k) => {
+      const s = hand.seats.find((x) => x.seat === k + 1 && !x.sitting_out);
+      if (!s) return { empty: true };
+      const cards = cardsOf(s.name);
+      const last = table.label.get(s.name);
+      const won = table.winners.get(s.name);
+      const bet = table.put.get(s.name) ?? 0;
+      return {
+        name: s.name,
+        position: positions.get(s.name),
+        stack: (table.stacks.get(s.name) ?? 0) / unit,
+        cards: cards?.length ? cards : table.folded.has(s.name) ? undefined : "hidden",
+        action: last ? { kind: last.kind } : undefined,
+        grade: last ? (marks?.get(last.index)?.grade ?? undefined) : undefined,
+        bet: bet > 0 ? bet / unit : undefined,
+        folded: table.folded.has(s.name),
+        toAct: !done && table.toAct === s.name,
+        dealer: s.seat === hand.button_seat,
+        won: won !== undefined ? won / unit : undefined,
+      };
+    }),
+  );
+
+  /** Writes an amount given in big blinds in the unit chosen below the table. */
+  function format(v: number): string {
+    if (inBB || hand.big_blind <= 0) return `${v.toLocaleString("de-DE", { maximumFractionDigits: v < 10 ? 1 : 0 })} BB`;
+    return money(v * unit, hand.currency, hand.game);
+  }
+
+  /** What every shown hand made, winners first, for the result below the log. */
+  const result = $derived.by(() => {
+    if (!done || upTo !== null) return [];
+    const names = new Set([...hand.collected.map(([p]) => p), ...hand.shown.map(([p]) => p)]);
+    return [...names]
+      .map((name) => ({
+        name,
+        position: positions.get(name),
+        won: table.winners.get(name),
+        cards: name === hand.hero && hand.shown.some(([p]) => p === name) ? hand.hero_cards : (hand.shown.find(([p]) => p === name)?.[1] ?? null),
+      }))
+      .sort((a, b) => (b.won ?? 0) - (a.won ?? 0));
+  });
+
+  // The table takes the largest width whose height still fits, beside the side column or above the log.
+  let boxW = $state(0);
+  let boxH = $state(0);
+  let headH = $state(0);
+  let ctrlH = $state(40);
+  const LOG_MIN = 150;
+  const besides = $derived(boxW >= (aside ? 860 : 1150));
+  const sideW = $derived(besides ? Math.round(aside ? Math.min(420, Math.max(320, boxW * 0.3)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
+  const tableW = $derived.by(() => {
+    const room = besides ? boxW - sideW - 20 : boxW;
+    const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
+    let w = Math.min(room, 1100);
+    while (w > 300 && tableHeight(w) > free) w -= 10;
+    return Math.max(0, w);
+  });
 
   function key(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
@@ -322,409 +365,174 @@
 
 <svelte:window onkeydown={key} />
 
-<div class="replayer">
-  <div class="layout" class:has-aside={!!aside} style="--ar:{REFERENCE_ASPECT}">
+<div class="replayer" bind:clientWidth={boxW} bind:clientHeight={boxH}>
+  <div class="layout" class:besides style:--side="{sideW}px" style:--table="{tableW}px">
     <div class="main">
-      {@render children?.()}
-      <div class="stage" bind:clientWidth={stageWidth} style="--k:{fitted.kk}">
-        <div class="felt">
-          <OvalFelt felt={geo.felt} />
-          <div class="center" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y}px">
-            <div class="board">
-              {#each hand.board.slice(0, table.board) as c (c)}
-                <PlayingCard card={c} size={44} />
-              {/each}
-            </div>
-            <div class="pot" class:hidden={table.total <= 0}>
-              <span>Pot</span>
-              <b class="num">{amount(Math.max(table.total, 0))}</b>
-            </div>
-            <div class="street">{STREET_NAME[table.street]}</div>
-          </div>
-
-          {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
-            {@const p = place(s.seat)}
-            {@const bet = table.put.get(s.name) ?? 0}
-            {#if bet > 0}
-              <div class="bet num" data-part="bet" data-seat={s.seat - 1} style="left:{p.bx * 100}%; top:{p.by * 100}%">
-                <i></i>{amount(bet)}
-              </div>
-            {/if}
-          {/each}
-
-          {#each hand.seats.filter((s) => !s.sitting_out) as s (s.seat)}
-            {@const p = place(s.seat)}
-            {@const cards = cardsOf(s.name)}
-            {@const won = table.winners.get(s.name)}
-            {@const stack = table.stacks.get(s.name) ?? 0}
-            {@const pos = positions.get(s.name)}
-            <div
-              class="seat"
-              data-part="seat"
-              data-seat={s.seat - 1}
-              class:folded={table.folded.has(s.name)}
-              class:acting={table.last === s.name}
-              class:winner={won !== undefined}
-              class:hero={s.name === hand.hero}
-              style="left:{p.x * 100}%; top:{p.y * 100}%"
-            >
-              <div class="cards">
-                {#if cards}
-                  {#each cards as c (c)}<PlayingCard card={c} size={30} />{/each}
-                {:else if !table.folded.has(s.name)}
-                  <PlayingCard hidden size={30} /><PlayingCard hidden size={30} />
-                {/if}
-              </div>
-              <div class="pod">
-                <div class="who">
-                  {#if pos}<span class="tag">{pos}</span>{/if}
-                  <span class="name" title={s.name}>{s.name}</span>
-                </div>
-                <div class="num stack">
-                  {#if inBB}
-                    <b>{bbs(stack)}</b> <span class="bbs">BB</span>
-                  {:else}
-                    <b>{amount(stack)}</b>{#if hand.big_blind > 0}<span class="sep">·</span><span class="bbs">{bbs(stack)} BB</span>{/if}
-                  {/if}
-                </div>
-                {#if won !== undefined}
-                  <span class="act win num">+{amount(won)}</span>
-                {:else if table.label.get(s.name)}
-                  <span class="act" class:allin={table.label.get(s.name) === "All-in"}>{table.label.get(s.name)}</span>
-                {/if}
-              </div>
-              {#if s.seat === hand.button_seat}<span class="dealer" title="Dealer-Button">D</span>{/if}
-            </div>
-          {/each}
-        </div>
+      {#if children}<div bind:clientHeight={headH}>{@render children()}</div>{/if}
+      <div class="stage">
+        <PokerTable
+          {seats}
+          hero={heroSeat - 1}
+          board={hand.board.slice(0, table.board)}
+          pot={Math.max(table.total, 0) / unit}
+          note={STREET_NAME[table.street]}
+          {format}
+          label="Tisch der Hand"
+        />
       </div>
 
-      <div class="controls">
+      <div class="controls" bind:clientHeight={ctrlH}>
         <div class="buttons">
-          <button class="icon-btn" onclick={() => (step = 0)} title="Zum Anfang" aria-label="Zum Anfang">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.first} /></svg>
-          </button>
-          <button class="icon-btn" onclick={() => (step = Math.max(step - 1, 0))} title="Zurück (←)" aria-label="Zurück">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.prev} /></svg>
-          </button>
-          <button
-            class="btn play"
-            class:primary={!quiz && !quietPlay}
+          <IconButton label="Zum Anfang" onclick={() => (step = 0)}>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={ICON.first} /></svg>
+          </IconButton>
+          <IconButton label="Zurück (←)" onclick={() => (step = Math.max(step - 1, 0))}>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={ICON.prev} /></svg>
+          </IconButton>
+          <Button
+            class="play"
+            variant={quiz || quietPlay ? "secondary" : "primary"}
             onclick={() => {
               if (done) step = 0;
               playing = !playing;
             }}
             title="Abspielen oder anhalten (Leertaste)"
           >
-            <svg viewBox="0 0 24 24" width="14" height="14"><path d={playing ? ICON.pause : ICON.play} /></svg>
+            {#snippet icon()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d={playing ? ICON.pause : ICON.play} /></svg>{/snippet}
             {playing ? "Anhalten" : done ? "Nochmal" : "Abspielen"}
-          </button>
-          <button class="icon-btn" onclick={() => (step = Math.min(step + 1, events.length))} title="Weiter (→)" aria-label="Weiter">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.next} /></svg>
-          </button>
-          <button class="icon-btn" onclick={() => (step = events.length)} title="Zum Ende" aria-label="Zum Ende">
-            <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.last} /></svg>
-          </button>
+          </Button>
+          <IconButton label="Weiter (→)" onclick={() => (step = Math.min(step + 1, events.length))}>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={ICON.next} /></svg>
+          </IconButton>
+          <IconButton label="Zum Ende" onclick={() => (step = events.length)}>
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={ICON.last} /></svg>
+          </IconButton>
         </div>
         <div class="track">
-          <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt" />
+          <input type="range" min="0" max={events.length} bind:value={step} aria-label="Schritt in der Hand" />
           {#each pips as p (p.index)}
             <button
               class="pip"
               class:at={step === p.i}
-              style="--at:{p.i / Math.max(events.length, 1)}; background:{p.color}"
+              style:--at={p.i / Math.max(events.length, 1)}
+              style:--c={p.grade ? `var(--grade-${p.grade})` : "var(--text-3)"}
+              class:open={!p.grade}
               title={p.label}
               aria-label={p.label}
               onclick={() => (onMark ? onMark(p.index) : (step = p.i))}
             ></button>
           {/each}
         </div>
-        <span class="steps num">{step}/{events.length}</span>
-        <div class="seg" role="group" aria-label="Beträge anzeigen in">
-          <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
-          <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
-        </div>
+        <span class="steps num" title="Schritt in der Hand">{step}/{events.length}</span>
+        <SegmentedControl
+          size="sm"
+          label="Beträge anzeigen in"
+          options={[
+            { value: "money", label: hand.game === "tournament" ? "Chips" : "Geld" },
+            { value: "bb", label: "BB", hint: "In Big Blinds: so lassen sich Hände aller Limits vergleichen." },
+          ]}
+          bind:value={() => (inBB ? "bb" : "money"), (v) => (inBB = v === "bb")}
+        />
         {#if solveSpot && !quiz}
-          <button
-            class="btn solve"
+          <Button
+            size="sm"
+            variant="quiet"
             disabled={"reason" in solveSpot}
-            title={"reason" in solveSpot ? solveSpot.reason : "Board, Pot und Stack dieser Straße im Solver öffnen; die Ranges sind ein Vorschlag."}
+            title={"reason" in solveSpot ? solveSpot.reason : "Board, Pot und Stacks dieser Straße im Solver öffnen; die Ranges sind ein Vorschlag."}
             onclick={() => "prefill" in solveSpot && openInSolver(solveSpot.prefill)}
           >
-            Im Solver nachrechnen
-          </button>
+            {STREET_NAME[table.street]} im Solver
+          </Button>
         {/if}
       </div>
-
     </div>
 
-    <div class="side">
+    <div class="side" bind:this={sideEl}>
+      {#if aside && besides}<div class="aside">{@render aside()}</div>{/if}
       {#if done && hand.bounties_won.length}
         <div class="bounties">
           <span class="dim">Bounty gewonnen</span>
           {#each hand.bounties_won as [name, value] (name)}
-            <span><b>{name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
+            <span><b>{name === hand.hero ? "Du" : name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
           {/each}
         </div>
       {/if}
-      {#if aside}<div class="aside">{@render aside()}</div>{/if}
-      <div class="log" bind:this={logEl}>
+      <div class="log" bind:this={logEl} aria-label="Zugverlauf">
         {#each log as g (g.street)}
           <div class="street-log">
             <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
             <ol>
               {#each g.items as { i, a, index } (i)}
                 {@const mark = marks?.get(index)}
+                {@const kind = kindOf(a)}
+                {@const me = a.player === hand.hero}
                 <li class:future={i >= step} class:now={i === step - 1}>
-                  <button onclick={() => (mark && onMark ? onMark(index) : (step = i + 1))} title={mark?.label}>
-                    {#if mark}<span class="mark" style="background:{mark.color}"></span>{/if}
-                    <span class="actor" title={a.player}>{a.player}</span>
-                    <span class="what">{a.all_in ? "All-in" : LABEL[a.kind]}</span>
-                    {#if a.amount > 0}<span class="num amt">{amount(a.to ?? a.amount)}</span>{/if}
+                  <button
+                    class:marked={!!mark}
+                    onclick={() => (mark && onMark ? onMark(index) : (step = i + 1))}
+                    title="{me ? `Du (${a.player})` : a.player}{mark ? ` · ${mark.label}` : ''}"
+                  >
+                    <span class="pos num" class:me>{positions.get(a.player) ?? "–"}</span>
+                    <span class="actor">{me ? "Du" : a.player}</span>
+                    <span class="what" style:--c={kind ? `var(--act-${kind === "allin" ? "allin" : kind === "raise" || kind === "bet" ? "bet-3" : kind})` : undefined}
+                      >{kind ? WORD[kind] : (POST[a.kind] ?? a.kind)}</span
+                    >
+                    {#if a.amount > 0}<span class="num amt">{format((a.to ?? a.amount) / unit)}</span>{/if}
+                    {#if mark?.grade}<GradeIcon grade={mark.grade} size={14} />{:else if mark}<i class="open-mark" aria-hidden="true"></i>{/if}
                   </button>
                 </li>
               {/each}
             </ol>
           </div>
         {/each}
+        {#if result.length}
+          <div class="result">
+            <h4>Ergebnis</h4>
+            {#each result as r (r.name)}
+              <div class="who-won" class:winner={r.won !== undefined}>
+                <span class="line">
+                  <span class="pos num" class:me={r.name === hand.hero}>{r.position ?? "–"}</span>
+                  <span class="actor" title={r.name}>{r.name === hand.hero ? "Du" : r.name}</span>
+                  {#if r.won !== undefined}<b class="num gain">+{format(r.won / unit)}</b>{:else}<span class="lost">verliert</span>{/if}
+                </span>
+                {#if r.cards && hand.board.length >= 3}
+                  <BestHand hole={r.cards} board={hand.board} winner={r.won !== undefined} size={24} />
+                {:else if r.won !== undefined && !hand.shown.length}
+                  <span class="faint">ohne Showdown – alle anderen haben gefoldet</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
       </div>
     </div>
   </div>
 </div>
 
 <style>
-  /*
-   * The table keeps the client's window shape at any size: its width is the smallest of the free
-   * width, a cap, and what the free height allows. The action log sits below it, or beside it once
-   * there is room for both.
-   */
   .replayer {
     flex: 1;
     min-width: 0;
     min-height: 0;
-    container: replayer / size;
   }
   .layout {
-    --chrome: 80px;
-    --log-min: clamp(120px, 20cqh, 200px);
-    --w: min(100cqw, 1100px, (100cqh - var(--chrome) - var(--log-min) - 14px) * var(--ar));
     display: grid;
-    grid-template-columns: var(--w);
-    grid-template-rows: auto minmax(var(--log-min), 1fr);
-    justify-content: center;
-    gap: 14px;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(150px, 1fr);
+    gap: var(--sp-3);
     height: 100%;
   }
   .main {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--sp-2);
+    width: var(--table);
+    max-width: 100%;
+    justify-self: center;
     min-width: 0;
   }
   .stage {
-    position: relative;
-    aspect-ratio: var(--ar);
-    border-radius: var(--r-lg);
-    overflow: hidden;
-    border: 1px solid var(--line);
-  }
-  .felt {
-    position: absolute;
-    inset: 0;
-    overflow: hidden;
-    background: var(--bg);
-  }
-  .center {
-    position: absolute;
-    transform: translate(-50%, -50%) scale(var(--k));
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 7px;
-  }
-  .board {
-    display: flex;
-    gap: 5px;
-    min-height: 62px;
-  }
-  .pot {
-    display: flex;
-    align-items: baseline;
-    gap: 7px;
-    padding: 3px 12px;
-    border-radius: 99px;
-    background: rgba(0, 0, 0, 0.42);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    font-size: 12px;
-    color: var(--text-2);
-  }
-  .pot b {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .pot.hidden {
-    visibility: hidden;
-  }
-  .street {
-    font-size: 11.5px;
-    font-weight: 600;
-    color: rgba(236, 235, 231, 0.4);
-  }
-
-  .seat {
-    position: absolute;
-    z-index: 2;
-    transform: translate(-50%, -50%) scale(var(--k));
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    transition: opacity 0.2s;
-  }
-  .seat.folded {
-    opacity: 0.55;
-  }
-  .cards {
-    display: flex;
-    gap: 3px;
-    height: 42px;
-    margin-bottom: -10px;
-    z-index: 1;
-  }
-  .pod {
-    position: relative;
-    min-width: 116px;
-    padding: 12px 12px 9px;
-    border-radius: 8px;
-    background: var(--plate);
-    box-shadow:
-      inset 0 0 0 1px var(--plate-edge),
-      0 6px 16px rgba(0, 0, 0, 0.45);
-    text-align: center;
-    transition: box-shadow 0.15s;
-  }
-  .acting .pod {
-    box-shadow:
-      inset 0 0 0 1.5px var(--text),
-      0 6px 16px rgba(0, 0, 0, 0.45);
-  }
-  .winner .pod {
-    box-shadow:
-      inset 0 0 0 1.5px var(--pos),
-      0 6px 16px rgba(0, 0, 0, 0.45);
-  }
-  .who {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    max-width: 150px;
-  }
-  .tag {
-    flex-shrink: 0;
-    padding: 0 4px;
-    border-radius: 3px;
-    background: rgba(255, 255, 255, 0.08);
-    font-family: var(--font-num);
-    font-size: 10.5px;
-    font-weight: 600;
-    line-height: 15px;
-    color: var(--text-2);
-  }
-  .name {
     min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .hero .name {
-    color: var(--text);
-  }
-  .stack {
-    margin-top: 1px;
-    font-size: 13px;
-    line-height: 1.3;
-    white-space: nowrap;
-  }
-  .stack b {
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
-  }
-  .sep {
-    margin: 0 5px;
-    color: var(--text-3);
-  }
-  .bbs {
-    color: var(--pos);
-    font-weight: 600;
-  }
-  .act {
-    position: absolute;
-    left: 50%;
-    bottom: -10px;
-    transform: translateX(-50%);
-    padding: 0 8px;
-    border-radius: 99px;
-    background: var(--surface-3);
-    border: 1px solid var(--line-2);
-    color: var(--text);
-    font-size: 11px;
-    font-weight: 600;
-    line-height: 17px;
-    white-space: nowrap;
-  }
-  .act.allin {
-    background: var(--text);
-    color: var(--bg);
-    border-color: var(--text);
-  }
-  .act.win {
-    background: #1d2a1a;
-    border-color: color-mix(in srgb, var(--pos) 55%, transparent);
-    color: var(--pos);
-  }
-  .dealer {
-    position: absolute;
-    right: -9px;
-    top: 30px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--text);
-    color: var(--bg);
-    font-family: var(--font-num);
-    font-size: 10.5px;
-    font-weight: 700;
-    display: grid;
-    place-items: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-  }
-  .bet {
-    position: absolute;
-    z-index: 1;
-    transform: translate(-50%, -50%) scale(var(--k));
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 9px 2px 3px;
-    border-radius: 99px;
-    background: rgba(0, 0, 0, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
-    font-size: 13px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .bet i {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: var(--text);
-    box-shadow:
-      inset 0 0 0 2px #8f9198,
-      inset 0 0 0 4px var(--text);
   }
 
   .controls {
@@ -732,7 +540,7 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 10px;
+    gap: var(--sp-2) var(--sp-3);
   }
   .buttons {
     display: flex;
@@ -741,22 +549,19 @@
   }
   .buttons svg path {
     fill: currentColor;
-  }
-  .play {
-    min-width: 116px;
-    margin: 0 4px;
-  }
-  .play svg path {
-    fill: currentColor;
     stroke: currentColor;
+  }
+  .buttons :global(.play) {
+    min-width: 116px;
+    margin: 0 var(--sp-1);
   }
   .track {
     position: relative;
     flex: 1;
-    min-width: 60px;
+    min-width: 80px;
     display: flex;
     align-items: center;
-    margin: 0 4px;
+    margin: 0 var(--sp-1);
   }
   input[type="range"] {
     flex: 1;
@@ -766,49 +571,31 @@
   /* The thumb is about 16px wide, so its centre runs from 8px to the width minus 8px. */
   .pip {
     position: absolute;
-    top: -9px;
+    top: -10px;
     left: calc(8px + (100% - 16px) * var(--at));
     width: 10px;
     height: 10px;
     padding: 0;
     border: 2px solid var(--bg);
     border-radius: 50%;
+    background: var(--c);
     transform: translateX(-50%);
     cursor: pointer;
+    transition: box-shadow var(--dur-fast) var(--ease-standard);
+  }
+  .pip.open {
+    background: var(--bg);
+    box-shadow: inset 0 0 0 1.5px var(--c);
   }
   .pip:hover,
   .pip.at {
     box-shadow: 0 0 0 2px var(--text);
   }
-  .mark {
-    flex-shrink: 0;
-    align-self: center;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-  /* Below the table the analysis needs room; the table gives up some height for it. */
-  .layout.has-aside {
-    --log-min: clamp(220px, 46cqh, 460px);
-  }
-  .aside {
-    flex: 0 1 auto;
-    min-height: 0;
-    overflow: auto;
-  }
-  .has-aside .log {
-    min-height: 72px;
-  }
   .steps {
-    font-size: 12px;
-    min-width: 36px;
-    text-align: right;
+    min-width: 40px;
     color: var(--text-2);
-  }
-  .solve {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
+    text-align: right;
   }
 
   .bounties {
@@ -817,21 +604,22 @@
     overflow: auto;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px 16px;
-    padding: 8px 12px;
-    border-radius: var(--r-sm);
+    gap: 6px var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-md);
     background: var(--surface);
     border: 1px solid var(--line);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .bounties b {
-    font-weight: 500;
+    font-weight: var(--fw-medium);
   }
 
   .side {
+    container: log / inline-size;
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--sp-2);
     min-height: 0;
   }
   .log {
@@ -840,13 +628,15 @@
     overflow: auto;
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-content: start;
     border: 1px solid var(--line);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     background: var(--surface);
   }
   .street-log {
     min-width: 0;
     border-left: 1px solid var(--line);
+    container: street / inline-size;
   }
   .street-log:first-child {
     border-left: 0;
@@ -854,12 +644,13 @@
   h4 {
     position: sticky;
     top: 0;
+    z-index: 1;
     margin: 0;
-    padding: 9px 10px 6px;
+    padding: var(--sp-2) var(--sp-3) 6px;
     background: var(--surface);
-    font-size: 12.5px;
-    font-weight: 600;
     color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
   }
   h4.on {
     color: var(--text);
@@ -871,28 +662,51 @@
   }
   ol button {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 6px;
     width: 100%;
-    padding: 3px 10px;
+    min-height: 26px;
+    padding: 2px var(--sp-3) 2px 10px;
     border: 0;
     border-left: 2px solid transparent;
     background: transparent;
-    font-size: 12.5px;
-    text-align: left;
     color: var(--text-2);
+    font: inherit;
+    font-size: var(--fs-md);
+    text-align: left;
     cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease-standard);
   }
   ol button:hover {
     background: var(--surface-2);
   }
+  ol button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
   .future button {
-    color: color-mix(in srgb, var(--text-2) 70%, transparent);
+    color: var(--text-3);
   }
   .now button {
     color: var(--text);
     background: var(--surface-3);
     border-left-color: var(--text);
+  }
+  .pos {
+    flex-shrink: 0;
+    min-width: 34px;
+    padding: 0 4px;
+    border-radius: var(--r-xs);
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    line-height: 17px;
+    text-align: center;
+  }
+  .pos.me {
+    background: var(--text);
+    color: var(--bg);
   }
   .actor {
     flex: 1;
@@ -901,32 +715,114 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .amt {
-    font-size: 12.5px;
+  .what {
+    flex-shrink: 0;
+    color: inherit;
   }
-  @container replayer (min-width: 1150px) {
-    .layout {
-      --log-w: clamp(280px, 24cqw, 360px);
-      --w: min(100cqw - var(--log-w) - 18px, 1100px, (100cqh - var(--chrome)) * var(--ar));
-      grid-template-columns: var(--w) var(--log-w);
-      grid-template-rows: auto;
-      align-content: start;
-      gap: 18px;
-      height: auto;
+  .what::before {
+    content: "";
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 2px;
+    background: var(--c, transparent);
+    vertical-align: 1px;
+  }
+  .amt {
+    flex-shrink: 0;
+    margin-left: auto;
+    color: inherit;
+  }
+  .open-mark {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1.5px dashed var(--text-3);
+  }
+  /* In a narrow street column the position names the player; the full name is in the tooltip. */
+  @container street (max-width: 210px) {
+    .actor {
+      display: none;
     }
-    /* Beside the table the log only takes the table's height and scrolls within it. */
-    .side {
-      contain: size;
+    .what {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
+  }
+  .result {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-3) var(--sp-6);
+    padding: 0 var(--sp-3) var(--sp-3);
+    border-top: 1px solid var(--line);
+  }
+  .result h4 {
+    position: static;
+    flex-basis: 100%;
+    padding-inline: 0;
+  }
+  .who-won {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: var(--fs-md);
+  }
+  .gain {
+    color: var(--pos);
+    font-weight: var(--fw-semibold);
+  }
+  .lost {
+    color: var(--text-3);
+  }
+  .faint {
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+  }
+
+  .besides {
+    grid-template-columns: minmax(0, 1fr) var(--side);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .besides .main {
+    align-self: start;
+  }
+  /* Beside the table the side column takes the full height; the log scrolls within it. */
+  .besides .side {
+    overflow: auto;
+  }
+  .besides .log {
+    display: block;
+    flex: 1 0 auto;
+    min-height: 180px;
+    overflow: visible;
+  }
+  .aside {
+    flex-shrink: 0;
+  }
+  .besides .street-log {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+  .besides .street-log:first-child {
+    border-top: 0;
+  }
+  /* Narrow logs below the table keep two streets side by side. */
+  @container log (max-width: 560px) {
     .log {
-      display: block;
-    }
-    .street-log {
-      border-left: 0;
-      border-top: 1px solid var(--line);
-    }
-    .street-log:first-child {
-      border-top: 0;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 </style>
