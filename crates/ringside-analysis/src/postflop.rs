@@ -1,15 +1,17 @@
 //! Heads-up postflop decisions. Analysing a hand only builds the job: the solver spot
 //! from the flop (ranges from the preflop model along the hand's line, board, pot and
 //! stacks from the hand, standard bet sizes plus the sizes actually used, snapped to a
-//! grid) and the hand's postflop actions. [`solve_job`] solves it later in the queue and
-//! rates every hero decision at the node the real line leads to.
+//! grid) and the hand's postflop actions. Later in the queue [`solve_spot`] solves it and
+//! [`rate`] rates every hero decision at the node the real line leads to, from the fresh
+//! solution or from one saved before ([`solve_job`] does both).
 
 use ringside_core::db::{Choice, Decision, SpotType, Status};
 use ringside_core::model::{ActionKind, Hand, Street};
 use ringside_engine::{Card, Combo, HandClass, Range};
+use ringside_solver::saved::NOT_STORED;
 use ringside_solver::{
-    ActionKind as TreeAction, Error as SolveError, NodeKind, Player, Progress, Settings, Spot, Step, StreetSizes, estimate,
-    solve,
+    ActionKind as TreeAction, Error as SolveError, Node, NodeKind, Player, Progress, Settings, Solution, Spot, Step, StreetSizes,
+    Summary, estimate, solve,
 };
 use serde::{Deserialize, Serialize};
 
@@ -255,11 +257,14 @@ pub(crate) fn prepare(hand: &Hand, hero: &str, flop: Result<&Flop, &str>) -> (Ve
     (decisions, Some(job))
 }
 
+#[derive(Debug)]
 pub enum JobError {
     /// Stopped from outside (the client started); the job stays queued.
     Cancelled,
     /// The job cannot be solved; its decisions are stored as not rated with this reason.
     Failed(String),
+    /// A decision lies deeper than the saved solution keeps; the spot has to be solved.
+    NotStored,
 }
 
 fn combo_of(text: &str) -> Option<Combo> {
@@ -311,9 +316,9 @@ fn map_action(a: &JobAction, actions: &[ringside_solver::ActionInfo]) -> Option<
     }
 }
 
-/// What to open in the solver: the flop spot as the solver page takes it, plus the path
-/// to the decision.
-fn solver_link(job: &PostflopJob, path: &[Step]) -> String {
+/// What to open in the solver: the flop spot as the solver page takes it, the path to the
+/// decision and the saved solution to open without solving.
+fn solver_link(job: &PostflopJob, path: &[Step], saved: Option<i64>) -> String {
     let side = |i: usize, range: &str| serde_json::json!({ "position": job.positions[i], "range": range, "note": job.range_notes[i] });
     let cards: Vec<String> = combo_of(&job.hero_combo).map(|c| {
         let (a, b) = c.cards();
@@ -331,8 +336,33 @@ fn solver_link(job: &PostflopJob, path: &[Step]) -> String {
         "sizes": job.spot.sizes,
         "allin_threshold": job.spot.allin_threshold,
         "path": path,
+        "saved": saved,
     })
     .to_string()
+}
+
+/// The settings a queued job is solved with.
+pub fn settings(threads: usize) -> Settings {
+    Settings { target_pct: TARGET_PCT, max_iterations: MAX_ITERATIONS, threads }
+}
+
+/// Solves the job's spot.
+pub fn solve_spot(
+    job: &PostflopJob,
+    threads: usize,
+    memory_limit: u64,
+    on_progress: impl FnMut(&Progress),
+    stop: impl Fn() -> bool,
+) -> Result<Solution, JobError> {
+    let failed = |e: SolveError| match e {
+        SolveError::Cancelled => JobError::Cancelled,
+        e => JobError::Failed(e.to_string()),
+    };
+    let est = estimate(&job.spot, memory_limit, threads).map_err(failed)?;
+    if !est.fits {
+        return Err(failed(SolveError::TooLarge { needed: est.memory_bytes, limit: memory_limit }));
+    }
+    solve(&job.spot, &settings(threads), memory_limit, on_progress, stop).map_err(failed)
 }
 
 /// Solves a job and rates every hero decision on the real line.
@@ -343,29 +373,36 @@ pub fn solve_job(
     on_progress: impl FnMut(&Progress),
     stop: impl Fn() -> bool,
 ) -> Result<Vec<Decision>, JobError> {
-    let failed = |e: SolveError| match e {
-        SolveError::Cancelled => JobError::Cancelled,
-        e => JobError::Failed(e.to_string()),
-    };
-    let est = estimate(&job.spot, memory_limit, threads).map_err(failed)?;
-    if !est.fits {
-        return Err(failed(SolveError::TooLarge { needed: est.memory_bytes, limit: memory_limit }));
-    }
-    let settings = Settings { target_pct: TARGET_PCT, max_iterations: MAX_ITERATIONS, threads };
-    let mut sol = solve(&job.spot, &settings, memory_limit, on_progress, stop).map_err(failed)?;
+    let mut sol = solve_spot(job, threads, memory_limit, on_progress, stop)?;
+    let summary = sol.summary.clone();
+    rate(job, &summary, None, |path| sol.node(path))
+}
+
+/// Rates every hero decision on the real line at the nodes `node` returns, from a fresh
+/// solution or a saved snapshot of the job's spot; `saved` is the snapshot's id, opened by
+/// the solver link. [`JobError::NotStored`] when a decision lies past what is saved.
+pub fn rate(
+    job: &PostflopJob,
+    summary: &Summary,
+    saved: Option<i64>,
+    mut node: impl FnMut(&[Step]) -> Result<Node, SolveError>,
+) -> Result<Vec<Decision>, JobError> {
     let hero = combo_of(&job.hero_combo).ok_or_else(|| JobError::Failed("Ungültige Karten.".into()))?;
     let accuracy = format!(
         " Gelöst bis {} % des Pots Ausbeutbarkeit ({} Iterationen).",
-        num(sol.summary.exploitability_pct),
-        sol.summary.iterations
+        num(summary.exploitability_pct),
+        summary.iterations
     );
+    // Actions after the hero's last decision rate nothing; walking them would only ask a
+    // snapshot for nodes it need not hold.
+    let last = job.actions.iter().rposition(|a| a.hero.is_some()).map_or(0, |i| i + 1);
 
     let mut out = Vec::new();
     let mut path: Vec<Step> = Vec::new();
     let mut street = Street::Flop;
     let mut broken: Option<String> = None;
     let mut size_notes: Vec<String> = Vec::new();
-    for a in &job.actions {
+    for a in &job.actions[..last] {
         let make = |spot: SpotType, played: &str| base(job.hand_id, a.index, a.street, spot, played.to_string());
         if broken.is_none() && a.street != street {
             street = a.street;
@@ -373,13 +410,14 @@ pub fn solve_job(
                 Street::Turn => job.board.get(3),
                 _ => job.board.get(4),
             };
-            match card {
-                Some(c) => path.push(Step::Card(c.clone())),
+            // Saved paths spell cards as the solver does.
+            match card.and_then(|c| c.parse::<Card>().ok()) {
+                Some(c) => path.push(Step::Card(c.to_string())),
                 None => broken = Some("Board unvollständig.".into()),
             }
         }
         if broken.is_none() {
-            match sol.node(&path) {
+            match node(&path) {
                 Ok(node) if node.kind == NodeKind::Action && node.player == Some(if a.oop { Player::Oop } else { Player::Ip }) => {
                     match map_action(a, &node.actions) {
                         Some((i, size_note)) => {
@@ -413,7 +451,7 @@ pub fn solve_job(
                                                 best.map_or("?", |b| b.label.as_str())
                                             )
                                         });
-                                        d.solver = Some(solver_link(job, &path));
+                                        d.solver = Some(solver_link(job, &path, saved));
                                         out.push(d);
                                     }
                                     None => {
@@ -433,6 +471,7 @@ pub fn solve_job(
                     }
                 }
                 Ok(_) => broken = Some("Die Linie der Hand weicht vom Spielbaum ab (z. B. nach einem All-in).".into()),
+                Err(SolveError::Invalid(m)) if m == NOT_STORED => return Err(JobError::NotStored),
                 Err(e) => broken = Some(e.to_string()),
             }
         }

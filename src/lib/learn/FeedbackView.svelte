@@ -4,6 +4,8 @@
   import { preview } from "./preview";
   import { input } from "./input";
   import Ring from "./Ring.svelte";
+  import Button from "../ui/Button.svelte";
+  import CardText from "../ui/CardText.svelte";
 
   let {
     feedback,
@@ -91,7 +93,7 @@
       <span class="of">Punkte</span>
     </Ring>
     {#if onNext}
-      <button class="btn primary next" bind:this={nextBtn} onclick={onNext}>{nextLabel} <kbd>Enter</kbd></button>
+      <div class="next"><Button variant="primary" size="lg" kbd="Enter" bind:ref={nextBtn} onclick={onNext}>{nextLabel}</Button></div>
     {/if}
   </header>
 
@@ -111,7 +113,7 @@
       {#each facts as f, i (i)}
         <div class="fact" style="--i:{i}">
           <dt>{#if explain(f.label)}<span class="term" title={explain(f.label)}>{f.label}</span>{:else}{f.label}{/if}</dt>
-          <dd class="num">{f.value}</dd>
+          <dd class="num"><CardText text={f.value} /></dd>
           {#if f.formula}<dd class="formula num">{f.formula}</dd>{/if}
         </div>
       {/each}
@@ -306,11 +308,6 @@
     color: var(--text-2);
     overflow-wrap: anywhere;
   }
-  .next {
-    height: 40px;
-    padding: 0 18px;
-    font-size: 14px;
-  }
   .term {
     text-decoration: underline dotted;
     text-decoration-color: var(--text-3);
@@ -342,16 +339,6 @@
   }
   .badge.formel {
     background: var(--surface-3);
-  }
-  kbd {
-    margin-left: 2px;
-    padding: 0 5px;
-    border-radius: 4px;
-    border: 1px solid rgba(18, 20, 24, 0.25);
-    font-family: var(--font-num);
-    font-size: 11px;
-    font-weight: 500;
-    opacity: 0.7;
   }
   @container (max-width: 640px) {
     header {

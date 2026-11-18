@@ -11,6 +11,8 @@ export const playApi = {
   hint: () => call<Lesson>("play_hint", {}, demo.hint),
   poolStatus: () => call<PoolStatus>("play_pool_status", {}, demo.poolStatus),
   poolCancel: () => call<void>("play_pool_cancel", {}, demo.poolCancel),
+  /** The page closed; the prepared spots are freed a while later. */
+  away: () => call<void>("play_away", {}, () => {}),
   openSolver: () => call<OpenedSpot>("play_open_solver", {}, demo.openSolver),
   history: (limit: number) => call<PastHand[]>("play_history", { limit }, () => demo.history(limit)),
 };

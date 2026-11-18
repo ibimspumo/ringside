@@ -4,6 +4,7 @@
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, Instant};
 
 use ringside_engine::multiway::{MAX_PLAYERS, Solution, seat_name, solve};
 use ringside_engine::preflop::{self, Kind, Realization, Sizes};
@@ -259,8 +260,11 @@ struct PreflopProgress {
 /// Ante, players, stack bits, precomputed, solution.
 type CachedPreflop = (Ante, usize, u64, bool, Arc<preflop::Solution>);
 
-/// The last solutions asked for, so that browsing nodes doesn't decode or solve again.
+/// The last solutions asked for, so that browsing nodes doesn't decode or solve again,
+/// until the charts were not used for [`CACHE_IDLE`].
 static PREFLOP_CACHE: Mutex<Vec<CachedPreflop>> = Mutex::new(Vec::new());
+static PREFLOP_USED: Mutex<Option<Instant>> = Mutex::new(None);
+pub(crate) const CACHE_IDLE: Duration = Duration::from_secs(600);
 /// Set by `preflop_cancel`; a running live solve stops at its next check.
 static PREFLOP_CANCEL: AtomicBool = AtomicBool::new(false);
 /// Keys of live solves running now; a page that asks again for one waits for it.
@@ -292,6 +296,7 @@ fn preflop_solution(
     live: Option<(&AppHandle, &AtomicBool)>,
 ) -> Result<(bool, Arc<preflop::Solution>), String> {
     let key = (ante, players, stack_bb.to_bits());
+    *PREFLOP_USED.lock().unwrap() = Some(Instant::now());
     if let Some(hit) = cached(key) {
         return Ok(hit);
     }
@@ -460,6 +465,17 @@ pub async fn preflop_node(ante: Ante, players: usize, stack_bb: f64, node: usize
         })
     })
     .await
+}
+
+/// Drops the cached table solutions once unused for [`CACHE_IDLE`]; decoding one again
+/// takes milliseconds. Live solves stay, they would take a while. Called by the
+/// housekeeping thread.
+pub(crate) fn tick() {
+    let mut used = PREFLOP_USED.lock().unwrap();
+    if used.is_some_and(|t| t.elapsed() >= CACHE_IDLE) {
+        *used = None;
+        PREFLOP_CACHE.lock().unwrap().retain(|(_, _, _, precomputed, _)| !precomputed);
+    }
 }
 
 /// Stops a running live preflop solve.

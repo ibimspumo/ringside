@@ -24,10 +24,12 @@
 //! far better than interleaved absolute values. All numbers are little-endian.
 
 use std::collections::HashMap;
-use std::sync::LazyLock;
+use std::sync::Arc;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
+use crate::idle::Idle;
 use crate::multiway::{Approximation, Node, Params, Solution};
 use crate::range::NUM_CLASSES;
 
@@ -137,10 +139,10 @@ static CLASSIC_BYTES: &[u8] = include_bytes!("../data/pushfold_classic.bin");
 static BIG_BLIND_BYTES: &[u8] = include_bytes!("../data/pushfold_big_blind.bin");
 
 /// Inflated on first use, one ante structure at a time.
-static TABLES: [LazyLock<Table>; 3] = [
-    LazyLock::new(|| load(Ante::None, NONE_BYTES)),
-    LazyLock::new(|| load(Ante::Classic, CLASSIC_BYTES)),
-    LazyLock::new(|| load(Ante::BigBlind, BIG_BLIND_BYTES)),
+static TABLES: [Idle<Table>; 3] = [
+    Idle::new(|| load(Ante::None, NONE_BYTES)),
+    Idle::new(|| load(Ante::Classic, CLASSIC_BYTES)),
+    Idle::new(|| load(Ante::BigBlind, BIG_BLIND_BYTES)),
 ];
 
 fn load(ante: Ante, bytes: &[u8]) -> Table {
@@ -155,8 +157,13 @@ fn load(ante: Ante, bytes: &[u8]) -> Table {
     Table { index }
 }
 
-fn table(ante: Ante) -> &'static Table {
-    &TABLES[ante.code() as usize]
+fn table(ante: Ante) -> Arc<Table> {
+    TABLES[ante.code() as usize].get()
+}
+
+/// Drops the inflated tables unused for `idle`.
+pub(crate) fn release(idle: Duration) -> usize {
+    TABLES.iter().filter(|t| t.release(idle)).count()
 }
 
 /// Raw entries of an ante structure (for the generator and tests).

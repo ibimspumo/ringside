@@ -93,6 +93,17 @@ function* choose<T>(items: T[], k: number, start = 0, acc: T[] = []): Generator<
   for (let i = start; i <= items.length - (k - acc.length); i++) yield* choose(items, k, i + 1, [...acc, items[i]]);
 }
 
+/** The five cards that make the best hand out of five to seven, strongest first by rank. */
+export function bestFive(cards: string[]): string[] {
+  let best: string[] = cards.slice(0, 5);
+  let top = -1;
+  for (const five of choose(cards, Math.min(5, cards.length))) {
+    const s = score(five);
+    if (s > top) [top, best] = [s, five];
+  }
+  return [...best].sort((a, b) => rankOf(b) - rankOf(a));
+}
+
 /** Exact all-in equity of two hands by enumerating every runout (board of three or four cards). */
 export function equity(hero: string[], villain: string[], board: string[]): { win: number; tie: number; lose: number; runouts: number } {
   const rest = deckWithout([...hero, ...villain, ...board]);

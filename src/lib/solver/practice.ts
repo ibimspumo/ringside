@@ -1,7 +1,7 @@
 // Practice against the solution: dealing from the ranges, the opponent's random choice by
 // frequency, and grading a decision by what it costs against the best action.
 import { RANKS, comboClass, parseRange } from "./range";
-import type { SolverHand, SolverNode } from "./types";
+import type { SolverClass, SolverHand, SolverNode } from "./types";
 
 const SUITS = "shdc";
 export const DECK = RANKS.split("").flatMap((r) => SUITS.split("").map((s) => r + s));
@@ -14,6 +14,17 @@ export function sameCombo(combo: string, cards: string[]): boolean {
 
 export function handOf(node: SolverNode, cards: string[]): SolverHand | undefined {
   return node.hands.find((h) => sameCombo(h.combo, cards));
+}
+
+/**
+ * The numbers of your hand at a node, as the practice and the solver page both show them:
+ * the exact combo (what grades a move: suits matter after the flop) and its whole class
+ * (the 13×13 cell, a mix over all its combos).
+ */
+export function handNumbers(node: SolverNode, cards: string[]): { hand: SolverHand | null; cls: SolverClass | null } {
+  const hand = handOf(node, cards) ?? null;
+  const cls = hand ? (node.classes.find((c) => c.class === hand.class) ?? null) : null;
+  return { hand, cls };
 }
 
 /** Picks an index with probability proportional to `weights`. */

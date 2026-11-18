@@ -5,7 +5,7 @@
   let { mode, onChange }: { mode: LibraryMode; onChange: (m: LibraryMode) => void } = $props();
 
   const MODES: { id: LibraryMode; label: string; text: string }[] = [
-    { id: "off", label: "Aus", text: "Dein PC rechnet nicht mit. Fertige Spots werden trotzdem heruntergeladen." },
+    { id: "off", label: "Aus", text: "Dein PC rechnet nur, wenn du es auf der Seite Bibliothek startest. Fertige Spots werden trotzdem heruntergeladen." },
     {
       id: "idle",
       label: "Nur wenn der PC frei ist",
@@ -14,22 +14,22 @@
     {
       id: "always",
       label: "Immer, wenn PokerStars zu ist",
-      text: "Auch während du anderes am PC machst, aber nie, während du Ringside benutzt.",
+      text: "Auch während du anderes am PC machst. Während du Ringside benutzt, wartet die Automatik; sofort rechnen kannst du mit „Jetzt mitrechnen“ auf der Seite Bibliothek.",
     },
   ];
   const current = $derived(MODES.find((m) => m.id === mode) ?? MODES[1]);
 </script>
 
 <div class="mode">
-  <div class="seg" role="radiogroup" aria-label="Bibliothek im Hintergrund erweitern">
+  <div class="seg" role="radiogroup" aria-label="Automatik">
     {#each MODES as m (m.id)}
       <button role="radio" aria-checked={mode === m.id} class:on={mode === m.id} onclick={() => onChange(m.id)}>{m.label}</button>
     {/each}
   </div>
   <p>{current.text}</p>
   <p class="cost">
-    Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden. Ringside nimmt sich dafür höchstens die Hälfte der
-    Rechenleistung und ein Viertel des Arbeitsspeichers. Solange PokerStars läuft, wird nie gerechnet.
+    Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel Kraft Ringside nimmt, stellst du auf der
+    Seite Bibliothek ein. Solange PokerStars läuft, wird nie gerechnet.
   </p>
 </div>
 

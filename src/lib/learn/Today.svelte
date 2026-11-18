@@ -219,7 +219,7 @@
     <section class="hero panel">
       <div class="intro">
         <span class="eyebrow">Deine Runde für heute · etwa 5 Minuten</span>
-        <h1>{LENGTH} kurze Aufgaben</h1>
+        <h2 class="lead-title">{LENGTH} kurze Aufgaben</h2>
         <p class="dim lead">
           {#if lanes.some((l) => l.why === "Schwachstelle")}Zusammengestellt aus deinen Coach-Berichten und deinem Stand.{:else}Zusammengestellt aus
             deinem Stand.{/if} Nach jeder Antwort siehst du sofort, warum.
@@ -350,7 +350,7 @@
       <p class="ring-note dim small">Schnitt deiner Antworten.<br />Knapp daneben gibt Teilpunkte.</p>
       </div>
       <div class="numbers">
-        <h1>{answered === 0 ? "Runde beendet" : mean >= 0.8 ? "Starke Runde!" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h1>
+        <h2 class="lead-title">{answered === 0 ? "Runde beendet" : mean >= 0.8 ? "Starke Runde!" : mean >= 0.5 ? "Solide Runde" : "Gut, dass du’s geübt hast"}</h2>
         <div class="stats">
           <div><b class="num">{rights}<span class="of">/{answered}</span></b><span>richtig</span></div>
           <div><b class="num">+{answered}</b><span>Antworten fürs Wochenziel</span></div>
@@ -438,10 +438,10 @@
     font-size: 12.5px;
     color: var(--text-2);
   }
-  h1 {
+  .lead-title {
     margin: 4px 0 6px;
     font-family: var(--font-num);
-    font-size: 30px;
+    font-size: var(--fs-3xl);
     font-weight: 600;
     letter-spacing: -0.01em;
   }
@@ -703,7 +703,7 @@
     gap: 14px;
     min-width: 0;
   }
-  .numbers h1,
+  .numbers .lead-title,
   .numbers p {
     margin: 0;
   }

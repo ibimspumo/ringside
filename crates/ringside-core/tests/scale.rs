@@ -3,7 +3,7 @@
 
 use std::time::Instant;
 
-use ringside_core::db::{Db, Filter, HandQuery, SpotFilter};
+use ringside_core::db::{Db, Filter, HandQuery, RangeFilter, SpotFilter};
 use ringside_core::leaks;
 use ringside_core::model::{GameKind, Hand};
 use ringside_core::stats::StatId;
@@ -157,6 +157,15 @@ fn million_hands() {
         };
         timed(label, || db.hands(&HandQuery { spot: Some(spot), limit: 100, ..Default::default() }).unwrap());
     }
+    let groups = timed("ranges: situation counts", || db.range_groups(&all).unwrap());
+    assert_eq!(groups.iter().map(|g| g.count).sum::<i64>(), db.range_counts(&all, &RangeFilter::default()).unwrap().total);
+    let g = groups.iter().max_by_key(|g| g.count).unwrap();
+    let common = RangeFilter { history: Some(g.history), position: Some(g.position.clone()), ..Default::default() };
+    let n = timed("ranges: chart of the commonest spot", || db.range_counts(&all, &common).unwrap()).total;
+    println!("ranges: {} decisions, commonest spot {n}", groups.iter().map(|g| g.count).sum::<i64>());
+    timed("ranges: chart of a spot since a date", || db.range_counts(&since, &common).unwrap());
+    let cell = RangeFilter { class: Some(0), ..common };
+    timed("hands page (range cell)", || db.hands(&HandQuery { range: Some(cell), limit: 100, ..Default::default() }).unwrap());
     timed("report by starting hand", || db.hero_groups(&all, true).unwrap());
     timed("sessions", || db.sessions(&all, 30.0).unwrap());
     timed("hands page (newest 100)", || db.hands(&HandQuery { limit: 100, ..Default::default() }).unwrap());

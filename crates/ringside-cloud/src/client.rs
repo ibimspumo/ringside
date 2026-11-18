@@ -44,6 +44,22 @@ pub enum SubmitStatus {
     AlreadyVerified,
 }
 
+/// Where a submitted key stands on the server.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeyStatus {
+    /// Verified and served to everyone.
+    Verified,
+    /// Waits for the verifier.
+    Submitted,
+    /// The verifier refused it, with its note.
+    Rejected(Option<String>),
+    /// The server has nothing for the key.
+    Unknown,
+}
+
+/// Keys per status request; mirrors `MAX_STATUS_KEYS` in `server/edge/api.ts`.
+pub const MAX_STATUS_KEYS: usize = 200;
+
 /// A parser failure: one hand the caller has already anonymized, nothing else.
 #[derive(Debug, Clone, Serialize)]
 pub struct Report {
@@ -122,6 +138,17 @@ struct Served {
 }
 
 #[derive(Deserialize)]
+struct StatusEntry {
+    status: String,
+    note: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct Statuses {
+    statuses: std::collections::HashMap<String, StatusEntry>,
+}
+
+#[derive(Deserialize)]
 struct Submitted {
     key: String,
     status: String,
@@ -179,6 +206,32 @@ impl Client {
             "verified" => Ok(SubmitStatus::AlreadyVerified),
             s => Err(Error::Protocol(format!("unknown status {s}"))),
         }
+    }
+
+    /// Where each of up to [`MAX_STATUS_KEYS`] keys stands, in one request.
+    pub fn statuses(&self, keys: &[String]) -> Result<Vec<(String, KeyStatus)>, Error> {
+        if keys.is_empty() || keys.len() > MAX_STATUS_KEYS {
+            return Err(Error::Protocol(format!("1 to {MAX_STATUS_KEYS} keys per request")));
+        }
+        let body = serde_json::json!({ "keys": keys }).to_string();
+        let url = format!("{}/v1/solutions/status", self.base);
+        let (_, text) = self
+            .send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), false)?
+            .ok_or_else(|| Error::Protocol("404 on status".into()))?;
+        let mut r: Statuses = serde_json::from_str(&text).map_err(|e| Error::Protocol(e.to_string()))?;
+        keys.iter()
+            .map(|k| {
+                let e = r.statuses.remove(k).ok_or_else(|| Error::Protocol(format!("no status for {k}")))?;
+                let status = match e.status.as_str() {
+                    "verified" => KeyStatus::Verified,
+                    "submitted" => KeyStatus::Submitted,
+                    "rejected" => KeyStatus::Rejected(e.note),
+                    "unknown" => KeyStatus::Unknown,
+                    s => return Err(Error::Protocol(format!("unknown status {s}"))),
+                };
+                Ok((k.clone(), status))
+            })
+            .collect()
     }
 
     pub fn report(&self, report: &Report) -> Result<(), Error> {

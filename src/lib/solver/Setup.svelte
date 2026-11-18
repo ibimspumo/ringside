@@ -10,7 +10,8 @@
   import { ANTES, POT_TYPES, derive, oopIp, originText, potTypeProblem, template, type PotType, type Scenario } from "./scenario";
   import SizeChooser from "./SizeChooser.svelte";
   import SolverTable from "./SolverTable.svelte";
-  import { solver, startSolve } from "./store.svelte";
+  import MeChooser from "./MeChooser.svelte";
+  import { meSide, solver, startSolve } from "./store.svelte";
   import Term from "./Term.svelte";
   import type { SolverEstimate } from "./types";
 
@@ -81,6 +82,8 @@
     if (pos === a || pos === b) return;
     // The seat picked longest ago gives way, so two clicks always set both players.
     change({ seats: [b, pos] });
+    // The first seat you pick is you, until you choose otherwise.
+    if (solver.me === null) solver.me = solver.positions.oop === pos ? "oop" : "ip";
   }
 
   function setTable(players: number) {
@@ -203,6 +206,7 @@
     <SolverTable
       players={solver.scenario.players}
       positions={solver.positions}
+      anchor={solver.positions[meSide()]}
       {board}
       slotsClickable
       nextSlot={board.length < 3 ? board.length : -1}
@@ -215,6 +219,7 @@
       street={board.length >= 3 ? ["Flop", "Turn", "River"][board.length - 3] : "Board wählen"}
     />
     <div class="under">
+      <MeChooser positions={solver.positions} />
       <span class="faint">Plätze anklicken: wer spielt. Boardplätze anklicken: Karten.</span>
       <span class="spacer"></span>
       {#if board.length}<button class="btn ghost" onclick={() => setBoard([])}>Board leeren</button>{/if}

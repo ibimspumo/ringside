@@ -1,4 +1,7 @@
 <script lang="ts">
+  import OvalFelt from "../table/OvalFelt.svelte";
+  import { layout } from "../table/seats";
+
   /** A table seen from above. Seats are numbered clockwise from the bottom. */
   let {
     size,
@@ -29,20 +32,28 @@
   const seats = $derived(Array.from({ length: size }, (_, i) => i + 1));
   const taken = $derived(new Set(occupied));
 
-  function place(seat: number, r = 1) {
-    const a = Math.PI / 2 + ((seat - 1) * 2 * Math.PI) / size;
-    return { x: 50 + 42 * r * Math.cos(a), y: 50 + 38 * r * Math.sin(a) };
+  // Seat 1 sits at the bottom, like you at every table of the app (see `table/seats.ts`).
+  let w = $state(520);
+  const h = $derived(w / 1.6);
+  const geo = $derived(layout(size, w, h, { seat: { w: 44, h: 44 }, badge: { w: 64, h: 20 }, bet: { w: 1, h: 1 }, gap: 6 }));
+  /** Seat in % of the ring; `marks` gives the place of its button and blind marks. */
+  function place(seat: number, marks = false) {
+    const p = geo.places[seat - 1];
+    const at = marks ? p.badge : p.seat;
+    return { x: (at.x / w) * 100, y: (at.y / h) * 100 };
   }
 </script>
 
-<div class="ring" role="group" aria-label="Tisch mit {size} Sitzen">
-  <div class="cloth"></div>
+<div class="ring" role="group" aria-label="Tisch mit {size} Sitzen" bind:clientWidth={w}>
+  <OvalFelt felt={geo.felt} />
   {#each seats as s (s)}
     {@const p = place(s)}
-    {@const m = place(s, 0.64)}
+    {@const m = place(s, true)}
     {@const empty = !taken.has(s)}
     <button
       class="seat"
+      data-part="seat"
+      data-seat={s - 1}
       class:empty
       class:target={target === s}
       class:picked={picked === s}
@@ -56,7 +67,7 @@
       <span class="n num">{s}</span>
     </button>
     {#if s === button || s === smallBlind || s === bigBlind}
-      <span class="marks" style="left:{m.x}%; top:{m.y}%">
+      <span class="marks" data-part="badge" data-seat={s - 1} style="left:{m.x}%; top:{m.y}%">
         {#if s === button}<span class="mk d" title="Dealer-Button">D</span>{/if}
         {#if s === smallBlind}<span class="mk">SB</span>{/if}
         {#if s === bigBlind}<span class="mk">BB</span>{/if}
@@ -72,16 +83,6 @@
     max-width: 520px;
     aspect-ratio: 16 / 10;
     margin: 0 auto;
-  }
-  .cloth {
-    position: absolute;
-    inset: 16% 14%;
-    border-radius: 999px;
-    background: radial-gradient(ellipse at 50% 42%, #23312d 0%, #1b2623 62%, #16201d 100%);
-    box-shadow:
-      0 0 0 6px #1c1f24,
-      0 0 0 7px rgba(236, 235, 231, 0.06),
-      0 14px 30px rgba(0, 0, 0, 0.4);
   }
   .seat {
     position: absolute;

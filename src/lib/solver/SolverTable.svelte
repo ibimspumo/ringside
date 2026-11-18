@@ -9,9 +9,10 @@
 </script>
 
 <script lang="ts">
-  import Felt from "../Felt.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
   import PlayingCard from "../PlayingCard.svelte";
+  import OvalFelt from "../table/OvalFelt.svelte";
+  import { clear, layout, placeOf } from "../table/seats";
   import { bb } from "./actions";
   import { GLOSSARY } from "./explain";
   import { positionsFor } from "./scenario";
@@ -40,7 +41,7 @@
   }: {
     players: number;
     positions: { oop: string; ip: string };
-    /** Position drawn at the bottom; the button by default. */
+    /** Your position, drawn at the bottom in the middle (see `table/seats.ts`). */
     anchor?: string | null;
     board: string[];
     slotsClickable?: boolean;
@@ -58,19 +59,7 @@
   } = $props();
 
   const order = $derived(positionsFor(players));
-  const bottom = $derived(Math.max(0, order.indexOf(anchor ?? "BTN")));
-  const CENTER = { x: 0.5, y: 0.44 };
-
-  function place(i: number) {
-    const n = order.length;
-    const visual = (((i - bottom) % n) + n) % n;
-    const a = Math.PI / 2 + (visual * 2 * Math.PI) / n;
-    const x = CENTER.x + 0.41 * Math.cos(a);
-    const y = CENTER.y + 0.335 * Math.sin(a);
-    // The button sits a little round the table from the seat, clear of its chips.
-    const d = a + 0.4;
-    return { x, y, bx: x + (CENTER.x - x) * 0.46, by: y + (CENTER.y - y) * 0.5, dx: CENTER.x + 0.27 * Math.cos(d), dy: CENTER.y + 0.22 * Math.sin(d) };
-  }
+  const bottom = $derived(Math.max(0, order.indexOf(anchor ?? positions.oop)));
 
   const side = (pos: string): SolverPlayer | null => (pos === positions.oop ? "oop" : pos === positions.ip ? "ip" : null);
   const idx = (p: SolverPlayer) => (p === "oop" ? 0 : 1);
@@ -78,6 +67,38 @@
   let w = $state(860);
   let h = $state(600);
   const k = $derived(Math.min(1.1, Math.max(0.78, w / 880)));
+  // Pods of players in the hand are larger than the empty seats; the layout leaves room for
+  // both. Where chips would touch the board, everything on the table gets a little smaller.
+  const inHand = (place: number) => {
+    const pos = order[(place + bottom) % order.length];
+    return pos === positions.oop || pos === positions.ip;
+  };
+  const sizesAt = (kk: number) => ({
+    seat: { w: 112 * kk, h: 92 * kk },
+    boxOf: (place: number) => (inHand(place) ? { w: 112 * kk, h: 92 * kk } : { w: 84 * kk, h: 46 * kk }),
+    badge: { w: 1, h: 1 },
+    bet: { w: 84 * kk, h: 24 * kk },
+    dealer: 18 * kk,
+    gap: 3 * kk,
+  });
+  const middleAt = (kk: number) => [{ box: { w: 240 * kk, h: 112 * kk }, dy: 0 }];
+  const fitted = $derived.by(() => {
+    const n = order.length;
+    const dealer = placeOf(Math.max(0, order.indexOf("BTN")), bottom, n);
+    for (let kk = k; kk > 0.55; kk -= 0.02) {
+      const g = layout(n, w, h, sizesAt(kk));
+      if (clear(g, sizesAt(kk), middleAt(kk), dealer)) return { geo: g, kk };
+    }
+    return { geo: layout(n, w, h, sizesAt(0.55)), kk: 0.55 };
+  });
+  const geo = $derived(fitted.geo);
+  const kk = $derived(fitted.kk);
+  /** Seat `i` of `order` in fractions of the stage, with its chips and button. */
+  function place(i: number) {
+    const p = geo.places[placeOf(i, bottom, order.length)];
+    return { x: p.seat.x / w, y: p.seat.y / h, bx: p.bet.x / w, by: p.bet.y / h, dx: p.dealer.x / w, dy: p.dealer.y / h };
+  }
+  const CENTER = $derived({ x: geo.center.x / w, y: geo.center.y / h });
 
   const reduced = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -89,7 +110,7 @@
       duration: reduced ? 0 : 320,
       css: (t: number) => {
         const e = 1 - (1 - t) ** 3;
-        return `transform: translate(-50%, -50%) translate(${dx * (1 - e)}px, ${dy * (1 - e)}px) scale(${k}); opacity: ${Math.min(1, t * 3)}`;
+        return `transform: translate(-50%, -50%) translate(${dx * (1 - e)}px, ${dy * (1 - e)}px) scale(${kk}); opacity: ${Math.min(1, t * 3)}`;
       },
     };
   }
@@ -98,9 +119,10 @@
   const middle = $derived(pot - bets[0] - bets[1]);
 </script>
 
-<div class="stage" bind:clientWidth={w} bind:clientHeight={h} style="--k:{k}; --ar:{REFERENCE_ASPECT}">
-  <Felt>
-    <div class="center">
+<div class="stage" bind:clientWidth={w} bind:clientHeight={h} style="--k:{kk}; --ar:{REFERENCE_ASPECT}; --cx:{CENTER.x * 100}%; --cy:{CENTER.y * 100}%">
+  <div class="felt">
+    <OvalFelt felt={geo.felt} />
+    <div class="center" data-part="middle">
       <div class="board" role="group" aria-label="Board">
         {#each SLOT as name, i (i)}
           {@const card = board[i]}
@@ -137,6 +159,8 @@
         {#key `${street}-${s}-${bets[idx(s)]}`}
           <div
             class="bet num"
+            data-part="bet"
+            data-seat={i}
             style="left:{p.bx * 100}%; top:{p.by * 100}%"
             in:slide={{ from: { x: p.x, y: p.y }, to: { x: p.bx, y: p.by } }}
             out:slide={{ from: CENTER, to: { x: p.bx, y: p.by } }}
@@ -152,11 +176,13 @@
       {@const s = side(pos)}
       {@const view = s ? views[s] : null}
       {#if pos === "BTN"}
-        <span class="dealer" style="left:{p.dx * 100}%; top:{p.dy * 100}%" title="Dealer-Button">D</span>
+        <span class="dealer" data-part="dealer" style="left:{p.dx * 100}%; top:{p.dy * 100}%" title="Dealer-Button">D</span>
       {/if}
       <svelte:element
         this={seatsClickable ? "button" : "div"}
         class="seat"
+        data-part="seat"
+        data-seat={i}
         class:in={!!s}
         class:out={!s}
         class:acting={!!s && acting === s}
@@ -193,7 +219,7 @@
         </div>
       </svelte:element>
     {/each}
-  </Felt>
+  </div>
 </div>
 
 <style>
@@ -207,10 +233,16 @@
     overflow: hidden;
     border: 1px solid var(--line);
   }
+  .felt {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
   .center {
     position: absolute;
-    left: 50%;
-    top: 44%;
+    left: var(--cx);
+    top: var(--cy);
     transform: translate(-50%, -50%) scale(var(--k));
     display: flex;
     flex-direction: column;

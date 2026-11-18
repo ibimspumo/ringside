@@ -42,7 +42,7 @@ pub struct SaveInfo {
     pub hand_id: Option<u64>,
 }
 
-fn dir(app: &AppHandle) -> CmdResult<PathBuf> {
+pub(crate) fn dir(app: &AppHandle) -> CmdResult<PathBuf> {
     Ok(crate::data_dir(app).map_err(err)?.join("solutions"))
 }
 
@@ -102,12 +102,16 @@ fn prune(dir: &Path, state: &AppState) -> CmdResult<usize> {
 
 /// Saves a finished solve and returns its id.
 pub fn save(app: &AppHandle, solution: &mut Solution, settings: &Settings, info: &SaveInfo) -> CmdResult<i64> {
+    store(&dir(app)?, &app.state::<AppState>(), solution, settings, info)
+}
+
+/// [`save`] into the folder `dir`.
+pub(crate) fn store(dir: &Path, state: &AppState, solution: &mut Solution, settings: &Settings, info: &SaveInfo) -> CmdResult<i64> {
     let key = spot_key(&solution.spot).map_err(err)?;
     let snapshot = Snapshot::take(solution, settings).map_err(err)?;
     let bytes = snapshot.to_bytes();
     let now = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis());
     let file = format!("{key}-{now}.rsms");
-    let dir = dir(app)?;
     write_file(&dir.join(&file), &bytes)?;
     let spot = &solution.spot;
     let board = board_text(spot);
@@ -130,9 +134,8 @@ pub fn save(app: &AppHandle, solution: &mut Solution, settings: &Settings, info:
         bytes: bytes.len() as u64,
         created_at: crate::now_secs(),
     };
-    let state = app.state::<AppState>();
     let id = state.db.lock().unwrap().add_solution(&row).map_err(err)?;
-    prune(&dir, &state)?;
+    prune(dir, state)?;
     Ok(id)
 }
 
@@ -147,7 +150,8 @@ pub fn lookup(app: &AppHandle, spot: &Spot, target_pct: f64) -> Option<(i64, Sna
     find(&dir(app).ok()?, &app.state::<AppState>(), spot, target_pct)
 }
 
-fn find(dir: &Path, state: &AppState, spot: &Spot, target_pct: f64) -> Option<(i64, Snapshot)> {
+/// [`lookup`] in the folder `dir`.
+pub(crate) fn find(dir: &Path, state: &AppState, spot: &Spot, target_pct: f64) -> Option<(i64, Snapshot)> {
     let key = spot_key(spot).ok()?;
     let rows = state.db.lock().unwrap().solutions_for_key(&key).ok()?;
     rows.iter().filter(|r| r.info.exploitability_pct <= target_pct + 1e-9).find_map(|row| {
@@ -234,13 +238,23 @@ pub async fn solutions_set_limit(max_mb: u64, app: AppHandle) -> CmdResult<usize
     .await
 }
 
+/// An app state on an empty database in memory.
+#[cfg(test)]
+pub(crate) fn test_state() -> AppState {
+    AppState {
+        db: std::sync::Mutex::new(ringside_core::db::Db::open_in_memory().unwrap()),
+        settings: Default::default(),
+        import: Default::default(),
+        overlays: Default::default(),
+        client_running: Default::default(),
+        notes: Default::default(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ringside_core::db::Db;
     use ringside_solver::{StreetSizes, solve};
-    use std::sync::Mutex;
-    use std::sync::atomic::AtomicBool;
 
     fn river(stack: f64) -> Spot {
         Spot {
@@ -251,17 +265,6 @@ mod tests {
             stack,
             sizes: [StreetSizes::default(), StreetSizes::default(), StreetSizes { bet: vec![100.0], raise: vec![] }],
             allin_threshold: 0.0,
-        }
-    }
-
-    fn state() -> AppState {
-        AppState {
-            db: Mutex::new(Db::open_in_memory().unwrap()),
-            settings: Mutex::default(),
-            import: Mutex::default(),
-            overlays: Default::default(),
-            client_running: AtomicBool::new(false),
-            notes: Mutex::default(),
         }
     }
 
@@ -280,7 +283,7 @@ mod tests {
     fn saved_files_are_found_again_and_pruned_by_size() {
         let dir = std::env::temp_dir().join(format!("ringside-solutions-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        let state = state();
+        let state = test_state();
         let settings = Settings { target_pct: 1.0, max_iterations: 300, threads: 1 };
         let mut ids = Vec::new();
         for (i, stack) in [10.0, 12.0, 14.0].into_iter().enumerate() {

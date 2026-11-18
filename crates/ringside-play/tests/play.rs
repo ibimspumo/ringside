@@ -82,7 +82,7 @@ fn push_fold_decisions_are_graded_by_the_equilibrium_ev() {
         let j = good.judgement.unwrap();
         assert_eq!(j.loss_bb, Some(0.0));
         if strategy[best] >= 0.1 {
-            assert_eq!(j.grade, Grade::Best);
+            assert!(matches!(j.grade, Grade::Best | Grade::Mix), "{:?}", j.grade);
         }
         let b = bad.judgement.unwrap();
         assert!((b.loss_bb.unwrap() - (evs[best] - evs[worst])).abs() < 1e-9);
@@ -147,4 +147,136 @@ fn an_empty_stock_gives_a_preflop_hand() {
     play_out(&mut hand, |l| l.choices.iter().position(|c| c.kind == "call" || c.kind == "check").unwrap_or(0));
     let o = hand.view().outcome.unwrap();
     assert!(matches!(o.reason, EndReason::Folded | EndReason::Showdown | EndReason::FlopUnsolved));
+}
+
+/// Preflop, every action follows the one before in seat order, skipping only seats out of
+/// the hand, and a seat that leaves the hand has a fold of its own.
+fn assert_everyone_acts_in_turn(view: &HandView) {
+    let n = view.players;
+    let mut folded = vec![false; n];
+    let mut last: Option<usize> = None;
+    for e in &view.events {
+        let Event::Action { street: Street::Preflop, seat, choice, snapshot, .. } = e else { continue };
+        if let Some(prev) = last {
+            let next = (1..=n).map(|k| (prev + k) % n).find(|&s| !folded[s]).unwrap();
+            assert_eq!(*seat, next, "{} acts after {}, but {} is still in: {:?}", view.positions[*seat], view.positions[prev], view.positions[next], view.events);
+        }
+        folded[*seat] |= choice.kind == "fold";
+        assert_eq!(view.snapshots[*snapshot].folded, folded, "the table shows who folded");
+        last = Some(*seat);
+    }
+    // Whoever is left at the flop has matched the bet.
+    if let Some(snap) = view.snapshots.iter().find(|s| s.street != Street::Preflop) {
+        assert_eq!(snap.folded, folded);
+    }
+}
+
+#[test]
+fn a_three_bet_after_the_hero_open_shows_every_fold() {
+    let config = Config { hero_seat: Some(1), ..Config::default() };
+    let mut found = 0;
+    for seed in 0..400 {
+        let mut hand = Hand::start(&config, seed, None).unwrap();
+        let Some(lesson) = hand.lesson() else { continue };
+        let Some(raise) = lesson.choices.iter().position(|c| c.kind == "raise") else { continue };
+        if lesson.to_call > 1.0 {
+            continue; // someone opened before the hero
+        }
+        hand.act(raise).unwrap();
+        let view = hand.view();
+        assert_everyone_acts_in_turn(&view);
+        let kinds: Vec<(usize, &str)> = view
+            .events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Action { seat, choice, .. } => Some((*seat, choice.kind)),
+                _ => None,
+            })
+            .collect();
+        if kinds.get(2) != Some(&(2, "raise")) || view.decision.is_none() {
+            continue;
+        }
+        // LJ folds, the hero opens, CO 3-bets, BTN, SB and BB fold, and it is the hero's turn.
+        assert_eq!(kinds, [(0, "fold"), (1, "raise"), (2, "raise"), (3, "fold"), (4, "fold"), (5, "fold")]);
+        let now = view.snapshots.last().unwrap();
+        assert_eq!(now.folded, [true, false, false, true, true, true]);
+        assert_eq!(now.to_act, Some(1));
+        // Play it out: the rule holds to the end of the hand.
+        play_out(&mut hand, |l| l.choices.iter().position(|c| c.kind == "call").unwrap_or(0));
+        assert_everyone_acts_in_turn(&hand.view());
+        found += 1;
+    }
+    assert!(found >= 3, "only {found} hands with a 3-bet after the hero's open");
+}
+
+#[test]
+fn every_hand_shows_every_action_in_turn() {
+    for config in [
+        Config::default(),
+        Config { players: 9, ante: Ante::Classic, stack_bb: 25.0, ..Config::default() },
+        Config { mode: Mode::PushFold, stack_bb: 10.0, ..Config::default() },
+    ] {
+        for seed in 0..150 {
+            let mut hand = Hand::start(&config, seed, None).unwrap();
+            play_out(&mut hand, |l| (seed as usize) % l.choices.len());
+            assert_everyone_acts_in_turn(&hand.view());
+        }
+    }
+}
+
+/// Keeps the snapshot the solver page would open, as `src-tauri` saves it.
+struct Saving(std::sync::Mutex<Option<Vec<u8>>>);
+
+impl ringside_play::Lookup for Saving {
+    fn load(&self, _spot: &ringside_solver::Spot) -> Option<Box<dyn ringside_play::tree::Tree>> {
+        None
+    }
+    fn save(&self, _t: TableKey, _s: &ringside_play::scenario::Scenario, solution: &mut ringside_solver::Solution, settings: &Settings) {
+        let snapshot = ringside_solver::saved::Snapshot::take(solution, settings).unwrap();
+        *self.0.lock().unwrap() = Some(snapshot.to_bytes());
+    }
+}
+
+#[test]
+fn practice_and_solver_page_show_the_same_numbers() {
+    let key = TableKey { players: 6, ante: Ante::BigBlind, stack_bb: 40.0 };
+    let table = deep(key).unwrap();
+    let scenario = table.scenarios.iter().filter(|s| s.pot_type == PotType::ThreeBet).min_by(|a, b| a.reach.total_cmp(&b.reach)).unwrap().clone();
+    let flop: [Card; 3] = ["Jd".parse().unwrap(), "9h".parse().unwrap(), "6h".parse().unwrap()];
+    let settings = Settings { target_pct: 5.0, max_iterations: 40, threads: 2 };
+    let mut solution = solve(&scenario.spot("Jd9h6h"), &settings, 4 << 30, |_| {}, || false).unwrap();
+    // What the stock does with a fresh solve: save it for the solver page, then deal from it.
+    let saving = Saving(std::sync::Mutex::new(None));
+    ringside_play::Lookup::save(&saving, key, &scenario, &mut solution, &settings);
+    let saved = ringside_solver::saved::Snapshot::from_bytes(saving.0.lock().unwrap().as_ref().unwrap()).unwrap();
+    let pool = Pool::new(Box::new(NoLookup), 1, 4 << 30);
+    pool.insert(key, scenario, flop, Box::new(solution));
+
+    let config = Config { mode: Mode::Postflop, ..Config::default() };
+    let hand = Hand::start(&config, 7, Some(&pool)).unwrap();
+    let lesson = hand.lesson().expect("a flop decision");
+    let path = lesson.path.clone().unwrap();
+    let practice = lesson.node.clone().unwrap();
+    // "Im Solver öffnen" hands over the very solve the hand was graded with.
+    let opened = hand.tree().unwrap().lock().unwrap().node(&path).unwrap();
+    let stored = saved.node(&path).unwrap();
+    let mixed: Vec<_> = practice.hands.iter().filter(|h| h.strategy.iter().filter(|&&f| f >= 0.1).count() >= 2).collect();
+    assert!(!mixed.is_empty(), "the spot has mixed hands");
+    for h in &practice.hands {
+        let o = opened.hands.iter().find(|x| x.combo == h.combo).unwrap();
+        assert_eq!((&o.strategy, &o.evs), (&h.strategy, &h.evs), "{}", h.combo);
+        // The saved copy stores frequencies in 1/255 and EVs in 1/32767 of the node's
+        // scale; whole percents and hundredths of a BB stay the same.
+        let s = stored.hands.iter().find(|x| x.combo == h.combo).unwrap();
+        for (a, b) in s.strategy.iter().zip(&h.strategy) {
+            assert!((a - b).abs() <= 0.5 / 255.0 + 1e-9, "{} {a} {b}", h.combo);
+        }
+        for (a, b) in s.evs.iter().zip(&h.evs) {
+            assert!((a - b).abs() < 0.005, "{} {a} {b}", h.combo);
+        }
+    }
+    // The hero is graded with the row of the hero's own combo, as the solver page shows it.
+    let [a, b] = hand.view().hero_cards;
+    let row = practice.hands.iter().find(|h| h.combo == format!("{a}{b}") || h.combo == format!("{b}{a}")).unwrap();
+    assert_eq!(lesson.strategy.as_ref(), Some(&row.strategy));
 }

@@ -1,5 +1,5 @@
 import { demoShow } from "../solver/demo";
-import type { LibraryMode, LibraryOverview, LibraryScenario, OpenedSpot, SpotSource } from "./types";
+import type { LibraryMode, LibraryOverview, LibraryPower, LibraryScenario, OpenedSpot, Shared, SpotSource } from "./types";
 
 // Browser preview only: a few scenarios of the real catalog with made-up progress.
 const FLOPS = `AsKhTd AsKh5d AsQhTd AsQh5d AsJh9d AsJh4d AsTh7d AsTh2d As9h4d As8h5d As7h5d As6h4d As5h2d KsQhTd KsQh5d
@@ -11,7 +11,7 @@ JsTh7h Js8h4h Ts9s7h Ts8s2h Ts9h5h Ts6h4h 9s8s6h 9s7h5h 8s7s4h 8s6h3h 7s6s5h 7s5
 KsQs6s QsTs8s Js9s5s Ts8s3s 8s6s4s 7s5s2s AsAhKd AsAh7d AsAh2s KsKhAd KsKh9s KsKh4d QsQhJd QsQh5s JsJhTd JsJh3s TsTh8d
 9s9hAd 8s8hKs 7s7hQd 6s6hTs 5s5h9d 4s4hJs 3s3h7d 2s2hAs AsAhAd`.split(/\s+/);
 
-const SCENARIOS: Omit<LibraryScenario, "status">[] = [
+const SCENARIOS: Omit<LibraryScenario, "status" | "shared">[] = [
   { id: "srp-btn-bb-40", pot_type: "srp", oop: "BB", ip: "BTN", stack_bb: 40, pot: 5.9, stack: 36.8 },
   { id: "srp-co-bb-40", pot_type: "srp", oop: "BB", ip: "CO", stack_bb: 40, pot: 5.9, stack: 36.8 },
   { id: "srp-utg-bb-40", pot_type: "srp", oop: "BB", ip: "UTG", stack_bb: 40, pot: 5.9, stack: 36.8 },
@@ -29,14 +29,37 @@ const SCENARIOS: Omit<LibraryScenario, "status">[] = [
 
 function statuses(i: number): (SpotSource | null)[] {
   return FLOPS.map((_, f) => {
-    if (i === 0) return f < 150 ? "cloud" : f < 158 ? "local" : null;
+    if (i === 0) return f < 104 ? "cloud" : f < 112 ? "local" : null;
     if (i === 1) return f < 23 ? "local" : null;
     if (i === 4) return f % 3 === 0 ? "cloud" : null;
     return null;
   });
 }
 
+const NOW = Math.floor(Date.now() / 1000);
+const MIXED: (Shared | null)[] = [
+  { state: "verified", at: NOW - 86_400 * 3 },
+  { state: "verified", at: NOW - 86_400 * 2 },
+  { state: "submitted", at: NOW - 1_800 },
+  { state: "submitted", at: NOW - 600 },
+  { state: "rejected", at: NOW - 86_400, note: "exploitability 1.84% of the pot is above the 1% limit" },
+  { state: "failed", at: NOW - 300, note: "network error: timed out" },
+  null,
+  { state: "verified", at: NOW - 86_400 * 4 },
+];
+
+function shared(i: number, status: (SpotSource | null)[]): (Shared | null)[] {
+  return status.map((st, f) => {
+    if (st !== "local") return null;
+    if (i === 0) return MIXED[(f - 104) % MIXED.length];
+    return f < 18 ? { state: "verified", at: NOW - 86_400 * 5 } : { state: "submitted", at: NOW - 3_600 };
+  });
+}
+
 let mode: LibraryMode = "idle";
+let power: LibraryPower = "normal";
+let running = false;
+let halted = false;
 
 export function overview(): LibraryOverview {
   return {
@@ -44,20 +67,28 @@ export function overview(): LibraryOverview {
     target_pct: 0.5,
     flops: FLOPS,
     flop_weights: FLOPS.map(() => 22100 / FLOPS.length),
-    scenarios: SCENARIOS.map((s, i) => ({ ...s, status: statuses(i) })),
+    scenarios: SCENARIOS.map((s, i) => {
+      const status = statuses(i);
+      return { ...s, status, shared: shared(i, status) };
+    }),
     disk_bytes: 18_400_000,
     mode,
+    power,
+    cores: 16,
+    share: true,
     worker: {
-      state: mode === "off" ? "off" : "solving",
-      reason: null,
-      scenario: "srp-co-bb-40",
-      flop: FLOPS[23],
-      iteration: 60,
-      exploitability_pct: 0.81,
+      state: running ? "solving" : mode === "off" ? "off" : "waiting",
+      reason: running ? null : halted ? "halted" : mode === "off" ? "off" : "in_use",
+      manual: running,
+      scenario: running ? "srp-co-bb-40" : null,
+      flop: running ? FLOPS[23] : null,
+      iteration: running ? 60 : 0,
+      exploitability_pct: running ? 0.81 : 0,
+      progress: running ? 0.63 : null,
       elapsed_ms: 9_400,
-      threads: 8,
+      threads: { gentle: 4, normal: 8, full: 15 }[power],
       solved: 23,
-      fetched: 150,
+      fetched: 104,
       shared: 21,
       last_error: null,
     },
@@ -66,6 +97,16 @@ export function overview(): LibraryOverview {
 
 export function setMode(m: LibraryMode) {
   mode = m;
+  halted = false;
+}
+
+export function setPower(p: LibraryPower) {
+  power = p;
+}
+
+export function run(on: boolean) {
+  running = on;
+  halted = !on;
 }
 
 export function open(scenario: string, flop: string): OpenedSpot {

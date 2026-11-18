@@ -1,7 +1,8 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
-  import Felt from "../Felt.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
+  import OvalFelt from "../table/OvalFelt.svelte";
+  import { clear, layout, placeOf } from "../table/seats";
   import PlayingCard from "../PlayingCard.svelte";
   import { openInSolver } from "../solver/handoff.svelte";
   import { spotFromHand } from "../solver/presets";
@@ -257,17 +258,25 @@
     return out;
   });
 
-  /** Middle of the rail drawn by Felt; seats sit on an ellipse just outside it. */
-  const CENTER = { x: 0.5, y: 0.44 };
-
+  // You sit at the bottom, the others clockwise by seat number (see `table/seats.ts`).
+  const stageHeight = $derived(stageWidth / REFERENCE_ASPECT);
+  // Smaller tables (e.g. beside the hand list) shrink seats and chips until nothing overlaps.
+  const sizesAt = (kk: number) => ({ seat: { w: 124 * kk, h: 92 * kk }, badge: { w: 1, h: 1 }, bet: { w: 90 * kk, h: 24 * kk }, gap: 3 * kk });
+  const middleAt = (kk: number) => [{ box: { w: 236 * kk, h: 100 * kk }, dy: 0 }];
+  const fitted = $derived.by(() => {
+    const n = Math.max(hand.max_seats, 2);
+    for (let kk = k; kk > 0.4; kk -= 0.02) {
+      const g = layout(n, stageWidth, stageHeight, sizesAt(kk));
+      if (clear(g, sizesAt(kk), middleAt(kk))) return { geo: g, kk };
+    }
+    return { geo: layout(n, stageWidth, stageHeight, sizesAt(0.4)), kk: 0.4 };
+  });
+  const geo = $derived(fitted.geo);
+  /** Seat number `seat` (1 … max) in fractions of the stage, with its chips. */
   function place(seat: number) {
     const n = Math.max(hand.max_seats, 2);
-    const visual = (((seat - heroSeat) % n) + n) % n;
-    const a = Math.PI / 2 + (visual * 2 * Math.PI) / n;
-    const x = CENTER.x + 0.41 * Math.cos(a);
-    const y = CENTER.y + 0.335 * Math.sin(a);
-    // Bets sit on the cloth between the seat and the pot.
-    return { x, y, bx: x + (CENTER.x - x) * 0.46, by: y + (CENTER.y - y) * 0.5 };
+    const p = geo.places[placeOf(seat - 1, heroSeat - 1, n)];
+    return { x: p.seat.x / stageWidth, y: p.seat.y / stageHeight, bx: p.bet.x / stageWidth, by: p.bet.y / stageHeight };
   }
 
   function amount(v: number) {
@@ -314,9 +323,10 @@
   <div class="layout" class:has-aside={!!aside} style="--ar:{REFERENCE_ASPECT}">
     <div class="main">
       {@render children?.()}
-      <div class="stage" bind:clientWidth={stageWidth} style="--k:{k}">
-        <Felt>
-          <div class="center">
+      <div class="stage" bind:clientWidth={stageWidth} style="--k:{fitted.kk}">
+        <div class="felt">
+          <OvalFelt felt={geo.felt} />
+          <div class="center" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y}px">
             <div class="board">
               {#each hand.board.slice(0, table.board) as c (c)}
                 <PlayingCard card={c} size={44} />
@@ -333,7 +343,7 @@
             {@const p = place(s.seat)}
             {@const bet = table.put.get(s.name) ?? 0}
             {#if bet > 0}
-              <div class="bet num" style="left:{p.bx * 100}%; top:{p.by * 100}%">
+              <div class="bet num" data-part="bet" data-seat={s.seat - 1} style="left:{p.bx * 100}%; top:{p.by * 100}%">
                 <i></i>{amount(bet)}
               </div>
             {/if}
@@ -347,6 +357,8 @@
             {@const pos = positions.get(s.name)}
             <div
               class="seat"
+              data-part="seat"
+              data-seat={s.seat - 1}
               class:folded={table.folded.has(s.name)}
               class:acting={table.last === s.name}
               class:winner={won !== undefined}
@@ -381,7 +393,7 @@
               {#if s.seat === hand.button_seat}<span class="dealer" title="Dealer-Button">D</span>{/if}
             </div>
           {/each}
-        </Felt>
+        </div>
       </div>
 
       <div class="controls">
@@ -513,10 +525,14 @@
     overflow: hidden;
     border: 1px solid var(--line);
   }
+  .felt {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background: var(--bg);
+  }
   .center {
     position: absolute;
-    left: 50%;
-    top: 44%;
     transform: translate(-50%, -50%) scale(var(--k));
     display: flex;
     flex-direction: column;

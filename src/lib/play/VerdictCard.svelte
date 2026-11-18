@@ -1,58 +1,108 @@
 <script lang="ts">
   import Term from "../solver/Term.svelte";
-  import { GRADE, THRESHOLD_TEXT, choiceColors, choiceLabel, num, reason, sourceLine } from "./labels";
-  import type { HandView, Lesson, Verdict } from "./types";
+  import CardText from "../ui/CardText.svelte";
+  import { handNumbers } from "../solver/practice";
+  import { classLabel } from "../solver/range";
+  import { GRADE, THRESHOLD_TEXT, choiceColors, choiceLabel, headlineOf, num, reason, sourceLine } from "./labels";
+  import type { HandView, Lesson, Street, Verdict } from "./types";
+  import { pct, sameEv, signed } from "./words";
 
-  /** A graded move, or (without `chosen`) the hint before the move. */
-  let { view, lesson, title }: { view: HandView; lesson: Verdict | Lesson; title?: string } = $props();
+  /**
+   * A graded move, or (without `chosen`) the hint before the move. `n` numbers the move in
+   * the hand, so the card says which decision it belongs to.
+   */
+  let { view, lesson, title, n = null }: { view: HandView; lesson: Verdict | Lesson; title?: string; n?: number | null } = $props();
 
+  const STREET: Record<Street, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
   const verdict = $derived("chosen" in lesson ? (lesson as Verdict) : null);
   const j = $derived(verdict?.judgement ?? null);
   const colors = $derived(choiceColors(lesson.choices));
+  const headline = $derived(verdict ? headlineOf(verdict, view.hero_cards) : null);
   const why = $derived(reason(lesson, verdict?.chosen ?? null, view.hero_cards));
   const best = $derived(j?.best ?? (lesson.strategy ? lesson.strategy.indexOf(Math.max(...lesson.strategy)) : -1));
-  const stack = $derived(view.stack_bb);
+  const topEv = $derived(lesson.evs ? Math.max(...lesson.evs) : null);
+  /** Moves worth the same as the best one to the hundredth of a BB. */
+  const equal = $derived(lesson.evs && topEv !== null ? lesson.evs.map((e) => sameEv(e, topEv)) : []);
+  const equalCount = $derived(equal.filter(Boolean).length);
+  const chosenText = $derived.by(() => {
+    if (!verdict) return "";
+    const l = choiceLabel(verdict.choices[verdict.chosen]);
+    return `${l.label}${l.size ? ` ${l.size}` : ""}`;
+  });
+  /** After the flop the strategy is per combo; the solver's grid cell mixes the whole class. */
+  const numbers = $derived(lesson.node ? handNumbers(lesson.node, view.hero_cards) : null);
 </script>
 
-<article class="verdict" style:--g={j ? GRADE[j.grade].color : "var(--focus)"} aria-live="polite">
+<article class="verdict" class:bad={j?.grade === "mistake" || j?.grade === "blunder"} style:--g={j ? GRADE[j.grade].color : "var(--focus)"} aria-live="polite">
   <header>
     {#if j}
-      <span class="grade">{GRADE[j.grade].label}</span>
+      <span class="grade"><i class="mark" aria-hidden="true">{GRADE[j.grade].mark}</i>{GRADE[j.grade].label}</span>
       {#if verdict?.hinted}<span class="tag">mit Tipp · zählt halb</span>{/if}
     {:else if verdict}
       <span class="grade none">Nicht bewertet</span>
     {:else}
       <span class="grade hint">{title ?? "Tipp"}</span>
     {/if}
-    <span class="street">{lesson.street === "preflop" ? "Preflop" : lesson.street === "flop" ? "Flop" : lesson.street === "turn" ? "Turn" : "River"} · {lesson.class}</span>
+    <span class="street">
+      {#if verdict}{n ? `Dein ${n}. Zug · ` : ""}{STREET[lesson.street]} · {chosenText}{:else}{STREET[lesson.street]} · {lesson.class}{/if}
+    </span>
   </header>
 
-  {#if j}<p class="lead">{GRADE[j.grade].lead}</p>{/if}
-  <p class="why">{why}</p>
+  {#if headline}
+    <p class="lead"><CardText text={headline} /></p>
+  {:else if j}
+    <p class="lead">{GRADE[j.grade].lead}</p>
+  {/if}
+  {#if j?.grade !== "mix"}<p class="why"><CardText text={why} /></p>{/if}
 
   {#if lesson.strategy}
     <div class="bars" role="table" aria-label="Strategie der Lösung für deine Hand">
       <div class="row head" role="row">
         <span role="columnheader">Zug</span>
-        <span role="columnheader">So oft spielt es die Lösung</span>
+        <span role="columnheader">So oft spielt es die Lösung mit <CardText text={lesson.street === "preflop" ? lesson.class : view.hero_cards.join("")} /></span>
         {#if lesson.evs}<span role="columnheader" class="ev"><Term term="ev">EV</Term></span>{/if}
       </div>
       {#each lesson.choices as c, k (k)}
         {@const f = lesson.strategy[k] ?? 0}
         {@const l = choiceLabel(c)}
-        <div class="row" role="row" class:chosen={verdict?.chosen === k} class:best={k === best}>
+        <div class="row" role="row" class:chosen={verdict?.chosen === k} class:best={k === best && equalCount < 2}>
           <span class="label" role="cell">
             {l.label}{#if l.size}<small> {l.size}</small>{/if}
             {#if verdict?.chosen === k}<em>deine Wahl</em>{/if}
           </span>
-          <span class="bar" role="cell" aria-label="{Math.round(f * 100)} %">
+          <span class="bar" role="cell" aria-label={pct(f)}>
             <i style="width:{Math.max(f * 100, f > 0 ? 1.5 : 0)}%; background:{colors[k]}"></i>
-            <b class="num">{Math.round(f * 100)} %</b>
+            <b class="num">{pct(f)}</b>
           </span>
-          {#if lesson.evs}<span class="ev num" role="cell">{num(lesson.evs[k], 2)}</span>{/if}
+          {#if lesson.evs}
+            <span class="ev num" role="cell" title={equal[k] && equalCount > 1 ? "Gleich viel wert wie die anderen markierten Züge" : undefined}>
+              {#if equal[k] && equalCount > 1}<span class="same">≈</span>{/if}{signed(lesson.evs[k])}
+            </span>
+          {/if}
         </div>
       {/each}
+      {#if equalCount > 1 && topEv !== null}
+        <p class="equal">
+          {lesson.choices
+            .filter((_, k) => equal[k])
+            .map((c) => choiceLabel(c).label)
+            .join(" und ")} sind gleich viel wert: {equalCount === 2 ? "beide" : "alle"} ≈ {signed(topEv)} BB. Die Lösung
+          <Term term="mixed">mischt</Term> sie, damit sie schwer zu lesen ist.
+        </p>
+      {/if}
     </div>
+  {/if}
+
+  {#if numbers?.hand && numbers.cls}
+    {@const cls = numbers.cls}
+    <p class="cls">
+      Im Strategie-Raster steht die ganze Klasse <b class="num">{classLabel(cls.class)}</b> (alle Farben gemischt):
+      {lesson.choices
+        .map((c, k) => ({ c, f: cls.strategy[k] ?? 0 }))
+        .filter((x) => x.f >= 0.005)
+        .map((x) => `${choiceLabel(x.c).label} ${pct(x.f)}`)
+        .join(", ")}. Bewertet wird deine genaue Hand.
+    </p>
   {/if}
 
   {#if j && j.loss_bb !== null}
@@ -66,7 +116,7 @@
     <p class="loss faint">Hier sind nur Häufigkeiten gespeichert: bewertet wird danach, wie oft die Lösung deinen Zug spielt.</p>
   {/if}
 
-  <p class="source">{sourceLine(lesson.source, view.config, stack, lesson.exploitability_pct)}</p>
+  <p class="source">{sourceLine(lesson.source, view.config, view.stack_bb, lesson.exploitability_pct)}</p>
 </article>
 
 <style>
@@ -79,7 +129,7 @@
     background: var(--surface);
     border: 1px solid var(--line-2);
     overflow: hidden;
-    animation: rise 0.22s ease-out;
+    animation: rise var(--dur) var(--ease-enter);
   }
   .verdict::before {
     content: "";
@@ -107,6 +157,27 @@
     font-weight: 700;
     color: var(--g);
     letter-spacing: -0.01em;
+  }
+  .mark {
+    display: inline-grid;
+    place-items: center;
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    margin-right: 8px;
+    border-radius: 999px;
+    background: var(--g);
+    color: var(--bg);
+    font-style: normal;
+    font-size: 13px;
+    vertical-align: 3px;
+  }
+  .verdict.bad {
+    background: color-mix(in srgb, var(--g) 9%, var(--surface));
+    border-color: color-mix(in srgb, var(--g) 45%, transparent);
+  }
+  .verdict.bad .lead {
+    font-size: 16px;
   }
   .grade.none,
   .grade.hint {
@@ -141,7 +212,7 @@
   }
   .row {
     display: grid;
-    grid-template-columns: minmax(150px, 1.1fr) 2fr 64px;
+    grid-template-columns: minmax(150px, 1.1fr) 2fr 76px;
     align-items: center;
     gap: 10px;
     font-size: 13px;
@@ -191,6 +262,18 @@
   .ev {
     text-align: right;
     color: var(--text-2);
+  }
+  .same {
+    margin-right: 4px;
+    color: var(--text-3);
+  }
+  .equal,
+  .cls {
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .cls b {
+    color: var(--text);
   }
   .chosen .ev {
     color: var(--text);

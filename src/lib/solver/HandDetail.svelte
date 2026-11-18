@@ -8,23 +8,23 @@
   import { classLabel } from "./range";
   import type { SolverNode } from "./types";
 
-  /** One hand class of the acting player, split into its suit combinations. */
+  /** One hand class of the acting player; `compact` leaves out the reasoning and the suit combinations. */
   let {
     node,
     index,
     colors,
     labels,
     hero = null,
-    pinned = false,
-    onUnpin,
+    compact = false,
+    onClose,
   }: {
     node: SolverNode;
     index: number;
     colors: string[];
     labels: string[];
     hero?: string[] | null;
-    pinned?: boolean;
-    onUnpin?: () => void;
+    compact?: boolean;
+    onClose?: () => void;
   } = $props();
 
   const SUITS = "shdc";
@@ -50,11 +50,11 @@
   const pct = (x: number) => `${Math.round(x * 100)} %`;
 </script>
 
-<section class="detail" aria-live="polite">
+<section class="detail" class:compact>
   <header>
     <b class="num">{label}</b>
     {#if cls}<span class="dim num">{bb(cls.combos, 2)} Kombos</span>{/if}
-    {#if pinned}<button class="link" onclick={onUnpin}>lösen</button>{/if}
+    {#if onClose}<button class="btn ghost close" onclick={onClose}>Schließen <kbd>Esc</kbd></button>{/if}
   </header>
   {#if !cls}
     <p class="faint">Nicht in der Range an dieser Stelle.</p>
@@ -62,7 +62,7 @@
     {#if advice}
       <p class="advice">
         <b>{cap(advice.line)}.</b>
-        {#if advice.close}<span>{advice.close}</span>{/if}
+        {#if advice.close && !compact}<span>{advice.close}</span>{/if}
       </p>
     {/if}
     <div class="mix" aria-hidden="true">
@@ -70,12 +70,17 @@
     </div>
     <div class="rows">
       {#each cls.strategy as s, k (k)}
-        <div class="kv"><span><i class="dot" style="background:{colors[k]}"></i>{labels[k]}</span><b class="num">{pct(s)}</b></div>
+        <div class="kv" class:never={s < 0.005}><span><i class="dot" style="background:{colors[k]}"></i>{labels[k]}</span><b class="num">{pct(s)}</b></div>
       {/each}
-      <div class="kv sep"><span><Term term="equity">Equity</Term></span><b class="num">{pct(cls.equity)}</b></div>
-      <div class="kv"><span><Term term="ev">EV</Term></span><b class="num">{signed(cls.ev, 2)} BB</b></div>
+      {#if compact}
+        <div class="kv sep"><span>Equity</span><b class="num">{pct(cls.equity)}</b></div>
+        <div class="kv"><span>EV</span><b class="num">{signed(cls.ev, 2)} BB</b></div>
+      {:else}
+        <div class="kv sep"><span><Term term="equity">Equity</Term></span><b class="num">{pct(cls.equity)}</b></div>
+        <div class="kv"><span><Term term="ev">EV</Term></span><b class="num">{signed(cls.ev, 2)} BB</b></div>
+      {/if}
     </div>
-    {#if node.hands.length}
+    {#if !compact && node.hands.length}
       <table class="combos">
         <thead><tr><th>Kombo</th><th>Strategie</th><th>Eq.</th><th>EV</th></tr></thead>
         <tbody>
@@ -99,7 +104,7 @@
           {/each}
         </tbody>
       </table>
-    {:else}
+    {:else if !compact}
       <p class="faint small">Für diesen Knoten sind keine einzelnen Kombos gespeichert.</p>
     {/if}
   {/if}
@@ -124,14 +129,24 @@
   header .dim {
     font-size: 12px;
   }
-  .link {
+  .close {
     margin-left: auto;
-    border: 0;
-    background: none;
-    color: var(--text-2);
+    height: 26px;
+    padding: 0 8px;
     font-size: 12px;
-    text-decoration: underline;
-    cursor: pointer;
+  }
+  .compact {
+    gap: 6px;
+  }
+  .compact header b {
+    font-size: 16px;
+  }
+  .compact .advice {
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .compact .kv {
+    font-size: 12px;
   }
   .advice {
     margin: 0;
@@ -156,6 +171,9 @@
   }
   .kv b {
     font-weight: 600;
+  }
+  .kv.never {
+    color: var(--text-3);
   }
   .sep {
     margin-top: 4px;
