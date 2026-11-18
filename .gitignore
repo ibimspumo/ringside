@@ -10,3 +10,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 /target
 /static/_local
+
+# Reference screenshots of other products (not ours to publish)
+.refs/

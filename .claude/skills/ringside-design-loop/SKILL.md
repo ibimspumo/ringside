@@ -21,6 +21,12 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
   - Logo (Vier-Phasen-Ring mit Pik) und Name „Ringside“ unverändert.
 - **Rechner schonen:** Dev-Server nur für die Bilderrunde (das Skript startet und beendet ihn selbst), eigene freie Ports, nie Video, nur Einzelbilder.
 
+## Vorbild GTO Wizard
+Der Nutzer hält GTO Wizard für das beste Vorbild an Bedienung und Feinschliff („schau viel mehr bei GTO Wizard, immer und immer wieder“). Vor jeder Runde:
+- Referenzbilder ansehen: `.refs/gtowizard/` im Repo-Wurzelverzeichnis (git-ignoriert, vom Nutzer gesammelt; nie einchecken, nie an Prüfer als „Ziel“ geben). Wenn für deinen Bereich nichts dabei ist, recherchiere öffentlich (Hilfeseiten, Blog, Bildersuche) und lege gefundene Bilder dort ab.
+- Übernommen wird, was gut funktioniert: Hierarchie, Abläufe, Dichte, Zustände, Bewertungs-Darstellung, Tastenbedienung. Nicht übernommen werden Marke, Logo, Farben, Texte und Layout eins zu eins; Ringside behält sein eigenes Designsystem (`src/lib/ui/`, Katalog `?view=kit`).
+- Im Bericht kurz nennen, welche Muster aus dem Vorbild du übernommen hast und welche bewusst nicht.
+
 ## Bilder
 `.claude/skills/ringside-design-loop/shots.sh <ordner> name='?query' …` macht je Ansicht 980×700, 1440×900 und 2400×1300 in doppelter Auflösung aus dem Browser-Demo (Fallback-Daten aus `src/lib/api.ts`).
 - Ansichten: `?tab=dashboard|reports|tournaments|leaks|hands|coach|players|live|training|charts|solver|hud|settings` (weitere Reiter in `src/lib/app/Main.svelte`), Overlay `?view=overlay`, klassisch `?view=overlay&mode=classic&preset=klartext`, Zustände `&locked=1` (PokerStars läuft), `&nohistory=1` (erster Start).
