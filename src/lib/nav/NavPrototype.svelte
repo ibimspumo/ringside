@@ -42,6 +42,15 @@
     onChooseFolder: () => void;
   } = $props();
 
+  /** Narrow top bar while PokerStars runs: the lock note needs the room, the paused tasks show as their ring. */
+  const media = window.matchMedia("(max-width: 1279px)");
+  let narrow = $state(media.matches);
+  $effect(() => {
+    const on = () => (narrow = media.matches);
+    media.addEventListener("change", on);
+    return () => media.removeEventListener("change", on);
+  });
+
   // Browser demo: &navfocus=<n> puts the keyboard focus on the n-th menu entry, for pictures.
   const focusAt = Number(new URLSearchParams(window.location.search).get("navfocus"));
   $effect(() => {
@@ -64,7 +73,7 @@
 
 {#snippet barStatus()}
   <NavMeta {tables} hands={status?.total_hands ?? 0} layout="bar" />
-  <span class="dock"><JobsDock {onView} placement="top" /></span>
+  <span class="dock" class:ring={narrow && locked}><JobsDock {onView} placement="top" compact={narrow && locked} /></span>
 {/snippet}
 
 {#snippet barNotices()}
@@ -83,6 +92,9 @@
   .dock {
     display: flex;
     width: 190px;
+  }
+  .dock.ring {
+    width: auto;
   }
 
 </style>

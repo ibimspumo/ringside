@@ -80,7 +80,6 @@
             chevron="down"
             aria-expanded={showTools}
             aria-controls="nav-a-tools"
-            status={showTools ? undefined : String(area.pages.length)}
             locked={locked && !showTools}
             data-nav
             onclick={toggleTools}
@@ -206,10 +205,6 @@
     }
     nav {
       gap: 4px;
-    }
-    /* Every entry stays visible above the footer: the status lines give way first. */
-    nav :global(.ui-nav.lg .status) {
-      display: none;
     }
     .group-label {
       padding-bottom: 2px;

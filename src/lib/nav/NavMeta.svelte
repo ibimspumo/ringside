@@ -59,8 +59,8 @@
     font-weight: var(--fw-regular);
     color: var(--text);
   }
-  /* Narrow top bar: the open tables show on the Gegner tab, the task center keeps its words. */
-  @media (max-width: 1279px) {
+  /* The open tables already show on the Gegner tab; only very wide bars add the counts. */
+  @media (max-width: 1799px) {
     .bar {
       display: none;
     }

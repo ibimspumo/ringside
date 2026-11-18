@@ -6,7 +6,11 @@
   import type { Job, JobTarget } from "./types";
 
   /** `top`: the dock sits in a top bar, so the panel opens below it at the right. */
-  let { onView, placement = "side" }: { onView: (target: JobTarget) => void; placement?: "side" | "top" } = $props();
+  let {
+    onView,
+    placement = "side",
+    compact = false,
+  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** Only the ring; its name says the state. */ compact?: boolean } = $props();
 
   onMount(startJobs);
 
@@ -58,6 +62,9 @@
 <button
   class="dock"
   class:busy={active.length > 0}
+  class:compact
+  aria-label={compact ? `Aufgaben: ${summary}` : undefined}
+  title={compact ? `Aufgaben: ${summary}` : undefined}
   bind:this={button}
   aria-expanded={jobs.open}
   aria-controls="jobs-panel"
@@ -181,6 +188,9 @@
   .dock[aria-expanded="true"] {
     background: var(--surface);
     border-color: var(--line);
+  }
+  .compact .txt {
+    display: none;
   }
   .txt {
     display: grid;

@@ -1,46 +1,35 @@
 <script lang="ts">
-  import NavItem from "../ui/NavItem.svelte";
+  import Card from "../ui/Card.svelte";
   import { arrowNav } from "./keys";
   import { areaLine, navLive } from "./live.svelte";
-  import { AREAS, LOCKED_PAGES, PAGES, type Page } from "./pages";
+  import { AREAS, PAGES, type Area, type Page } from "./pages";
 
-  /** Concept B's start page: the four areas as large tiles, each with its pages and live values. */
+  /**
+   * Concept B's start page: the four areas as one flat row of tiles above the answer, each with
+   * what calls for attention there. A click opens the page that value is about.
+   */
   let { locked, onSelect }: { locked: boolean; onSelect: (page: Page) => void } = $props();
 
   const areas = AREAS.filter((a) => a.id !== "start");
-  /** The two ways to practise lead the start page, as in the side bar of the other concepts. */
-  const BIG: Page[] = ["training", "play"];
+  /** The page a tile leads to: the one with something to do, else the first. */
+  function target(area: Area): Page {
+    return area.pages.find((p) => (navLive.of(p, locked)?.tone ?? "neutral") !== "neutral") ?? area.pages[0];
+  }
 </script>
 
 <section class="hub" aria-label="Bereiche" use:arrowNav>
   {#each areas as area (area.id)}
     {@const line = areaLine(area, locked)}
-    <article class="area" aria-labelledby="hub-{area.id}">
-      <header>
-        <span class="plate"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={area.icon} /></svg></span>
-        <div class="head">
-          <h2 id="hub-{area.id}">{area.label}</h2>
-          <p>{area.text}</p>
-        </div>
-      </header>
-      <p class="line {line.tone}">{line.text !== area.short ? line.text : ""}</p>
-      <div class="pages">
-        {#each area.pages as p (p)}
-          {@const live = navLive.of(p, locked)}
-          <NavItem
-            size={BIG.includes(p) ? "lg" : area.id === "werkzeuge" ? "sm" : "md"}
-            data-nav
-            label={PAGES[p].label}
-            icon={PAGES[p].icon}
-            locked={locked && LOCKED_PAGES.includes(p)}
-            status={live?.long ?? (BIG.includes(p) ? PAGES[p].short : undefined)}
-            tone={live?.tone}
-            title={PAGES[p].text}
-            onclick={() => onSelect(p)}
-          />
-        {/each}
-      </div>
-    </article>
+    {@const to = target(area)}
+    <Card pad="sm" data-nav title="{area.text} Öffnet {PAGES[to].label}." onclick={() => onSelect(to)}>
+      <span class="tile">
+        <span class="plate"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d={area.icon} /></svg></span>
+        <span class="text">
+          <b>{area.label}</b>
+          <span class="line {line.tone}">{line.text}</span>
+        </span>
+      </span>
+    </Card>
   {/each}
 </section>
 
@@ -48,36 +37,26 @@
   .hub {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--sp-4);
+    gap: var(--sp-3);
     max-width: 1360px;
     margin-inline: auto;
-    padding: 26px 30px 0;
+    padding: var(--sp-6) 30px 0;
   }
-  /* Head, status line and list sit at the same height in every tile. */
-  .area {
-    display: grid;
-    grid-row: span 3;
-    grid-template-rows: subgrid;
-    align-content: start;
-    gap: var(--sp-2);
-    padding: var(--sp-4) var(--sp-3) var(--sp-3);
-    border: 1px solid var(--line);
-    border-radius: var(--r);
-    background: var(--surface);
-  }
-  header {
+  .tile {
     display: flex;
+    align-items: center;
     gap: var(--sp-3);
-    padding: 0 var(--sp-1);
+    min-width: 0;
   }
   .plate {
     display: grid;
     place-items: center;
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: var(--r-md);
     background: var(--surface-2);
+    color: var(--text);
   }
   .plate svg {
     fill: none;
@@ -86,27 +65,20 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .head {
+  .text {
     display: grid;
-    align-content: start;
     gap: 2px;
     min-width: 0;
+    text-align: left;
   }
-  h2 {
-    margin: 0;
-    font-size: var(--fs-lg);
+  b {
+    font-size: var(--fs-base);
     font-weight: var(--fw-semibold);
   }
-  .head p {
-    margin: 0;
-    font-size: var(--fs-sm);
-    line-height: var(--lh-base);
-    color: var(--text-2);
-  }
   .line {
-    min-height: 1lh;
-    margin: 0;
-    padding: 0 var(--sp-1);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-family: var(--font-num);
     font-size: var(--fs-sm);
     color: var(--text-2);
@@ -119,17 +91,5 @@
   }
   .line.good {
     color: var(--pos);
-  }
-  .pages {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    padding-top: var(--sp-2);
-    border-top: 1px solid var(--line);
-  }
-  @container (max-width: 1099px) {
-    .hub {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
   }
 </style>

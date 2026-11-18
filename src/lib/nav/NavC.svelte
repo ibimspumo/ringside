@@ -90,6 +90,14 @@
     if (open && !panel?.contains(t) && !Object.values(triggers).some((b) => b?.contains(t))) close();
   }
   const lockedNow = (p: Page) => locked && LOCKED_PAGES.includes(p);
+  /** Wide windows have room for the value in words at the tabs ("4 Schwachstellen" instead of "4"). */
+  const media = window.matchMedia("(min-width: 1400px)");
+  let wide = $state(media.matches);
+  $effect(() => {
+    const on = () => (wide = media.matches);
+    media.addEventListener("change", on);
+    return () => media.removeEventListener("change", on);
+  });
   /** What a tab shows at rest: the first value that calls for something in its area. */
   function badge(area: Area) {
     for (const p of area.pages) {
@@ -119,7 +127,7 @@
           active={single && tab === area.pages[0]}
           current={!single && current?.id === area.id}
           chevron={single ? undefined : "down"}
-          status={mark?.text}
+          status={mark && (wide ? (mark.line ?? mark.long) : mark.text)}
           tone={mark?.tone}
           locked={area.pages.some(lockedNow)}
           title={area.pages.some(lockedNow) ? "Teile sind gesperrt, solange PokerStars läuft" : undefined}
@@ -134,6 +142,13 @@
       {/each}
     </nav>
     <div class="right">
+      {#if locked}
+        <SourceNote
+          kind="locked"
+          label={wide ? "PokerStars läuft: Teile gesperrt" : "PokerStars läuft"}
+          hint="Gesperrt, solange PokerStars läuft. Lernen, Hände spielen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt; HUD und Statistik laufen weiter."
+        />
+      {/if}
       {@render status()}
       <span class="gear" class:on={tab === "settings"}>
         <IconButton label="Einstellungen" onclick={() => go("settings")}>
