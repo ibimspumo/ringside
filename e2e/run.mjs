@@ -607,6 +607,45 @@ step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async
   }
 });
 
+step("Hände spielen: die Hand läuft bis zum Handende, auch über einen live gerechneten Spot", async () => {
+  // Call or check wherever you can, so the hand goes as far as it can. In the demo the call
+  // of the 3-bet leaves the prepared line and the flop is solved live.
+  let solving = null;
+  let solved = false;
+  const until = Date.now() + 300_000;
+  for (;;) {
+    if (Date.now() > until) throw new Error("the hand did not reach its end");
+    const now = await s.exec(
+      `if (document.querySelector("main section.end")) return "end";
+       if (document.querySelector("main [data-part='solving']")) return "solving";
+       return document.querySelector("main .actions button.act") ? "decide" : "wait";`,
+    );
+    if (now === "end") break;
+    if (now === "solving") {
+      solving ??= Date.now();
+      // A slow machine may take long for a live spot: then the hand goes on without it.
+      if (TAURI && Date.now() - solving > 60_000) await click("main [data-part='solving'] button", "Abbrechen", { exact: false });
+    } else if (now === "decide") {
+      if (solving !== null) solved = true;
+      const move = await s.exec(
+        `const b = [...document.querySelectorAll("main .actions button.act")];
+         return b.find((x) => /Call|Check/.test(x.textContent)) ?? b[0];`,
+      );
+      await s.click(move);
+    }
+    await sleep(250);
+  }
+  const text = await mainText();
+  if (/anders weitergegangen|endet diese Hand|nichts mehr hinterlegt/.test(text)) throw new Error("the hand stopped before its end");
+  if (!/Du gewinnst|Du foldest|gewinnt|Geteilter Pot|Alle anderen folden/.test(text)) throw new Error("no result of the hand");
+  if (!TAURI) {
+    if (!solved) throw new Error("the demo hand was not solved live");
+    await waitText("Du gewinnst beim Showdown");
+    await click("main section[aria-label='Deine Züge in dieser Hand'] button.move", "Flop", { exact: false });
+    await waitText(/Quelle: Solver, live gerechnet .* Genauigkeit 1,8 % des Pots/);
+  }
+});
+
 step("Coach: ohne Key erscheint der Hinweis", async () => {
   await nav("Coach");
   if (TAURI) await waitText("Für den Coach brauchst du einen API-Key");
