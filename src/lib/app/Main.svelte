@@ -32,7 +32,11 @@
   import type { JobTarget } from "../jobs/types";
   import { openSaved } from "../solver/solutions";
   import { solver } from "../solver/store.svelte";
+  import Button from "../ui/Button.svelte";
+  import Term from "../ui/Term.svelte";
+  import ChoiceMenu from "../ui/ChoiceMenu.svelte";
   import PageHeader from "../ui/PageHeader.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { pageHead } from "../ui/page.svelte";
 
   type Tab =
@@ -121,6 +125,18 @@
   let tab = $state<Tab>(initialTab && NAV.some((n) => n.id === initialTab) ? initialTab : "dashboard");
   let status = $state<ImportStatus | null>(null);
   let tables = $state(0);
+  /** The menu scrolls in low windows; its end fades out while items are hidden below. */
+  let navEl = $state<HTMLElement>();
+  let navMore = $state(false);
+  function measureNav() {
+    if (navEl) navMore = navEl.scrollTop + navEl.clientHeight < navEl.scrollHeight - 2;
+  }
+  $effect(() => {
+    if (!navEl) return;
+    const ro = new ResizeObserver(measureNav);
+    ro.observe(navEl);
+    return () => ro.disconnect();
+  });
   let refresh = $state(0);
   let hud = $state<HudConfig | null>(null);
 
@@ -282,7 +298,7 @@
       <Logo size={26} />
       <strong>Ringside</strong>
     </div>
-    <nav>
+    <nav bind:this={navEl} class:more={navMore} onscroll={measureNav}>
       {#each GROUPS as group (group.label)}
         <div class="group" role="group" aria-labelledby="nav-{group.label}">
           <span class="group-label" id="nav-{group.label}">{group.label}</span>
@@ -316,16 +332,22 @@
       {/if}
       {#if status && !upgrade && status.dirs.length === 0}
         <div class="warn">
-          <strong>PokerStars speichert noch keine Hände</strong>
-          <span>In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.</span>
-          <button onclick={chooseFolder}>Ordner selbst wählen</button>
+          <strong
+            ><Term tip="In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst."
+              >PokerStars speichert noch keine Hände</Term
+            ></strong
+          >
+          <span class="how-to">In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.</span>
+          <Button size="sm" onclick={chooseFolder}>Ordner selbst wählen</Button>
         </div>
       {/if}
-      <div class="live" class:active={tables > 0}>
-        <span class="dot"></span>
-        {tables === 0 ? "Kein Tisch offen" : tables === 1 ? "1 Tisch im Blick" : `${tables} Tische im Blick`}
+      <div class="meta">
+        <div class="live" class:active={tables > 0}>
+          <span class="dot"></span>
+          {tables === 0 ? "Kein Tisch offen" : tables === 1 ? "1 Tisch" : `${tables} Tische`}<span class="long">&nbsp;im Blick</span>
+        </div>
+        <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände<span class="long"> gespeichert</span></div>
       </div>
-      <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände gespeichert</div>
     </footer>
   </aside>
 
@@ -339,17 +361,29 @@
         <div class="filters">
           <TournamentPicker tournaments={tournamentList} selected={tournament} onSelect={(id) => (tournament = id)} />
           {#if tab !== "tournaments"}
-            <div class="seg" class:off role="group" aria-label="Spielart" title={offTitle}>
-              {#each GAMES as [id, label] (label)}
-                <button class:on={!off && game === id} onclick={() => setGame(id)}>{label}</button>
-              {/each}
-            </div>
+            <span class="wide-game" class:dim={off} title={offTitle}>
+              <SegmentedControl
+                label="Spielart"
+                value={off ? "" : (game ?? "all")}
+                options={GAMES.map(([id, label]) => ({ value: id ?? "all", label }))}
+                onchange={(v) => setGame(v === "all" ? null : (v as GameKind))}
+              />
+            </span>
+            <span class="narrow-game">
+              <ChoiceMenu label="Spielart" dim={off} title={offTitle} options={GAMES} value={off ? undefined : game} onchange={setGame} />
+            </span>
           {/if}
-          <div class="seg" class:off role="group" aria-label="Zeitraum" title={offTitle}>
-            {#each PERIODS as [id, label] (id)}
-              <button class:on={!off && period === id} onclick={() => setPeriod(id)}>{label}</button>
-            {/each}
-          </div>
+          <span class="wide-period" class:dim={off} title={offTitle}>
+            <SegmentedControl
+              label="Zeitraum"
+              value={off ? "" : period}
+              options={PERIODS.map(([id, label]) => ({ value: id as string, label }))}
+              onchange={(v) => setPeriod(v as Period)}
+            />
+          </span>
+          <span class="narrow-period">
+            <ChoiceMenu label="Zeitraum" dim={off} title={offTitle} options={PERIODS} value={off ? undefined : period} onchange={setPeriod} />
+          </span>
         </div>
       {/if}
       {/snippet}
@@ -481,7 +515,7 @@
   }
   .brand strong {
     font-family: var(--font-num);
-    font-size: 17px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     letter-spacing: 0.02em;
   }
@@ -492,18 +526,6 @@
     min-height: 0;
     overflow-y: auto;
   }
-  /* Low windows: the whole menu stays visible above the footer. */
-  @media (max-height: 760px) {
-    .brand {
-      margin-bottom: 10px;
-    }
-    nav {
-      gap: 8px;
-    }
-    nav button {
-      height: 30px;
-    }
-  }
   .group {
     display: flex;
     flex-direction: column;
@@ -511,7 +533,7 @@
   }
   .group-label {
     padding: 0 10px 4px;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.02em;
     color: var(--text-3);
@@ -526,7 +548,7 @@
     border-radius: var(--r-sm);
     background: transparent;
     color: var(--text-2);
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     cursor: pointer;
     text-align: left;
   }
@@ -553,7 +575,7 @@
     gap: 6px;
     padding: 12px 10px 0;
     border-top: 1px solid var(--line);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .live {
@@ -592,7 +614,7 @@
   }
   .upgrade small {
     color: var(--text-3);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
   .bar {
     height: 4px;
@@ -604,7 +626,7 @@
     display: block;
     height: 100%;
     background: var(--text);
-    transition: width 0.3s;
+    transition: width var(--dur-slow) var(--ease-standard);
   }
   .warn {
     display: grid;
@@ -615,22 +637,24 @@
     border-radius: var(--r-sm);
     background: var(--surface-2);
     color: var(--text-2);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     line-height: 1.4;
   }
   .warn strong {
     color: var(--text);
     font-weight: 600;
   }
-  .warn button {
+  .warn :global(.ui-btn) {
     justify-self: start;
-    padding: 3px 8px;
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface-3);
-    color: var(--text);
-    font-size: 12px;
-    cursor: pointer;
+  }
+  .meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  /* The last items fade out while more of the menu is below. */
+  nav.more {
+    mask-image: linear-gradient(to bottom, var(--text) calc(100% - 28px), transparent);
   }
 
   main {
@@ -645,11 +669,33 @@
     align-items: center;
     gap: 8px;
   }
-  .seg.off {
+  .dim {
     opacity: 0.45;
+    transition: opacity var(--dur-fast) var(--ease-standard);
   }
-  .seg.off:hover {
+  .dim:hover {
     opacity: 0.8;
+  }
+  /* Narrow windows: Spielart and Zeitraum as compact menus, so the filters stay in one row. */
+  .narrow-game,
+  .narrow-period {
+    display: none;
+  }
+  @media (max-width: 1279px) {
+    .wide-game {
+      display: none;
+    }
+    .narrow-game {
+      display: contents;
+    }
+  }
+  @media (max-width: 1699px) {
+    .wide-period {
+      display: none;
+    }
+    .narrow-period {
+      display: contents;
+    }
   }
   .content {
     flex: 1;
@@ -662,11 +708,35 @@
   }
   /* Short windows (700 px at the minimum size): every nav item stays visible above the footer. */
   @media (max-height: 760px) {
+    aside {
+      padding-top: 12px;
+    }
+    .brand {
+      margin-bottom: 8px;
+    }
     nav {
-      gap: 10px;
+      gap: 4px;
     }
     nav button {
-      height: 30px;
+      height: 27px;
+    }
+    .warn .how-to {
+      display: none;
+    }
+    .group-label {
+      padding-bottom: 2px;
+    }
+    footer {
+      gap: 4px;
+      padding-top: 8px;
+    }
+    .meta {
+      flex-direction: row;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .meta .long {
+      display: none;
     }
   }
 </style>
