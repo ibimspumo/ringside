@@ -193,6 +193,17 @@ async function click(sel, text = null, opts) {
   await s.click(el);
 }
 
+/** Antes sum up in one line of the replayer's log, never one row per player. Returns that line. */
+async function anteLine() {
+  const r = await s.exec(`
+    const log = document.querySelector(".replayer [aria-label='Zugverlauf']");
+    const rows = log ? [...log.querySelectorAll(".what")].filter((e) => /\\bAnte\\b/.test(e.textContent)).length : 0;
+    return { rows, line: log?.querySelector(".antes")?.textContent.trim() ?? null };`);
+  if (r.rows) throw new Error(`${r.rows} ante row(s) in the log instead of one line`);
+  log(`ante line: ${r.line ?? "none"}`);
+  return r.line;
+}
+
 const mainText = () => s.exec(`return document.querySelector("main")?.innerText ?? ""`);
 
 function waitText(pattern, timeout) {
@@ -322,6 +333,7 @@ step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async 
   await click("main .moment.bad button", "Abspielen");
   await find("main h1", "Hände");
   await find(".replayer");
+  await anteLine();
   await click("main button[aria-label='Turnierfilter entfernen']");
 });
 
@@ -330,6 +342,77 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await click("main [role='option']");
   await find(".replayer");
   await click(".replayer button[aria-label^='Weiter']");
+});
+
+step("Hände: die Analyse zeigt eine Entscheidung erst, wenn das Abspielen dort steht", async () => {
+  const TABS = "main [role='tablist'][aria-label^='Deine Entscheidungen'] [role='tab']";
+  const verdict = () => s.exec(`return !!document.querySelector("main .decision")`);
+  if (!(await s.exec(`return !!document.querySelector(arguments[0])`, TABS))) {
+    if (!TAURI) throw new Error("the demo hand has rated decisions");
+    log("hand without decisions: replay order not checked");
+    return;
+  }
+  await click(TABS);
+  await find("main .decision");
+  // One step back the replay stands before the action ahead of your first decision.
+  await click(".replayer button[aria-label^='Zurück']");
+  await waitText("Gleich bist du dran");
+  if (await verdict()) throw new Error("the first decision's verdict shows before the replay reaches it");
+  await click(".replayer button[aria-label^='Weiter']");
+  await find("main .decision");
+});
+
+step("Hände: auch die beste Aktion zeigt, was sie bringt", async () => {
+  const value = await s.exec(`
+    const row = [...document.querySelectorAll("main .decision .options li")].find((li) => li.querySelector(".ev.best"));
+    return row ? row.querySelector(".gain")?.textContent.trim() ?? "" : null;`);
+  if (value === null) {
+    if (!TAURI) throw new Error("the demo decision lists its actions");
+    log("decision without a list of actions: „bringt“ not checked");
+    return;
+  }
+  if (!/^[+−]?\d+,\d\d BB$/.test(value)) throw new Error(`the best action brings „${value}“`);
+});
+
+/** Scroll boxes in "Hände" that are wider than their room, and how far the analysis sits from the right edge. */
+const OVERFLOW = `
+  const boxes = [document.querySelector("main .content"), ...document.querySelectorAll("main .hands *")].filter((e) => {
+    if (!e || !e.getClientRects().length) return false;
+    const o = getComputedStyle(e);
+    return /auto|scroll/.test(o.overflowX + o.overflowY) && e.scrollWidth > e.clientWidth;
+  });
+  const content = document.querySelector("main .content").getBoundingClientRect();
+  const aside = document.querySelector("main .replayer .aside");
+  return {
+    width: innerWidth,
+    wide: boxes.map((e) => e.className + " +" + (e.scrollWidth - e.clientWidth) + "px"),
+    gap: aside ? Math.round(content.right - aside.getBoundingClientRect().right) : null,
+  };`;
+
+step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", async () => {
+  const check = async () => {
+    // The replayer lays out over a few frames after a resize.
+    await sleep(600);
+    const r = await s.exec(OVERFLOW);
+    log(`hands overflow at ${r.width}px: ${JSON.stringify(r)}`);
+    if (r.wide.length) throw new Error(`scrolls sideways at ${r.width}px: ${r.wide.join(", ")}`);
+    if (r.gap !== null && r.gap < 16) throw new Error(`the analysis is ${r.gap}px from the right edge at ${r.width}px`);
+    return r;
+  };
+  await check();
+  // The analysis only stands beside the table in wide windows: the bug lived there.
+  try {
+    await s.cmd("POST", "/window/rect", { width: 1920, height: 1080 });
+  } catch (e) {
+    log(`window could not be resized, only ${await s.exec("return innerWidth")}px checked: ${e.message}`);
+    return;
+  }
+  try {
+    const r = await check();
+    if (r.width >= 1700 && r.gap === null) throw new Error(`no analysis beside the table at ${r.width}px`);
+  } finally {
+    await s.cmd("POST", "/window/rect", { width: 1280, height: 820 });
+  }
 });
 
 // The demo's decisions link the solver with the line to them; the app's need a solved spot.
@@ -533,6 +616,22 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await click("main .rows .row button", "Hände ansehen", { exact: false });
   await find("main h1", "Hände");
   await waitFor("the weakness as filter chip", `return document.querySelector("main")?.innerText.includes(arguments[0])`, [title]);
+});
+
+step("Deine Hände: die Antes stehen in einer Zeile, nicht je Spieler", async () => {
+  await nav("Lernen");
+  await click("main [role='tab']", "Deine Hände");
+  const found = await waitFor(
+    "a hand or the empty list",
+    `return document.querySelector("main .replayer [aria-label='Zugverlauf']") ? "hand" : /Noch keine passenden Spots/.test(document.querySelector("main").innerText) && "none"`,
+  );
+  if (found === "none") {
+    if (!TAURI) throw new Error("the demo has own spots");
+    return;
+  }
+  const line = await anteLine();
+  // The demo's spots are tournament hands with eight antes.
+  if (!TAURI && !/^Antes 8 × .+ = /.test(line ?? "")) throw new Error(`ante line: ${line}`);
 });
 
 /** Sets the table size with the − / + buttons in the middle of the table. */

@@ -5,10 +5,11 @@
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import Button from "../ui/Button.svelte";
+  import { bb as fmtBb } from "../ui/format";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import Verdict from "../ui/Verdict.svelte";
-  import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct, reliabilityText } from "./labels";
+  import { EV_EXPLAIN, EV_FROM, EV_LEGEND, EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
   import type { Choice, Decision, Source } from "./types";
 
@@ -70,8 +71,11 @@
     return "passive";
   }
 
+  /** What the action brings on average, signed; "–" without a number. */
+  const gain = (c: Choice) => (c.ev_bb === null ? "–" : fmtBb(c.ev_bb, { digits: 2, sign: true }));
+
   function gap(c: Choice): string {
-    if (c.ev_bb === null || !isFinite(bestEv)) return "";
+    if (c.ev_bb === null || !isFinite(bestEv)) return "–";
     const loss = bestEv - c.ev_bb;
     return loss < 0.005 ? "beste" : `−${bb(loss, 2)}`;
   }
@@ -116,6 +120,7 @@
         <span></span>
         <span>{SOURCE[d.source].label}</span>
         <span title="Wie oft die Quelle diese Aktion mit genau deiner Hand wählt">{d.source === "estimate" ? "" : "so oft"}</span>
+        <abbr title={EV_EXPLAIN}>bringt</abbr>
         <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
       </li>
       {#each d.strategy as c (c.label)}
@@ -123,12 +128,14 @@
           <span class="dot {tone(c)}"></span>
           <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
           <span class="num freq">{d.source === "estimate" ? "" : c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
+          <span class="num gain" title={EV_EXPLAIN}>{gain(c)}</span>
           <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
         </li>
       {/each}
     </ul>
     <p class="legend">
-      {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
+      {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if}
+      {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
     </p>
 
     {#if kit}
@@ -228,9 +235,9 @@
   }
   .options li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 46px 72px;
+    grid-template-columns: 10px minmax(0, 1fr) 36px 72px 64px;
     align-items: center;
-    gap: var(--sp-2);
+    gap: 6px;
     padding: 2px var(--sp-1);
     border-radius: var(--r-sm);
     color: var(--text-2);
@@ -257,8 +264,13 @@
     background: var(--text);
   }
   .freq,
+  .gain,
   .ev {
     text-align: right;
+  }
+  .gain {
+    color: var(--text);
+    cursor: help;
   }
   .ev {
     color: var(--text-2);

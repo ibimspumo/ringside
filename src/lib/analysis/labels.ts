@@ -108,6 +108,22 @@ export function reliabilityText(share: number, street: "preflop" | "flop" | "tur
 export const EV_LOSS_EXPLAIN =
   "EV-Verlust: wie viele Big Blinds du mit deiner Aktion im Schnitt weniger gewinnst als mit der besten – auf lange Sicht, nicht in dieser einen Hand.";
 
+/**
+ * What an action's EV counts from. The solver and the estimate count from the decision on; the
+ * preflop model and the push/fold equilibrium against the stack before the hand, so there a fold
+ * loses the blind already posted. Within one list the gaps are the same either way.
+ */
+export const EV_FROM: Record<Source, "now" | "stack"> = { solver: "now", estimate: "now", forced: "now", model: "stack", equilibrium: "stack" };
+
+/** The "bringt" column's legend, one sentence per way of counting. */
+export const EV_LEGEND: Record<"now" | "stack", string> = {
+  now: "„bringt“: was die Aktion ab hier im Schnitt einbringt, Folden ist 0.",
+  stack: "„bringt“: was die Aktion im Schnitt einbringt, gerechnet ab deinem Stack vor der Hand – darum zählt beim Folden ein schon gesetzter Blind als Verlust.",
+};
+
+export const EV_EXPLAIN =
+  "EV (Erwartungswert): was diese Aktion auf lange Sicht im Schnitt bringt, in Big Blinds. Die Zahlen einer Liste lassen sich direkt vergleichen; zwischen den Quellen nur, was eine Aktion weniger bringt als die beste.";
+
 /** Where to practise or read up on a spot type. */
 export const LEARN: Record<SpotType, { label: string; target: LearnTarget }[]> = {
   open: [{ label: "Wissen: Eröffnen", target: { article: "pfr" } }],
