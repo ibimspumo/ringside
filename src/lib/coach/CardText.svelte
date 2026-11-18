@@ -68,9 +68,12 @@
     line-height: 1;
   }
   .hand i {
-    margin-left: 1px;
+    align-self: center;
+    margin-left: 2px;
     font-style: normal;
-    font-size: 0.82em;
+    font-size: 0.8em;
+    font-weight: 600;
+    line-height: 1;
     color: var(--text-2);
   }
 </style>
