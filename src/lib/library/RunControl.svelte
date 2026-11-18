@@ -30,7 +30,7 @@
         return worker.community
           ? [
               "Rechnet für andere Ringside-Nutzer:",
-              "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen, und lädt sie hoch. Ein Prüfer rechnet jeden nach, bevor ihn alle bekommen.",
+              "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen, und lädt sie hoch. Sobald ein Spot oben ist, bekommen ihn alle.",
             ]
           : ["Rechnet gerade:", how];
       case "cloud":
