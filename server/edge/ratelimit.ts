@@ -25,6 +25,7 @@ export const RULES = {
   ],
   read: [{ name: "read-min", scope: "client", windowS: 60, max: 300 }],
   status: [{ name: "status-min", scope: "client", windowS: 60, max: 20 }],
+  flops: [{ name: "flops-min", scope: "client", windowS: 60, max: 20 }],
   work: [
     { name: "work-min", scope: "client", windowS: 60, max: 30 },
     { name: "work-hour", scope: "client", windowS: 3600, max: 600 },

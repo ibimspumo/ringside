@@ -7,7 +7,7 @@ import { CanonicalError, canonicalize, solutionKey } from "./canonical.ts";
 import { InvalidError, KINDS, kindSpec } from "./kinds.ts";
 import { decide, hitStatements, MemoryCounter, pruneStatement, RULES, type Rule } from "./ratelimit.ts";
 
-export const API_VERSION = "1.4.0";
+export const API_VERSION = "1.5.0";
 const MAX_BODY = 256 * 1024;
 const MAX_INPUT = 4 * 1024;
 const MAX_HAND = 20_000;
@@ -29,6 +29,13 @@ export const LEASE_S: Readonly<Record<string, number>> = {
 export const MAX_LEASES = 3;
 /** Kinds a client may ask the community to solve; the others are seeded by the operator. */
 const REQUESTABLE = ["spot"];
+/** Kinds whose served flops of one line can be listed, with the input field naming the flop. */
+const FLOP_FIELD: Readonly<Record<string, string>> = { spot: "board" };
+/** How long an isolate answers for the flops of a line without the database. */
+export const FLOPS_CACHE_S = 600;
+/** Suit classes of a flop: no line has more served flops. */
+const MAX_FLOPS = 1755;
+const KEEP_FLOP_LINES = 10_000;
 
 export interface Deps {
   sql: Sql;
@@ -130,6 +137,7 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   // A verified key never changes again, so the isolate answers for it without the database;
   // an accepted one can still be withdrawn.
   const verified = new Set<string>();
+  const lineFlops = new Map<string, { at: number; flops: string[] }>();
 
   async function limitWrites(rules: readonly Rule[], client: string) {
     const t = now();
@@ -223,6 +231,39 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       for (const k of ask) out[k] ??= { status: "unknown" };
     }
     return json(200, { statuses: out });
+  }
+
+  /**
+   * The flops on which a line is served (accepted or verified): the input names the line
+   * and any one flop, the answer lists every flop of the line that has a solution, so an
+   * app learns in one request what it would need hundreds of status keys for.
+   */
+  async function servedFlops(req: Request, client: string): Promise<Response> {
+    const t = now();
+    const d = decide(RULES.flops.map((rule) => ({ rule, count: reads.hit(rule, client, t) })), t);
+    if (!d.ok) {
+      throw new HttpError(429, "rate_limited", `too many requests (${d.rule})`, { "Retry-After": String(d.retryAfter) });
+    }
+    const body = exactFields(await readBody(req), ["kind", "engine_version", "input"]);
+    const { kind, version, input } = await solutionInput(body);
+    const field = FLOP_FIELD[kind];
+    if (!field) throw new InvalidError(`flops are listed for ${Object.keys(FLOP_FIELD).join(", ")} only`);
+    const line = JSON.parse(input) as Record<string, unknown>;
+    delete line[field];
+    const lineText = canonicalize(line);
+    const cacheKey = `${kind}\n${version}\n${lineText}`;
+    const cached = lineFlops.get(cacheKey);
+    if (cached && t - cached.at < FLOPS_CACHE_S) return json(200, { flops: cached.flops });
+    // Inputs are stored canonical, so the input without its flop is the line's canonical text.
+    const [r] = await deps.sql.execute([{
+      sql: `SELECT json_extract(input, '$.${field}') AS flop FROM solutions WHERE kind = ? AND engine_version = ? ` +
+        `AND status IN ('accepted', 'verified') AND json_remove(input, '$.${field}') = ? ORDER BY flop LIMIT ?`,
+      args: [kind, version, lineText, MAX_FLOPS],
+    }]);
+    const flops = r.rows.map((row) => String(row.flop));
+    if (lineFlops.size >= KEEP_FLOP_LINES) lineFlops.clear();
+    lineFlops.set(cacheKey, { at: t, flops });
+    return json(200, { flops });
   }
 
   async function submitSolution(req: Request, client: string): Promise<Response> {
@@ -404,6 +445,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (path === "/v1/solutions/status") {
         if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
         return await statuses(req, client);
+      }
+      if (path === "/v1/solutions/flops") {
+        if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
+        return await servedFlops(req, client);
       }
       const sol = path.match(/^\/v1\/solutions\/([a-z0-9-]{1,40})\/([^/]+)$/);
       if (sol) {
