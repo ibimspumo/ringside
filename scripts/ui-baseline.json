@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 161,
+      "total": 158,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
@@ -35,8 +35,6 @@
         "learn/wissen/Preview.svelte": 1,
         "learn/wissen/widgets/Outs.svelte": 4,
         "learn/wissen/widgets/StackRuler.svelte": 1,
-        "library/Library.svelte": 1,
-        "library/RunControl.svelte": 2,
         "Logo.svelte": 5,
         "play/Start.svelte": 2,
         "play/Table.svelte": 9,
@@ -50,7 +48,7 @@
       }
     },
     "font-size": {
-      "total": 235,
+      "total": 216,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
@@ -88,8 +86,6 @@
         "learn/wissen/widgets/PotOdds.svelte": 1,
         "learn/wissen/widgets/StackRuler.svelte": 3,
         "learn/wissen/Wissen.svelte": 4,
-        "library/Library.svelte": 14,
-        "library/RunControl.svelte": 5,
         "play/InfoPanel.svelte": 5,
         "play/Play.svelte": 10,
         "play/SessionStats.svelte": 3,
@@ -110,7 +106,7 @@
       }
     },
     "button-style": {
-      "total": 146,
+      "total": 138,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -136,8 +132,6 @@
         "learn/wissen/widgets/CbetRange.svelte": 2,
         "learn/wissen/widgets/Outs.svelte": 5,
         "learn/wissen/Wissen.svelte": 3,
-        "library/Library.svelte": 7,
-        "library/RunControl.svelte": 1,
         "play/InfoPanel.svelte": 4,
         "play/Play.svelte": 7,
         "play/PoolChip.svelte": 1,
@@ -155,7 +149,7 @@
       }
     },
     "global-class-override": {
-      "total": 93,
+      "total": 92,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
@@ -179,7 +173,6 @@
         "learn/wissen/blocks/TableDiagram.svelte": 4,
         "learn/wissen/widgets/Combos.svelte": 3,
         "learn/wissen/Wissen.svelte": 3,
-        "library/RunControl.svelte": 1,
         "play/InfoPanel.svelte": 3,
         "play/Play.svelte": 1,
         "play/SessionStats.svelte": 2,
@@ -201,7 +194,7 @@
       "files": {}
     },
     "motion": {
-      "total": 50,
+      "total": 47,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -227,8 +220,6 @@
         "learn/wissen/widgets/PotOdds.svelte": 2,
         "learn/wissen/widgets/StackRuler.svelte": 2,
         "learn/wissen/Wissen.svelte": 1,
-        "library/Library.svelte": 1,
-        "library/RunControl.svelte": 2,
         "play/PoolChip.svelte": 1,
         "play/Start.svelte": 1,
         "play/Table.svelte": 1,
