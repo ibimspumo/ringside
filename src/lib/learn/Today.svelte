@@ -810,7 +810,7 @@
   }
   .count {
     min-width: 44px;
-    font-size: 15px;
+    font-size: var(--fs-lg);
   }
   .steps {
     flex: 1;
@@ -825,11 +825,11 @@
     height: 8px;
     border-radius: 99px;
     background: var(--surface-3);
-    transition: background 0.3s;
+    transition: background var(--dur-slow) var(--ease-standard);
   }
   .steps li.now {
     background: var(--text-2);
-    animation: breathe 1.8s ease-in-out infinite;
+    animation: breathe calc(2 * var(--dur-loop)) var(--ease-spin) infinite;
   }
   .steps li.ok {
     background: var(--pos);
@@ -854,7 +854,7 @@
   }
   .error {
     margin: 0 0 10px;
-    color: #ff9d93;
+    color: var(--danger-text);
   }
 
   .done {

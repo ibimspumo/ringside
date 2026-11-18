@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 162,
+      "total": 161,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
@@ -28,7 +28,6 @@
         "learn/SeatRing.svelte": 3,
         "learn/Stage.svelte": 12,
         "learn/Task.svelte": 3,
-        "learn/Today.svelte": 1,
         "learn/Trainer.svelte": 1,
         "learn/wissen/blocks/Cards.svelte": 5,
         "learn/wissen/blocks/Matchup.svelte": 4,
@@ -51,7 +50,7 @@
       }
     },
     "font-size": {
-      "total": 236,
+      "total": 235,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
@@ -73,7 +72,7 @@
         "learn/Path.svelte": 7,
         "learn/Stage.svelte": 11,
         "learn/Task.svelte": 5,
-        "learn/Today.svelte": 13,
+        "learn/Today.svelte": 12,
         "learn/Trainer.svelte": 3,
         "learn/wissen/Article.svelte": 4,
         "learn/wissen/blocks/Bars.svelte": 2,
@@ -202,7 +201,7 @@
       "files": {}
     },
     "motion": {
-      "total": 52,
+      "total": 50,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -218,7 +217,7 @@
         "learn/SkillBadge.svelte": 1,
         "learn/Stage.svelte": 2,
         "learn/Task.svelte": 2,
-        "learn/Today.svelte": 5,
+        "learn/Today.svelte": 3,
         "learn/Trainer.svelte": 2,
         "learn/wissen/blocks/CardRow.svelte": 1,
         "learn/wissen/blocks/TableDiagram.svelte": 1,
