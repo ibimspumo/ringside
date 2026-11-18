@@ -198,7 +198,6 @@
           Senden und analysieren{e.cost_usd != null ? ` · ca. ${cost(e.cost_usd)}` : ""}
         </Button>
         <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
-        <span class="bar-note">Hände ohne Namen an OpenRouter · <b class="num nowrap">{shortModel(e.model)}</b></span>
         <details class="tech">
           <summary>Tokens und Preise</summary>
           <p>
@@ -487,14 +486,6 @@
   }
   .send {
     padding-top: var(--sp-2);
-  }
-  .bar-note {
-    font-size: var(--fs-md);
-    color: var(--text-2);
-  }
-  .bar-note b {
-    color: var(--text);
-    font-weight: var(--fw-semibold);
   }
   .tech {
     margin-left: auto;
