@@ -149,7 +149,8 @@ function stylesKbd(selector) {
 function freeMotion(prop, value) {
   if (!/^(transition|animation)(-duration|-timing-function)?$/.test(prop)) return false;
   if (/^(none|inherit|initial|unset)$/.test(value)) return false;
-  if (/\blinear\b|\bease(-in|-out|-in-out)?\b/.test(value)) return true;
+  // Keyword curves only; the tokens (var(--ease-standard) …) contain "ease" too.
+  if (/\blinear\b|(?<!-)\bease(-in|-out|-in-out)?\b(?!-)/.test(value)) return true;
   if (/(^|[\s,(])[\d.]+m?s\b/.test(value)) return true;
   return (prop === "transition" || prop === "animation") && !/var\(--ease/.test(value);
 }
