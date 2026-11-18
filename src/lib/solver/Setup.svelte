@@ -6,6 +6,7 @@
   import DeckPopover from "./DeckPopover.svelte";
   import { DECK, dealFrom } from "./practice";
   import Button from "../ui/Button.svelte";
+  import Slider from "../ui/Slider.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
   import RangeEditor from "./RangeEditor.svelte";
   import { comboClass, parseRange, rangeCombos } from "./range";
@@ -102,6 +103,15 @@
   $effect(() => {
     stackText = solver.scenario.stack;
   });
+  /** 5 to 100 BB in single steps, deeper in tens. */
+  const DEPTHS = [...Array.from({ length: 96 }, (_, i) => i + 5), ...Array.from({ length: 10 }, (_, i) => 110 + i * 10)];
+  // Dragging shows the depth at once; the ranges follow when the grip rests.
+  let slideTimer: ReturnType<typeof setTimeout> | undefined;
+  function slideStack(v: number) {
+    stackText = v;
+    clearTimeout(slideTimer);
+    slideTimer = setTimeout(() => commitStack(v), 250);
+  }
   function commitStack(v: number) {
     if (!Number.isFinite(v)) return;
     change({ stack: Math.min(200, Math.max(5, Math.round(v))) });
@@ -343,13 +353,7 @@
 
     <section>
       <h3>Wie tief sind die Stacks?</h3>
-      <div class="depth">
-        <input type="range" min="10" max="100" step="1" bind:value={stackText} onchange={() => commitStack(stackText)} aria-label="Stacktiefe in BB" />
-        <label class="unitfield">
-          <input class="field num" type="number" min="5" max="200" bind:value={stackText} onchange={() => commitStack(stackText)} aria-label="Stacktiefe" />
-          <span>BB</span>
-        </label>
-      </div>
+      <Slider label="Stacktiefe" unit="BB" log values={DEPTHS} value={stackText} onchange={slideStack} steps={[10, 20, 40, 60, 100, 200]} />
       <div class="facts num">
         <span>Pot <b>{bb(solver.spot.pot, 2)}</b></span>
         <span><Term term="effective">effektiv</Term> <b>{bb(solver.spot.stack, 2)}</b></span>
@@ -557,25 +561,10 @@
     font-size: 11.5px;
     line-height: 1.4;
   }
-  .depth {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  .depth input[type="range"] {
-    flex: 1;
-    min-width: 0;
-  }
-  .unitfield {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
-    color: var(--text-2);
-  }
-  .unitfield .field {
-    width: 62px;
-  }
+
+
+
+
   .facts {
     display: flex;
     gap: 14px;
