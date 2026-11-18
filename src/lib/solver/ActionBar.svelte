@@ -145,6 +145,7 @@
     line-height: 1;
     white-space: nowrap;
     justify-self: end;
+    align-self: end;
   }
   .fill {
     position: absolute;
