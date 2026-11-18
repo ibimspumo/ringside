@@ -322,12 +322,14 @@
       display: none;
     }
   }
+  /* The hero's own hand must be found at a glance on any fill: a thick light ring on a dark gap. */
   .cell.hero {
-    outline: 2px solid var(--text);
-    outline-offset: -1px;
-    z-index: 1;
+    outline: 3px solid var(--text);
+    outline-offset: 1px;
+    box-shadow: 0 0 0 1px var(--bg);
+    z-index: 3;
   }
-  .cell.sel {
+  .cell.sel:not(.hero) {
     outline: 2px solid var(--focus);
     outline-offset: -1px;
     z-index: 2;
