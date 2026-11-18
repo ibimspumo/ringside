@@ -53,6 +53,8 @@
     preflop_source: "model",
     spot: null,
     waiting: false,
+    solving: null,
+    free: null,
   };
 </script>
 

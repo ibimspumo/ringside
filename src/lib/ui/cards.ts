@@ -35,7 +35,8 @@ export function cardFace(card: string): { rank: string; suit: (typeof SUITS)[str
 export function splitCards(text: string): ({ text: string } | { card: string })[] {
   const out: ({ text: string } | { card: string })[] = [];
   // Cards may touch ("AsKs", "A♠K♠"); a lowercase letter or digit after one means it is a word.
-  const re = /(?<=^|[^A-Za-z0-9]|[shdc♠♥♦♣])(10|[2-9TJQKA])([shdc♠♥♦♣])(?![a-z0-9])/g;
+  // A digit may follow only as the rank of the next card ("Kh6d").
+  const re = /(?<=^|[^A-Za-z0-9]|[shdc♠♥♦♣])(10|[2-9TJQKA])([shdc♠♥♦♣])(?![a-z]|\d(?![shdc♠♥♦♣]))/g;
   let at = 0;
   for (const m of text.matchAll(re)) {
     if (m.index > at) out.push({ text: text.slice(at, m.index) });

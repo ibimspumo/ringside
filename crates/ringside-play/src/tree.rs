@@ -10,6 +10,8 @@ use serde::Serialize;
 pub enum TreeSource {
     /// Solved by the background solver for this practice.
     Solved,
+    /// Solved while a hand waited, less exact ([`crate::pool::LIVE_PCT`]).
+    Live,
     /// From the spot library (downloaded or solved in the background).
     Library,
     /// A solve the user saved.

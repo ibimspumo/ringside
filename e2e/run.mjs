@@ -337,6 +337,8 @@ step("HUD", () => nav("HUD"));
 
 step("Training: Pot Odds, Stufe 1", async () => {
   await nav("Lernen");
+  // PokerStars is closed, so the header must not claim the page is locked.
+  if (await s.exec(`return !!document.querySelector("main .ui-source.locked")`)) throw new Error("lock note shown while PokerStars is closed");
   await click("main button", "Trainer");
   // Skill and level buttons also show the user's level and the level's name.
   await click("main button.skill", "Pot Odds", { exact: false });
@@ -354,6 +356,108 @@ step("Training: All-in nach Folds", async () => {
   await waitText("gefoldet");
   await click("main button.choice.fold");
   await find("main button", "Nächste Aufgabe", { exact: false });
+});
+
+/** Opens a skill at level 1 in the trainer and returns the question once it is that skill's. */
+async function drill(button, short) {
+  await click("main button.skill", button, { exact: false });
+  await click("main button.level", "Stufe 1", { exact: false });
+  return waitFor(
+    `a question of ${short}`,
+    `const t = document.querySelector("main .task");
+     return t?.querySelector(".kind")?.textContent.trim() === arguments[0] && !t.querySelector(".fb") ? t.querySelector("h2.q").textContent : null;`,
+    [short],
+  );
+}
+
+/** Numbers of a German sentence: "7.550" → 7550, "2,6" → 2.6. */
+const numbers = (text) => [...text.matchAll(/\d[\d.]*(?:,\d+)?/g)].map((m) => Number(m[0].replace(/\.(?=\d{3})/g, "").replace(",", ".")));
+
+async function answerNumber(unit, value) {
+  const input = await find(`main input[aria-label='Antwort in ${unit}']`);
+  await s.type(input, String(Math.round(value * 10) / 10));
+  await click("main button", "Prüfen", { exact: false });
+}
+
+/** The verdict and the solution's text once the answer is graded. */
+async function graded() {
+  await find("main .task .fb");
+  await find("main button", "Nächste Aufgabe", { exact: false });
+  return s.exec(`const f = document.querySelector("main .task .fb");
+    return { right: f.classList.contains("ok"), truth: f.querySelector(".what b").textContent.trim() };`);
+}
+
+async function solved(what) {
+  const g = await graded();
+  if (!g.right) throw new Error(`${what}: graded wrong, solution ${g.truth}`);
+}
+
+/** A decision whose answer only the engine knows: the verdict has to agree with the solution. */
+async function decided(id, label) {
+  await click(`main button.choice.${id}`);
+  const g = await graded();
+  if (g.right !== (g.truth === label)) throw new Error(`answered ${label}, solution ${g.truth}, graded ${g.right ? "right" : "wrong"}`);
+}
+
+/** Malmuth–Harville: places go out top-down in proportion to the chips. */
+function icmValue(stacks, payouts, seat) {
+  const go = (left, place) => {
+    if (place >= payouts.length) return 0;
+    const total = left.reduce((a, i) => a + stacks[i], 0);
+    return left.reduce((sum, i) => {
+      const p = stacks[i] / total;
+      const rest = left.filter((j) => j !== i);
+      return sum + p * ((i === seat ? payouts[place] : 0) + (i === seat ? 0 : go(rest, place + 1)));
+    }, 0);
+  };
+  return go(stacks.map((_, i) => i), 0);
+}
+
+step("Training: Stacktiefe, Stufe 1 gelöst", async () => {
+  const q = await drill("Stacktiefe", "Stacktiefe");
+  const [stack, , bigBlind] = numbers(q);
+  await answerNumber("bb", stack / bigBlind);
+  await solved(q);
+});
+
+step("Training: Pot Odds mit Kopfgeld, Stufe 1 gelöst", async () => {
+  const q = await drill("Pot Odds mit Kopfgeld", "Pot Odds mit Kopfgeld");
+  const [shove, dead, stack, bounty] = numbers(q);
+  const call = Math.min(shove, stack);
+  await answerNumber("%", (100 * call) / (dead + call + call + bounty));
+  await solved(q);
+});
+
+step("Training: Gegner lesen, Stufe 1 gelöst", async () => {
+  const q = await drill("Gegner lesen", "Gegner lesen");
+  const [vpip, pfr] = numbers(q);
+  // The rules of thumb of crates/ringside-learn/src/hud.rs.
+  const type = vpip < 15 ? "nit" : vpip < 27 ? "tag" : pfr / vpip >= 0.6 ? "lag" : "station";
+  await click(`main button.choice.${type}`);
+  await solved(q);
+});
+
+step("Training: ICM-Wert, Stufe 1 gelöst", async () => {
+  const q = await drill("ICM und Bubble", "ICM und Bubble");
+  const prizes = [...q.matchAll(/(\d+) \$/g)].map((m) => Number(m[1]));
+  const rows = await s.exec(`return [...document.querySelectorAll("main ol.stacks li")].map((li) => ({
+      bb: Number(li.querySelector(".num").textContent.replace(/[^0-9,]/g, "").replace(",", ".")),
+      asked: li.classList.contains("asked") }))`);
+  const seat = rows.findIndex((r) => r.asked);
+  await answerNumber("$", icmValue(rows.map((r) => r.bb), prizes, seat));
+  await solved(q);
+});
+
+step("Training: Öffnen oder folden, Stufe 1", async () => {
+  await drill("Öffnen oder folden", "Öffnen oder folden");
+  await decided("fold", "Fold");
+  await find("main .task .fb [aria-label^='Open-Range']");
+});
+
+step("Training: Bet oder Check am River, Stufe 1", async () => {
+  await drill("Bet oder Check am River", "Bet oder Check am River");
+  await decided("check", "Check");
+  await waitText("Gleichgewicht des River-Spiels");
 });
 
 /** Sets the table size with the − / + buttons in the middle of the table. */
@@ -392,8 +496,25 @@ step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () 
 
 step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await stackTo(50);
-  await waitText(/eröffnest du etwa \d+ %/);
+  await waitText(/erhöhst du mit etwa \d+ %/);
   await waitText("Modell");
+});
+
+/** Presses one key the way a keyboard would, on whatever has the focus. */
+async function press(key) {
+  await s.cmd("POST", "/actions", { actions: [{ type: "key", id: "k", actions: [{ type: "keyDown", value: key }, { type: "keyUp", value: key }] }] });
+}
+
+step("Begriffe per Tastatur: Tab erreicht die Erklärung, Esc schließt sie", async () => {
+  // Tab from the stack slider to the next explained word on the page.
+  await s.exec(`document.querySelector("#stack-axis").focus()`);
+  for (let i = 0; i < 40; i++) {
+    await press("\uE004");
+    if (await s.exec(`return !!document.activeElement?.matches(".ui-tooltip-anchor")`)) break;
+  }
+  await waitFor("Erklärung beim Fokus", `return !!document.querySelector(".ui-tooltip")`);
+  await press("\uE00C");
+  await waitFor("Erklärung zu nach Esc", `return !document.querySelector(".ui-tooltip")`);
 });
 
 /** Sets a field's text the way typing would, replacing what is there. */
@@ -471,8 +592,13 @@ step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async
   );
   await s.click(move);
   await waitFor("your move in the history", `return document.querySelector("main nav.timeline button.move.hero") ?? null`);
-  // Your next decision or the end of the hand: everyone has acted on the street by then.
-  await waitFor("the next decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+  // Your next decision, a live solve of the flop or the end: everyone has acted preflop by then.
+  await waitFor(
+    "the next decision, a live solve or the end",
+    `return document.querySelector("main .actions button.act, main [data-part='solving'], main section.end") ?? null`,
+    [],
+    60_000,
+  );
   const preflop = await s.exec(
     `const street = document.querySelector("main nav.timeline section");
      return [...street.querySelectorAll("button.move")].map((b) => b.dataset.pos);`,
@@ -485,6 +611,45 @@ step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async
     if (preflop.join() !== want.join()) throw new Error(`history ${preflop.join(" · ")}, expected ${want.join(" · ")}`);
     await waitText(/CO hat auf 6,1 BB erhöht\s\(3-Bet\), BTN, SB und BB haben gefoldet\./);
     await find("main section[aria-label='Deine Züge in dieser Hand'] button.move", null, { exact: false });
+  }
+});
+
+step("Hände spielen: die Hand läuft bis zum Handende, auch über einen live gerechneten Spot", async () => {
+  // Call or check wherever you can, so the hand goes as far as it can. In the demo the call
+  // of the 3-bet leaves the prepared line and the flop is solved live.
+  let solving = null;
+  let solved = false;
+  const until = Date.now() + 300_000;
+  for (;;) {
+    if (Date.now() > until) throw new Error("the hand did not reach its end");
+    const now = await s.exec(
+      `if (document.querySelector("main section.end")) return "end";
+       if (document.querySelector("main [data-part='solving']")) return "solving";
+       return document.querySelector("main .actions button.act") ? "decide" : "wait";`,
+    );
+    if (now === "end") break;
+    if (now === "solving") {
+      solving ??= Date.now();
+      // A slow machine may take long for a live spot: then the hand goes on without it.
+      if (TAURI && Date.now() - solving > 60_000) await click("main [data-part='solving'] button", "Abbrechen", { exact: false });
+    } else if (now === "decide") {
+      if (solving !== null) solved = true;
+      const move = await s.exec(
+        `const b = [...document.querySelectorAll("main .actions button.act")];
+         return b.find((x) => /Call|Check/.test(x.textContent)) ?? b[0];`,
+      );
+      await s.click(move);
+    }
+    await sleep(250);
+  }
+  const text = await mainText();
+  if (/anders weitergegangen|endet diese Hand|nichts mehr hinterlegt/.test(text)) throw new Error("the hand stopped before its end");
+  if (!/Du gewinnst|Du foldest|gewinnt|Geteilter Pot|Alle anderen folden/.test(text)) throw new Error("no result of the hand");
+  if (!TAURI) {
+    if (!solved) throw new Error("the demo hand was not solved live");
+    await waitText("Du gewinnst beim Showdown");
+    await click("main section[aria-label='Deine Züge in dieser Hand'] button.move", "Flop", { exact: false });
+    await waitText(/Quelle: Solver, live gerechnet .* Genauigkeit 1,8 % des Pots/);
   }
 });
 

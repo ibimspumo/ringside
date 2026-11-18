@@ -25,7 +25,7 @@
 
   /** Spots reached less often than this are left out. */
   const MIN_REACH = 1e-4;
-  const ANTE_LABEL: Record<PushFoldAnte, string> = { none: "Ohne", classic: "Ante", big_blind: "BB-Ante" };
+  const ANTE_LABEL: Record<PushFoldAnte, string> = { none: "Keine", classic: "Alle zahlen", big_blind: "Big Blind zahlt" };
   const SHOVE = actionColor("all_in");
   const CALL = actionColor("call");
 
@@ -80,6 +80,9 @@
   let fromLabel = $state<string | null>(null);
   let fromNote = $state<{ played: string; best: string | null; loss: number | null } | null>(null);
   let pendingNode = $state<number | null>(null);
+
+  /** Shares with one decimal everywhere, so a row of them adds up visibly. */
+  const one = (x: number) => x.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
   usePageHead(() => ({ sub: "Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack." }));
 
@@ -242,7 +245,7 @@
   const onGrid = $derived(axis.includes(stack));
 
   // ── Situations ───────────────────────────────────────────────────
-  type Item = { key: string; label: string; reach: number; color: string };
+  type Item = { key: string; label: string; reach: number };
 
   const pfKey = (n: PushFoldNode) => (n.shover === null ? "open" : `${n.shover}:${n.callers.join(",")}`);
   const pfPos = (s: number) => pf?.nodes.find((n) => n.seat === s)?.position ?? "";
@@ -268,17 +271,11 @@
           n.shover === null
             ? "Alle vor dir haben gefoldet"
             : `Gegen All-in ${byPos(pfPos(n.shover))}${n.callers.length ? `, nach Call ${n.callers.map((c) => byPos(pfPos(c))).join(", ")}` : ""}`;
-        add(n.shover === null ? "open" : "vs_shove", { key: pfKey(n), label, reach: n.reach, color: n.shover === null ? SHOVE : CALL });
+        add(n.shover === null ? "open" : "vs_shove", { key: pfKey(n), label, reach: n.reach });
       }
     } else {
       for (const s of visible.filter((n) => n.seat === seat).sort((a, b) => b.reach - a.reach)) {
-        const last = s.line[s.line.length - 1];
-        add(segmentOf(s), {
-          key: String(s.id),
-          label: s.line.length ? spotLabel(s) : "Alle vor dir haben gefoldet",
-          reach: s.reach,
-          color: last ? actionColor(last.kind) : "var(--text-3)",
-        });
+        add(segmentOf(s), { key: String(s.id), label: s.line.length ? spotLabel(s) : "Alle vor dir haben gefoldet", reach: s.reach });
       }
     }
     return out;
@@ -393,12 +390,17 @@
   const barActions = $derived.by(() => {
     if (pfNode)
       return [
-        { name: shove ? "All-in" : "Call", pct: pfNode.act_pct, color: shove ? SHOVE : CALL, fold: false },
-        { name: "Fold", pct: 100 - pfNode.act_pct, color: actionColor("fold"), fold: true },
+        { name: shove ? "All-in" : "Call", pct: pfNode.act_pct, color: shove ? SHOVE : CALL, fold: false, i: 0 },
+        { name: "Fold", pct: 100 - pfNode.act_pct, color: actionColor("fold"), fold: true, i: 1 },
       ];
-    if (spot) return spot.actions.map((a) => ({ name: actionName(a, spot.line), pct: a.pct, color: actionColor(a.kind), fold: a.kind === "fold" }));
+    if (spot)
+      return spot.actions
+        .map((a, i) => ({ name: actionName(a, spot.line), pct: a.pct, color: actionColor(a.kind), fold: a.kind === "fold", i }))
+        .sort((x, y) => Number(x.fold) - Number(y.fold));
     return [];
-  });
+  });  /** Position of the picked action in the bar (the bar lists fold last). */
+  const onlyBar = $derived(only === null ? null : barActions.findIndex((b) => b.i === only));
+
 
   // ── Open-raise share over the depth ──────────────────────────────
   let curve = $state<Series[] | null>(null);
@@ -453,6 +455,12 @@
     const open = spots?.nodes.find((n) => n.seat === seat && !n.line.length);
     return open ? open.actions.filter((a) => a.kind === "raise" || a.kind === "all_in").reduce((t, a) => t + a.pct, 0) : null;
   });
+  /** Limp share of your seat when everyone folded (only the small blind limps in the model). */
+  const myLimp = $derived(
+    engine === "preflop"
+      ? (spots?.nodes.find((n) => n.seat === seat && !n.line.length)?.actions.find((a) => a.kind === "limp")?.pct ?? 0)
+      : 0,
+  );
   const myName = $derived(positions.find((p) => p.seat === seat)?.name ?? "");
 
   // ── Live solve ───────────────────────────────────────────────────
@@ -485,7 +493,7 @@
         </Button>
         <span>
           {#if fromNote}
-            Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played}{" · "}besser: <b>{fromNote.best}</b>{#if fromNote.loss}{` (kostet etwa ${pct(fromNote.loss, 2)} BB)`}{/if}{/if}.{" "}
+            Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played}{" · "}besser: <b>{fromNote.best}</b>{/if}.{#if fromNote.loss && fromNote.best && fromNote.best !== fromNote.played}{` Dein ${fromNote.played.split(" ")[0]} kostet gegenüber ${fromNote.best.split(" ")[0]} etwa ${pct(fromNote.loss, 2)} BB.`}{/if}{" "}
           {/if}Deine Hand ist im Raster markiert.
         </span>
       </div>
@@ -514,11 +522,11 @@
               {#if mine < 0.5}
                 <b>{fromPos(myName)} mit {bb(stack)} BB foldest du jede Hand,</b> wenn alle vor dir gefoldet haben.
               {:else if seg === "open"}
-                <b>{fromPos(myName)} mit {bb(stack)} BB eröffnest du etwa {pct(mine, 0)} % deiner Hände</b>
-                {engine === "pushfold" ? "– jedes Mal all-in." : "– meist mit einem Raise."}
+                <b>{fromPos(myName)} mit {bb(stack)} BB erhöhst du mit etwa {pct(mine, 0)} % deiner Hände</b>
+                {#if engine === "pushfold"}– jedes Mal all-in.{:else if myLimp >= 0.5}– dazu limpst du etwa {pct(myLimp, 0)} %.{:else}– Open-Raise oder all-in.{/if}
                 <span class="faint">Je kürzer der Stack, desto öfter geht es direkt all-in.</span>
               {:else}
-                Zum Vergleich: Wenn alle vor dir folden, eröffnest du {fromPos(myName).replace(/^\S+/, (w) => w.toLowerCase())} mit {bb(stack)} BB etwa
+                Zum Vergleich: Wenn alle vor dir folden, erhöhst du {fromPos(myName).replace(/^\S+/, (w) => w.toLowerCase())} mit {bb(stack)} BB mit etwa
                 {pct(mine, 0)} % deiner Hände. <span class="faint">Die Range unten gilt für „{SEG_LABEL[seg]}“.</span>
               {/if}
             </p>
@@ -578,7 +586,6 @@
                     {@const on = item?.key === it.key}
                     <Tag selected={on} onclick={() => (pick = it.key)}>
                       <span class="spot">
-                        <i class="sw" style="background:{it.color}"></i>
                         <span>{it.label}</span>
                         <small class="num" title="So oft kommt diese Situation an deinem Platz vor">{pct(it.reach * 100, it.reach < 0.01 ? 2 : 1)} %</small>
                       </span>
@@ -609,7 +616,7 @@
                   onchange={(v) => (pfView = v === "pf")}
                 />
               {/if}
-              {#if answer}<span class="share num">{pct(answer.share)} %<small>{engine === "pushfold" && shove ? "der Hände" : "der Hände, die hier ankommen"}</small></span>{/if}
+              {#if answer}<span class="share num">{one(answer.share)} %<small>{engine === "pushfold" && shove ? "der Hände" : "der Hände, die hier ankommen"}</small></span>{/if}
             </div>
             {#if answer}
               <h2>
@@ -658,7 +665,7 @@
                 {/if}
               </div>
             {/if}
-            {#if barActions.length}<ActionBar actions={barActions} selected={only} onSelect={(i) => (only = i)} />{/if}
+            {#if barActions.length}<ActionBar actions={barActions} selected={onlyBar} onSelect={(k) => (only = k === null ? null : barActions[k].i)} />{/if}
           </header>
           <div class="chart-wrap">
             <div class:stale={loading}>
@@ -667,7 +674,7 @@
               {:else if spot && node && node.id === spot.id}
                 <PreflopChart {node} actions={spot.actions} line={spot.line} {pin} {only} />
               {:else}
-                <div class="placeholder" aria-hidden="true"></div>
+                <div class="placeholder" class:short={(loading && !onGrid) || !!error} aria-hidden="true"></div>
               {/if}
             </div>
             {#if !error && onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
@@ -679,8 +686,8 @@
         <aside class="side">
           <ReadGuide
             fill={engine === "pushfold"
-              ? "Felder in zwei Farben spielst du gemischt; die Zahl unten rechts ist der Anteil in Prozent, blau ist Fold."
-              : "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, blau ist Fold. Die Zahl unten rechts nennt bei gemischten Händen die häufigste Aktion in Prozent."}
+              ? "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, Fold (blau) steht rechts. Die Zahl unten rechts: wie oft du eine gemischte Hand spielst, in Prozent."
+              : "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, Fold (blau) steht rechts. Die Zahl unten rechts: wie oft du eine gemischte Hand spielst, in Prozent."}
           />
           {#if engine === "pushfold" && pf && pfNode}
             <section class="panel facts">
@@ -691,14 +698,14 @@
                 <dt>Antes</dt>
                 <dd>{anteInfo ? anteText(anteInfo) : ""}</dd>
                 <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
-                <dd>in <span class="num">{pct(pfNode.reach * 100)} %</span> der Hände</dd>
+                <dd>in <span class="num">{one(pfNode.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
                 <dd>{#if pf.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
               </dl>
             </section>
             <section class="panel facts">
               <div class="panel-head"><h2 class="panel-title">Gleichgewicht, reines Push/Fold</h2></div>
-              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips, <Tooltip text={TERM.icm}><span class="term">ohne Turnier-Auszahlungen (ICM)</span></Tooltip>.</p>
+              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips – <Tooltip text={TERM.icm}><span class="term">ohne Turnier-Auszahlungen (ICM)</span></Tooltip></p>
               <details>
                 <summary>Genauer: was angenommen wird</summary>
                 <p class="note">
@@ -721,7 +728,7 @@
                 <dt>Antes</dt>
                 <dd>{anteText(spots)}</dd>
                 <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
-                <dd>in <span class="num">{pct(spot.reach * 100, 2)} %</span> der Hände</dd>
+                <dd>in <span class="num">{one(spot.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
                 <dd>{#if spots.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
                 <dt><Tooltip text={TERM.exploit}><span class="term">Ausnutzbar</span></Tooltip></dt>
@@ -804,7 +811,7 @@
     margin: -10px 0 10px;
     padding: 10px 0;
     background: var(--bg);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .back-bar svg {
@@ -893,11 +900,7 @@
     border-top: 1px solid var(--line);
   }
   .seg-one {
-    align-self: flex-start;
-    padding: 4px 12px;
-    border-radius: 99px;
-    border: 1px solid var(--line-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
@@ -919,7 +922,7 @@
   }
   .spot small {
     margin-left: auto;
-    color: var(--text-2);
+    opacity: 0.75;
     font-size: var(--fs-xs);
   }
   .hint-line {
@@ -1006,6 +1009,10 @@
       repeating-linear-gradient(90deg, var(--surface-2) 0 calc(100% / 13 - 2px), transparent 0 calc(100% / 13)),
       var(--surface);
     opacity: 0.6;
+  }
+  /* While a depth is solved live the progress box says it all. */
+  .placeholder.short {
+    display: none;
   }
   /* Near the top of the grid, so it stays in view on short windows. */
   .over {

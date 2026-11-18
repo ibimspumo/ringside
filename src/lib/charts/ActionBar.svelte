@@ -14,7 +14,7 @@
     onSelect: (i: number | null) => void;
   } = $props();
 
-  const pct = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 1 });
+  const pct = (x: number) => x.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 </script>
 
 <div class="action-bar">

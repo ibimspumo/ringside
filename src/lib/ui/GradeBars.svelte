@@ -1,10 +1,12 @@
 <script lang="ts">
   import GradeIcon from "./GradeIcon.svelte";
+  import { int } from "./format";
   import { GRADE, GRADES, type Grade } from "./poker";
 
   /**
    * How a session went, grade by grade: icon, word, count and a bar of its share. Grades without
-   * decisions stay visible but faded, so the scale is always complete.
+   * decisions stay visible but faded, so the scale is always complete. `grades` narrows the scale
+   * for sources that never give a grade (the hand analysis has no "mix").
    */
   let {
     counts,
@@ -26,7 +28,7 @@
     <li class:none={n === 0} style:--c="var(--grade-{g})">
       <GradeIcon grade={g} size={15} />
       <span class="word">{GRADE[g].label}</span>
-      <b class="num">{n}</b>
+      <b class="num">{int(n)}</b>
       <span class="track"><i style:width="{total ? (n / total) * 100 : 0}%"></i></span>
     </li>
   {/each}

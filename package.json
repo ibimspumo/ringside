@@ -1,13 +1,13 @@
 {
   "name": "ringside",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Local poker HUD overlay and stats for PokerStars",
   "type": "module",
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
     "prepare": "svelte-kit sync || echo ''",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node scripts/check-ui.mjs && node scripts/check-contrast.mjs",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node --test scripts/check-ui.test.mjs && node scripts/check-ui.mjs && node scripts/check-contrast.mjs",
     "ui:ratchet": "node scripts/check-ui.mjs --update",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "tauri": "tauri"

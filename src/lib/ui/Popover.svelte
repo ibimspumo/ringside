@@ -1,4 +1,5 @@
 <script lang="ts">
+  import IconButton from "./IconButton.svelte";
   import type { Snippet } from "svelte";
   import { floating, type Anchor } from "./floating";
 
@@ -33,7 +34,14 @@
 </script>
 
 {#if pinned}
-  <div class="ui-popover pinned" role="dialog" aria-label={label} tabindex="-1" style:width="{width}px" onkeydown={key} use:floating={{ anchor, side }}>
+  <div class="ui-popover pinned" class:closable={!!onclose} role="dialog" aria-label={label} tabindex="-1" style:width="{width}px" onkeydown={key} use:floating={{ anchor, side }}>
+    {#if onclose}
+      <span class="close">
+        <IconButton size="sm" label="Schließen (Esc)" onclick={() => onclose?.()}>
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></svg>
+        </IconButton>
+      </span>
+    {/if}
     {@render children()}
   </div>
 {:else}
@@ -54,6 +62,14 @@
     font-size: var(--fs-md);
     pointer-events: none;
     animation: in var(--dur-fast) var(--ease-enter);
+  }
+  .close {
+    position: absolute;
+    top: var(--sp-2);
+    right: var(--sp-2);
+  }
+  .closable {
+    padding-right: 40px;
   }
   .pinned {
     padding: var(--sp-3) 14px;

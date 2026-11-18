@@ -145,8 +145,12 @@ fn an_empty_stock_gives_a_preflop_hand() {
     let mut hand = Hand::start(&config, 3, None).unwrap();
     assert!(hand.view().waiting);
     play_out(&mut hand, |l| l.choices.iter().position(|c| c.kind == "call" || c.kind == "check").unwrap_or(0));
+    if hand.need().is_some() {
+        hand.resume(Err("Abgebrochen".into())).unwrap();
+        play_out(&mut hand, |_| 0);
+    }
     let o = hand.view().outcome.unwrap();
-    assert!(matches!(o.reason, EndReason::Folded | EndReason::Showdown | EndReason::FlopUnsolved));
+    assert!(matches!(o.reason, EndReason::Folded | EndReason::Showdown));
 }
 
 /// Preflop, every action follows the one before in seat order, skipping only seats out of
@@ -228,10 +232,10 @@ fn every_hand_shows_every_action_in_turn() {
 struct Saving(std::sync::Mutex<Option<Vec<u8>>>);
 
 impl ringside_play::Lookup for Saving {
-    fn load(&self, _spot: &ringside_solver::Spot) -> Option<Box<dyn ringside_play::tree::Tree>> {
+    fn load(&self, _spot: &ringside_solver::Spot, _max_pct: f64) -> Option<Box<dyn ringside_play::tree::Tree>> {
         None
     }
-    fn save(&self, _t: TableKey, _s: &ringside_play::scenario::Scenario, solution: &mut ringside_solver::Solution, settings: &Settings) {
+    fn save(&self, _t: TableKey, _seats: [usize; 2], solution: &mut ringside_solver::Solution, settings: &Settings) {
         let snapshot = ringside_solver::saved::Snapshot::take(solution, settings).unwrap();
         *self.0.lock().unwrap() = Some(snapshot.to_bytes());
     }
@@ -247,7 +251,7 @@ fn practice_and_solver_page_show_the_same_numbers() {
     let mut solution = solve(&scenario.spot("Jd9h6h"), &settings, 4 << 30, |_| {}, || false).unwrap();
     // What the stock does with a fresh solve: save it for the solver page, then deal from it.
     let saving = Saving(std::sync::Mutex::new(None));
-    ringside_play::Lookup::save(&saving, key, &scenario, &mut solution, &settings);
+    ringside_play::Lookup::save(&saving, key, scenario.seats(), &mut solution, &settings);
     let saved = ringside_solver::saved::Snapshot::from_bytes(saving.0.lock().unwrap().as_ref().unwrap()).unwrap();
     let pool = Pool::new(Box::new(NoLookup), 1, 4 << 30);
     pool.insert(key, scenario, flop, Box::new(solution));

@@ -6,6 +6,9 @@
   import Ring from "./Ring.svelte";
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
+  import { actionColor } from "../ui/poker";
+  import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
+  import type { LearnGrid } from "../types";
 
   let {
     feedback,
@@ -54,6 +57,25 @@
       (f) => !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
     ),
   );
+  /** The action in its colour, the rest in the colour of the passive move (check after a bet, fold after an open). */
+  function gridCells(g: LearnGrid): RangeCell[] {
+    const bet = g.action === "Bet";
+    const act = actionColor(bet ? "bet" : "raise", 3);
+    const rest = actionColor(bet ? "check" : "fold");
+    const other = bet ? "Check" : "Fold";
+    return g.cells.map((f) =>
+      f === null
+        ? null
+        : {
+            mix: [
+              { color: act, share: f },
+              { color: rest, share: 1 - f },
+            ],
+            note: f >= 0.995 ? `immer ${g.action}` : f <= 0.005 ? `immer ${other}` : `${Math.round(f * 100)} % ${g.action}`,
+          },
+    );
+  }
+
   let nextBtn = $state<HTMLButtonElement>();
   let root = $state<HTMLElement>();
 
@@ -128,6 +150,23 @@
     {@render factList()}
   {/if}
 
+  {#if feedback.grid}
+    {@const g = feedback.grid}
+    {@const bet = g.action === "Bet"}
+    <section class="grid-box" aria-label={g.title}>
+      <p class="grid-head">
+        <b>{g.title}</b>
+        <span class="dim">{g.pct.toLocaleString("de-DE", { maximumFractionDigits: 1 })} % der Hände · deine Hand ist umrandet</span>
+      </p>
+      <RangeGrid cells={gridCells(g)} label={g.title} hero={g.hero} size="sm" />
+      <p class="legend dim">
+        <i style:background={actionColor(bet ? "bet" : "raise", 3)}></i>{g.action}
+        <i style:background={actionColor(bet ? "check" : "fold")}></i>{bet ? "Check" : "Fold"}
+        {#if bet}<span>· leer: Hände, die hier nicht mehr in der Range sind</span>{/if}
+      </p>
+    </section>
+  {/if}
+
 
   <footer class="grading" title={g.text}>
     <span class="badge {feedback.grading}">{g.label}</span>
@@ -143,6 +182,34 @@
 </section>
 
 <style>
+  .grid-box {
+    display: grid;
+    gap: 8px;
+    max-width: 380px;
+  }
+  .grid-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin: 0;
+    font-size: var(--fs-md);
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: var(--fs-sm);
+  }
+  .legend i {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+  .legend i:not(:first-child) {
+    margin-left: 8px;
+  }
   .fb {
     display: grid;
     gap: 14px;

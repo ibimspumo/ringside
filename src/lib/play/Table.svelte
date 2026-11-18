@@ -3,6 +3,7 @@
   import OvalFelt from "../table/OvalFelt.svelte";
   import { fit, minHeight, placeOf } from "../table/seats";
   import MiniCard from "../ui/MiniCard.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
   import { num } from "./labels";
   import type { Choice, HandView } from "./types";
 
@@ -11,8 +12,10 @@
    * the others clockwise in the order they act. Per seat the last action of the street as a
    * badge and the chips in front on the line to the middle; chips slide in from the seat and
    * into the pot when the street ends. `ms` is the length of one step (0: no motion).
+   * `solving` is set while the hand waits for a live solve: its progress 0–1, or null while
+   * it is unknown; a ring on the board shows it.
    */
-  let { view, at, final, ms }: { view: HandView; at: number; final: boolean; ms: number } = $props();
+  let { view, at, final, ms, solving }: { view: HandView; at: number; final: boolean; ms: number; solving?: number | null } = $props();
 
   const snap = $derived(view.snapshots[Math.min(at, view.snapshots.length - 1)]);
   const n = $derived(view.players);
@@ -91,7 +94,9 @@
     outcome ? outcome.shown.map((c, s) => ({ c, s })).filter((x) => x.c && (snap.folded[x.s] || outcome.reason !== "showdown")) : [],
   );
   /** At the end the whole pot slides to a single winner. */
-  const payout = $derived(outcome && winners.length === 1 && outcome.reason !== "left_line" ? `${num(snap.pot)} BB` : "");
+  const payout = $derived(outcome && winners.length === 1 ? `${num(snap.pot)} BB` : "");
+  /** The board slot the live solve's ring sits in: the next card's. */
+  const ringSlot = $derived(solving === undefined ? -1 : Math.min(snap.board.length, 4));
 
   /** Slides an element from `from` to its place, or from its place to `to` when it leaves. */
   function slide(_: Element, { dx, dy, out = false }: { dx: number; dy: number; out?: boolean }) {
@@ -118,7 +123,13 @@
 
     <div class="board" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y + MIDDLE[0].dy}px" aria-label="Board">
       {#each [0, 1, 2, 3, 4] as i (i)}
-        {#if snap.board[i]}
+        {#if i === ringSlot && !snap.board[i]}
+          <span class="slot ring" class:sm={small} data-part="solving-ring">
+            <ProgressRing value={solving ?? null} size={small ? 30 : 38} stroke={3} tone="info" label="Spot wird gerechnet">
+              {#if solving !== null && solving !== undefined}<span class="num">{Math.round(solving * 100)}</span>{/if}
+            </ProgressRing>
+          </span>
+        {:else if snap.board[i]}
           <span class="deal" style:--d="{(i < 3 ? i : 0) * 60}ms"><PlayingCard card={snap.board[i]} size={small ? 36 : 48} /></span>
         {:else}
           <span class="slot" class:sm={small}></span>
@@ -241,6 +252,12 @@
   .slot.sm {
     width: 36px;
     height: 50px;
+  }
+  .slot.ring {
+    display: grid;
+    place-items: center;
+    border-style: solid;
+    border-color: color-mix(in srgb, var(--info) 45%, transparent);
   }
   .deal {
     display: inline-flex;

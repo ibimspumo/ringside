@@ -10,6 +10,7 @@ rand = { version = "0.9", default-features = false }
 rand_chacha = "0.9"
 ringside-core = { path = "../ringside-core" }
 ringside-engine = { path = "../ringside-engine" }
+ringside-solver = { path = "../ringside-solver" }
 serde = { version = "1", features = ["derive"] }
 
 [dev-dependencies]

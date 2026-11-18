@@ -30,3 +30,50 @@ export function usePageHead(get: () => PageSections) {
     pageHead.current = null;
   });
 }
+
+/** Where the page content starts and ends, measured from the edges of the content area. */
+export type PageFrame = { left: number; right: number };
+
+export const pageFrame = $state<{ current: PageFrame | null }>({ current: null });
+
+/**
+ * Action for the scrolling content area: measures the `.page` inside it (pages differ in width,
+ * padding and scrollbar) and publishes where its content starts and ends, for the PageHeader.
+ */
+export function followPage(node: HTMLElement) {
+  let queued = false;
+  const sync = () => {
+    queued = false;
+    const page = node.querySelector<HTMLElement>(".page");
+    if (!page) {
+      pageFrame.current = null;
+      return;
+    }
+    const box = node.getBoundingClientRect();
+    const at = page.getBoundingClientRect();
+    const cs = getComputedStyle(page);
+    const next = {
+      left: Math.round(at.left - box.left + parseFloat(cs.paddingLeft)),
+      right: Math.round(box.right - at.right + parseFloat(cs.paddingRight)),
+    };
+    const now = pageFrame.current;
+    if (!now || now.left !== next.left || now.right !== next.right) pageFrame.current = next;
+  };
+  const later = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(sync);
+  };
+  const watch = new MutationObserver(later);
+  watch.observe(node, { childList: true, subtree: true });
+  const size = new ResizeObserver(later);
+  size.observe(node);
+  sync();
+  return {
+    destroy() {
+      watch.disconnect();
+      size.disconnect();
+      pageFrame.current = null;
+    },
+  };
+}

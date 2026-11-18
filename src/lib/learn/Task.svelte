@@ -48,10 +48,10 @@
   const meta = $derived(SKILLS[exercise.kind]);
 
   /** Shortcut letters for decisions; everything else goes by number. */
-  const LETTER: Record<string, string> = { shove: "A", call: "C", fold: "F", split: "S" };
+  const LETTER: Record<string, string> = { shove: "A", call: "C", fold: "F", split: "S", open: "O", bet: "B", check: "C" };
   const options = $derived(spec.type === "choice" ? spec.options : []);
   const keyOf = (id: string, i: number) => LETTER[id] ?? String(i + 1);
-  const decision = $derived(options.some((o) => o.id === "fold"));
+  const decision = $derived(options.some((o) => o.id === "fold" || o.id === "check"));
 
   const ready = $derived(
     spec.type === "cards" ? picked.length > 0 : spec.type === "number" ? value !== null && Number.isFinite(value) : false,
@@ -123,6 +123,7 @@
   const truthSeat = $derived(feedback && "seat" in feedback.truth ? feedback.truth.seat : null);
   const unit = $derived(spec.type === "number" ? spec.unit : "");
   const isPct = $derived(unit === "%");
+  const EXAMPLE: Record<string, string> = { $: "z. B. 120", bb: "z. B. 12,5", Runden: "z. B. 8" };
 </script>
 
 <svelte:window onkeydown={key} />
@@ -197,7 +198,7 @@
             max={spec.max}
             step={spec.step}
             inputmode="decimal"
-            placeholder={isPct ? "z. B. 32,5" : "Anzahl"}
+            placeholder={isPct ? "z. B. 32,5" : (EXAMPLE[unit] ?? "Anzahl")}
             value={value ?? ""}
             disabled={!!feedback}
             aria-label="Antwort in {unit}"
@@ -466,13 +467,17 @@
     font-size: 17px;
   }
   .decision .choice.shove,
-  .decision .choice.call {
+  .decision .choice.call,
+  .decision .choice.open,
+  .decision .choice.bet {
     background: var(--text);
     border-color: var(--text);
     color: var(--bg);
   }
   .decision .choice.shove:hover:not(:disabled),
-  .decision .choice.call:hover:not(:disabled) {
+  .decision .choice.call:hover:not(:disabled),
+  .decision .choice.open:hover:not(:disabled),
+  .decision .choice.bet:hover:not(:disabled) {
     background: #fff;
   }
   .choice.on {

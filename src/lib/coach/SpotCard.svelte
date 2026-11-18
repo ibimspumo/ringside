@@ -43,6 +43,7 @@
 {#snippet play()}<svg class="fill" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>{/snippet}
 
 <article class="spot" style:--accent="var(--grade-{verdict.grade})" id="spot-{index}" tabindex="-1" aria-labelledby="spot-{index}-title">
+  <div class="side">
   <div class="visual" aria-label="Deine Karten {street}">
     <Felt>
       <span class="seat-tag at-left" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
@@ -59,6 +60,12 @@
       </div>
     </Felt>
   </div>
+    <div class="hand">
+        <Button size="sm" variant="quiet" icon={play} onclick={() => onHand(spot.hand_id)}>Im Replayer ansehen</Button>
+        <Button size="sm" variant="quiet" onclick={() => requestAnalysis(spot.hand_id)} title="Ringside bewertet jede Entscheidung der Hand, kostenlos auf diesem Rechner">Diese Hand analysieren</Button>
+      </div>
+  </div>
+
 
   <div class="text">
     <header>
@@ -92,10 +99,6 @@
           <Button size="sm" onclick={onRead} title={practice.articles[0].title}>Nachlesen</Button>
         {/if}
       </div>
-      <div class="hand">
-        <Button size="sm" variant="quiet" icon={play} onclick={() => onHand(spot.hand_id)}>Im Replayer ansehen</Button>
-        <Button size="sm" variant="quiet" onclick={() => requestAnalysis(spot.hand_id)}>Diese Hand analysieren</Button>
-      </div>
     </footer>
   </div>
 </article>
@@ -119,9 +122,14 @@
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
+  .side {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    min-width: 0;
+  }
   .visual {
     position: relative;
-    align-self: start;
     aspect-ratio: 1.42;
     border-radius: var(--r-sm);
     overflow: hidden;
@@ -235,7 +243,7 @@
   .why {
     color: var(--text-2);
     line-height: 1.55;
-    max-width: 78ch;
+    max-width: 72ch;
   }
   footer {
     display: flex;
@@ -255,8 +263,9 @@
     gap: 6px 10px;
   }
   .hand {
-    gap: 4px;
-    margin-left: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-1);
   }
   .topic {
     font-size: var(--fs-md);
@@ -280,6 +289,10 @@
     .spot {
       grid-template-columns: minmax(0, 1fr);
       gap: 14px;
+    }
+    /* Verdict and sentence first; the table preview follows. */
+    .side {
+      order: 1;
     }
     .visual {
       width: 100%;

@@ -80,12 +80,13 @@ function demoHandDecisions(id: number): Decision[] {
     rated(
       6,
       "preflop",
-      "vs_open",
+      "open",
       "model",
-      "Call 0,5 BB",
-      [choice("Fold", 0.04, 0), choice("Call", 0.22, 0.86, true), choice("Raise auf 4 BB", 0.74, 1.47)],
-      "inaccuracy",
-      "Hier wäre Raise auf 4 BB besser gewesen – dein Call kostet dich etwa 0,6 BB. Grund: Mit 99 im Small Blind spielt das Modell bei 100 BB Tiefe hier zu 74 % Raise auf 4 BB.",
+      "Limp",
+      // The same numbers as the sample range for 99 in the small blind at 100 BB (charts demo).
+      [choice("Fold", 0, -0.5), choice("Limp", 0, 2.9, true), choice("Raise auf 3 BB", 1, 2.92)],
+      "good",
+      "Fast gleich gut: Raise auf 3 BB bringt nur etwa 0,02 BB mehr. Grund: Mit 99 im Small Blind spielt das Modell bei 100 BB Tiefe hier zu 100 % Raise auf 3 BB.",
     ),
     rated(
       8,
@@ -284,6 +285,22 @@ export function withWorst(list: HandSummary[], q: HandQuery): HandSummary[] {
 
 export function demoSummary(): AnalysisSummary {
   if (!analyzed) return { hands: 6431, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: [0, 0, 0, 0, 0], by_source: [], by_spot: [], costliest: [] };
+  const full = fullSummary();
+  if (analyzed >= 6431) return full;
+  // While the demo run is under way, the snapshot grows with it.
+  const f = analyzed / 6431;
+  const part = (n: number) => Math.round(n * f);
+  return {
+    ...full,
+    rated: part(full.rated),
+    loss_bb: Math.round(full.loss_bb * f * 10) / 10,
+    ratings: full.ratings.map(part),
+    by_source: full.by_source.map(([s, n]) => [s, part(n)]),
+    by_spot: full.by_spot.map((s) => ({ ...s, rated: part(s.rated), flawed: part(s.flawed), loss_bb: Math.round(s.loss_bb * f * 10) / 10 })),
+  };
+}
+
+function fullSummary(): AnalysisSummary {
   return {
     hands: 6431,
     analyzed,

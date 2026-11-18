@@ -59,8 +59,13 @@
 
   const pinIndex = $derived(pin ? hands.findIndex((h) => h.key === pin) : -1);
   let selected = $state(-1);
+  let box = $state<HTMLDivElement>();
+  // A hand handed over is pinned and scrolled into view, so its card sits beside it.
   $effect(() => {
-    if (pinIndex >= 0) selected = pinIndex;
+    if (pinIndex < 0) return;
+    selected = pinIndex;
+    const t = setTimeout(() => box?.querySelector(`[data-i="${pinIndex}"]`)?.scrollIntoView({ block: "center" }), 150);
+    return () => clearTimeout(t);
   });
 
   function verdict(h: Hand): string {
@@ -77,6 +82,7 @@
   const diffTone = (h: Hand) => (h.ev - h.fold > 0.005 ? "pos" : h.ev - h.fold < -0.005 ? "neg" : "");
 </script>
 
+<div bind:this={box}>
 <RangeGrid
   {cells}
   label="Push/Fold-Range als 13 mal 13 Raster"
@@ -124,6 +130,7 @@
     </table>
   {/snippet}
 </RangeGrid>
+</div>
 
 <style>
   .t-head {

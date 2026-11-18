@@ -3,7 +3,7 @@ import type { AnswerSpec, LearnAnswer } from "../types";
 
 /**
  * Browser-demo switches for screenshots of states that are otherwise only reachable by clicking:
- * `learn=today|path|own|trainer|wissen`, `skill=<kind>`, `article=<id>`, `session=run|done`, `answer=1`.
+ * `learn=today|path|own|trainer|wissen`, `skill=<kind>`, `level=1|2|3`, `article=<id>`, `session=run|done`, `answer=1`.
  * Always null in the app.
  */
 export function preview(name: string): string | null {
