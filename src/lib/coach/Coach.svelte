@@ -693,9 +693,6 @@
     .layout {
       grid-template-columns: minmax(0, 1fr);
     }
-    .main {
-      order: -1;
-    }
     .rail {
       position: static;
       display: grid;
@@ -703,6 +700,9 @@
     }
     .reports {
       grid-row: span 2;
+    }
+    .reports ul {
+      max-height: 260px;
     }
   }
 </style>

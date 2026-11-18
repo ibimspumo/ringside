@@ -448,7 +448,7 @@
             title={"reason" in solveSpot ? solveSpot.reason : "Board, Pot und Stack dieser Straße im Solver öffnen; die Ranges sind ein Vorschlag."}
             onclick={() => "prefill" in solveSpot && openInSolver(solveSpot.prefill)}
           >
-            Diesen Spot lösen
+            Im Solver nachrechnen
           </button>
         {/if}
       </div>

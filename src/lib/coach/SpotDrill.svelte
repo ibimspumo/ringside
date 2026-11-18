@@ -304,7 +304,7 @@
   }
   .felt-box {
     display: flex;
-    height: clamp(560px, 66vh, 700px);
+    height: clamp(640px, 76vh, 780px);
     min-width: 0;
     overflow: hidden;
     padding: 10px;

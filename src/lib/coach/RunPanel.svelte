@@ -94,6 +94,8 @@
   const perM = (v: number | null) => (v == null ? "?" : v.toLocaleString("de-DE", { maximumFractionDigits: 3 }));
   /** "ca. 0,143 $" → value and unit for a Stat. */
   const money = (v: number) => cost(v).replace(/\s\$$/, "");
+  /** Calculations Ringside has finished; the one running right now does not count yet. */
+  const finished = (p: CoachProgress | null) => Math.max(0, (p?.tool_calls ?? 0) - (p?.stage === "tool" ? 1 : 0));
   const effortOptions = [...EFFORTS].reverse().map((x) => ({ value: x.id, label: x.name }));
 </script>
 
@@ -236,7 +238,7 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Ringside hat gerechnet" value="{Math.max(0, (p?.tool_calls ?? 0) - (p?.stage === "tool" ? 1 : 0))}-mal" />
+            <Stat label="Ringside hat gerechnet" value={finished(p) ? `${finished(p)}-mal` : "noch nichts"} />
             <span class="tools">
               {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
                   >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge

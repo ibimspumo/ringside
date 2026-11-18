@@ -60,7 +60,12 @@
   .sunken {
     background: var(--surface-sunken);
   }
+  /* A button centres its content vertically; a card reads from the top like the plain one. */
   .action {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
     width: 100%;
     cursor: pointer;
     transition:

@@ -147,7 +147,7 @@
   /** Coach tab: a tournament to analyse, set from the tournaments page. */
   let analyzeTournament = $state<number | null>(null);
 
-  // "Diesen Spot lösen" in the replayer hands a spot over; the solver page takes it.
+  // "Im Solver nachrechnen" in the replayer hands a spot over; the solver page takes it.
   $effect(() => {
     if (handoff.prefill) tab = "solver";
   });
