@@ -16,7 +16,6 @@
   import SectionHead from "../ui/SectionHead.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
   import Switch from "../ui/Switch.svelte";
-  import Tag from "../ui/Tag.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
   import { usePageHead } from "../ui/page.svelte";
   import type { ClientWindow, ImportStatus, NotesSource, Settings } from "../types";
@@ -27,7 +26,7 @@
 
   const GROUPS = [
     { id: "s-pokerstars", label: "Hände & Tische", sub: "Wo Ringside deine Hände findet und auf welchen Tischen das HUD liegt." },
-    { id: "s-rechnen", label: "Analyse & Rechnen", sub: "Was dein PC für dich rechnet – nie, solange PokerStars läuft." },
+    { id: "s-rechnen", label: "Analyse & Rechnen", sub: "Was dein PC für dich rechnet, und wann." },
     { id: "s-cloud", label: "Ringside Cloud", sub: "Fertige Lösungen holen und eigene teilen. Deine Hände bleiben hier." },
     { id: "s-coach", label: "KI-Coach", sub: COACH_INTRO },
     { id: "s-updates", label: "Updates & Info", sub: "Version, Updates und woher Ringside kommt." },
@@ -205,10 +204,25 @@
    * the name first, the rest as a quiet line, without the login part every title carries.
    */
   function tableName(title: string) {
-    const parts = title.split(" - ").filter((p) => !/^(Eingeloggt als|Logged in as)\b/i.test(p.trim()));
-    return { name: parts[0]?.trim() || "(ohne Titel)", rest: parts.slice(1).join(" · ") };
+    const parts = title
+      .split(" - ")
+      .map((p) => p.trim())
+      .filter((p) => p && !/^(Eingeloggt als|Logged in as)\b/i.test(p));
+    // "Turnier 4046789300 Tisch 10": the table number tells tables apart, the tournament number only in the tooltip.
+    const short = parts.slice(1).map((p) => p.replace(/^(?:Turnier|Tournament)\s+\d+\s+/i, ""));
+    return { name: parts[0] || "(ohne Titel)", rest: short.join(" · "), full: parts.join(" · ") };
   }
   const int = (n: number) => n.toLocaleString("de-DE");
+
+  /** Which table names are cut off: only those get the full title as a tooltip. */
+  let cut = $state<Record<number, boolean>>({});
+  function clipped(node: HTMLElement, report: (cut: boolean) => void) {
+    const check = () => report([node, ...node.children].some((e) => e.scrollWidth > e.clientWidth + 1));
+    const watch = new ResizeObserver(check);
+    watch.observe(node);
+    check();
+    return { destroy: () => watch.disconnect() };
+  }
 </script>
 
 {#snippet dirsMore()}
@@ -216,6 +230,9 @@
     Das Speichern schaltest du in PokerStars unter <b>Einstellungen → Spielhistorie</b> ein. Ringside findet die üblichen
     Ordner selbst; liegt deiner woanders, füg ihn hinzu.
   </p>
+{/snippet}
+{#snippet tableLabel(t: { name: string; rest: string }, i: number)}
+  <span class="tname" use:clipped={(v) => (cut[i] = v)}><b>{t.name}</b>{#if t.rest}<span class="rest">{t.rest}</span>{/if}</span>
 {/snippet}
 {#snippet folderIcon()}
   <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h4l1.5 1.5H14v6.5H2z" /></svg>
@@ -250,7 +267,9 @@
                       ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg></IconButton
                     >
                   {:else}
-                    <Tag>automatisch gefunden</Tag>
+                    <span class="found"
+                      ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>automatisch gefunden</span
+                    >
                   {/if}
                 </li>
               {/each}
@@ -295,9 +314,11 @@
                 {@const t = tableName(w.title)}
                 <li>
                   <span class="dot" class:on={w.has_hands} class:wait={!w.has_hands}></span>
-                  <Tooltip text={w.title}>
-                    <span class="tname"><b>{t.name}</b>{#if t.rest}<span class="rest">{t.rest}</span>{/if}</span>
-                  </Tooltip>
+                  {#if cut[i]}
+                    <Tooltip text={t.full}>{@render tableLabel(t, i)}</Tooltip>
+                  {:else}
+                    {@render tableLabel(t, i)}
+                  {/if}
                   <span class="tstate" class:wait={!w.has_hands}>{w.has_hands ? "Hände da" : "Noch keine Hand importiert"}</span>
                 </li>
               {:else}
@@ -501,6 +522,19 @@
     font-size: var(--fs-md);
     white-space: nowrap;
   }
+  .found {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex-shrink: 0;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .found svg {
+    width: 14px;
+    height: 14px;
+    color: var(--pos);
+  }
   .meta {
     display: flex;
     align-items: center;
@@ -523,7 +557,8 @@
   .dot.wait {
     border-color: var(--amber);
   }
-  .tables :global(.ui-tooltip-anchor) {
+  .tables :global(.ui-tooltip-anchor),
+  .tables li > .tname {
     flex: 1;
     min-width: 0;
   }
@@ -537,14 +572,15 @@
     font-size: var(--fs-md);
   }
   .tname b {
-    flex-shrink: 0;
-    max-width: 60%;
+    flex-shrink: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: var(--fw-medium);
     color: var(--text);
   }
   .rest {
+    flex-shrink: 100;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -610,6 +646,19 @@
     font-size: var(--fs-md);
     white-space: nowrap;
   }
+  .found {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    flex-shrink: 0;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .found svg {
+    width: 14px;
+    height: 14px;
+    color: var(--pos);
+  }
   .meta {
     display: flex;
     align-items: center;
@@ -632,7 +681,8 @@
   .dot.wait {
     border-color: var(--amber);
   }
-  .tables :global(.ui-tooltip-anchor) {
+  .tables :global(.ui-tooltip-anchor),
+  .tables li > .tname {
     flex: 1;
     min-width: 0;
   }
@@ -646,14 +696,15 @@
     font-size: var(--fs-md);
   }
   .tname b {
-    flex-shrink: 0;
-    max-width: 60%;
+    flex-shrink: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     font-weight: var(--fw-medium);
     color: var(--text);
   }
   .rest {
+    flex-shrink: 100;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -692,12 +743,6 @@
     outline: 2px solid var(--focus);
     outline-offset: 2px;
     border-radius: var(--r-xs);
-  }
-  .others svg {
-    transition: transform var(--dur-fast) var(--ease-standard);
-  }
-  .others[aria-expanded="true"] svg {
-    transform: rotate(180deg);
   }
   .other-list {
     display: grid;

@@ -2,9 +2,11 @@
   import { onMount } from "svelte";
   import { gpuApi, gpuErrorText, gpuPreview, onGpuProgress, type GpuBenchmark, type GpuRun } from "./api";
   import Button from "../ui/Button.svelte";
+  import CardText from "../ui/CardText.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
+  import Tag from "../ui/Tag.svelte";
 
   /** `locked`: PokerStars runs, so the test may not start. */
   let { locked = false }: { locked?: boolean } = $props();
@@ -15,6 +17,7 @@
   let result = $state<GpuBenchmark | null>(preview?.result ?? null);
   let error = $state<string | null>(preview?.error ?? null);
   let copied = $state(false);
+  let details = $state(false);
 
   onMount(() => {
     const sub = onGpuProgress((l) => (line = l));
@@ -52,28 +55,33 @@
   const verdict = $derived.by(() => {
     if (!result?.gpu) return null;
     const solved = result.spots.filter((s) => s.gpu && s.speedup_per_iteration != null);
-    if (!solved.length) return { tone: "bad", text: "Die GPU konnte keinen Spot lösen. Der Solver rechnet wie bisher auf der CPU." };
+    if (!solved.length) return { same: false, text: "Die GPU konnte keinen Spot lösen. Der Solver rechnet wie bisher auf der CPU." };
     const big = solved.reduce((a, b) => (b.nodes > a.nodes ? b : a));
     const f = big.speedup_per_iteration!;
     const same = result.spots.every((s) => s.matches);
     const speed =
       f >= 1.05
-        ? `Beim ${big.name}-Spot rechnet deine GPU ${de(f, 1)}× so schnell wie die CPU`
+        ? `Beim ${big.name}-Spot schafft deine GPU ${de(f, 1)}× so viele Durchläufe pro Sekunde wie die CPU`
         : f > 0.95
           ? `Beim ${big.name}-Spot sind GPU und CPU etwa gleich schnell`
           : `Beim ${big.name}-Spot ist deine GPU langsamer als die CPU (${de(f, 1)}×)`;
     return {
-      tone: same ? (f >= 1.05 ? "good" : "plain") : "bad",
-      text: `${speed}${same ? ", und beide kommen auf dieselbe Lösung." : ". Achtung: Die Lösungen weichen voneinander ab."}`,
+      same,
+      text: `${speed}.${same ? "" : " Achtung: Die Lösungen weichen voneinander ab."} Du musst nichts tun – Ringside rechnet weiter auf dem Prozessor.`,
     };
   });
 </script>
 
-<SettingRow title="GPU-Test" sub="Prüft, ob der Solver auf deiner Grafikkarte schneller rechnet als auf dem Prozessor." {locked}>
+<SettingRow
+  title="GPU-Test"
+  sub="Misst, ob der Solver auf deiner Grafikkarte schneller rechnen würde. Nur ein Vergleich: Gerechnet wird weiter auf dem Prozessor."
+  {locked}
+>
   {#snippet more()}
     <p>
       Ein River- und ein Turn-Spot werden auf allen CPU-Kernen und auf der GPU bis zur selben Genauigkeit gelöst. Das dauert
-      bis zu ein paar Minuten, der PC ist währenddessen ausgelastet.
+      bis zu ein paar Minuten, der PC ist währenddessen ausgelastet. Die Rechnung auf der Grafikkarte ist noch ein Prototyp;
+      mit „Ergebnis kopieren“ kannst du deine Messung dem Projekt schicken.
     </p>
   {/snippet}
   {#snippet control()}
@@ -93,20 +101,30 @@
       {:else if error}
         <EmptyState inline tone="error" title="Der Test ist nicht durchgelaufen" text={error} />
       {:else if result && !result.gpu}
-        <p class="verdict">Keine GPU gefunden. Der Solver rechnet wie bisher auf der CPU.</p>
+        <p class="verdict">Keine GPU gefunden. Du musst nichts tun – der Solver rechnet wie bisher auf der CPU.</p>
       {:else if result?.gpu}
-        {#if verdict}<p class="verdict {verdict.tone}">{verdict.text}</p>{/if}
+        {#if verdict}
+          <p class="verdict" class:bad={!verdict.same}>
+            {#if verdict.same}<span class="same"><Tag><span class="ok-dot"></span>gleiche Lösung</Tag></span>{/if}{verdict.text}
+          </p>
+        {/if}
+        <div class="facts">
         <p class="soft small num">
           {result.gpu.name} · {result.gpu.backend}{result.gpu.driver ? ` · Treiber ${result.gpu.driver}` : ""} · CPU mit {result.cpu_threads}
           Threads · Ziel {de(result.target_pct, 1)} % des Pots
         </p>
+        <Button size="sm" variant="quiet" aria-expanded={details} onclick={() => (details = !details)}>
+          {details ? "Messwerte ausblenden" : "Messwerte zeigen"}
+        </Button>
+        </div>
+        {#if details}
         <table>
           <thead>
             <tr>
               <th>Spot</th>
               <th class="r">CPU</th>
               <th class="r">GPU</th>
-              <th class="r" title="Durchläufe pro Sekunde der GPU geteilt durch die der CPU">Faktor</th>
+              <th class="r" title="Durchläufe pro Sekunde der GPU geteilt durch die der CPU">Tempo GPU</th>
               <th class="r" title="Unterschied im Erwartungswert beider Lösungen, in Prozent des Pots">Abweichung</th>
               <th class="r">Lösung</th>
             </tr>
@@ -115,7 +133,7 @@
             {#each result.spots as spot (spot.name)}
               <tr>
                 <td>
-                  {spot.name} <span class="soft num">{spot.board}</span>
+                  {spot.name} <CardText text={spot.board.match(/../g)?.join(" ") ?? spot.board} />
                   <div class="soft small num">{spot.hands[0]}/{spot.hands[1]} Hände · {spot.nodes.toLocaleString("de-DE")} Knoten</div>
                 </td>
                 <td class="r num">{time(spot.cpu)}<div class="soft small">{spot.cpu.iterations} Durchläufe</div></td>
@@ -131,11 +149,12 @@
             {/each}
           </tbody>
         </table>
-        <p class="soft small">
-          Zeiten bis zum Ziel. Faktor: Durchläufe pro Sekunde der GPU geteilt durch die der CPU; beide rechnen denselben
+        <p class="soft small note">
+          Zeiten bis zum Ziel. Tempo GPU: Durchläufe pro Sekunde der GPU geteilt durch die der CPU; beide rechnen denselben
           Algorithmus, durch Rundung brauchen sie aber nicht immer gleich viele Durchläufe. Abweichung: Unterschied im
           Erwartungswert beider Lösungen, in Prozent des Pots.
         </p>
+        {/if}
       {/if}
     </div>
   {/if}
@@ -157,11 +176,17 @@
     max-width: 68ch;
   }
   .verdict {
+    max-width: 76ch;
     color: var(--text);
-    font-weight: var(--fw-medium);
   }
-  .verdict.good {
-    color: var(--pos);
+  .same {
+    margin-right: var(--sp-2);
+  }
+  .ok-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--pos);
   }
   .verdict.bad,
   .bad {
@@ -173,6 +198,16 @@
   }
   .small {
     font-size: var(--fs-sm);
+  }
+  .note {
+    max-width: 76ch;
+  }
+  .facts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2) var(--sp-4);
   }
   .strong {
     color: var(--text);

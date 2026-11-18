@@ -22,6 +22,24 @@
 
   const current = $derived(hands[Math.min(index, hands.length - 1)] ?? null);
 
+  /** The parser's reason codes in plain words; the code itself is what gets sent. */
+  const REASONS: Record<string, string> = {
+    empty: "Die Hand ist leer.",
+    "missing hand id": "Die Handnummer fehlt.",
+    "missing stakes": "Die Blinds stehen nicht in der ersten Zeile.",
+    "small blind": "Der Small Blind ließ sich nicht lesen.",
+    "big blind": "Der Big Blind ließ sich nicht lesen.",
+    "missing table line": "Die Zeile mit dem Tisch fehlt.",
+    "table line": "Die Zeile mit dem Tisch ließ sich nicht lesen.",
+    "max seats": "Die Tischgröße ließ sich nicht lesen.",
+    "button seat": "Der Platz des Buttons ließ sich nicht lesen.",
+    "seat number": "Eine Platznummer ließ sich nicht lesen.",
+    stack: "Ein Chipstand ließ sich nicht lesen.",
+    "no seats": "In der Hand sitzt kein Spieler.",
+    "uncalled bet": "Ein zurückgegebener Einsatz ließ sich nicht lesen.",
+    "collected amount": "Ein gewonnener Pot ließ sich nicht lesen.",
+  };
+
   function show() {
     index = 0;
     message = null;
@@ -77,7 +95,7 @@
         außer dem Grund und der Ringside-Version. Bitte prüf den Text, bevor du ihn sendest.
       </p>
       <div class="reason">
-        <span>Grund: <code>{current.reason}</code></span>
+        <b title="Gesendet wird als Grund: {current.reason}">{REASONS[current.reason] ?? "Ringside konnte die Hand nicht lesen."}</b>
         {#if hands.length > 1}
           <span class="nav">
             <IconButton label="Vorherige Hand" size="sm" disabled={index === 0} onclick={() => index--}
@@ -123,6 +141,10 @@
     justify-content: space-between;
     gap: var(--sp-3);
   }
+  .reason b {
+    color: var(--text);
+    font-weight: var(--fw-medium);
+  }
   .nav {
     display: flex;
     gap: var(--sp-1);
@@ -144,7 +166,8 @@
     background: var(--surface-sunken);
     font-size: var(--fs-sm);
     line-height: 1.5;
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .spacer {
     flex: 1;

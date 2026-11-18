@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { COACH_INTRO, EFFORTS, coachApi, errorText, usd } from "./api";
+  import { COACH_INTRO, DEFAULT_MODEL, EFFORTS, coachApi, errorText, usd } from "./api";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -8,7 +8,7 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
   import KeyForm from "./KeyForm.svelte";
-  import { money } from "./meaning";
+  import { modelLabel, money } from "./meaning";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
 
   let { onClose, onChange }: { onClose?: () => void; onChange?: (s: CoachStatus) => void } = $props();
@@ -112,7 +112,11 @@
   const priceShare = (t: number | null) => (t == null || dearest <= 0 ? 0 : Math.max(4, Math.sqrt(t / dearest) * 100));
   const RICHTWERT = "Richtwert für ein Turnier mit rund 30 gesendeten Händen. Vor jeder Analyse siehst du die genaue Schätzung.";
   const provider = (m: ModelInfo) => m.name.split(":")[0];
-  const modelName = (m: ModelInfo) => m.name.slice(m.name.indexOf(":") + 1).trim();
+  /** "DeepSeek: V4" → "V4" reads as nothing alone, so short names keep their maker. */
+  const modelName = (m: ModelInfo) => {
+    const name = m.name.slice(m.name.indexOf(":") + 1).trim();
+    return name.length <= 4 && m.name.includes(":") ? `${provider(m)} ${name}` : name;
+  };
 </script>
 
 {#snippet rows()}
@@ -131,8 +135,8 @@
           <Button size="sm" variant="quiet" onclick={() => (confirmDelete = false)}>Behalten</Button>
         {:else}
           <Button size="sm" onclick={test} loading={busy} disabled={busy}>Testen</Button>
-          <Button size="sm" variant="quiet" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
-          <Button size="sm" variant="quiet" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
+          <Button size="sm" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
+          <Button size="sm" variant="danger" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
         {/if}
       {:else if status}
         <span class="state"><i></i>Noch kein Key</span>
@@ -150,15 +154,23 @@
     {/if}
   </SettingRow>
 
-  <SettingRow title="Modell" sub="Welches Sprachmodell deine Hände bespricht. Der Preis ist ein Richtwert für ein Turnier.">
+  <SettingRow
+    title="Modell"
+    sub={status?.model === DEFAULT_MODEL
+      ? "Welches Sprachmodell deine Hände bespricht. Das ist Ringsides Empfehlung für den Einstieg – im Zweifel bleib dabei."
+      : "Welches Sprachmodell deine Hände bespricht. Der Preis ist ein Richtwert für ein Turnier."}
+  >
     {#snippet control()}
       <div class="what">
         {#if current}
           {@const t = perTournament(current)}
           <b>{modelName(current)}</b>
           <span class="fine num" title={RICHTWERT}>{provider(current)} · {t == null ? "Preis unbekannt" : `ca. ${money(t)} je Turnier`}</span>
+        {:else if status}
+          <b>{modelLabel(status.model)}</b>
+          <span class="fine">{status.has_key ? "Lädt Preise …" : "Preise lädt Ringside, sobald dein Key da ist"}</span>
         {:else}
-          <b class="num">{status?.model ?? "…"}</b>
+          <b>…</b>
         {/if}
       </div>
       {#if !open}
@@ -176,7 +188,7 @@
         </div>
         <div class="opts">
           <span class="opt"
-            ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
+            ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die mit Ringside funktionieren</label
             ></span
           >
           <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
@@ -206,6 +218,7 @@
                   <span class="mtitle">
                     {modelName(m)}
                     {#if m.id === status?.model}<em class="tag on">deine Wahl</em>{/if}
+                    {#if m.id === DEFAULT_MODEL}<em class="tag" title="Ringsides Voreinstellung. Im Zweifel bleib dabei.">Empfohlen für den Einstieg</em>{/if}
                     {#if m.id === cheapest}<em class="tag">am günstigsten</em>{/if}
                   </span>
                   <small>{provider(m)}{m.tools ? "" : " · kann nicht rechnen"}</small>

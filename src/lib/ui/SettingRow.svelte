@@ -142,13 +142,21 @@
   .more-inner > :global(:first-child) {
     margin-top: var(--sp-2);
   }
+  .more-inner :global(h4) {
+    margin: var(--sp-3) 0 var(--sp-1);
+    color: var(--text);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
   .more-inner :global(p) {
     margin: 0 0 var(--sp-2);
   }
   .more-inner :global(p:last-child) {
     margin-bottom: 0;
   }
+  /* At the name, not the middle: an opened "Mehr dazu" must not pull the control away from it. */
   .control {
+    align-self: start;
     display: flex;
     align-items: center;
     justify-content: flex-end;

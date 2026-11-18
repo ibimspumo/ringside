@@ -56,6 +56,9 @@ export async function onProgress(handler: (p: CoachProgress) => void): Promise<(
   return inTauri ? on<CoachProgress>("coach-progress", handler) : demo.onProgress(handler);
 }
 
+/** The model Ringside starts with (`DEFAULT_MODEL` in ringside-coach); the settings recommend it to beginners. */
+export const DEFAULT_MODEL = "openai/gpt-6.1-sol";
+
 /** What the coach sends, and when. */
 export const COACH_INTRO =
   "Der Coach schickt deine Hände nur, wenn du eine Analyse startest und die Kosten bestätigst – ohne Namen, über OpenRouter an ein Sprachmodell deiner Wahl.";
