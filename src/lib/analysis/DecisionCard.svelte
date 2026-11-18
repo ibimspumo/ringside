@@ -42,11 +42,13 @@
   });
   const learn = $derived(onLearn && d.rating && d.rating !== "best" ? LEARN[d.spot] : []);
 
-  /** Green for the best action, your grade's colour for yours, grey for the rest: green always means "good". */
+  /** Action colours as on the table; the grade shows in the ring round your share and the tick on the best. */
   function shade(c: Choice): string {
-    if (gap(c) === "beste") return "var(--grade-best)";
-    if (c.played && d.rating) return `var(--grade-${gradeOf(d.rating)})`;
-    return "var(--text-3)";
+    const word = c.label.split(" ")[0];
+    if (word === "Fold") return "var(--act-fold)";
+    if (word === "Check" || word === "Call" || word === "Limp") return "var(--act-call)";
+    if (word === "All-in") return "var(--act-allin)";
+    return word === "Bet" ? "var(--act-bet-2)" : "var(--act-raise)";
   }
 
   function gap(c: Choice): string {

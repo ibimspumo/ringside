@@ -374,7 +374,7 @@
 
 {#snippet headEnd()}
   <AnalyzeStatus short={rail} />
-  {#if view === "mistakes" && !summaryShown}
+  {#if view === "mistakes" && !summaryShown && !locked}
     {#if !rail}<Button size="sm" variant="quiet" onclick={flipSummary}>Zusammenfassung</Button>{/if}
   {/if}
   <Button size="sm" variant={filtersOpen || extra ? "secondary" : "quiet"} aria-expanded={filtersOpen} onclick={() => (filtersOpen = !filtersOpen)}>
@@ -532,7 +532,7 @@
     </div>
   {/if}
 
-  {#if view === "mistakes" && summaryShown}
+  {#if view === "mistakes" && summaryShown && !locked}
     <div class="summary">
       <Summary
         strip
@@ -553,7 +553,7 @@
           <span class="num">{list.length}{more ? "+" : ""} Hände</span>
           {#if rail}<span class="rail-what">{view === "mistakes" && !locked ? "nach Kosten" : "Ergebnis"}</span>{/if}
           <span title={view === "mistakes" ? "Rechts: was dein teuerster Fehler der Hand im Schnitt kostet" : "Rechts: was du in der Hand gewonnen oder verloren hast"}
-            >{view === "mistakes" && !locked ? "Kosten des Fehlers · teuerste zuerst" : view === "mistakes" ? "Ergebnis" : "Ergebnis · neueste zuerst"}</span
+            >{locked ? "Bewertungen pausiert" : view === "mistakes" ? "Kosten des Fehlers · teuerste zuerst" : "Ergebnis · neueste zuerst"}</span
           >
         </div>
       {/if}
@@ -592,11 +592,7 @@
                 >{/if}
 
             </span>
-            {#if locked}
-              <span class="verdict locked" title="Bewertung gesperrt, solange PokerStars läuft"
-                ><svg viewBox="0 0 16 16" width="12" height="12" aria-label="Bewertung gesperrt"><rect x="3" y="7" width="10" height="7" rx="1.6" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" /></svg></span
-              >
-            {:else if w && v}
+            {#if w && v && !locked}
               <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""}` : (w.reason ?? "")}>
                 {#if w.rating}<GradeIcon grade={gradeOf(w.rating)} size={14} />{:else}<i class:wait={w.status === "pending"}></i>{/if}
                 {#if v.lead}<b>{v.lead}</b>{/if}<span>{v.rest}</span>
@@ -986,11 +982,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .verdict.locked svg {
-    fill: none;
-    stroke: var(--text-3);
-    stroke-width: 1.5;
-  }
   .verdict i {
     flex-shrink: 0;
     width: 12px;
@@ -1082,9 +1073,10 @@
     font-size: var(--fs-xs);
     cursor: help;
   }
+  /* The result of the hand is luck and skill together: shown, but quieter than the verdict. */
   .result b {
-    font-size: var(--fs-xl);
-    font-weight: var(--fw-semibold);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-medium);
   }
   .nav {
     display: flex;
@@ -1148,7 +1140,7 @@
 
   /* The list as a strip of hole cards: the hand's verdict is in its tooltip and in the detail. */
   .body.rail {
-    grid-template-columns: 92px minmax(0, 1fr);
+    grid-template-columns: 108px minmax(0, 1fr);
   }
   .rail .list {
     padding-inline: var(--sp-1);
