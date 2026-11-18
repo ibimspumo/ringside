@@ -39,6 +39,7 @@
   let selected = $state<number | null>(null);
   let report = $state<CoachReport | null>(null);
   let runFor = $state<number | null>(null);
+  let running = $state(false);
   let failed = $state<string | null>(null);
   let setupOpen = $state(preview.setup);
   let concepts = $state<ConceptCount[]>([]);
@@ -141,6 +142,7 @@
 
   function done(r: CoachReport) {
     runFor = null;
+    running = false;
     report = r;
     loadList(r.tournament_id);
   }
@@ -172,6 +174,9 @@
         <aside class="rail">
           <section class="panel start" aria-labelledby="start-title">
             <h2 id="start-title" class="panel-title">Turnier besprechen</h2>
+            {#if status && !status.has_key}
+              <p class="sub pad">Erst den Key von OpenRouter hinterlegen, dann kannst du hier ein Turnier besprechen lassen.</p>
+            {/if}
             {#if suggestions.length}
               <ul>
                 {#each suggestions as t (t.id)}
@@ -182,7 +187,7 @@
                     </span>
                     <button
                       class="btn go"
-                      disabled={runFor !== null || !status?.has_key}
+                      disabled={running || !status?.has_key}
                       onclick={() => start(t.id)}
                       title={status?.has_key
                         ? "Vorher siehst du, was gesendet wird und was es kostet."
@@ -309,8 +314,12 @@
                 tournamentId={runFor}
                 title={titleOf(runFor)}
                 onDone={done}
-                onClose={() => (runFor = null)}
+                onClose={() => {
+                  runFor = null;
+                  running = false;
+                }}
                 onSettings={() => (setupOpen = true)}
+                onRunning={(r) => (running = r)}
               />
             {/key}
           {:else if failed}
@@ -530,10 +539,7 @@
     background: var(--amber);
   }
   .mini .good {
-    background: var(--surface-3);
-  }
-  .item.on .mini .good {
-    background: rgba(236, 235, 231, 0.22);
+    background: color-mix(in srgb, var(--pos) 70%, transparent);
   }
 
   .setup-card {

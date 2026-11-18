@@ -46,8 +46,8 @@
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    vertical-align: -0.3em;
-    margin: 0 1px;
+    vertical-align: middle;
+    margin: -0.2em 1px 0;
   }
   .hand {
     white-space: nowrap;

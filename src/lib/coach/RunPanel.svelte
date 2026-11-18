@@ -2,7 +2,6 @@
   import { onMount } from "svelte";
   import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
   import { shortModel } from "./meaning";
-  import { pop } from "./motion";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
 
   let {
@@ -11,12 +10,15 @@
     onDone,
     onClose,
     onSettings,
+    onRunning,
   }: {
     tournamentId: number;
     title: string;
     onDone: (r: CoachReport) => void;
     onClose: () => void;
     onSettings: () => void;
+    /** Whether an analysis is being sent right now; only one can run at a time. */
+    onRunning?: (running: boolean) => void;
   } = $props();
 
   type State =
@@ -26,6 +28,7 @@
     | { kind: "error"; message: string; noKey: boolean };
 
   let st = $state<State>({ kind: "preparing" });
+  $effect(() => onRunning?.(st.kind === "running"));
   const TOOLS: Record<string, string> = {
     equity: "Equity",
     pot_odds: "Pot Odds",
@@ -220,7 +223,10 @@
           <b class="num">{p?.tool_calls ?? 0}-mal</b>
           {#if used.length}
             <span class="tools">
-              {#each used as t (t)}<span in:pop class="tool" class:now={p?.stage === "tool" && p.tool === t}>{TOOLS[t] ?? t}</span>{/each}
+              {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<span class="tool" class:now
+                  >{#if !now}<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
+                    >{/if}{TOOLS[t] ?? t}</span
+                >{/each}
             </span>
           {:else}
             <span class="note">Jede Zahl rechnet Ringside nach.</span>
@@ -644,6 +650,9 @@
     margin-top: 2px;
   }
   .tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     padding: 1px 8px;
     border-radius: 999px;
     border: 1px solid var(--line-2);
@@ -655,9 +664,18 @@
       background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
       color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
   }
+  .tool svg {
+    fill: none;
+    stroke: var(--pos);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .tool.now {
-    background: var(--surface-3);
-    color: var(--text);
+    background: var(--text);
+    border-color: var(--text);
+    color: var(--bg);
+    font-weight: 600;
   }
   .wait {
     padding: 10px 14px;
