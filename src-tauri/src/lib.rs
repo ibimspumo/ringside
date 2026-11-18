@@ -760,6 +760,8 @@ pub fn run() {
             play::play_repeat,
             play::play_current,
             play::play_act,
+            play::play_live_status,
+            play::play_live_cancel,
             play::play_hint,
             play::play_pool_status,
             play::play_pool_cancel,

@@ -5,7 +5,8 @@
 //! range at the flop is the product of the frequencies of its own actions on the way, the
 //! same chain the spot library uses; weights are rounded to [`WEIGHT_STEP`] like there.
 
-use ringside_engine::preflop::{Kind, Params, Solution, Step};
+use ringside_engine::Combo;
+use ringside_engine::preflop::{Kind, Params, Solution, Step, postflop_rank};
 use ringside_engine::range::{HandClass, NUM_CLASSES, Range};
 use ringside_solver::{Spot, StreetSizes};
 use serde::Serialize;
@@ -28,8 +29,9 @@ pub enum PotType {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Scenario {
-    /// Index into the solution's `realized` list, stable for one table.
-    pub index: usize,
+    /// Index into the solution's `realized` list, stable for one table; `None` for a line
+    /// a hand took that the list does not have.
+    pub index: Option<usize>,
     pub stack_bb: f64,
     pub line: Vec<Step>,
     /// Out of position and in position after the flop.
@@ -63,6 +65,12 @@ impl Scenario {
     }
 
     pub fn range(&self, side: usize) -> String {
+        self.range_with(side, None)
+    }
+
+    /// The range of `side`, with `add` in it at the smallest weight if the model never
+    /// plays it this way, as the hand analysis does with the hero's hand.
+    fn range_with(&self, side: usize, add: Option<Combo>) -> String {
         let mut r = Range::empty();
         for c in HandClass::all() {
             let w = self.weights[side][c.index()];
@@ -70,13 +78,24 @@ impl Scenario {
                 r.set_class(c, w as f32);
             }
         }
+        if let Some(combo) = add
+            && r.weight(combo) <= 0.0
+        {
+            r.set_combo(combo, WEIGHT_STEP as f32);
+        }
         r.to_string()
     }
 
     pub fn spot(&self, flop: &str) -> Spot {
+        self.spot_with(flop, None)
+    }
+
+    /// [`Scenario::spot`] with the hero's hand (`side`, combo) in the hero's range.
+    pub fn spot_with(&self, flop: &str, hero: Option<(usize, Combo)>) -> Spot {
+        let add = |side: usize| hero.filter(|h| h.0 == side).map(|h| h.1);
         Spot {
-            oop_range: self.range(0),
-            ip_range: self.range(1),
+            oop_range: self.range_with(0, add(0)),
+            ip_range: self.range_with(1, add(1)),
             board: flop.to_string(),
             pot: self.pot,
             stack: self.stack,
@@ -119,43 +138,49 @@ pub fn scenarios(sol: &Solution, params: &Params) -> Vec<Scenario> {
         .enumerate()
         .filter_map(|(index, r)| {
             let (path, walk) = steer(sol, params, &r.line)?;
-            let End::Flop(left) = walk.end() else { return None };
-            let (oop, ip) = (r.seats[0], r.seats[1]);
-            if left.len() != 2 || !left.contains(&oop) || !left.contains(&ip) {
-                return None;
-            }
-            let weights = [oop, ip].map(|seat| {
-                let mut w = vec![1.0; NUM_CLASSES];
-                for &(v, a) in path.iter().filter(|&&(v, _)| sol.nodes[v].seat == seat) {
-                    for (c, x) in w.iter_mut().enumerate() {
-                        *x *= sol.nodes[v].freq[a][c];
-                    }
-                }
-                w.into_iter().map(round).collect::<Vec<f64>>()
-            });
-            if weights.iter().any(|w| w.iter().all(|&x| x == 0.0)) {
-                return None;
-            }
-            let raises = walk.line.iter().filter(|s| matches!(s.action.kind, Kind::Raise | Kind::AllIn)).count();
-            let pot_type = match raises {
-                0 => PotType::Limped,
-                1 => PotType::Srp,
-                _ => PotType::ThreeBet,
-            };
-            let behind = walk.behind();
-            Some(Scenario {
-                index,
-                stack_bb: params.stack_bb,
-                line: walk.line.clone(),
-                oop,
-                ip,
-                pot_type,
-                reach: r.reach,
-                pot: (walk.pot() * 100.0).round() / 100.0,
-                stack: (behind[oop].min(behind[ip]) * 100.0).round() / 100.0,
-                path,
-                weights,
-            })
+            let sc = heads_up(sol, params, &path, &walk, Some(index), r.reach)?;
+            (sc.seats()[..] == r.seats[..]).then_some(sc)
         })
         .collect()
+}
+
+/// The heads-up flop a hand reaches by `path` (every decision on the way, folds included),
+/// `None` unless exactly two players see it and both arrive with a range.
+pub fn heads_up(sol: &Solution, params: &Params, path: &[(usize, usize)], walk: &Walk, index: Option<usize>, reach: f64) -> Option<Scenario> {
+    let End::Flop(left) = walk.end() else { return None };
+    let [a, b] = left[..] else { return None };
+    let n = params.players;
+    let (oop, ip) = if postflop_rank(n, a) < postflop_rank(n, b) { (a, b) } else { (b, a) };
+    let weights = [oop, ip].map(|seat| {
+        let mut w = vec![1.0; NUM_CLASSES];
+        for &(v, a) in path.iter().filter(|&&(v, _)| sol.nodes[v].seat == seat) {
+            for (c, x) in w.iter_mut().enumerate() {
+                *x *= sol.nodes[v].freq[a][c];
+            }
+        }
+        w.into_iter().map(round).collect::<Vec<f64>>()
+    });
+    if weights.iter().any(|w| w.iter().all(|&x| x == 0.0)) {
+        return None;
+    }
+    let raises = walk.line.iter().filter(|s| matches!(s.action.kind, Kind::Raise | Kind::AllIn)).count();
+    let pot_type = match raises {
+        0 => PotType::Limped,
+        1 => PotType::Srp,
+        _ => PotType::ThreeBet,
+    };
+    let behind = walk.behind();
+    Some(Scenario {
+        index,
+        stack_bb: params.stack_bb,
+        line: walk.line.clone(),
+        oop,
+        ip,
+        pot_type,
+        reach,
+        pot: (walk.pot() * 100.0).round() / 100.0,
+        stack: (behind[oop].min(behind[ip]) * 100.0).round() / 100.0,
+        path: path.to_vec(),
+        weights,
+    })
 }
