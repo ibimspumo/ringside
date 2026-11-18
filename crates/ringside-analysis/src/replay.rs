@@ -11,9 +11,9 @@ use ringside_engine::preflop::postflop_rank;
 use ringside_engine::{Card, CardSet};
 
 use crate::estimate::{Opponent, Opt, Range, Signal, Spot, Tuning, estimate, narrow, strength};
-use crate::fmt::{bb, num};
+use crate::fmt::bb;
 use crate::seats::hero_combo;
-use crate::{base, fmt, pot_before, score};
+use crate::{base, fmt, pot_before, score, why};
 
 /// Ranges the hand's line in the model gives at the flop, by player.
 pub type FlopRanges = HashMap<String, Vec<f64>>;
@@ -280,15 +280,15 @@ pub fn rate_with(
         .map(|(i, &o)| Choice { label: opt_label(o), freq: freq[i], ev_bb: Some(est.evs[i]), played: i == played, kind: o.key().into() })
         .collect();
     let opponents = spot.opponents.len();
-    let who = if opponents == 1 { "den Gegner".to_string() } else { format!("{opponents} Gegner") };
-    let mut why = format!("Deine Hand hat gegen die wahrscheinlichen Ranges ({who}) etwa {} % Equity.", (est.equity * 100.0).round());
-    if let Some(odds) = est.pot_odds {
-        why.push_str(&format!(" Für einen Call brauchst du rund {} % (Pot Odds).", (odds * 100.0).round()));
-    }
+    let top = (0..opts.len()).max_by(|&x, &y| est.evs[x].total_cmp(&est.evs[y]));
     let behind = spot.opponents.iter().map(|o| o.behind).fold(0.0, f64::max).min(spot.hero_behind);
-    if !spot.preflop && spot.pot > 0.0 {
-        why.push_str(&format!(" Stack zu Pot (SPR): {}.", num(behind / spot.pot)));
-    }
+    let facts = why::Estimated {
+        equity: est.equity,
+        opponents,
+        need: est.pot_odds,
+        fold: top.and_then(|k| est.folds[k]),
+        spr: (!spot.preflop && est.pot_odds.is_none() && spot.pot > 0.0).then(|| behind / spot.pot),
+    };
     let preflop = spot.preflop;
     let rel = reliability(a.street);
     let mut note = format!(
@@ -305,7 +305,7 @@ pub fn rate_with(
         note.push_str(" Gemessen ist das heads-up; mit mehreren Gegnern ist sie ungeprüft.");
     }
     let d = base(hand.id, index, a.street, spot_type, fmt::real_action(hand, a));
-    let mut d = score(d, Source::Estimate, strategy, pot, note, |_| why);
+    let mut d = score(d, Source::Estimate, strategy, pot, note, |d| why::estimate(&facts, &d.strategy, pot));
     d.reliability = Some(rel);
     Ok(d)
 }

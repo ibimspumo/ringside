@@ -1,6 +1,9 @@
 <script lang="ts">
+  import { SOURCE, reliabilityText } from "../analysis/labels";
   import Term from "../solver/Term.svelte";
   import CardText from "../ui/CardText.svelte";
+  import Reason from "../ui/Reason.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import { handNumbers } from "../solver/practice";
   import { classLabel } from "../solver/range";
   import { GRADE, THRESHOLD_TEXT, choiceColors, choiceLabel, headlineOf, num, reason, sourceLine } from "./labels";
@@ -54,12 +57,17 @@
     <p class="lead">{GRADE[j.grade].lead}</p>
   {/if}
   {#if j?.grade !== "mix"}<p class="why"><CardText text={why} /></p>{/if}
+  {#if lesson.why}<Reason text={lesson.why} />{/if}
 
   {#if lesson.strategy}
     <div class="bars" role="table" aria-label="Strategie der Lösung für deine Hand">
       <div class="row head" role="row">
         <span role="columnheader">Zug</span>
-        <span role="columnheader">So oft spielt es die Lösung mit <CardText text={lesson.street === "preflop" ? lesson.class : view.hero_cards.join("")} /></span>
+        {#if lesson.source === "estimate"}
+          <span role="columnheader">Empfehlung der Einschätzung (gleich gute Züge teilen sich)</span>
+        {:else}
+          <span role="columnheader">So oft spielt es die Lösung mit <CardText text={lesson.street === "preflop" ? lesson.class : view.hero_cards.join("")} /></span>
+        {/if}
         {#if lesson.evs}<span role="columnheader" class="ev"><Term term="ev">EV</Term></span>{/if}
       </div>
       {#each lesson.choices as c, k (k)}
@@ -116,7 +124,13 @@
     <p class="loss faint">Hier sind nur Häufigkeiten gespeichert: bewertet wird danach, wie oft die Lösung deinen Zug spielt.</p>
   {/if}
 
-  <p class="source">{sourceLine(lesson.source, view.config, view.stack_bb, lesson.exploitability_pct)}</p>
+  {#if lesson.source === "estimate"}
+    <SourceNote kind="estimate" variant="block">
+      {SOURCE.estimate.explain}{#if lesson.reliability !== null}{" "}<b class="num">{reliabilityText(lesson.reliability, lesson.street)}</b>{/if}
+    </SourceNote>
+  {:else}
+    <p class="source">{sourceLine(lesson.source, view.config, view.stack_bb, lesson.exploitability_pct)}</p>
+  {/if}
 </article>
 
 <style>

@@ -380,9 +380,10 @@ function lessonOf(s: State, d: Decide): Lesson {
   const top = Math.max(...s.streetPut);
   const toCall = Math.max(0, top - s.streetPut[s.hand.seat]);
   const cls = comboClass(s.hand.cards[s.hand.seat][0], s.hand.cards[s.hand.seat][1]);
+  if (s.unrated && d.street !== "preflop") return estimated(d, snap.pot, toCall, classLabel(cls));
   if (s.unrated) {
     const none = { street: d.street, choices: d.choices, source: null, strategy: null, unrated: s.unrated, evs: null, pot: snap.pot, to_call: toCall, equity: null };
-    return { ...none, class: classLabel(cls), node: null, grid: null, path: null, exploitability_pct: null };
+    return { ...none, class: classLabel(cls), node: null, grid: null, path: null, exploitability_pct: null, reliability: null, why: null };
   }
   const isPost = d.street !== "preflop";
   return {
@@ -400,6 +401,44 @@ function lessonOf(s: State, d: Decide): Lesson {
     grid: isPost ? null : d.source === "equilibrium" ? grid(2, 1, 0.42) : grid(d.choices.length, d.agg ?? 1, 0.5),
     path: isPost ? [] : null,
     exploitability_pct: isPost ? (d.source === "live" ? 1.8 : 0.8) : null,
+    reliability: null,
+    why: null,
+  };
+}
+
+/** Measured agreement of the estimate with the solver per street, as the app stores it. */
+const RELIABILITY: Record<Street, number> = { preflop: 0.87, flop: 0.76, turn: 0.74, river: 0.66 };
+
+/** After a stopped solve the app grades by the estimate; the demo reuses the spot's numbers in its sentences. */
+function estimated(d: Decide, pot: number, toCall: number, cls: string): Lesson {
+  const top = Math.max(...d.evs);
+  const near = d.evs.map((e) => ((top - e) / pot) * 100 <= 0.5);
+  const share = 1 / near.filter(Boolean).length;
+  const equity = d.equity ?? 0.5;
+  const pct = (x: number) => `${Math.round(x * 100)} %`;
+  const why = [`Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt ${pct(equity)} Equity.`];
+  if (toCall > 0) {
+    const need = toCall / (pot + toCall);
+    why.push(equity >= need + 0.05 ? `Ein Call braucht nur ${pct(need)}, das reicht klar.` : equity > need - 0.05 ? `Ein Call braucht ${pct(need)}, das ist knapp.` : `Ein Call bräuchte ${pct(need)}, das reicht nicht.`);
+    if (Math.abs(equity - need) <= 0.05) why.push("Equity und Preis liegen so nah beieinander, dass die Schätzung hier unsicher ist.");
+  }
+  return {
+    street: d.street,
+    choices: d.choices,
+    source: "estimate",
+    strategy: near.map((x) => (x ? share : 0)),
+    unrated: null,
+    evs: d.evs,
+    pot,
+    to_call: toCall,
+    equity,
+    class: cls,
+    node: null,
+    grid: null,
+    path: null,
+    exploitability_pct: null,
+    reliability: RELIABILITY[d.street],
+    why: why.join(" "),
   };
 }
 
@@ -451,7 +490,7 @@ function run(s: State) {
         pot: s.view.snapshots[s.view.snapshots.length - 1].pot,
         to_call: Math.max(0, top - s.streetPut[s.hand.seat]),
         hinted: s.hinted,
-        graded: !s.unrated,
+        graded: !s.unrated || s.street !== "preflop",
       };
       break;
     } else if (step.kind === "solve") {

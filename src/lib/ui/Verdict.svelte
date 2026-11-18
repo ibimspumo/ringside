@@ -3,6 +3,7 @@
   import { bb, pct } from "./format";
   import GradeIcon from "./GradeIcon.svelte";
   import { GRADE, type Grade, type Source } from "./poker";
+  import Reason from "./Reason.svelte";
   import SourceNote from "./SourceNote.svelte";
 
   /**
@@ -19,6 +20,7 @@
     source,
     sourceHint,
     lead,
+    reason,
     children,
     actions,
   }: {
@@ -38,6 +40,8 @@
     sourceHint?: string;
     /** Replaces the grade's standard line when the strategy is not a solution's. */
     lead?: string;
+    /** Why the best move is best, shown as "Warum?" right under the verdict. */
+    reason?: string;
     /** The reason in one or two sentences. */
     children?: Snippet;
     actions?: Snippet;
@@ -77,6 +81,7 @@
         {/if}
       </p>
     {/if}
+    {#if reason}<Reason text={reason} />{/if}
     {#if children}<div class="why">{@render children()}</div>{/if}
     {#if source || actions}
       <footer>

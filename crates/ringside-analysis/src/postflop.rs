@@ -10,9 +10,10 @@ use ringside_core::model::{ActionKind, Hand, Street};
 use ringside_engine::{Card, Combo, HandClass, Range};
 use ringside_solver::saved::NOT_STORED;
 use ringside_solver::{
-    ActionKind as TreeAction, Error as SolveError, Node, NodeKind, Player, Progress, Settings, Solution, Spot, Step, StreetSizes,
+    ActionKind as TreeAction, Error as SolveError, HandInfo, Node, NodeKind, Player, Progress, Settings, Solution, Spot, Step, StreetSizes,
     Summary, estimate, solve,
 };
+
 use serde::{Deserialize, Serialize};
 
 use crate::fmt::{bb, num};
@@ -20,7 +21,7 @@ use ringside_engine::preflop_table::ModelLine;
 
 use crate::preflop::Flop;
 use crate::seats::hero_combo;
-use crate::{Source, base, hero_actions, is_raise, score};
+use crate::{Source, base, hero_actions, is_raise, score, why};
 
 /// Bet sizes a real bet is snapped to, in percent of the pot.
 const GRID: [f64; 11] = [10.0, 25.0, 33.0, 50.0, 66.0, 75.0, 100.0, 125.0, 150.0, 200.0, 300.0];
@@ -333,6 +334,35 @@ fn map_action(a: &JobAction, actions: &[ringside_solver::ActionInfo]) -> Option<
     }
 }
 
+/// What the solution says about the hero's hand `h` at `node`: its equity, where it stands
+/// in the hero's range, the price of a call and how often the opponent folds to the best
+/// move (from the next node, when it can be had).
+fn solved(node: &Node, h: &HandInfo, river: bool, path: &[Step], node_at: &mut impl FnMut(&[Step]) -> Result<Node, SolveError>) -> why::Solved {
+    let total: f64 = node.hands.iter().map(|x| x.weight).sum();
+    let above: f64 = node
+        .hands
+        .iter()
+        .map(|x| if x.equity > h.equity { x.weight } else if x.equity == h.equity { x.weight / 2.0 } else { 0.0 })
+        .sum();
+    let side = usize::from(node.player == Some(Player::Ip));
+    let call = (node.street_bets[1 - side] - node.street_bets[side]).min(node.stacks[side]).max(0.0);
+    let top = (0..h.evs.len()).max_by(|&a, &b| h.evs[a].total_cmp(&h.evs[b]));
+    let fold = top.filter(|&k| matches!(node.actions[k].kind, TreeAction::Bet | TreeAction::Raise | TreeAction::AllIn)).and_then(|k| {
+        let mut next = path.to_vec();
+        next.push(Step::Action(k));
+        let after = node_at(&next).ok()?;
+        let fold = after.actions.iter().find(|x| x.kind == TreeAction::Fold)?;
+        (after.kind == NodeKind::Action && after.player != node.player).then_some(fold.frequency)
+    });
+    why::Solved {
+        equity: h.equity,
+        third: (total > 0.0).then(|| why::Third::of(above / total)),
+        need: (call > 1e-9).then(|| call / (node.pot + call)),
+        river,
+        fold,
+    }
+}
+
 /// What to open in the solver: the flop spot as the solver page takes it, the path to the
 /// decision and the saved solution to open without solving.
 fn solver_link(job: &PostflopJob, path: &[Step], saved: Option<i64>) -> String {
@@ -402,7 +432,7 @@ pub fn rate(
     job: &PostflopJob,
     summary: &Summary,
     saved: Option<i64>,
-    mut node: impl FnMut(&[Step]) -> Result<Node, SolveError>,
+    mut node_at: impl FnMut(&[Step]) -> Result<Node, SolveError>,
 ) -> Result<Vec<Decision>, JobError> {
     let hero = combo_of(&job.hero_combo).ok_or_else(|| JobError::Failed("Ungültige Karten.".into()))?;
     let accuracy = format!(
@@ -434,7 +464,7 @@ pub fn rate(
             }
         }
         if broken.is_none() {
-            match node(&path) {
+            match node_at(&path) {
                 Ok(node) if node.kind == NodeKind::Action && node.player == Some(if a.oop { Player::Oop } else { Player::Ip }) => {
                     match map_action(a, &node.actions) {
                         Some((i, size_note)) => {
@@ -459,12 +489,9 @@ pub fn rate(
                                             note.push_str(&format!(" {n}."));
                                         }
                                         note.push_str(&accuracy);
-                                        let equity = h.equity;
-                                        let mut d = score(d, Source::Solver, strategy, node.pot, note, |_| {
-                                            format!(
-                                                "Deine Hand hat hier gegen die Range des Gegners etwa {} % Equity.",
-                                                (equity * 100.0).round()
-                                            )
+                                        let facts = solved(&node, h, a.street == Street::River, &path, &mut node_at);
+                                        let mut d = score(d, Source::Solver, strategy, node.pot, note, |d| {
+                                            why::solver(&facts, &d.strategy, node.pot)
                                         });
                                         d.solver = Some(solver_link(job, &path, saved));
                                         out.push(d);
