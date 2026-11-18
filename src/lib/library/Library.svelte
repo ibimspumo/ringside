@@ -132,7 +132,7 @@
 
   type Texture = "Rainbow" | "Zweifarbig" | "Monoton" | "Gepaart" | "Drilling";
   const TEXTURE_HINT: Record<Texture, string> = {
-    Rainbow: "drei verschiedene Farben, auf dem Flop noch kein Flush‑Draw",
+    Rainbow: "drei Farben, noch kein Flush‑Draw",
     Zweifarbig: "zwei Karten einer Farbe, Flush‑Draws möglich",
     Monoton: "alle drei in einer Farbe, ein Flush ist schon möglich",
     Gepaart: "zwei Karten gleichen Rangs",
@@ -332,14 +332,13 @@
           {@const cov = coverage(current)}
           <Card pad="lg">
             <section class="flops" aria-label="Flops">
-              <p class="step"><span class="n num">2</span>Flop anklicken und nachsehen</p>
-              <SectionHead title={titleOf(current)} sub="{situationOf(current)} · Pot {num(current.pot)} BB · jeder hat noch {num(current.stack)} BB">
-                {#snippet actions()}
-                  {#if cov > 0}
-                    <Button variant="primary" loading={opening !== null} onclick={() => openAny(current)}>Zufälligen Flop ansehen</Button>
-                  {/if}
-                {/snippet}
-              </SectionHead>
+              <div class="steprow">
+                <p class="step"><span class="n num">2</span>Flop anklicken und nachsehen</p>
+                {#if cov > 0}
+                  <Button variant="primary" loading={opening !== null} onclick={() => openAny(current)}>Zufälligen Flop ansehen</Button>
+                {/if}
+              </div>
+              <SectionHead title={titleOf(current)} sub="{situationOf(current)} · Pot {num(current.pot)} BB · jeder hat noch {num(current.stack)} BB" />
               <p class="story">
                 {storyOf(current)} {firstOf(current)}
                 {#if cov > 0}
@@ -605,6 +604,13 @@
     color: var(--text-2);
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
+  }
+  .steprow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2) var(--sp-4);
   }
   .step .n {
     display: grid;
