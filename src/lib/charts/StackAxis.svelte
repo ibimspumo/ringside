@@ -3,12 +3,12 @@
 </script>
 
 <script lang="ts">
+  import Term from "../ui/Term.svelte";
   import type { Anchor } from "../app/format";
   import Button from "../ui/Button.svelte";
   import Popover from "../ui/Popover.svelte";
   import Slider from "../ui/Slider.svelte";
-  import Tooltip from "../ui/Tooltip.svelte";
-  import { TERM, pct } from "./words";
+  import { pct } from "./words";
 
   /**
    * The stack depth as the page's main choice: the slider with quick steps, and under it, on the
@@ -145,7 +145,7 @@
 
 <div class="axis" bind:clientWidth={width}>
   <div class="top">
-    <label class="lbl" for={id}><Tooltip text={TERM.stack}><span class="term">Stack</span></Tooltip> <span class="lead-in">· die wichtigste Wahl</span></label>
+    <label class="lbl" for={id}><Term id="stack">Stack</Term> <span class="lead-in">· die wichtigste Wahl</span></label>
     {#if !onGrid}<span class="own">eigener Stack</span>{/if}
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
@@ -218,7 +218,7 @@
         <span class="bb-unit">BB</span>
         <Button type="submit" size="sm" disabled={parsed === null}>Rechnen</Button>
         <Button variant="quiet" size="sm" onclick={() => ((open = false), (typed = ""))}>Abbrechen</Button>
-        <span class="help">{custom.range ?? ""} <Tooltip text={TERM.live}><span class="term">Wird live gerechnet</span></Tooltip>, das dauert etwas.</span>
+        <span class="help">{custom.range ?? ""} <Term id="live">Wird live gerechnet</Term>, das dauert etwas.</span>
       </form>
     {:else}
       <Button variant="quiet" size="sm" onclick={() => (open = true)}>Anderen Stack eingeben …</Button>
@@ -269,10 +269,6 @@
     align-items: baseline;
     gap: 10px;
     margin-bottom: 2px;
-  }
-  .term {
-    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
-    text-underline-offset: 3px;
   }
   .lead-in {
     color: var(--text-2);

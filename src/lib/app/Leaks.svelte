@@ -7,6 +7,8 @@
 
 <script lang="ts">
   import { api, inTauri } from "../api";
+  import NextSteps from "../next/NextSteps.svelte";
+  import type { NextStep, StepHands } from "../next/types";
   import { SKILLS } from "../learn/catalog";
   import { ARTICLES } from "../learn/wissen/articles";
   import { STAT_META } from "../stats";
@@ -27,11 +29,14 @@
     refresh,
     onHands,
     onLearn,
+    onStepHands,
   }: {
     filter: Filter;
     refresh: number;
     onHands: (spot: SpotFilter, label: string) => void;
     onLearn: (target: LearnTarget) => void;
+    /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+    onStepHands?: (hands: StepHands) => void;
   } = $props();
 
   /** What a value measures, what a deviation usually means, and where to start. */
@@ -161,6 +166,8 @@
   }
 
   let data = $state<LeakReport | null>(null);
+  /** „Was als Nächstes?“: this page shows all of it, the other pages its first entries. */
+  let steps = $state<NextStep[]>([]);
   let failed = $state(false);
   let retry = $state(0);
   let howOpen = $state(false);
@@ -180,6 +187,10 @@
         failed = false;
       })
       .catch(() => live && (failed = true));
+    api.nextSteps(f).then(
+      (s) => live && (steps = s),
+      () => live && (steps = []),
+    );
     return () => (live = false);
   });
 
@@ -367,29 +378,35 @@
     <Panel>
       <EmptyState
         tone="error"
-        title="Die Leaks konnten nicht geladen werden."
+        title="Deine Schwachstellen konnten nicht geladen werden."
         text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
       >
         {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
       </EmptyState>
     </Panel>
   {:else if data}
+    {#if steps.length}
+      <Panel title="Was dich am meisten kostet" sub="Aus deinen bewerteten Händen, deinen Werten und deinen Coach-Berichten – das Wichtigste zuerst. Dieselbe Reihenfolge wie in Übersicht und Lernen.">
+        <NextSteps {steps} {onLearn} onHands={onStepHands} />
+      </Panel>
+    {/if}
+
     <section class="panel verdict" class:bare={!data.leaks.length && !data.fine.length}>
       <div class="answer">
         {#if first}
-          <h2>{sure.length === 1 ? "1 Leak gefunden" : `${int(sure.length)} Leaks gefunden`}</h2>
+          <h2>{sure.length === 1 ? "1 Wert außerhalb des Richtwerts" : `${int(sure.length)} Werte außerhalb des Richtwerts`}</h2>
           <p>
-            Fang oben an: Dein Wert <b>{STAT_META[first.stat].name}</b> ist {first.direction === "too_high" ? "zu hoch" : "zu niedrig"}
-            ({where(first)}, {data.bands[first.band]}{first.cost ? `, kostet grob ${int(Math.round(first.cost.total_bb))} BB` : ""}).
+            Am weitesten daneben: <b>{STAT_META[first.stat].name}</b> ist {first.direction === "too_high" ? "zu hoch" : "zu niedrig"}
+            ({where(first)}, {data.bands[first.band]}). Was davon dich am meisten kostet, steht oben.
           </p>
         {:else if unsure.length}
-          <h2>Noch kein sicherer Leak</h2>
+          <h2>Noch keine sichere Abweichung</h2>
           <p>
             {unsure.length === 1 ? "Ein Wert weicht" : `${int(unsure.length)} Werte weichen`} vom Richtwert ab, aber es gibt noch zu wenig Hände
             für ein sicheres Urteil. Spiel weiter; Ringside prüft bei jedem Import neu.
           </p>
         {:else if data.fine.length}
-          <h2>Kein Leak gefunden</h2>
+          <h2>Alle Werte im Richtbereich</h2>
           <p>Alle geprüften Werte liegen im Richtbereich. Mehr Hände machen die Prüfung genauer.</p>
         {:else}
           <h2>Noch zu wenig Hände</h2>

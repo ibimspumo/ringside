@@ -176,7 +176,7 @@ Deno.test("malformed submissions are rejected", async () => {
   }
   const noJson = await handle(post("/v1/solutions", null, "192.0.2.50", "{nope"));
   assertEquals(noJson.status, 400);
-  const big = await handle(post("/v1/solutions", null, "192.0.2.51", " ".repeat(300_000)));
+  const big = await handle(post("/v1/solutions", null, "192.0.2.51", " ".repeat(1_100_000)));
   assertEquals(big.status, 413);
   const wrongType = await handle(
     new Request(BASE + "/v1/solutions", { method: "POST", headers: { "X-Real-IP": "192.0.2.52" }, body: "{}" }),

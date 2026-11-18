@@ -136,6 +136,32 @@ pub fn progress(attempts: &[Attempt], now: i64) -> Progress {
     }
 }
 
+/// Exercise level to practise next: the highest tried, one up once it is solid.
+pub fn next_level(s: &SkillProgress) -> u8 {
+    if s.max_level == 0 {
+        return 1;
+    }
+    if s.level >= 3 && s.mean_score.unwrap_or(0.0) >= 0.8 {
+        return (s.max_level + 1).min(3);
+    }
+    s.max_level
+}
+
+/// Days since the last attempt, or `None` without one.
+pub fn days_since(s: &SkillProgress, now: i64) -> Option<f64> {
+    s.last_at.map(|at| (now - at) as f64 / DAY as f64)
+}
+
+/// Due for review: practised before, and either shaky or not seen for a while (sooner when
+/// the level is low). Exercises from the own hands and whole hands are never due.
+pub fn is_due(s: &SkillProgress, now: i64) -> bool {
+    if s.attempts == 0 || matches!(s.id, Kind::AllIn | Kind::FullHands | Kind::OwnDecision) {
+        return false;
+    }
+    let gap = [0.0, 0.5, 1.0, 3.0, 7.0][s.level.min(4) as usize];
+    days_since(s, now).unwrap_or(0.0) >= gap || s.mean_score.unwrap_or(1.0) < 0.6
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

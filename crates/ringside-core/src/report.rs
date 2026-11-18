@@ -189,7 +189,7 @@ pub struct StackPoint {
     pub mistake: Option<usize>,
 }
 
-/// The kind of spot to practise next: where this tournament lost most.
+/// What one kind of spot cost in this tournament.
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct Practice {
     /// Key of the playing profile's group, for "Lernen".
@@ -237,7 +237,12 @@ pub struct Report {
     pub best: Vec<Moment>,
     pub starting: Vec<StartingHand>,
     pub timeline: Vec<StackPoint>,
-    pub practice: Option<Practice>,
+    /// Loss per kind of spot in this tournament, costliest first.
+    pub kinds: Vec<Practice>,
+    /// „Was als Nächstes?“ for this tournament: the one list of the whole history, filtered to
+    /// this tournament ([`crate::next::within`]). Filled by the caller, which knows the
+    /// whole history.
+    pub next: Vec<crate::next::NextStep>,
     /// The latest earlier tournaments, newest first.
     pub history: Vec<PastTournament>,
     pub average: Option<Average>,
@@ -535,7 +540,7 @@ pub fn report(hands: &[ReportHand], decisions: &[ReportDecision], unanalyzed: us
         })
         .collect();
 
-    // Practice: the costliest kind of spot of this tournament.
+    // Loss per kind of spot.
     let mut kinds: BTreeMap<String, (crate::profile::SpotKind, usize, usize, i64)> = BTreeMap::new();
     for d in &rated_list {
         let Some(k) = kind_of(&d.row) else { continue };
@@ -544,10 +549,10 @@ pub fn report(hands: &[ReportHand], decisions: &[ReportDecision], unanalyzed: us
         e.2 += is_flawed(d.row.rating) as usize;
         e.3 += loss_of(d);
     }
-    out.practice = kinds
+    let mut kinds: Vec<_> = kinds.into_iter().filter(|(_, e)| e.3 > 0).collect();
+    kinds.sort_by(|a, b| b.1.3.cmp(&a.1.3).then(b.1.1.cmp(&a.1.1)).then(a.0.cmp(&b.0)));
+    out.kinds = kinds
         .into_iter()
-        .filter(|(_, e)| e.3 > 0)
-        .max_by(|a, b| a.1.3.cmp(&b.1.3).then(a.1.1.cmp(&b.1.1)).then(b.0.cmp(&a.0)))
         .map(|(key, (k, n, fl, loss))| Practice {
             key,
             title: k.title(),
@@ -556,7 +561,8 @@ pub fn report(hands: &[ReportHand], decisions: &[ReportDecision], unanalyzed: us
             decisions: n,
             flawed: fl,
             loss_bb: bb_of(loss),
-        });
+        })
+        .collect();
 
     (out.history, out.average) = compare(started_at, past);
     out
@@ -816,7 +822,7 @@ mod tests {
     }
 
     #[test]
-    fn the_practice_tip_is_the_costliest_kind_of_spot() {
+    fn kinds_of_spot_hold_every_loss_costliest_first() {
         for seed in 0..100 {
             let (hands, decisions) = tournament(seed, 50);
             let r = report(&hands, &decisions, 0, "2026/11/18", &[]);
@@ -824,11 +830,10 @@ mod tests {
             for d in counted(&decisions) {
                 *by_kind.entry(kind_of(&d.row).unwrap().key()).or_default() += micro(d.row.ev_loss_bb.unwrap_or(0.0));
             }
-            let top = by_kind.values().copied().max().unwrap_or(0);
-            match &r.practice {
-                Some(p) => assert_eq!(micro(p.loss_bb), top, "seed {seed}"),
-                None => assert_eq!(top, 0),
-            }
+            by_kind.retain(|_, loss| *loss > 0);
+            assert_eq!(r.kinds.len(), by_kind.len(), "seed {seed}");
+            assert!(r.kinds.iter().all(|k| micro(k.loss_bb) == by_kind[&k.key]), "seed {seed}");
+            assert!(r.kinds.windows(2).all(|w| w[0].loss_bb >= w[1].loss_bb), "seed {seed}");
         }
     }
 

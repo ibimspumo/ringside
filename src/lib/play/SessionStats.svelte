@@ -1,5 +1,5 @@
 <script lang="ts">
-  import Term from "../solver/Term.svelte";
+  import Term from "../ui/Term.svelte";
   import GradeBars from "../ui/GradeBars.svelte";
   import { num, signedBB } from "./labels";
   import type { Stats } from "./session.svelte";
@@ -27,7 +27,7 @@
     <div><dt>Hände</dt><dd class="num">{s.hands}</dd></div>
     <div><dt>Züge</dt><dd class="num">{s.moves}</dd></div>
     <div>
-      <dt><Term term="evloss">EV-Verlust</Term> gesamt</dt>
+      <dt><Term id="ev_loss">Kostet im Schnitt</Term>, gesamt</dt>
       <dd class="num">{num(s.evLoss, 2)} BB</dd>
     </div>
     <div>

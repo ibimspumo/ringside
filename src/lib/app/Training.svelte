@@ -1,17 +1,19 @@
 <script lang="ts">
   import Learn from "../learn/Learn.svelte";
-  import type { HudConfig } from "../types";
+  import type { Filter, HudConfig } from "../types";
   import ClientLock from "./ClientLock.svelte";
   import type { LearnTarget } from "./Leaks.svelte";
+  import type { StepHands } from "../next/types";
 
   let {
     hud = null,
+    filter,
     open = null,
     onOpened = () => {},
-    onHands,
-  }: { hud?: HudConfig | null; open?: LearnTarget | null; onOpened?: () => void; onHands?: (key: string, label: string) => void } = $props();
+    onStepHands,
+  }: { hud?: HudConfig | null; filter: Filter; open?: LearnTarget | null; onOpened?: () => void; onStepHands?: (hands: StepHands) => void } = $props();
 </script>
 
 <ClientLock feature="Der Lernbereich">
-  <Learn {hud} {open} {onOpened} {onHands} />
+  <Learn {hud} {filter} {open} {onOpened} onHands={onStepHands} />
 </ClientLock>

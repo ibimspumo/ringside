@@ -24,15 +24,19 @@ pub struct TournamentReport {
 #[tauri::command]
 pub async fn tournament_report(tournament_id: u64, app: AppHandle) -> CmdResult<TournamentReport> {
     blocking(app, move |state| {
-        let db = state.db.lock().unwrap();
-        let tournament = db
-            .tournaments(&Filter::default())
-            .map_err(err)?
-            .into_iter()
-            .find(|t| t.id == tournament_id)
-            .ok_or("Turnier nicht gefunden.")?;
-        let report = db.tournament_report(tournament_id, &tournament.started_at, ENGINE).map_err(err)?;
-        let coach_review = db.coach_report(tournament_id).map_err(err)?.is_some();
+        let (tournament, mut report, coach_review) = {
+            let db = state.db.lock().unwrap();
+            let tournament = db
+                .tournaments(&Filter::default())
+                .map_err(err)?
+                .into_iter()
+                .find(|t| t.id == tournament_id)
+                .ok_or("Turnier nicht gefunden.")?;
+            let report = db.tournament_report(tournament_id, &tournament.started_at, ENGINE).map_err(err)?;
+            let coach_review = db.coach_report(tournament_id).map_err(err)?.is_some();
+            (tournament, report, coach_review)
+        };
+        crate::next::fill_report(state, &mut report)?;
         Ok(TournamentReport { tournament, report, coach_review })
     })
     .await

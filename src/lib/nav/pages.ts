@@ -1,3 +1,5 @@
+import { WORDS } from "../ui/words";
+
 /**
  * The pages of the app, sorted by what the player wants to do rather than by tool: the one list
  * for the top bar, its menus, page titles and the layout check.
@@ -59,7 +61,7 @@ export const PAGES: Record<Page, PageInfo> = {
     icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8",
   },
   leaks: {
-    label: "Schwachstellen",
+    label: WORDS.leaks.word,
     text: "Wo du immer wieder Blinds liegen lässt und was dagegen hilft.",
     icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5",
   },
@@ -111,7 +113,7 @@ export const PAGES: Record<Page, PageInfo> = {
     icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15",
   },
   solver: {
-    label: "Nachrechnen",
+    label: WORDS.solver.word,
     text: "Eine Situation genau durchrechnen lassen. Läuft nur auf diesem Rechner.",
     icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17",
   },

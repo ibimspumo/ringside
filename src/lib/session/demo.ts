@@ -2,7 +2,7 @@
 // about 150 hands. `?data=empty` has no hands yet, `?data=few` a session too short for
 // patterns, `?data=pending` one whose analysis still runs; `&locked=1` is what the backend
 // sends while PokerStars runs.
-import type { Moment } from "../report/types";
+import type { KindLoss, Moment } from "../report/types";
 import { demoTournaments } from "../demo";
 import type { ClassGap, PreflopReview, SessionPage, SessionReview, SessionSpan, Swing } from "./types";
 
@@ -272,6 +272,12 @@ const GOOD_LUCK: Swing[] = [
 
 const START = "2026/11/18 20:04:00";
 
+/** Loss per kind of spot of the demo session, costliest first: the hands behind „Als Nächstes üben“. */
+export const SESSION_KINDS: KindLoss[] = [
+  { key: "vs_open|BB|2|9", title: "Gegen Open im Big Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_open", decisions: 14, flawed: 5, loss_bb: 6.1 },
+  { key: "river_vs_bet|-|3|6", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 4, flawed: 2, loss_bb: 3.0 },
+];
+
 function spans(): SessionSpan[] {
   // One currency for the evening, like most players.
   const ids = demoTournaments().rows.filter((t) => t.currency === "USD").map((t) => t.id);
@@ -304,15 +310,8 @@ function review(span: SessionSpan, at: number): SessionReview {
       best: [],
       starting: [],
       timeline: [],
-      practice: {
-        key: "vs_open|BB|2|9",
-        title: "Gegen Open im Big Blind",
-        detail: "20–40 BB · 7–10 Spieler",
-        lage: "vs_open",
-        decisions: 14,
-        flawed: 5,
-        loss_bb: 6.1,
-      },
+      kinds: SESSION_KINDS,
+      next: [],
       history: [],
       average: null,
     },
@@ -336,7 +335,8 @@ function locked(r: SessionReview): SessionReview {
       best: [],
       starting: [],
       timeline: [],
-      practice: null,
+      kinds: [],
+      next: [],
     },
     preflop: {
       hands: p.hands,

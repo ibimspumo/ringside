@@ -123,22 +123,3 @@ export function costLine(g: SpotGroup): string {
   return `${times}, kostet dich etwa ${bbText(g.mean_loss_bb)} pro Mal`;
 }
 
-/** The honest note for a group rated mostly by the estimate, or null. */
-export function unsureLine(g: SpotGroup): string | null {
-  if (!g.unsure) return null;
-  const r = g.estimate_reliability;
-  const tenths = r === null ? null : Math.round(r * 10);
-  return tenths === null
-    ? "Der Verlust stammt überwiegend aus Einschätzungen, nicht aus einer Lösung."
-    : `Der Verlust stammt überwiegend aus Einschätzungen. Die liegen in etwa ${tenths} von 10 Prüf-Spots nah am Solver.`;
-}
-
-/** "seit dem Üben: Fehlerquote 34 % → 18 %", or null below enough hands. */
-export function changeLine(g: SpotGroup): string | null {
-  const c = g.change;
-  if (!c) return null;
-  return `seit dem Üben: Fehlerquote ${Math.round(c.before_error_pct)} % → ${Math.round(c.after_error_pct)} %`;
-}
-
-/** The kinds of spot worth practising: ranked, costliest first. */
-export const weakGroups = (p: PlayProfile | null) => (p?.groups ?? []).filter((g) => g.rank !== null);

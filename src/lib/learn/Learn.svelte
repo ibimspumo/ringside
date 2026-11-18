@@ -4,7 +4,7 @@
   import { coachApi } from "../coach/api";
   import type { ConceptCount } from "../coach/types";
   import type { LearnTarget } from "../app/Leaks.svelte";
-  import type { HudConfig, LearnKind, LearnProgress } from "../types";
+  import type { Filter, HudConfig, LearnKind, LearnProgress } from "../types";
   import { errorText } from "./catalog";
   import OwnHands from "./OwnHands.svelte";
   import Path from "./Path.svelte";
@@ -14,19 +14,23 @@
   import { preview } from "./preview";
   import { usePageHead } from "../ui/page.svelte";
   import type { PlayProfile } from "./profile";
+  import type { NextStep, StepHands } from "../next/types";
 
   let {
     hud = null,
+    filter,
     open = null,
     onOpened = () => {},
     onHands,
   }: {
     hud?: HudConfig | null;
+    /** The app's game and period: „Was als Nächstes?“ reads the same list as the overview. */
+    filter: Filter;
     /** An article or exercise to show first, e.g. from the leak finder. */
     open?: LearnTarget | null;
     onOpened?: () => void;
-    /** Opens the hands of a kind of spot of the playing profile. */
-    onHands?: (key: string, label: string) => void;
+    /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+    onHands?: (hands: StepHands) => void;
   } = $props();
 
   type Section = "today" | "path" | "own" | "trainer" | "wissen";
@@ -61,6 +65,8 @@
   let concepts = $state<ConceptCount[]>([]);
   /** Kinds of spot from the analysed hands; null while loading or locked. */
   let profile = $state<PlayProfile | null>(null);
+  /** „Was als Nächstes?“ over all hands; empty while it loads or while locked. */
+  let steps = $state<NextStep[]>([]);
   /** A kind of spot "Heute" practises right away. */
   let focus = $state<string | null>(preview("focus"));
   let loadError = $state<string | null>(null);
@@ -92,6 +98,12 @@
       .then((p) => (profile = p))
       .catch(() => {
         // Locked or not analysed yet: the plan then works without the own game.
+      });
+    api
+      .nextSteps({ ...filter, tournament_id: null })
+      .then((s) => (steps = s))
+      .catch(() => {
+        // Locked: no advice while PokerStars runs.
       });
   }
 
@@ -125,11 +137,15 @@
     go("wissen");
   }
 
+  function learn(target: LearnTarget) {
+    if ("article" in target) read(target.article);
+    else if ("spot" in target) practice(target.spot);
+    else train(target.kind, target.level);
+  }
+
   $effect(() => {
     if (!open) return;
-    if ("article" in open) read(open.article);
-    else if ("spot" in open) practice(open.spot);
-    else train(open.kind, open.level);
+    learn(open);
     onOpened();
   });
 
@@ -154,18 +170,18 @@
         {progress}
         {concepts}
         {profile}
+        {steps}
         {focus}
         onFocusDone={() => (focus = null)}
         onProgress={reload}
         onPath={() => go("path")}
         onOwn={() => go("own")}
         onTrainer={() => go("trainer")}
-        onTrain={train}
-        onRead={read}
+        onLearn={learn}
         {onHands}
       />
     {:else if section === "path"}
-      <Path {progress} {concepts} {profile} onTrain={train} onRead={read} onPractice={practice} {onHands} />
+      <Path {progress} {steps} onTrain={train} onRead={read} onLearn={learn} {onHands} />
     {:else if section === "own"}
       <OwnHands onProgress={reload} onRead={read} />
     {:else if section === "trainer"}

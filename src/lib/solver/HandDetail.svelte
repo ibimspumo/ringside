@@ -3,7 +3,7 @@
   import PlayingCard from "../PlayingCard.svelte";
   import { bb } from "./actions";
   import { cap, handAdvice } from "./explain";
-  import Term from "./Term.svelte";
+  import Term from "../ui/Term.svelte";
   import { sameCombo } from "./practice";
   import { classLabel } from "./range";
   import type { SolverNode } from "./types";
@@ -76,8 +76,8 @@
         <div class="kv sep"><span>Equity</span><b class="num">{pct(cls.equity)}</b></div>
         <div class="kv"><span>EV</span><b class="num">{signed(cls.ev, 2)} BB</b></div>
       {:else}
-        <div class="kv sep"><span><Term term="equity">Equity</Term></span><b class="num">{pct(cls.equity)}</b></div>
-        <div class="kv"><span><Term term="ev">EV</Term></span><b class="num">{signed(cls.ev, 2)} BB</b></div>
+        <div class="kv sep"><span><Term id="equity">Equity</Term></span><b class="num">{pct(cls.equity)}</b></div>
+        <div class="kv"><span><Term id="ev">EV</Term></span><b class="num">{signed(cls.ev, 2)} BB</b></div>
       {/if}
     </div>
     {#if !compact && node.hands.length}

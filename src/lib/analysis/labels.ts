@@ -1,6 +1,7 @@
 import type { LearnTarget } from "../app/Leaks.svelte";
 import { THRESHOLD_TEXT } from "../play/labels";
 import { GRADE, type Grade, type Source as KitSource } from "../ui/poker";
+import { WORDS, explain, type WordId } from "../ui/words";
 import type { Rating, Source, SpotType } from "./types";
 
 export const RATINGS: Rating[] = ["best", "mix", "good", "inaccuracy", "mistake", "blunder"];
@@ -60,32 +61,11 @@ export const SPOT_GROUPS: { label: string; spots: SpotType[] }[] = [
   { label: "Nach dem Flop", spots: ["c_bet", "vs_c_bet", "flop", "turn", "river"] },
 ];
 
-export const SOURCE: Record<Source, { label: string; explain: string }> = {
-  equilibrium: {
-    label: "Gleichgewicht",
-    explain:
-      "Die Push/Fold-Strategie, die kein Spieler mehr verbessern kann, wenn nur All-in oder Fold erlaubt ist. Gerechnet in Chips, ohne Preisgeld-Druck (ICM), aus Ringsides Tabellen.",
-  },
-  model: {
-    label: "Modell",
-    explain:
-      "Ringsides Preflop-Modell: Es rechnet die Aktionen vor dem Flop genau und schätzt den Rest der Hand mit einer Formel. Eine gute Richtschnur, aber kein GTO des echten Spiels.",
-  },
-  solver: {
-    label: "Solver",
-    explain:
-      "Eine echte Berechnung der Hand ab dem Flop, heads-up, mit Ranges aus dem Preflop-Modell und Standard-Einsatzgrößen.",
-  },
-  estimate: {
-    label: "Einschätzung",
-    explain:
-      "Für diesen Spot gibt es weder Solver noch Modell, etwa weil drei Spieler den Flop sehen. Ringside schätzt: Wie oft gewinnt deine Hand gegen die wahrscheinlichen Hände der Gegner, was kostet der Call (Pot Odds), wie oft folden sie auf einen Bet? Gut als Richtung, nicht exakt.",
-  },
-  forced: {
-    label: "Keine Entscheidung",
-    explain: "Hier gab es nichts zu entscheiden: Alle anderen waren schon all-in, oder der Call der letzten Chips war mit jeder Hand richtig. Zählt nicht in deine Bewertung.",
-  },
-};
+/** Where a rating comes from, in the glossary's words. */
+const SOURCE_WORD: Record<Source, WordId> = { equilibrium: "equilibrium", model: "model", solver: "solved", estimate: "estimate", forced: "forced" };
+export const SOURCE: Record<Source, { label: string; explain: string }> = Object.fromEntries(
+  Object.entries(SOURCE_WORD).map(([s, id]) => [s, { label: WORDS[id].word, explain: explain(id) }]),
+) as Record<Source, { label: string; explain: string }>;
 
 /** Sources a filter offers: forced moves are no decisions. */
 export const FILTER_SOURCES: Source[] = ["solver", "model", "equilibrium", "estimate"];
@@ -105,8 +85,7 @@ export function reliabilityText(share: number, street: "preflop" | "flop" | "tur
   return `Verlässlichkeit ${Math.round(share * 100)} %: Mindestens so oft lag die Einschätzung in Prüf-Spots höchstens eine Stufe neben ${ref} – bei guten Zügen wie bei Fehlern.`;
 }
 
-export const EV_LOSS_EXPLAIN =
-  "EV-Verlust: wie viele Big Blinds du mit deiner Aktion im Schnitt weniger gewinnst als mit der besten – auf lange Sicht, nicht in dieser einen Hand.";
+export const EV_LOSS_EXPLAIN = explain("ev_loss");
 
 /**
  * What an action's EV counts from. The solver and the estimate count from the decision on; the

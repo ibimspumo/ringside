@@ -596,7 +596,7 @@
         {filter}
         {refresh}
         onOpen={(id, at) => open(id, at).then(() => (jumpTo = { action: at }))}
-        onSpot={(s) => (spots = [s])}
+        onSpots={(s) => (spots = s)}
         {onLearn}
       />
       <IconButton size="sm" label="Zusammenfassung ausblenden" onclick={flipSummary}>{@render close()}</IconButton>

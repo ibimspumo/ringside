@@ -1,6 +1,7 @@
 <script lang="ts">
   import { tick } from "svelte";
   import { inTauri } from "../api";
+  import { pokerClient } from "../app/client.svelte";
   import JobsDock from "../jobs/JobsDock.svelte";
   import { jobs } from "../jobs/store.svelte";
   import type { JobTarget } from "../jobs/types";
@@ -23,7 +24,6 @@
    */
   let {
     tab,
-    locked,
     filter,
     tournaments,
     tables,
@@ -35,7 +35,6 @@
     onChooseFolder,
   }: {
     tab: Page;
-    locked: boolean;
     filter: Filter;
     tournaments: TournamentRow[];
     tables: number;
@@ -119,6 +118,8 @@
     const t = e.target as Node;
     if (open && !panel?.contains(t) && !Object.values(triggers).some((b) => b?.contains(t))) close();
   }
+  /** PokerStars runs: locked pages carry a lock (client.svelte.ts follows the client). */
+  const locked = $derived(pokerClient.running === true);
   const lockedNow = (p: Page) => locked && LOCKED_PAGES.includes(p);
 
   /** What a tab shows at rest: the first value in its area that calls for something. */

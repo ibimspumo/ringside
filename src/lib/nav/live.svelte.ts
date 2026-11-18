@@ -1,6 +1,7 @@
 import { api } from "../api";
 import { isActive } from "../jobs/kinds";
 import { jobs } from "../jobs/store.svelte";
+import { adviceLocked } from "../app/client.svelte";
 import { isDue } from "../learn/catalog";
 import { libraryApi } from "../library/api";
 import type { Filter, HudConfig, TournamentRow } from "../types";
@@ -94,7 +95,9 @@ class NavLive {
    */
   of(page: Page, locked: boolean): Live | undefined {
     if (locked && LOCKED_PAGES.includes(page)) return live("", "gesperrt");
-    if (locked && this.values[page] && this.values[page].tone !== "neutral" && this.values[page].tone !== "good") return undefined;
+    // Ratings wait while the client runs and until the backend said it does not.
+    const value = this.values[page];
+    if (adviceLocked() && value && (value.tone === "warn" || value.tone === "bad")) return undefined;
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;

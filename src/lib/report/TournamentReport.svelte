@@ -26,6 +26,8 @@
   import AskCoach from "./AskCoach.svelte";
   import StackChart from "./StackChart.svelte";
   import type { Breakdown, Moment, TournamentReport } from "./types";
+  import NextSteps from "../next/NextSteps.svelte";
+  import type { NextStep, StepHands } from "../next/types";
 
   let {
     tournamentId,
@@ -34,6 +36,7 @@
     onHand,
     onHands,
     onLearn,
+    onStepHands,
     onCoach,
   }: {
     tournamentId: number;
@@ -44,6 +47,8 @@
     /** Every hand of the tournament in "Hände". */
     onHands: () => void;
     onLearn: (target: LearnTarget) => void;
+    /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+    onStepHands?: (hands: StepHands) => void;
     /** The coach page: its setup, a stored review, or a new review of this tournament. */
     onCoach: (what: "setup" | "review" | "analyze") => void;
   } = $props();
@@ -157,9 +162,19 @@
   const LUCK_HELP =
     "All-in-EV: Bei jedem All-in, bei dem alle Karten offen lagen, rechnet Ringside, was du im Schnitt gewonnen hättest. Der Unterschied zum echten Ergebnis ist Glück oder Pech – das kannst du nicht beeinflussen.";
   const LOSS_HELP =
-    "EV-Verlust: Wie viele Big Blinds deine Entscheidungen gegenüber der besten Wahl im Schnitt gekostet haben. Je 100 Entscheidungen gerechnet, damit lange und kurze Turniere vergleichbar sind. Weniger ist besser.";
+    "Kostet im Schnitt: Wie viele Big Blinds deine Entscheidungen gegenüber der besten Wahl im Schnitt gekostet haben. Je 100 Entscheidungen gerechnet, damit lange und kurze Turniere vergleichbar sind. Weniger ist besser.";
   const GOOD_HELP = "Gute Entscheidungen: beste Wahl, gleich gute Mischung oder gut. Ungenauigkeiten und Fehler zählen nicht dazu.";
 </script>
+
+{#snippet here(step: NextStep)}
+  {@const k = report?.kinds.find((x) => x.key === step.spot_key)}
+  {#if k}
+    <p class="here">
+      In diesem Turnier: <b class="num">{bb(k.loss_bb)}</b> in {int(k.decisions)}
+      {k.decisions === 1 ? "Entscheidung" : "Entscheidungen"}{k.flawed ? `, ${int(k.flawed)} davon ungenau oder schlechter` : ""}.
+    </p>
+  {/if}
+{/snippet}
 
 {#snippet moment(m: Moment, i: number, bad: boolean)}
   <article class="moment" class:bad>
@@ -247,7 +262,7 @@
         {#if s.decisions}
           <strong class="big num">{num(s.good_pct ?? 0, 0)}&nbsp;% gut</strong>
           <span class="say">
-            {int(s.good)} von {int(s.decisions)} bewerteten Entscheidungen. <Term tip={LOSS_HELP}>EV-Verlust</Term>
+            {int(s.good)} von {int(s.decisions)} bewerteten Entscheidungen. <Term tip={LOSS_HELP}>Kostet im Schnitt</Term>
             <b class="num">{bb(s.per100 ?? 0)}</b> je 100 Entscheidungen{#if versus && avg}{" "}–
               {versus.word === "gleich" ? "so wie" : `${versus.word} als`} dein Schnitt (<span class="num">{bb(avg.per100 ?? 0)}</span>
               aus {int(avg.tournaments)} Turnieren){/if}.
@@ -367,7 +382,7 @@
     </div>
 
     <div class="pair">
-      <Panel title="Gegen deine letzten Turniere" sub="EV-Verlust je 100 Entscheidungen – kürzer ist besser.">
+      <Panel title="Gegen deine letzten Turniere" sub="Was dich je 100 Entscheidungen im Schnitt kostet – kürzer ist besser.">
         {#if report.history.length && s.per100 !== null}
           <p class="lead">
             {#if trend}
@@ -397,20 +412,9 @@
         {/if}
       </Panel>
 
-      <Panel title="Als Nächstes üben">
-        {#if report.practice}
-          {@const p = report.practice}
-          <div class="practice">
-            <strong class="p-title">{p.title}</strong>
-            <span class="p-detail">{p.detail}</span>
-            <p class="say">
-              Hier hast du in diesem Turnier am meisten verloren: <b class="num">{bb(p.loss_bb)}</b> in {int(p.decisions)}
-              {p.decisions === 1 ? "Entscheidung" : "Entscheidungen"}{p.flawed ? `, ${int(p.flawed)} davon ungenau oder schlechter` : ""}.
-            </p>
-            <div class="row">
-              <Button variant="primary" onclick={() => onLearn({ spot: p.key })}>In „Lernen“ üben</Button>
-            </div>
-          </div>
+      <Panel title="Was als Nächstes?" sub="Aus deiner einen Rangliste über alle Hände – hier, was in diesem Turnier vorkam.">
+        {#if report.next.length}
+          <NextSteps steps={report.next} mode="first" {onLearn} onHands={onStepHands} note={here} />
         {:else}
           <EmptyState compact title="Nichts Dringendes." text="Keine Spot-Art hat in diesem Turnier etwas gekostet." />
         {/if}
@@ -747,25 +751,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .practice {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-1);
-  }
-  .p-title {
-    font-size: var(--fs-lg);
-  }
-  .p-detail {
+  .here {
+    margin: 0;
     font-size: var(--fs-sm);
     color: var(--text-2);
-  }
-  .practice .say {
-    margin: var(--sp-2) 0;
-  }
-  .row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-2);
   }
   .coach {
     display: flex;

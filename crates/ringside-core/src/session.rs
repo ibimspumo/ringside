@@ -899,7 +899,7 @@ mod tests {
         assert!(l.preflop.model_pct.is_none() && l.preflop.verdict.is_none() && l.preflop.patterns.is_empty());
         assert!(l.preflop.classes.is_empty() && l.preflop.wide.is_empty() && l.preflop.tight.is_empty());
         assert!(l.bad_luck.is_empty() && l.good_luck.is_empty());
-        assert!(l.report.worst.is_empty() && l.report.best.is_empty() && l.report.practice.is_none() && l.report.breakdowns.is_empty());
+        assert!(l.report.worst.is_empty() && l.report.best.is_empty() && l.report.kinds.is_empty() && l.report.next.is_empty() && l.report.breakdowns.is_empty());
         assert_eq!(l.report.score.decisions, 0, "no grades");
         // Nothing advisory survives in what the page receives.
         let json = serde_json::to_string(&l).unwrap();

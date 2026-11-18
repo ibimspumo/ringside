@@ -7,8 +7,9 @@ import { CanonicalError, canonicalize, solutionKey } from "./canonical.ts";
 import { InvalidError, KINDS, kindSpec } from "./kinds.ts";
 import { decide, hitStatements, MemoryCounter, pruneStatement, RULES, type Rule } from "./ratelimit.ts";
 
-export const API_VERSION = "1.5.0";
-const MAX_BODY = 256 * 1024;
+export const API_VERSION = "1.5.1";
+// A flop spot at 40–75 BB stores a deeper tree than at 20 BB; 256 KiB turned some away.
+const MAX_BODY = 1024 * 1024;
 const MAX_INPUT = 4 * 1024;
 const MAX_HAND = 20_000;
 const MAX_ERROR = 2_000;

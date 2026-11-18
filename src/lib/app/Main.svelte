@@ -11,6 +11,7 @@
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
   import Leaks, { type LearnTarget } from "./Leaks.svelte";
+  import type { StepHands } from "../next/types";
   import HudEditor from "./HudEditor.svelte";
   import LiveTables from "./LiveTables.svelte";
   import Players from "./Players.svelte";
@@ -58,7 +59,7 @@
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
-    leaks: "Deine Werte gegen veröffentlichte Richtwerte.",
+    leaks: "Was dich am meisten kostet, das Wichtigste zuerst. Darunter deine Werte gegen veröffentlichte Richtwerte.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Optional: Ein Sprachmodell erklärt deine Zahlen und bespricht Turniere ausführlich. Jede Zahl rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
@@ -225,6 +226,20 @@
     tab = "hands";
   }
 
+  /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+  function stepHands(h: StepHands) {
+    if (h.by === "decision") {
+      showHands(null, h.hand_id);
+      handOpenAt = h.action_index;
+    } else {
+      showHands(null);
+      handsSpot =
+        h.by === "spot"
+          ? { profile: h.key, label: h.label }
+          : { filter: { stat: h.stat, made: h.made, positions: h.positions, band: h.band, game: h.game }, label: h.label };
+    }
+  }
+
   /** Game and period stay visible while a tournament is chosen; picking one of them drops it. */
   function setGame(g: GameKind | null) {
     game = g;
@@ -285,7 +300,6 @@
 >
   <TopBar
     {tab}
-    locked={clientRunning}
     {filter}
     tournaments={tournamentList}
     {tables}
@@ -348,6 +362,8 @@
       {#if tab === "dashboard"}
         <SessionReview
           {refresh}
+          {filter}
+          onStepHands={stepHands}
           onReport={openReport}
           onHand={(scope, hand, at) => {
             session = scope;
@@ -378,6 +394,7 @@
           {hud}
           {refresh}
           onHand={(id) => showHands(null, id >= 0 ? id : null)}
+          onStepHands={stepHands}
           onLearn={(target) => {
             learnOpen = target;
             tab = "training";
@@ -395,6 +412,7 @@
             showHands(null);
             handsSpot = { filter: spot, label };
           }}
+          onStepHands={stepHands}
           onLearn={(target) => {
             learnOpen = target;
             tab = "training";
@@ -427,6 +445,7 @@
               tournament = id;
               showHands(null);
             }}
+            onStepHands={stepHands}
             onLearn={(target) => {
               learnOpen = target;
               tab = "training";
@@ -463,12 +482,10 @@
       {:else if tab === "training"}
         <Training
           {hud}
+          {filter}
           open={learnOpen}
           onOpened={() => (learnOpen = null)}
-          onHands={(profile, label) => {
-            showHands(null);
-            handsSpot = { profile, label };
-          }}
+          onStepHands={stepHands}
         />
       {:else if tab === "play"}
         <PlayPage />

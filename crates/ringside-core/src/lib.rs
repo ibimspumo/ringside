@@ -8,6 +8,7 @@ pub mod db;
 pub mod import;
 pub mod leaks;
 pub mod model;
+pub mod next;
 pub mod notes;
 pub mod parser;
 pub mod profile;
@@ -17,6 +18,7 @@ pub mod session;
 pub mod stats;
 pub mod table;
 pub mod tournament;
+pub mod words;
 
 pub use db::Db;
 pub use model::Hand;

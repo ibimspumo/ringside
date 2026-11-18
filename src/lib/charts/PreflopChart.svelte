@@ -1,11 +1,11 @@
 <script lang="ts">
+  import Term from "../ui/Term.svelte";
   import { signed } from "../app/format";
   import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
-  import Tooltip from "../ui/Tooltip.svelte";
   import { classCombos, classLabel } from "../solver/range";
   import type { PreflopAction, PreflopNode, PreflopStep } from "./preflop-types";
   import { actionColor, actionName, actionPhrase } from "./preflop-labels";
-  import { TERM, amount } from "./words";
+  import { amount } from "./words";
 
   /** 13×13 grid of one preflop decision on the shared RangeGrid; each hand split by action share. */
   let {
@@ -135,7 +135,7 @@
     {@const best = bestEv(h)}
     <header class="c-head">
       <b class="c-key">{h.key}</b>
-      <Tooltip text={TERM.combos}><span class="term">{h.combos} Kombos</span></Tooltip>
+      <Term id="hand_combos">{h.combos} Kombos</Term>
     </header>
     <p class="verdict">{verdict(h)}.</p>
     {#if !h.inRange}
@@ -143,12 +143,12 @@
     {:else}
       {#if why(h)}
         <p class="why">
-          {why(h)}{#if taken(h).length > 1}{" "}<Tooltip text={TERM.mixed}><span class="term">Warum gemischt?</span></Tooltip>{/if}
+          {why(h)}{#if taken(h).length > 1}{" "}<Term id="mixed">Warum gemischt?</Term>{/if}
         </p>
       {/if}
       <div class="bar split" aria-hidden="true" style="background:{mixBar(h)}"></div>
       <table class="acts">
-        <thead><tr><th>Aktion</th><th>Wie oft</th><th><Tooltip text={TERM.ev}><span class="term">EV</span></Tooltip></th></tr></thead>
+        <thead><tr><th>Aktion</th><th>Wie oft</th><th><Term id="ev">EV</Term></th></tr></thead>
         <tbody>
           {#each ordered(h) as p (p.a)}
             <tr class:best={p.ev !== null && Math.abs(p.ev - best) < 0.005}>
@@ -190,12 +190,6 @@
     align-items: baseline;
     gap: var(--sp-3);
     margin-bottom: var(--sp-2);
-  }
-  .term {
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
-    text-underline-offset: 3px;
   }
   .bar {
     height: 5px;

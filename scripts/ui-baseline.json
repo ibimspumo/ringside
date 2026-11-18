@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 142,
+      "total": 141,
       "files": {
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
@@ -37,7 +37,6 @@
         "ranges/RangeGrid.svelte": 1,
         "solver/RangeEditor.svelte": 1,
         "solver/Saved.svelte": 1,
-        "solver/Term.svelte": 1,
         "stats.ts": 6
       }
     },
@@ -92,7 +91,7 @@
       }
     },
     "button-style": {
-      "total": 126,
+      "total": 129,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -125,8 +124,7 @@
         "solver/RangeEditor.svelte": 1,
         "solver/Setup.svelte": 1,
         "solver/SizeChooser.svelte": 2,
-        "solver/Study.svelte": 6,
-        "solver/Term.svelte": 1
+        "solver/Study.svelte": 6
       }
     },
     "global-class-override": {
@@ -169,7 +167,7 @@
       "files": {}
     },
     "motion": {
-      "total": 44,
+      "total": 43,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -194,11 +192,46 @@
         "learn/wissen/widgets/Outs.svelte": 1,
         "learn/wissen/widgets/PotOdds.svelte": 2,
         "learn/wissen/widgets/StackRuler.svelte": 2,
-        "learn/wissen/Wissen.svelte": 1,
-        "solver/Term.svelte": 1
+        "learn/wissen/Wissen.svelte": 1
       }
     },
     "page-heading": {
+      "total": 0,
+      "files": {}
+    },
+    "jargon": {
+      "total": 68,
+      "files": {
+        "app/Reports.svelte": 2,
+        "charts/ChartsButton.svelte": 1,
+        "charts/PreflopChart.svelte": 2,
+        "charts/RangesPage.svelte": 9,
+        "charts/StackAxis.svelte": 1,
+        "cloud/CloudNotice.svelte": 1,
+        "cloud/CloudSettings.svelte": 3,
+        "coach/ReportView.svelte": 4,
+        "coach/SpotDrill.svelte": 2,
+        "learn/FeedbackView.svelte": 1,
+        "learn/OwnHands.svelte": 2,
+        "learn/Stage.svelte": 2,
+        "learn/Today.svelte": 1,
+        "learn/wissen/widgets/CbetRange.svelte": 3,
+        "learn/wissen/widgets/PotOdds.svelte": 1,
+        "library/Library.svelte": 1,
+        "play/InfoPanel.svelte": 3,
+        "play/Play.svelte": 1,
+        "ranges/RangeGrid.svelte": 1,
+        "ranges/Ranges.svelte": 2,
+        "solver/ActionBar.svelte": 1,
+        "solver/HandDetail.svelte": 4,
+        "solver/Practice.svelte": 1,
+        "solver/Saved.svelte": 1,
+        "solver/Setup.svelte": 3,
+        "solver/Study.svelte": 11,
+        "ui/Kit.svelte": 4
+      }
+    },
+    "old-word": {
       "total": 0,
       "files": {}
     }

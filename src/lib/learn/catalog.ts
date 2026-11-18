@@ -1,6 +1,7 @@
 import type { ConceptCount } from "../coach/types";
 import type { Grading, LearnKind, SkillProgress } from "../types";
 import type { UnitId } from "./wissen/articles";
+import { WORDS, type WordId } from "../ui/words";
 
 /** Kinds the generator can make, in learning order. */
 export const TRAINABLE: LearnKind[] = [
@@ -357,52 +358,51 @@ export function currentUnit(byKind: Map<LearnKind, SkillProgress>): Unit | null 
   return UNITS.find((u) => u.skills.some((k) => (byKind.get(k)?.level ?? 0) < 2)) ?? null;
 }
 
-/** One plain sentence per poker term that feedback and exercises show, matched by the start of the label. */
-const TERMS: [RegExp, string][] = [
-  [/^Nash/, "Die Entscheidung, die ein perfekt spielender Gegner nicht ausnutzen kann."],
-  [/^EV-Verlust|^EV /, "EV heißt Erwartungswert: was eine Entscheidung im Schnitt bringt, gemessen in Big Blinds (bb)."],
-  [/^Erwartet \(EV\)/, "Was dein All-in im Schnitt wert war, unabhängig davon, wie die Karten fielen."],
-  [/^(Shove|Call)-Range/, "Anteil aller Starthände, mit denen man hier all-in geht bzw. callt."],
-  [/^Effektiver Stack/, "Der kleinere der beteiligten Stacks. Mehr kann in dieser Hand nicht gewonnen oder verloren werden."],
-  [/^Benötigte Equity/, "So oft musst du mindestens gewinnen, damit sich der Call lohnt."],
-  [/^(Deine )?Equity/, "Dein Anteil am Pot, wenn alle Karten ausgeteilt werden."],
-  [/^Pot Odds/, "Verhältnis zwischen dem Pot und dem, was du zahlen musst."],
-  [/^Totes Geld/, "Chips im Pot von Spielern, die schon gefoldet haben."],
-  [/^Schmutzige Outs/, "Karten, die dir helfen, dem Gegner aber eine noch bessere Hand geben können."],
-  [/^Halbe Outs/, "Karten, die dir nur manchmal helfen. Sie zählen halb."],
-  [/^Outs/, "Karten, die deine Hand nach vorn bringen."],
-  [/^Regel von 2 und 4|^Korrigierte Regel/, "Outs mal 2 für eine Karte, Outs mal 4 für zwei Karten ergibt grob die Trefferchance in Prozent."],
-  [/^Glück/, "Ergebnis minus Erwartungswert. Über viele Hände gleicht es sich aus."],
-  [/^Blockiert/, "Kombinationen, die es wegen deiner eigenen Karten nicht geben kann."],
-  [/^Mögliche Kombos/, "Wie viele Kartenpaare der Gegner halten kann."],
-  [/^Chip-EV/, "Gerechnet in Chips, nicht in Preisgeld."],
-  [/^ICM/, "Rechnet Chips in Preisgeld um. Ohne ICM zählt jeder Chip gleich viel."],
-  [/^Call-Range/, "Anteil aller Starthände, mit denen man hier callt."],
-  [/^Open-Range/, "Anteil aller Starthände, mit denen man hier als Erster erhöht."],
-  [/^Modell-Strategie/, "Was Ringsides Preflop-Modell mit dieser Hand hier macht."],
-  [/^Gleichgewicht/, "Die Strategie, die ein perfekt spielender Gegner nicht ausnutzen kann."],
-  [/^Kopfgeld|^Kurs/, "Im Bounty-Turnier bekommst du für jeden Rauswurf Geld. Umgerechnet in bb zählt es wie Chips im Pot."],
-  [/^Preisgeld-Erwartung/, "So viel Preisgeld bringt dir dieser Weg im Schnitt, nach ICM gerechnet."],
-  [/^M-Zahl/, "Wie viele Runden Blinds und Antes du noch zahlen kannst, ohne einen Pot zu gewinnen."],
-  [/^Zone/, "Harringtons Zonen: Je kleiner die M-Zahl, desto weniger Spielraum bleibt."],
-  [/^VPIP/, "Wie oft ein Spieler vor dem Flop freiwillig Geld in den Pot steckt."],
-  [/^PFR/, "Wie oft ein Spieler vor dem Flop erhöht."],
-  [/^3-Bet/, "Wie oft ein Spieler eine Erhöhung noch einmal erhöht."],
-  [/^Stichprobe/, "Wenige Hände sagen wenig: Der wahre Wert kann weit vom angezeigten liegen."],
+/** Glossary words of the labels that feedback and exercises show, matched by the start of the label. */
+const TERMS: [RegExp, WordId][] = [
+  [/^Nash/, "nash"],
+  [/^EV-Verlust|^EV /, "ev"],
+  [/^Erwartet \(EV\)/, "expected"],
+  [/^(Shove|Call)-Range/, "shove_range"],
+  [/^Effektiver Stack/, "effective"],
+  [/^Benötigte Equity/, "needed_equity"],
+  [/^(Deine )?Equity/, "equity"],
+  [/^Pot Odds/, "pot_odds"],
+  [/^Totes Geld/, "dead_money"],
+  [/^Schmutzige Outs/, "dirty_outs"],
+  [/^Halbe Outs/, "half_outs"],
+  [/^Outs/, "outs"],
+  [/^Regel von 2 und 4|^Korrigierte Regel/, "rule_2_4"],
+  [/^Glück/, "luck"],
+  [/^Blockiert/, "blocked"],
+  [/^Mögliche Kombos/, "combos"],
+  [/^Chip-EV/, "chip_ev"],
+  [/^ICM/, "icm"],
+  [/^Open-Range/, "open_range"],
+  [/^Modell-Strategie/, "model_strategy"],
+  [/^Gleichgewicht/, "nash"],
+  [/^Kopfgeld|^Kurs/, "knockout"],
+  [/^Preisgeld-Erwartung/, "prize_ev"],
+  [/^M-Zahl/, "m_ratio"],
+  [/^Zone/, "zone"],
+  [/^VPIP/, "vpip"],
+  [/^PFR/, "pfr"],
+  [/^3-Bet/, "three_bet"],
+  [/^Stichprobe/, "sample"],
 ];
 
-/** Terms inside running text (questions, model notes) that get the same plain explanation. */
-const INLINE: [RegExp, string][] = [
-  [/Heads-up-Nash|Nash/, "Die Entscheidung, die ein perfekt spielender Gegner nicht ausnutzen kann."],
-  [/Chip-EV/, "Gerechnet in Chips, nicht in Preisgeld."],
-  [/ICM/, "Rechnet Chips in Preisgeld um. Ohne ICM zählt jeder Chip gleich viel."],
-  [/Kopfgeld/, "Geld für jeden Spieler, den du aus dem Turnier wirfst."],
-  [/M-Zahl/, "Wie viele Runden Blinds und Antes du noch zahlen kannst, ohne einen Pot zu gewinnen."],
-  [/VPIP/, "Wie oft ein Spieler vor dem Flop freiwillig Geld in den Pot steckt."],
-  [/totes Geld|Totes Geld/, "Chips im Pot von Spielern, die schon gefoldet haben."],
-  [/Effektiver Stack|effektive[rn]? Stack/, "Der kleinere der beteiligten Stacks. Mehr kann in dieser Hand nicht gewonnen oder verloren werden."],
-  [/Equity/, "Wie oft du gewinnst, wenn alle Karten ausgeteilt werden – dein Anteil am Pot."],
-  [/Outs/, "Karten, die deine Hand nach vorn bringen."],
+/** Glossary words inside running text (questions, model notes). */
+const INLINE: [RegExp, WordId][] = [
+  [/Heads-up-Nash|Nash/, "nash"],
+  [/Chip-EV/, "chip_ev"],
+  [/ICM/, "icm"],
+  [/Kopfgeld/, "knockout"],
+  [/M-Zahl/, "m_ratio"],
+  [/VPIP/, "vpip"],
+  [/totes Geld|Totes Geld/, "dead_money"],
+  [/Effektiver Stack|effektive[rn]? Stack/, "effective"],
+  [/Equity/, "equity"],
+  [/Outs/, "outs"],
 ];
 
 /** Splits text into plain parts and explained terms, for dotted-underline tooltips. */
@@ -412,7 +412,8 @@ export function withTerms(text: string): { text: string; tip: string | null }[] 
   let last = 0;
   for (const m of text.matchAll(re)) {
     if (m.index > last) out.push({ text: text.slice(last, m.index), tip: null });
-    out.push({ text: m[0], tip: INLINE.find(([r]) => new RegExp(`^(?:${r.source})$`).test(m[0]))?.[1] ?? null });
+    const id = INLINE.find(([r]) => new RegExp(`^(?:${r.source})$`).test(m[0]))?.[1];
+    out.push({ text: m[0], tip: id ? WORDS[id].short : null });
     last = m.index + m[0].length;
   }
   if (last < text.length) out.push({ text: text.slice(last), tip: null });
@@ -426,5 +427,6 @@ export function firstTerm(text: string): { term: string; tip: string } | null {
 }
 
 export function explain(label: string): string | null {
-  return TERMS.find(([re]) => re.test(label))?.[1] ?? null;
+  const id = TERMS.find(([re]) => re.test(label))?.[1];
+  return id ? WORDS[id].short : null;
 }

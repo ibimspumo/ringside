@@ -4,6 +4,8 @@ import * as analysisDemo from "./analysis/demo";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision } from "./analysis/types";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
+import { demoNextSteps, demoWithin } from "./next/demo";
+import type { NextStep } from "./next/types";
 import type { DrillResult, DrillSpot, PlayProfile } from "./learn/profile";
 import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
@@ -206,6 +208,16 @@ export const api = {
     })(),
   analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, advice(() => analysisDemo.demoDecisions(handId))),
   analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, advice(analysisDemo.demoSummary)),
+  /**
+   * „Was als Nächstes?“: the one ranked list every page reads, heaviest first. With `part` (a
+   * session: `since` and `until`) only its entries that happened there, in the same order.
+   * Locked while PokerStars runs.
+   */
+  nextSteps: (filter: Filter, part: Filter | null = null) => {
+    const made = advice(() => (part ? demoWithin(sessionDemo.SESSION_KINDS, "in dieser Session") : demoNextSteps()));
+    return sample<NextStep[]>("next_steps", { filter, part }, made, advice(() => []), made);
+  },
+
   /** "Neue Hände automatisch analysieren"; also while PokerStars runs, it only changes the setting. */
   analysisSetAuto: (auto: boolean) =>
     call<void>("analysis_set_auto", { on: auto }, () => {
