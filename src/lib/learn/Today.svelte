@@ -409,7 +409,9 @@
       </aside>
     </section>
 
-    <Weaknesses {profile} {concepts} {progress} limit={4} empty onPractice={practice} {onHands} {onTrain} {onRead} />
+    <div class="weak-spots">
+      <Weaknesses {profile} {concepts} {progress} limit={4} empty onPractice={practice} {onHands} {onTrain} {onRead} />
+    </div>
 
     <div class="doors">
       <button class="door" onclick={onOwn}>
@@ -434,8 +436,11 @@
         </span>
       </button>
       <button class="door" onclick={openPlay}>
-        <b>Ganze Hände spielen</b>
-        <span>Zufällige Hände am Tisch, jede Entscheidung sofort bewertet.</span>
+        <span class="door-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" /></svg></span>
+        <span class="door-txt">
+          <b>Ganze Hände spielen</b>
+          <span>Zufällige Hände am Tisch, jede Entscheidung sofort bewertet.</span>
+        </span>
       </button>
     </div>
   </div>
@@ -562,12 +567,24 @@
     display: grid;
     gap: 14px;
   }
+  .weak-spots {
+    min-width: 0;
+  }
+  /* Wide: the doors take a column of their own; the plan and the weak spots keep the width. */
   @container (min-width: 1800px) {
     .start {
       grid-template-columns: minmax(0, 1fr) 340px;
-      align-items: stretch;
+      grid-template-areas: "hero doors" "weak-spots doors";
+      align-items: start;
+    }
+    .hero {
+      grid-area: hero;
+    }
+    .weak-spots {
+      grid-area: weak-spots;
     }
     .doors {
+      grid-area: doors;
       grid-template-columns: 1fr;
       align-content: start;
     }
