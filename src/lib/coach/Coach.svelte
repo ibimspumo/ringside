@@ -243,9 +243,9 @@
               onclick={() => (setupOpen = !setupOpen)}
               title="Modell, Gründlichkeit und Key ändern"
             >
-              <span class="dot" aria-hidden="true"></span>
+              <span class="dot" class:busy={running} aria-hidden="true"></span>
               <span class="what">
-                <span class="name">Coach bereit</span>
+                <span class="name">{running ? "Coach analysiert" : "Coach eingerichtet"}</span>
                 <span class="sub"><span class="num">{shortModel(status.model)}</span> · {effortName(status.effort)}</span>
               </span>
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
@@ -577,6 +577,20 @@
     border-radius: 50%;
     background: var(--pos);
     flex-shrink: 0;
+  }
+  .dot.busy {
+    background: var(--amber);
+    animation: breathe 1.6s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)) infinite;
+  }
+  @keyframes breathe {
+    50% {
+      opacity: 0.35;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dot.busy {
+      animation: none;
+    }
   }
 
   .main {

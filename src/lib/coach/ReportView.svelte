@@ -215,7 +215,7 @@
     <section class="panel plan" aria-labelledby="plan-title">
       <div class="plan-head">
         <h3 id="plan-title">Woran du arbeiten solltest</h3>
-        <button class="btn ghost small" onclick={() => onTraining(null)}>Zum Training</button>
+        <button class="btn small" onclick={() => onTraining(null)}>Zum Training</button>
       </div>
       <ol>
         {#each report.focus as f, i (i)}
