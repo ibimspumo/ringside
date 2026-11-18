@@ -1,15 +1,21 @@
 <script lang="ts" generics="T extends string">
-  /** Sections of one page, underlined. The caller renders the panel for `value`. */
+  /**
+   * Sections of one page, underlined. The caller renders the panel for `value`. With `jump` the
+   * sections all stay on the page: the row becomes links that jump to them, and the caller moves
+   * `value` along while the page scrolls.
+   */
   let {
     tabs,
     value = $bindable(),
     label,
+    jump = false,
     onchange,
   }: {
     /** `note`: a quiet word on the tab's state, e.g. "nach dem Lösen" for a section still waiting. */
     tabs: { id: T; label: string; count?: number; note?: string; disabled?: boolean; hint?: string }[];
     value: T;
     label: string;
+    jump?: boolean;
     onchange?: (id: T) => void;
   } = $props();
 
@@ -34,6 +40,25 @@
   }
 </script>
 
+{#if jump}
+  <nav class="ui-tabs" aria-label={label}>
+    {#each tabs as t (t.id)}
+      <a
+        href="#{t.id}"
+        aria-current={t.id === value ? "location" : undefined}
+        title={t.hint}
+        onclick={(e) => {
+          e.preventDefault();
+          value = t.id;
+          onchange?.(t.id);
+        }}
+      >
+        {t.label}
+        {#if t.count !== undefined}<span class="count num">{t.count}</span>{/if}
+      </a>
+    {/each}
+  </nav>
+{:else}
 <div class="ui-tabs" role="tablist" aria-label={label} bind:this={list} onkeydown={key} tabindex="-1">
   {#each tabs as t (t.id)}
     <button
@@ -51,6 +76,7 @@
     </button>
   {/each}
 </div>
+{/if}
 
 <style>
   .ui-tabs {
@@ -61,7 +87,8 @@
   .ui-tabs:focus {
     outline: none;
   }
-  button {
+  button,
+  a {
     position: relative;
     display: inline-flex;
     align-items: center;
@@ -73,9 +100,11 @@
     color: var(--text-2);
     font: inherit;
     font-size: var(--fs-base);
+    text-decoration: none;
     cursor: pointer;
   }
-  button::after {
+  button::after,
+  a::after {
     content: "";
     position: absolute;
     left: 0;
@@ -89,14 +118,17 @@
       background var(--dur) var(--ease-standard),
       transform var(--dur) var(--ease-spring);
   }
-  button:hover:not(:disabled) {
+  button:hover:not(:disabled),
+  a:hover {
     color: var(--text);
   }
-  button[aria-selected="true"] {
+  button[aria-selected="true"],
+  a[aria-current] {
     color: var(--text);
     font-weight: var(--fw-semibold);
   }
-  button[aria-selected="true"]::after {
+  button[aria-selected="true"]::after,
+  a[aria-current]::after {
     background: var(--text);
     transform: none;
   }
@@ -104,7 +136,8 @@
     color: var(--text-3);
     cursor: default;
   }
-  button:focus-visible {
+  button:focus-visible,
+  a:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
     border-radius: var(--r-xs);

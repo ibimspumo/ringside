@@ -3,24 +3,27 @@
 
   /**
    * Nothing to show yet. Says why in one sentence and offers the next step; `tone` "error" says
-   * what went wrong and how to fix it, "loading" what is being prepared.
+   * what went wrong and how to fix it, "loading" what is being prepared. `inline` lays it out
+   * as one left-aligned line with the action on the right, for a place inside a list or row.
    */
   let {
     title,
     text,
     tone = "empty",
     compact = false,
+    inline = false,
     action,
   }: {
     title: string;
     text?: string;
     tone?: "empty" | "loading" | "error";
     compact?: boolean;
+    inline?: boolean;
     action?: Snippet;
   } = $props();
 </script>
 
-<div class="ui-state {tone}" class:compact role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined} aria-busy={tone === "loading" || undefined}>
+<div class="ui-state {tone}" class:compact class:inline role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined} aria-busy={tone === "loading" || undefined}>
   <span class="mark" aria-hidden="true">
     {#if tone === "loading"}
       <span class="spin"></span>
@@ -30,8 +33,10 @@
       <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18" /></svg>
     {/if}
   </span>
-  <strong>{title}</strong>
-  {#if text}<p>{text}</p>{/if}
+  <div class="words">
+    <strong>{title}</strong>
+    {#if text}<p>{text}</p>{/if}
+  </div>
   {#if action}<div class="action">{@render action()}</div>{/if}
 </div>
 
@@ -45,8 +50,47 @@
     padding: var(--sp-10) var(--sp-6);
     text-align: center;
   }
+  .words {
+    display: flex;
+    flex-direction: column;
+    align-items: inherit;
+    gap: var(--sp-2);
+  }
   .compact {
     padding: var(--sp-5) var(--sp-4);
+  }
+  .inline {
+    flex-direction: row;
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-3);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--surface-sunken);
+    text-align: left;
+  }
+  .inline .words {
+    flex: 1;
+    min-width: 0;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  .inline .mark {
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    flex-shrink: 0;
+  }
+  .inline svg {
+    width: 16px;
+    height: 16px;
+  }
+  .inline p {
+    max-width: 68ch;
+  }
+  .inline .action {
+    margin: 0;
+    flex-shrink: 0;
   }
   .error {
     --c: var(--danger-text);

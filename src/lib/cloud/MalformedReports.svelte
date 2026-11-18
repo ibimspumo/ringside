@@ -1,5 +1,9 @@
 <script lang="ts">
   import { cloudApi, errorText } from "./api";
+  import Button from "../ui/Button.svelte";
+  import Dialog from "../ui/Dialog.svelte";
+  import IconButton from "../ui/IconButton.svelte";
+  import SettingRow from "../ui/SettingRow.svelte";
   import type { MalformedHand } from "./types";
 
   /** Changes whenever the importer counted new unreadable hands. */
@@ -7,7 +11,7 @@
 
   let hands = $state<MalformedHand[]>([]);
   let index = $state(0);
-  let dialog = $state<HTMLDialogElement | null>(null);
+  let open = $state(false);
   let busy = $state(false);
   let message = $state<{ ok: boolean; text: string } | null>(null);
 
@@ -18,16 +22,34 @@
 
   const current = $derived(hands[Math.min(index, hands.length - 1)] ?? null);
 
-  function open() {
+  /** The parser's reason codes in plain words; the code itself is what gets sent. */
+  const REASONS: Record<string, string> = {
+    empty: "Die Hand ist leer.",
+    "missing hand id": "Die Handnummer fehlt.",
+    "missing stakes": "Die Blinds stehen nicht in der ersten Zeile.",
+    "small blind": "Der Small Blind ließ sich nicht lesen.",
+    "big blind": "Der Big Blind ließ sich nicht lesen.",
+    "missing table line": "Die Zeile mit dem Tisch fehlt.",
+    "table line": "Die Zeile mit dem Tisch ließ sich nicht lesen.",
+    "max seats": "Die Tischgröße ließ sich nicht lesen.",
+    "button seat": "Der Platz des Buttons ließ sich nicht lesen.",
+    "seat number": "Eine Platznummer ließ sich nicht lesen.",
+    stack: "Ein Chipstand ließ sich nicht lesen.",
+    "no seats": "In der Hand sitzt kein Spieler.",
+    "uncalled bet": "Ein zurückgegebener Einsatz ließ sich nicht lesen.",
+    "collected amount": "Ein gewonnener Pot ließ sich nicht lesen.",
+  };
+
+  function show() {
     index = 0;
     message = null;
-    dialog?.showModal();
+    open = true;
   }
 
   async function reload() {
     hands = await cloudApi.malformed();
     index = Math.min(index, Math.max(hands.length - 1, 0));
-    if (hands.length === 0) dialog?.close();
+    if (hands.length === 0) open = false;
   }
 
   async function send() {
@@ -54,122 +76,128 @@
 </script>
 
 {#if hands.length}
-  <div class="row">
-    <span>{hands.length === 1 ? "Eine Hand" : `${hands.length} Hände`} konnte Ringside nicht lesen.</span>
-    <button class="btn small" onclick={open}>Fehler melden …</button>
-  </div>
+  <SettingRow
+    title={hands.length === 1 ? "Eine Hand nicht lesbar" : `${hands.length} Hände nicht lesbar`}
+    sub="Schick sie anonymisiert an Ringside, damit das Lesen besser wird. Du siehst vorher genau, was gesendet wird."
+  >
+    {#snippet control()}<Button size="sm" onclick={show}>Ansehen und melden …</Button>{/snippet}
+  </SettingRow>
 {:else if message?.ok}
-  <p class="ok">{message.text}</p>
+  <SettingRow title="Nicht lesbare Hände" sub={message.text} />
 {/if}
 
-<dialog bind:this={dialog} aria-labelledby="report-title">
+<Dialog bind:open title="Hand melden" sub={hands.length > 1 ? `${index + 1} von ${hands.length} nicht lesbaren Händen` : undefined} size="lg">
   {#if current}
-    <header>
-      <h2 id="report-title">Hand melden</h2>
-      {#if hands.length > 1}
-        <div class="nav">
-          <button class="btn small" disabled={index === 0} onclick={() => index--} aria-label="Vorherige Hand">‹</button>
-          <span class="num">{index + 1} von {hands.length}</span>
-          <button class="btn small" disabled={index >= hands.length - 1} onclick={() => index++} aria-label="Nächste Hand"
-            >›</button
-          >
-        </div>
-      {/if}
-    </header>
-    <p class="hint">
-      So geht die Hand an Ringside Cloud, damit der Fehler im Lesen behoben werden kann: Spielernamen sind durch „Hero“ und
-      „Spieler 1 …“ ersetzt, Tisch-, Turnier- und Handnummern entfernt, Chat-Texte gelöscht. Sonst wird nichts gesendet außer dem
-      Grund und der Ringside-Version. Bitte prüf den Text, bevor du ihn sendest.
-    </p>
-    <p class="reason">Grund: <code>{current.reason}</code></p>
-    <pre>{current.hand}</pre>
-    {#if message}<p class:ok={message.ok} class:error={!message.ok}>{message.text}</p>{/if}
-    <footer>
-      <button class="btn" onclick={dismiss} disabled={busy}>Nicht senden, aus der Liste nehmen</button>
-      <span class="spacer"></span>
-      <button class="btn" onclick={() => dialog?.close()}>Abbrechen</button>
-      <button class="btn primary" onclick={send} disabled={busy}>{busy ? "Wird gesendet …" : "Diese Hand senden"}</button>
-    </footer>
+    <div class="report">
+      <p class="hint">
+        So geht die Hand anonymisiert an Ringside Cloud, damit der Fehler im Lesen behoben werden kann. Bitte prüf den Text,
+        bevor du ihn sendest.
+      </p>
+      <details class="anon">
+        <summary>Was Ringside vorher entfernt</summary>
+        <p class="hint">
+          Spielernamen sind durch „Hero“ und „Spieler 1 …“ ersetzt, Tisch-, Turnier- und Handnummern durch Platzhalter wie
+          „#1“, Chat-Texte gelöscht. Sonst wird nichts gesendet außer dem Grund und der Ringside-Version.
+        </p>
+      </details>
+      <div class="reason">
+        <b title="Gesendet wird als Grund: {current.reason}">{REASONS[current.reason] ?? "Ringside konnte die Hand nicht lesen."}</b>
+        {#if hands.length > 1}
+          <span class="nav">
+            <IconButton label="Vorherige Hand" size="sm" disabled={index === 0} onclick={() => index--}
+              ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 4 6 8l4 4" /></svg></IconButton
+            >
+            <IconButton label="Nächste Hand" size="sm" disabled={index >= hands.length - 1} onclick={() => index++}
+              ><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 4 4 4-4 4" /></svg></IconButton
+            >
+          </span>
+        {/if}
+      </div>
+      <pre>{current.hand}</pre>
+      {#if message}<p class:ok={message.ok} class:error={!message.ok} role="status">{message.text}</p>{/if}
+    </div>
   {/if}
-</dialog>
+  {#snippet actions()}
+    <Button variant="quiet" onclick={dismiss} disabled={busy}>Nicht senden, aus der Liste nehmen</Button>
+    <span class="spacer"></span>
+    <Button onclick={() => (open = false)}>Abbrechen</Button>
+    <Button variant="primary" onclick={send} loading={busy} disabled={busy}>{busy ? "Wird gesendet …" : "Diese Hand senden"}</Button>
+  {/snippet}
+</Dialog>
 
 <style>
-  .row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 13px;
-    color: var(--text-2);
-  }
-  .btn.small {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
-  }
-  dialog {
-    width: min(760px, calc(100vw - 48px));
-    max-height: calc(100vh - 64px);
-    padding: 18px 20px;
-    border: 1px solid var(--line-2);
-    border-radius: var(--r);
-    background: var(--surface);
-    color: var(--text);
-  }
-  dialog[open] {
+  .report {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--sp-3);
   }
-  dialog::backdrop {
-    background: rgba(0, 0, 0, 0.55);
-  }
-  header,
-  footer,
-  .nav {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-  header {
-    justify-content: space-between;
-  }
-  h2 {
+  p {
     margin: 0;
-    font-size: 16px;
-    font-weight: 600;
+    font-size: var(--fs-md);
+    line-height: 1.5;
   }
   .hint,
   .reason {
-    margin: 0;
-    font-size: 12.5px;
-    line-height: 1.5;
     color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .anon summary {
+    width: fit-content;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .anon summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .anon[open] summary {
+    margin-bottom: var(--sp-2);
+  }
+  .reason {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+  .reason b {
+    color: var(--text);
+    font-weight: var(--fw-medium);
+  }
+  .nav {
+    display: flex;
+    gap: var(--sp-1);
+  }
+  svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   pre {
-    flex: 1;
-    min-height: 120px;
+    max-height: 45vh;
     margin: 0;
-    padding: 10px 12px;
+    padding: var(--sp-3);
     overflow: auto;
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
-    background: var(--bg);
-    font-size: 12px;
+    background: var(--surface-sunken);
+    font-size: var(--fs-sm);
     line-height: 1.5;
-    white-space: pre;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
   .spacer {
     flex: 1;
   }
   .ok {
-    margin: 0;
     color: var(--pos);
-    font-size: 12.5px;
   }
   .error {
-    margin: 0;
-    color: var(--neg);
-    font-size: 12.5px;
+    color: var(--danger-text);
   }
 </style>

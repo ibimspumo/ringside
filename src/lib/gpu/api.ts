@@ -102,6 +102,16 @@ async function demoBenchmark(): Promise<GpuBenchmark> {
   return structuredClone(demoResult);
 }
 
+/** Browser demo: `?gpu=running|done|error` shows that state of the test without starting it. */
+export function gpuPreview(): { running: boolean; line: string; result: GpuBenchmark | null; error: string | null } | null {
+  if (inTauri || typeof window === "undefined") return null;
+  const state = new URLSearchParams(window.location.search).get("gpu");
+  if (state === "running") return { running: true, line: "Turn: GPU rechnet …", result: null, error: null };
+  if (state === "done") return { running: false, line: "", result: structuredClone(demoResult), error: null };
+  if (state === "error") return { running: false, line: "", result: null, error: "Die Grafikkarte hat den Test abgebrochen: zu wenig Grafikspeicher." };
+  return null;
+}
+
 export const gpuApi = {
   benchmark: (): Promise<GpuBenchmark> => (inTauri ? invoke<GpuBenchmark>("gpu_benchmark") : demoBenchmark()),
 };

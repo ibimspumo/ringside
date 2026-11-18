@@ -1,8 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, on } from "../api";
+  import SettingRow from "../ui/SettingRow.svelte";
+  import Switch from "../ui/Switch.svelte";
+
+  /** `onChange` hears every known state, for summaries elsewhere on the page. */
+  let { onChange }: { onChange?: (auto: boolean) => void } = $props();
 
   let auto = $state<boolean | null>(null);
+  $effect(() => {
+    if (auto !== null) onChange?.(auto);
+  });
 
   onMount(() => {
     api.getSettings().then((s) => (auto = s.analysis.auto));
@@ -20,33 +28,11 @@
   }
 </script>
 
-<section class="panel">
-  <div class="panel-head"><h2 class="panel-title">Hand-Analyse</h2></div>
-  <div class="body">
-    {#if auto !== null}
-      <label class="check">
-        <input type="checkbox" checked={auto} onchange={(e) => change(e.currentTarget.checked)} />
-        <span>
-          Neue Hände automatisch analysieren
-          <small>
-            Sobald du PokerStars schließt, bewertet Ringside deine neuen Hände. Solange PokerStars läuft, rechnet
-            Ringside nie.
-          </small>
-        </span>
-      </label>
-    {/if}
-  </div>
-</section>
-
-<style>
-  .body {
-    padding: var(--sp-3) 18px 18px;
-  }
-  small {
-    display: block;
-    margin-top: 2px;
-    color: var(--text-3);
-    font-size: var(--fs-sm);
-    line-height: 1.45;
-  }
-</style>
+<SettingRow
+  title="Neue Hände automatisch analysieren"
+  sub="Sobald du PokerStars schließt, bewertet Ringside deine neuen Hände. Solange PokerStars läuft, rechnet Ringside nie."
+>
+  {#snippet control()}
+    {#if auto !== null}<Switch label="Neue Hände automatisch analysieren" checked={auto} onchange={change} />{/if}
+  {/snippet}
+</SettingRow>

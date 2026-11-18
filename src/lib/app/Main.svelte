@@ -108,7 +108,7 @@
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
-      "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
+      "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
     leaks: "Deine Werte gegen veröffentlichte Richtwerte.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Optional: Ein Sprachmodell erklärt deine Zahlen und bespricht Turniere ausführlich. Jede Zahl rechnet Ringside selbst.",
@@ -373,7 +373,8 @@
           <small class="num">{int(upgrade.done)} von {int(upgrade.total)} Händen</small>
         </div>
       {/if}
-      {#if status && !upgrade && status.dirs.length === 0}
+      <!-- The settings page says the same in its folder row, with the same button. -->
+      {#if status && !upgrade && status.dirs.length === 0 && tab !== "settings"}
         <div class="warn">
           <strong
             ><Term tip="In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst."

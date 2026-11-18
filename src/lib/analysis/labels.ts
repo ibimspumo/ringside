@@ -99,10 +99,10 @@ export const KIT_SOURCE: Record<Source, KitSource | null> = {
   forced: null,
 };
 
-/** The estimate's reliability in words: how often it was at most one step off the reference. */
+/** The estimate's reliability in words: the lowest share of its grades at most one step off the reference over every check with enough cases. */
 export function reliabilityText(share: number, street: "preflop" | "flop" | "turn" | "river"): string {
   const ref = street === "preflop" ? "dem Preflop-Modell" : "dem Solver";
-  return `Verlässlichkeit ${Math.round(share * 100)} %: So oft lag die Einschätzung in Prüf-Spots höchstens eine Stufe neben ${ref} – bei guten Zügen wie bei Fehlern.`;
+  return `Verlässlichkeit ${Math.round(share * 100)} %: Mindestens so oft lag die Einschätzung in Prüf-Spots höchstens eine Stufe neben ${ref} – bei guten Zügen wie bei Fehlern.`;
 }
 
 export const EV_LOSS_EXPLAIN =

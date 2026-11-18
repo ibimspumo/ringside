@@ -111,8 +111,42 @@ fn a_three_way_flop_is_estimated_with_its_reliability() {
     let a = analyze_hand(&parsed(&raw));
     let flop = a.decisions.iter().find(|d| d.street == Street::Flop).unwrap();
     assert_eq!((flop.status, flop.source), (Status::Rated, Some(Source::Estimate)), "{flop:?}");
-    assert!(flop.reliability.is_some_and(|r| r > 0.0), "{flop:?}");
+    assert_eq!(flop.reliability, Some(measured(Street::Flop)), "{flop:?}");
+    assert!(flop.note.contains("mehreren Gegnern ist sie ungeprüft"), "{flop:?}");
     assert!(a.job.is_none());
+}
+
+/// The lowest agreement within one step of the checks at `street` with enough
+/// comparisons, read from the calibration file itself: plain, and balanced over the
+/// reference's grades where enough of its mistakes were compared.
+fn measured(street: Street) -> f64 {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/data/estimate_calibration.json");
+    let file: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+    let checks: Vec<&serde_json::Value> = match street {
+        Street::Preflop => vec![&file["preflop"]],
+        s => {
+            let k = s as usize - 1;
+            vec![&file["postflop_streets"][k], &file["real_streets"][k], &file["real"]]
+        }
+    };
+    let enough = |c: &serde_json::Value, key: &str| c[key].as_u64().unwrap() >= ringside_analysis::calibration::MIN_SAMPLES as u64;
+    let large: Vec<f64> = checks
+        .iter()
+        .filter(|c| enough(c, "samples"))
+        .map(|c| {
+            let within = c["within_one"].as_f64().unwrap();
+            if enough(c, "off_best") { within.min(c["balanced"].as_f64().unwrap()) } else { within }
+        })
+        .collect();
+    assert!(!large.is_empty(), "no check of {street:?} has enough comparisons");
+    large.into_iter().fold(1.0, f64::min)
+}
+
+#[test]
+fn the_reliability_shown_is_the_measured_one() {
+    for street in [Street::Preflop, Street::Flop, Street::Turn, Street::River] {
+        assert_eq!(ringside_analysis::replay::reliability(street), measured(street), "{street:?}");
+    }
 }
 
 #[test]

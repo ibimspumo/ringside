@@ -6,7 +6,7 @@
   /**
    * One button for every view. `primary` is the single next step of a screen ("Nächste Hand"),
    * `secondary` the alternatives, `quiet` the incidental ones, `danger` anything that deletes;
-   * `danger-quiet` is a destructive action that stays in the background until hovered.
+   * `danger-quiet` deletes too but sits in a row of rare actions, so it fills only on hover.
    */
   let {
     variant = "secondary",
@@ -130,6 +130,7 @@
   }
   .danger-quiet:is(:hover, [data-force="hover"]) {
     background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
   }
   .ui-btn:active:not(:disabled) {
     transform: translateY(1px);

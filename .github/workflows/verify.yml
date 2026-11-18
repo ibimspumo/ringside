@@ -29,11 +29,12 @@ jobs:
       - run: cargo build --release --locked -p ringside-cloud --bin ringside-verify
       # Anyone can submit: each check runs in a child process that is killed after its
       # kind's limit (120 s push/fold; 900 s postflop and shared spots, three solves on
-      # these 4 cores and 16 GB, at most 8 GB each), at most --max-slow of the slow ones
-      # per run, and the run starts no check that could end more than a tenth past
+      # these 4 cores and 16 GB, at most 8 GB each); a killed check leaves the solution
+      # pending. At most --max-slow of the slow ones per run (a postflop check costs about
+      # two CPU minutes), and the run starts no check that could end more than a tenth past
       # --budget-seconds, so it stays inside timeout-minutes.
       - name: Verify pending solutions
         env:
           BUNNY_DATABASE_URL: ${{ secrets.BUNNY_DATABASE_URL }}
           BUNNY_DATABASE_AUTH_TOKEN: ${{ secrets.BUNNY_DATABASE_AUTH_TOKEN }}
-        run: ./target/release/ringside-verify --limit 50 --max-slow 4 --budget-seconds 2400
+        run: ./target/release/ringside-verify --limit 100 --max-slow 20 --budget-seconds 2400
