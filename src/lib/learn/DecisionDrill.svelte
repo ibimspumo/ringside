@@ -83,7 +83,7 @@
     const at = box ? top - box.getBoundingClientRect().top + box.scrollTop : top + window.scrollY;
     const view = box ? box.clientHeight : window.innerHeight;
     // No taller than the table at this width needs, with the replay controls under it.
-    const need = tableHeight(Math.min(feltEl.clientWidth, 1280)) + CONTROLS;
+    const need = tableHeight(Math.min(feltEl.clientWidth, 960)) + CONTROLS;
     feltH = Math.round(Math.min(need, Math.max(420, view - at - 44)));
   }
   const STACK_BELOW = 900;
@@ -108,8 +108,8 @@
     if (spr < 6) return "Mittel: Platz für Einsätze auf ein, zwei Straßen.";
     return "Tief: viel Spielraum, die nächsten Straßen entscheiden mit.";
   });
-  /** "All-in oder Fold": the choices of this task in words. */
-  const offered = $derived(spot.choices.map((c) => c.label.split(" ")[0]).join(", ").replace(/, ([^,]*)$/, " oder $1"));
+  /** "All-in und Fold": the choices of this task in words. */
+  const offered = $derived(spot.choices.map((c) => c.label.split(" ")[0]).join(", ").replace(/, ([^,]*)$/, " und $1"));
   const stackMeaning = $derived(
     view.behindBB <= 20
       ? "Kurz: Meist geht es um All-in oder Fold."
@@ -265,7 +265,7 @@
   }
   .grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(340px, 32%, 460px);
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 520px);
     grid-template-areas:
       "top top"
       "table side";
@@ -420,6 +420,13 @@
     }
     .felt-box {
       grid-area: table;
+    }
+    /* The choices follow the question, so they are reached without scrolling past the figures. */
+    .lage {
+      order: 1;
+    }
+    .why {
+      order: 2;
     }
   }
 </style>

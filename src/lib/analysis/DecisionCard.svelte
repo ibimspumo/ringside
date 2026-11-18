@@ -51,7 +51,7 @@
     if (!d.source || !played) return d.why;
     if (d.source === "estimate") {
       // The estimate rates the kind of move, not its size.
-      const word = (c: Choice) => (c.kind === "fold" ? "Folden" : c.kind === "check" ? "Checken" : c.kind === "call" ? "Callen" : "Setzen oder Erhöhen");
+      const word = (c: Choice) => (c.kind ? MOVE_WORD[c.kind] : "Setzen oder Erhöhen");
       const kinds = [...new Set(d.strategy.filter((c) => c.freq > 0).map(word))];
       const lead = kinds.length ? `Nach der Einschätzung ist hier ${kinds.join(" oder ")} am besten; die Größe bewertet sie nicht.` : "";
       return `${lead} ${d.why}`.trim();
@@ -119,11 +119,16 @@
       {/snippet}
     </Verdict>
 
-    <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
-      {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-        <span class="part {tone(c)}" class:mine={c.played} style:flex-grow={Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
-      {/each}
-    </div>
+    {#if d.source !== "estimate"}
+      <div class="mix-box">
+        <span class="mix-head">So oft spielt {d.source === "solver" ? "der" : "das"} {SOURCE[d.source].label} das mit deiner Hand; umrandet: deine Wahl</span>
+        <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
+          {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
+            <span class="part {tone(c)}" class:mine={c.played} style:flex-grow={Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
+          {/each}
+        </div>
+      </div>
+    {/if}
     <ul class="options">
       <li class="cols" aria-hidden="true">
         <span></span>
@@ -206,6 +211,15 @@
     margin: 0;
     color: var(--text-2);
     line-height: 1.45;
+  }
+  .mix-box {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .mix-head {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
   }
   .mix {
     display: flex;
