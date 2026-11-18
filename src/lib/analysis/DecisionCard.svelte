@@ -4,6 +4,8 @@
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import Button from "../ui/Button.svelte";
+  import { bb as bbFixed } from "../ui/format";
+  import GradeIcon from "../ui/GradeIcon.svelte";
   import Verdict from "../ui/Verdict.svelte";
   import { gradeOf, kitSource } from "./grade";
   import { EV_LOSS_EXPLAIN, LEARN, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct } from "./labels";
@@ -51,7 +53,7 @@
   function gap(c: Choice): string {
     if (c.ev_bb === null || !isFinite(bestEv)) return "";
     const loss = bestEv - c.ev_bb;
-    return loss < 0.005 ? "beste" : `−${bb(loss, 2)}`;
+    return loss < 0.005 ? "beste" : `−${bbFixed(loss, { digits: 2 })}`;
   }
 </script>
 
@@ -82,15 +84,15 @@
       <ul class="options">
         <li class="head" aria-hidden="true">
           <span></span>
-          <span>Lösung</span>
-          <span title="Wie oft die Lösung diese Aktion mit genau deiner Hand wählt">wie oft</span>
+          <span>Die Lösung wählt</span>
+          <span title="Wie oft die Lösung diese Aktion mit genau deiner Hand wählt – keine Gewinnchance">so oft</span>
           <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
         </li>
         {#each d.strategy as c (c.label)}
           <li class:mine={c.played}>
             <span class="dot {tone(c)}"></span>
             <span class="label"
-              >{c.label}{#if c.played}<em>du</em>{/if}</span
+              >{c.label}{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
             >
             <span class="num freq">{pct(c.freq)}</span>
             <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
@@ -230,6 +232,11 @@
     width: 8px;
     height: 8px;
     border-radius: 2px;
+  }
+  .best-mark {
+    display: inline-flex;
+    margin-left: 6px;
+    vertical-align: -2px;
   }
   .label em {
     white-space: nowrap;

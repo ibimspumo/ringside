@@ -158,7 +158,7 @@
   // Keep the current log row in view without moving the page around it.
   $effect(() => {
     void step;
-    const scroller = besides ? sideEl : logEl;
+    const scroller = logEl;
     const row = logEl?.querySelector<HTMLElement>("li.now");
     if (!scroller || !row) return;
     const box = scroller.getBoundingClientRect();
@@ -305,8 +305,9 @@
         position: positions.get(s.name),
         stack: (table.stacks.get(s.name) ?? 0) / unit,
         cards: cards?.length ? cards : table.folded.has(s.name) ? undefined : "hidden",
-        action: last ? { kind: last.kind } : undefined,
-        grade: last ? (marks?.get(last.index)?.grade ?? undefined) : undefined,
+        // Whoever is to act shows no older action: the plate's ring says "your turn".
+        action: last && !(table.toAct === s.name && !done) ? { kind: last.kind } : undefined,
+        grade: last && !(table.toAct === s.name && !done) ? (marks?.get(last.index)?.grade ?? undefined) : undefined,
         bet: bet > 0 ? bet / unit : undefined,
         folded: table.folded.has(s.name),
         toAct: !done && table.toAct === s.name,
@@ -843,11 +844,12 @@
     margin: -4px;
     padding: 4px;
   }
+  /* The log scrolls on its own, so following the replay never pushes the verdict above it away. */
   .besides .log {
     display: block;
-    flex: 1 0 auto;
-    min-height: 180px;
-    overflow: visible;
+    flex: 1 1 0;
+    min-height: 200px;
+    overflow: auto;
   }
   .aside {
     flex-shrink: 0;

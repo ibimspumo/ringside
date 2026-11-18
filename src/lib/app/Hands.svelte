@@ -11,6 +11,7 @@
   import { preview } from "../learn/preview";
   import { moneyShort } from "../stats";
   import Button from "../ui/Button.svelte";
+  import { bb as fmtBb } from "../ui/format";
   import EmptyState from "../ui/EmptyState.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -402,7 +403,7 @@
         <b style:color="color-mix(in srgb, var(--grade-{g}) 60%, var(--text))">{RATING[current.rating].label}</b>
         <span class="faint">· {({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}</span>
         {#if current.best && (current.rating === "mistake" || current.rating === "blunder" || current.rating === "inaccuracy")}
-          – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} kostet im Schnitt <b class="num">{bb(current.ev_loss_bb ?? 0, 2)}</b>
+          – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} kostet im Schnitt <b class="num">{fmtBb(current.ev_loss_bb ?? 0, { digits: 2 })}</b>
         {:else}
           – {current.played.split(" ")[0]} passt
         {/if}
@@ -457,8 +458,8 @@
             <div class="spot-group">
               <span class="faint">{g.label}</span>
               <div class="toggles">
-                {#each g.spots as s (s)}
-                  <span title={SPOT_HINT[s]}><Tag selected={spots.includes(s)} onclick={() => toggleSpot(s)}>{SPOT[s]}</Tag></span>
+                {#each g.spots.filter((x) => x !== "turn" && x !== "river") as s (s)}
+                  <span title={SPOT_HINT[s]}><Tag selected={spots.includes(s)} onclick={() => toggleSpot(s)}>{s === "flop" ? "Sonst am Flop" : SPOT[s]}</Tag></span>
                 {/each}
               </div>
             </div>
@@ -508,6 +509,7 @@
           options={[{ value: "all", label: "Alle" }, ...(["equilibrium", "model", "solver"] as const).map((s) => ({ value: s, label: SOURCE[s].label, hint: SOURCE[s].explain }))]}
           bind:value={() => source ?? "all", (v) => (source = v === "all" ? null : (v as Source))}
         />
+        <p class="note">Woher die Bewertung kommt: Gleichgewicht für All-in oder Fold, Modell für die übrigen Entscheidungen vor dem Flop, Solver nach dem Flop.</p>
       </div>
       <div class="group">
         <span class="title">Hand</span>
@@ -588,7 +590,9 @@
               <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="faint">kein Flop</span>{/each}</span>
 
             </span>
-            {#if w && v}
+            {#if locked}
+              <span class="verdict"><span>Bewertung gesperrt</span></span>
+            {:else if w && v}
               <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""}` : (w.reason ?? "")}>
                 {#if w.rating}<GradeIcon grade={gradeOf(w.rating)} size={14} />{:else}<i class:wait={w.status === "pending"}></i>{/if}
                 {#if v.lead}<b>{v.lead}</b>{/if}<span>{v.rest}</span>
@@ -597,14 +601,16 @@
               <span class="verdict"><i></i><span>noch nicht analysiert</span></span>
             {/if}
           </span>
-          {#if rail && w?.rating}
+          {#if rail && w?.rating && !locked}
             <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[w.street]}</span>
           {/if}
           <span class="end">
-            {#if view === "mistakes" && costly(w)}
+            {#if view === "mistakes" && costly(w) && !locked}
               <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{bb(w!.ev_loss_bb!, 2)}</span>
             {:else}
-              <span class="net num {sign(net)}" title="Was du in dieser Hand gewonnen oder verloren hast">{net === null ? "–" : signed(net)}<span class="unit">BB</span></span>
+              <span class="net num {sign(net)}" title="Was du in dieser Hand gewonnen oder verloren hast"
+                >{net === null ? "–" : signed(net, Math.abs(net) >= 10 ? 0 : 1)}<span class="unit">BB</span></span
+              >
             {/if}
             <small class="num" title="{date(h.played_at)}, {time(h.played_at)} Uhr"
               >{#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
@@ -811,6 +817,13 @@
     align-items: center;
     gap: 7px;
     cursor: pointer;
+  }
+  .note {
+    max-width: 340px;
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
   }
   .sub {
     margin-top: var(--sp-1);
