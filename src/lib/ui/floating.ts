@@ -1,5 +1,5 @@
 export type Anchor = { left: number; top: number; right: number; bottom: number };
-export type FloatOptions = { anchor: Anchor; side?: "top" | "right" | "bottom" };
+export type FloatOptions = { anchor: Anchor; side?: "top" | "right" | "bottom" | "left" };
 
 const EDGE = 8;
 const GAP = 6;
@@ -22,7 +22,7 @@ export function pointerAnchor(e: PointerEvent | MouseEvent, target?: Element): A
 
 /**
  * Svelte action for hover cards and popovers: moves the node to <body> so no scrolling or
- * contained ancestor can clip it, places it above, below or right of the anchor in viewport
+ * contained ancestor can clip it, places it above, below, right or left of the anchor in viewport
  * coordinates, flips to the other side when there is no room and clamps it 8 px inside the window.
  */
 export function floating(node: HTMLElement, options: FloatOptions) {
@@ -47,6 +47,10 @@ export function floating(node: HTMLElement, options: FloatOptions) {
       x = (a.left + a.right) / 2 - w / 2;
       y = a.bottom + GAP;
       if (y + h > vh - EDGE && a.top > vh - a.bottom) y = a.top - GAP - h;
+    } else if (side === "left") {
+      x = a.left - GAP - w;
+      if (x < EDGE && vw - a.right > a.left) x = a.right + GAP;
+      y = a.top;
     } else {
       x = a.right + GAP;
       if (x + w > vw - EDGE && a.left > vw - a.right) x = a.left - GAP - w;

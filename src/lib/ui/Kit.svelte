@@ -725,6 +725,7 @@
         <div class="row">
           <span>Dein <Term tip="Wie oft du freiwillig Geld in den Pot legst. Die Blinds zählen nicht.">VPIP</Term> liegt bei 24 %.</span>
           <Tooltip text="Erscheint auch bei Tastaturfokus." open={only === "popups"}><Button size="sm">Mit Tooltip</Button></Tooltip>
+          <Tooltip text="Links daneben, etwa für Begriffe in einer Spalte am rechten Rand." side="left"><Button size="sm">Tooltip links</Button></Tooltip>
           <span bind:this={popHost}><Button size="sm" onclick={(e) => (popAnchor = popAnchor ? null : rectOf(e.currentTarget as Element))}>Popover anheften</Button></span>
           <Button size="sm" onclick={() => (dialogOpen = true)}>Dialog öffnen</Button>
         </div>

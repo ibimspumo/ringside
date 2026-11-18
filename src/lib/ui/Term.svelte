@@ -10,7 +10,7 @@
     tip,
     side = "top",
     children,
-  }: { tip: string; side?: "top" | "bottom" | "right"; children: Snippet } = $props();
+  }: { tip: string; side?: "top" | "bottom" | "right" | "left"; children: Snippet } = $props();
 </script>
 
 <Tooltip text={tip} {side}><button type="button" class="ui-term">{@render children()}</button></Tooltip>

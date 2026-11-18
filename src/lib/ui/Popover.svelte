@@ -17,7 +17,7 @@
     children,
   }: {
     anchor: Anchor;
-    side?: "top" | "bottom" | "right";
+    side?: "top" | "bottom" | "right" | "left";
     pinned?: boolean;
     /** Names a pinned card for screen readers. */
     label?: string;

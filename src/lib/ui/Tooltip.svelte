@@ -12,7 +12,7 @@
     side = "top",
     open: forced = false,
     children,
-  }: { text: string; side?: "top" | "bottom" | "right"; open?: boolean; children: Snippet } = $props();
+  }: { text: string; side?: "top" | "bottom" | "right" | "left"; open?: boolean; children: Snippet } = $props();
 
   const id = `tt-${Math.random().toString(36).slice(2, 9)}`;
   let wrap = $state<HTMLElement>();
