@@ -155,7 +155,7 @@
   }
   .head {
     display: flex;
-    align-items: center;
+    align-items: baseline;
     gap: var(--sp-2);
     color: var(--text);
     font-size: var(--fs-base);
@@ -164,6 +164,7 @@
   }
   .dot {
     flex: none;
+    transform: translateY(-1px);
     width: 8px;
     height: 8px;
     border-radius: var(--r-pill);

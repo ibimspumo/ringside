@@ -4,6 +4,7 @@
   import ClientLock from "../app/ClientLock.svelte";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
+  import Dialog from "../ui/Dialog.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
   import { usePageHead } from "../ui/page.svelte";
@@ -164,10 +165,10 @@
   });
   const MARK_SHORT: Record<Mark, string> = {
     verified: "geprüft",
-    submitted: "wartet auf Prüfung",
-    only_here: "noch nicht geteilt",
+    submitted: "wartet",
+    only_here: "nicht geteilt",
     rejected: "abgelehnt",
-    failed: "Hochladen klappte nicht",
+    failed: "Upload folgt",
   };
 
   const pct = (x: number) => `${Math.round(x * 100)} %`;
@@ -206,95 +207,95 @@
               <p class="meta">In <b class="num">{totals.started}</b> von {totals.situations} Situationen kannst du schon nachsehen.</p>
             </div>
             </div>
-            <div class="yours" aria-label="Dein Beitrag">
-              {#if !data.share}
-                <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
-              {:else if totals.contributed === 0 && totals.notUploaded === 0}
-                <p class="meta">Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.</p>
-              {:else}
-                <ul class="keys">
-                  <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
-                  <li>
-                    <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> geprüft <i>– nachgerechnet, für alle da</i></span>
-                  </li>
-                  {#if totals.waiting > 0}
-                    <li>
-                      <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <i>– jede Stunde</i></span>
-                    </li>
-                  {/if}
-                  {#if totals.notUploaded > 0}
-                    <li>
-                      <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
-                        <span class="item"><ShareMark mark="only_here" /><span><b class="num">{totals.notUploaded}</b> noch nicht hochgeladen</span></span>
-                      </Tooltip>
-                    </li>
-                  {/if}
-                  {#if totals.rejected > 0}
-                    <li>
-                      <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
-                        <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> abgelehnt</span></span>
-                      </Tooltip>
-                    </li>
-                  {/if}
-                </ul>
-              {/if}
-            </div>
           </section>
 
           <section class="worker" aria-label="Mitrechnen">
             <h2 class="label">Mitrechnen</h2>
             <RunControl {data} {worker} primary={totals.done === 0} onChange={load}>
               {#snippet after()}
-                <Button variant="quiet" aria-expanded={tuning} aria-controls="lib-tuning" onclick={() => (tuning = !tuning)}>
+                <Button variant="quiet" aria-haspopup="dialog" onclick={() => (tuning = true)}>
                   {#snippet icon()}
-                    <svg class="chev" viewBox="0 0 16 16" width="12" height="12"><path d="M4 6l4 4 4-4" /></svg>
+                    <svg class="gear" viewBox="0 0 16 16" width="14" height="14"><path d="M2.5 4.5h6M11.5 4.5h2M2.5 11.5h2M7.5 11.5h6" /><circle cx="10" cy="4.5" r="1.5" /><circle cx="6" cy="11.5" r="1.5" /></svg>
                   {/snippet}
                   Kraft und Automatik
                 </Button>
               {/snippet}
             </RunControl>
           </section>
+            <div class="yours" aria-label="Dein Beitrag">
+            {#if !data.share}
+              <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
+            {:else if totals.contributed === 0 && totals.notUploaded === 0}
+              <p class="meta">Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.</p>
+            {:else}
+              <ul class="keys">
+                <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
+                <li>
+                  <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> geprüft <i>– nachgerechnet, für alle da</i></span>
+                </li>
+                {#if totals.waiting > 0}
+                  <li>
+                    <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <i>– jede Stunde</i></span>
+                  </li>
+                {/if}
+                {#if totals.notUploaded > 0}
+                  <li>
+                    <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
+                      <span class="item"><ShareMark mark="only_here" /><span><b class="num">{totals.notUploaded}</b> noch nicht hochgeladen</span></span>
+                    </Tooltip>
+                  </li>
+                {/if}
+                {#if totals.rejected > 0}
+                  <li>
+                    <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
+                      <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> abgelehnt</span></span>
+                    </Tooltip>
+                  </li>
+                {/if}
+              </ul>
+            {/if}
+          </div>
         </div>
 
-        <div class="more" class:open={tuning} id="lib-tuning" inert={!tuning}>
-          <div class="more-inner">
-            <div class="tuning">
-              <div class="row">
-                <h3 class="label">Kraft</h3>
-                <PowerChoice {data} />
-              </div>
-              <div class="row">
-                <h3 class="label">Automatik</h3>
-                <BackgroundMode mode={data.mode} onChange={setMode} />
-              </div>
-              <div class="row">
-                <span></span>
-                <div class="why">
-                  <p>Die Bibliothek wächst, weil Ringside-PCs Spots rechnen und teilen. Geteilt wird nur der Spot und seine Lösung, nichts über dich.</p>
-                  <details>
-                    <summary>Details für Experten</summary>
-                    <dl>
-                      {#if worker.state === "solving"}
-                        <dt>Iteration</dt>
-                        <dd class="num">{worker.iteration}</dd>
-                        <dt>Ausbeutbarkeit</dt>
-                        <dd class="num">{num(worker.exploitability_pct)} % des Pots, Ziel {num(data.target_pct)} %</dd>
-                        <dt>Threads</dt>
-                        <dd class="num">{worker.threads}</dd>
-                      {/if}
-                      <dt>Seit dem Start</dt>
-                      <dd>{worker.solved} gerechnet, {worker.fetched} geladen, {worker.shared} hochgeladen</dd>
-                      <dt>Auf der Festplatte</dt>
-                      <dd class="num">{mb(data.disk_bytes)}</dd>
-                      {#if worker.last_error}<dt>Zuletzt</dt><dd class="warn">{worker.last_error}</dd>{/if}
-                    </dl>
-                  </details>
-                </div>
-              </div>
+      </Card>
+
+      <Dialog bind:open={tuning} size="lg" title="Kraft und Automatik" sub="Wie viel dein PC für die Bibliothek rechnet – und wann.">
+        <div class="tuning">
+          <div class="row">
+            <h3 class="label">Kraft</h3>
+            <PowerChoice {data} />
+          </div>
+          <div class="row">
+            <h3 class="label">Automatik</h3>
+            <BackgroundMode mode={data.mode} onChange={setMode} />
+          </div>
+          <div class="row">
+            <span></span>
+            <div class="why">
+              <p>Die Bibliothek wächst, weil Ringside-PCs Spots rechnen und teilen. Geteilt wird nur der Spot und seine Lösung, nichts über dich.</p>
+              <details>
+                <summary>Details für Experten</summary>
+                <dl>
+                  {#if worker.state === "solving"}
+                    <dt>Iteration</dt>
+                    <dd class="num">{worker.iteration}</dd>
+                    <dt>Ausbeutbarkeit</dt>
+                    <dd class="num">{num(worker.exploitability_pct)} % des Pots, Ziel {num(data.target_pct)} %</dd>
+                    <dt>Threads</dt>
+                    <dd class="num">{worker.threads}</dd>
+                  {/if}
+                  <dt>Seit dem Start</dt>
+                  <dd>{worker.solved} gerechnet, {worker.fetched} geladen, {worker.shared} hochgeladen</dd>
+                  <dt>Auf der Festplatte</dt>
+                  <dd class="num">{mb(data.disk_bytes)}</dd>
+                  {#if worker.last_error}<dt>Zuletzt</dt><dd class="warn">{worker.last_error}</dd>{/if}
+                </dl>
+              </details>
             </div>
           </div>
         </div>
-      </Card>
+        {#snippet actions()}<Button variant="primary" onclick={() => (tuning = false)}>Fertig</Button>{/snippet}
+      </Dialog>
 
       <div class="body">
         <nav class="situations" aria-label="Situationen">
@@ -342,8 +343,13 @@
               <p class="story">
                 {storyOf(current)} Im Pot liegen <span class="num">{num(current.pot)}</span> BB, jeder hat noch
                 <span class="num">{num(current.stack)}</span> BB. {firstOf(current)}
+                {#if cov > 0}
+                  <span class="cover">
+                    {cov >= 0.995 ? "Für jeden Flop gibt es hier eine Lösung." : `Für ${pct(cov)} aller möglichen Flops gibt es hier schon eine Lösung.`}
+                    Ein Klick auf einen hellen Flop zeigt dir für jede Hand, ob Checken, Setzen oder Aufgeben am meisten bringt.
+                  </span>
+                {/if}
               </p>
-
               {#if cov === 0}
                 <EmptyState
                   inline
@@ -359,25 +365,15 @@
                     {/if}
                   {/snippet}
                 </EmptyState>
-              {:else}
-                <p class="cover">
-                  {#if cov >= 0.995}
-                    Für jeden Flop gibt es hier eine Lösung.
-                  {:else}
-                    Für <b class="num">{pct(cov)}</b> aller möglichen Flops gibt es hier schon eine Lösung.
-                  {/if}
-                  Klick auf einen hellen Flop: Du siehst für jede Hand, ob Checken, Setzen oder Aufgeben am meisten bringt.
-                </p>
               {/if}
               {#if openError}<p class="err" role="alert">Der Spot ließ sich nicht öffnen: {openError}</p>{/if}
 
               <div class="legend" aria-label="Legende">
-                <span><MiniCard card="As" />Fertig, klick zum Ansehen</span>
+                <span><MiniCard card="As" />Fertig</span>
                 <span><MiniCard card="As" dim />Noch offen</span>
                 {#if marksHere.length}
-                  <Tooltip text={marksHere.map((m) => MARK_SHORT[m]).join(", ").replace(/^./, (c) => c.toUpperCase()) + " – was das heißt, steht oben bei „Von dir“."}>
-                    <span class="from">{#each marksHere as m (m)}<ShareMark mark={m} />{/each}Von dir gerechnet</span>
-                  </Tooltip>
+                  <span class="from">Deine Spots:</span>
+                  {#each marksHere as m (m)}<span><ShareMark mark={m} />{MARK_SHORT[m]}</span>{/each}
                 {/if}
               </div>
 
@@ -465,7 +461,7 @@
   .band {
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-    gap: var(--sp-6);
+    gap: var(--sp-4) var(--sp-6);
   }
   .band > section + section {
     padding-left: var(--sp-6);
@@ -512,6 +508,7 @@
     font-weight: var(--fw-semibold);
   }
   .yours {
+    grid-column: 1 / -1;
     padding-top: var(--sp-3);
     border-top: 1px solid var(--line);
   }
@@ -540,41 +537,16 @@
   .keys i {
     font-style: normal;
   }
-  .chev {
+  .gear {
     fill: none;
     stroke: currentColor;
-    stroke-width: 1.6;
+    stroke-width: 1.4;
     stroke-linecap: round;
-    stroke-linejoin: round;
-    transition: transform var(--dur-fast) var(--ease-standard);
-  }
-  :global([aria-expanded="true"]) .chev {
-    transform: rotate(180deg);
-  }
-
-  .more {
-    display: grid;
-    grid-template-rows: 0fr;
-    opacity: 0;
-    transition:
-      grid-template-rows var(--dur-slow) var(--ease-standard),
-      opacity var(--dur-slow) var(--ease-standard);
-  }
-  .more.open {
-    grid-template-rows: 1fr;
-    opacity: 1;
-  }
-  .more-inner {
-    min-height: 0;
-    overflow: hidden;
   }
   .tuning {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-4);
-    margin-top: var(--sp-4);
-    padding-top: var(--sp-4);
-    border-top: 1px solid var(--line);
+    gap: var(--sp-5);
   }
   .row {
     display: grid;
@@ -713,8 +685,6 @@
   }
   .cover {
     color: var(--text);
-    font-size: var(--fs-md);
-    line-height: var(--lh-base);
   }
   .legend {
     display: flex;
@@ -793,8 +763,18 @@
     }
   }
   @container (max-width: 1100px) {
+    .band {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+      column-gap: var(--sp-4);
+    }
+    .band > section + section {
+      padding-left: var(--sp-4);
+    }
     .body {
       grid-template-columns: 236px minmax(0, 1fr);
+    }
+    .flops {
+      margin: calc(-1 * var(--sp-2));
     }
   }
 </style>
