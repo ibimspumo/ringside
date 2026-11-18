@@ -11,13 +11,6 @@
   let { view, at, upto, onLook }: { view: HandView; at: number; upto: number; onLook: (snapshot: number) => void } = $props();
 
   // On a narrow table the history is one line that you can slide; it keeps the newest step in sight.
-  let nav = $state<HTMLElement>();
-  /** Steps hidden off the left edge: the edge fades, so you see there is more. */
-  let cut = $state(false);
-  $effect(() => {
-    void upto;
-    if (nav && nav.scrollWidth > nav.clientWidth) nav.scrollTo({ left: nav.scrollWidth, behavior: "smooth" });
-  });
 
   const STREET: Record<Street, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
 
@@ -50,7 +43,7 @@
   });
 </script>
 
-<nav class="timeline" class:cut aria-label="Verlauf der Hand" bind:this={nav} onscroll={() => (cut = !!nav && nav.scrollLeft > 2)}>
+<nav class="timeline" aria-label="Verlauf der Hand">
   {#each groups as g (g.snapshot)}
     <section class="street" class:now={g.snapshot <= at && !groups.some((x) => x.snapshot > g.snapshot && x.snapshot <= at)}>
       <button class="head" class:on={at === g.snapshot} onclick={() => onLook(g.snapshot)} aria-label="{STREET[g.street]} ansehen">
@@ -89,21 +82,13 @@
     gap: 6px 14px;
     align-items: flex-start;
   }
-  @container history (width < 820px) {
-    .timeline,
-    .street {
-      flex-wrap: nowrap;
-    }
+  /* On a narrow table the chips get a little smaller, so the history stays in few lines. */
+  @container history (width < 700px) {
     .timeline {
-      overflow-x: auto;
-      scrollbar-width: thin;
-      padding-bottom: 4px;
-    }
-    .street {
-      flex: none;
-    }
-    .timeline.cut {
-      mask-image: linear-gradient(to right, transparent, var(--bg) 40px);
+      --chip-h: 26px;
+      --chip-px: 7px;
+      --chip-fs: var(--fs-xs);
+      gap: 4px 10px;
     }
   }
   .street {
@@ -136,13 +121,13 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
-    padding: 0 9px;
+    height: var(--chip-h, 30px);
+    padding: 0 var(--chip-px, 9px);
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
     background: var(--surface);
     color: var(--text-2);
-    font-size: var(--fs-sm);
+    font-size: var(--chip-fs, var(--fs-sm));
     cursor: pointer;
     white-space: nowrap;
   }

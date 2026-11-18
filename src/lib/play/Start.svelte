@@ -269,7 +269,7 @@
     align-items: baseline;
     gap: 8px;
     white-space: nowrap;
-    font-size: var(--fs-hero);
+    font-size: var(--fs-4xl);
     line-height: 1;
     font-weight: 600;
     letter-spacing: -0.03em;
@@ -281,8 +281,8 @@
     color: var(--text-2);
   }
   .tile b {
-    margin-top: 4px;
-    font-size: var(--fs-xl);
+    margin-top: 2px;
+    font-size: var(--fs-2xl);
   }
   .text {
     color: var(--text-2);

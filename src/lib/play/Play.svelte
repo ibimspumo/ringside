@@ -149,6 +149,34 @@
     return `${view.verdicts.length} ${word}: ${list || "nicht bewertet"}${loss > 0.005 ? ` · auf lange Sicht verschenkt: ${num(loss, 2)} BB` : ""}`;
   });
   const net = $derived(view?.outcome ? view.outcome.net[view.hero] : 0);
+
+  /** Your move in words with what it cost against the better one, e.g. "Check am Flop: Ungenau – Bet wäre 0,25 BB besser". */
+  function verdictWords(v: Verdict, street: Street): { text: string; color: string } | null {
+    const j = v.judgement;
+    if (!j) return null;
+    const mine = choiceLabel(v.choices[v.chosen], street !== "preflop");
+    const head = `${mine.label} ${street === "preflop" ? "vor dem Flop" : `am ${STREET_NAME[street]}`}`;
+    const better = j.best !== v.chosen && j.loss_bb !== null && j.loss_bb > 0.005 ? ` – ${choiceLabel(v.choices[j.best]).label} wäre ${num(j.loss_bb, 2)} BB besser` : "";
+    return { text: `${head}: ${GRADE[j.grade].label}${better}.`, color: GRADE[j.grade].color };
+  }
+  /** While you decide anew: how your last move went. */
+  const lastWord = $derived.by(() => {
+    if (!decision || !moves.length) return null;
+    const m = moves[moves.length - 1];
+    const w = verdictWords(m.v, m.street);
+    return w ? { ...w, text: `Dein letzter Zug – ${w.text}` } : null;
+  });
+  /** At the end the lesson of the hand: your most expensive move that was not right. */
+  const lesson = $derived.by(() => {
+    const bad = moves.filter((m) => m.v.judgement && !["best", "mix", "good"].includes(m.v.judgement.grade));
+    if (!over || !bad.length) return null;
+    const m = bad.reduce((a, b) => ((b.v.judgement!.loss_bb ?? 0) > (a.v.judgement!.loss_bb ?? 0) ? b : a));
+    const j = m.v.judgement!;
+    const main = m.v.choices[j.main];
+    const share = m.v.strategy ? ` (${Math.round((m.v.strategy[j.main] ?? 0) * 100)} %)` : "";
+    const w = verdictWords(m.v, m.street)!;
+    return { text: `${w.text} Die Lösung spielt hier meist ${choiceLabel(main, m.street !== "preflop").label}${share}.`, color: w.color };
+  });
   /** Mean points of the hand's graded moves, 0–100. */
   const score = $derived.by(() => {
     const p = view?.verdicts.map((v) => v.points).filter((x): x is number => x !== null) ?? [];
@@ -298,7 +326,7 @@
           <span class="faint">Tempo</span>
           <SegmentedControl size="sm" label="Tempo der Animation" options={speedOptions} value={speed.id} onchange={(v: Speed) => setSpeed(v)} />
         </div>
-        <PoolChip pool={session.pool} onCancel={playApi.poolCancel} onResume={resumePool} />
+        <PoolChip compact pool={session.pool} onCancel={playApi.poolCancel} onResume={resumePool} />
       </div>
     </div>
 
@@ -370,16 +398,17 @@
           {:else if decision && sit}
             <p class="situation" aria-live="polite">
               <span class="lead">
-                {sit.lead}{#if sit.raise}&nbsp;(<Term term="threebet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
+                {#if sit.board}<CardText text={sit.board} />.&nbsp;{/if}{sit.lead}{#if sit.raise}&nbsp;(<Term term="threebet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
               </span>
               <span><CardText text={sit.you} /></span>
+              {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
                 <span class="odds"><Term term="potodds">Pot Odds</Term>: Ein Call braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
               {/if}
             </p>
             <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>
               {#each decision.choices as c, k (k)}
-                {@const l = choiceLabel(c)}
+                {@const l = choiceLabel(c, decision.street !== "preflop")}
                 <button class="act" style:--c={colors[k]} onclick={() => act(k)} disabled={session.busy}>
                   <Kbd keys={String(k + 1)} />
                   <b>{l.label}</b>
@@ -429,10 +458,11 @@
                     </p>
                   {/if}
                   </div>
+                  {#if lesson}<p class="lesson" style:--g={lesson.color}>{lesson.text}</p>{/if}
                   {#if summary}<p class="summary"><b>Deine Entscheidungen</b> · {summary}</p>{/if}
                   <ol class="streets" aria-label="Deine Züge je Straße">
-                    {#each streetGrades as g (g.st)}
-                      <li class:off={!g.played} style:--g={g.grade ? GRADE[g.grade].color : "var(--line-2)"} title={g.grade ? `${STREET_NAME[g.st]}: ${GRADE[g.grade].label}` : undefined}>
+                    {#each streetGrades.filter((g) => g.played) as g (g.st)}
+                      <li style:--g={g.grade ? GRADE[g.grade].color : "var(--line-2)"} title={g.grade ? `${STREET_NAME[g.st]}: ${GRADE[g.grade].label}` : undefined}>
                         {#if g.grade}<i aria-hidden="true">{GRADE[g.grade].mark}</i>{/if}{STREET_NAME[g.st]}
                       </li>
                     {/each}
@@ -513,7 +543,7 @@
       <aside class="side r" aria-label="Info">
         {#if rightOpen}
           <div class="side-head"><b>Info</b><IconButton size="sm" label="Info einklappen" onclick={() => (rightOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></IconButton></div>
-          <InfoPanel {view} lesson={infoLesson} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
+          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
         {:else}
           <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen"><span class="vt">Strategie · Hände</span></button>
         {/if}
@@ -528,8 +558,8 @@
     padding: 18px 24px 40px;
   }
   .foot {
-    max-width: 1280px;
-    margin: 0 auto;
+    max-width: 1360px;
+    margin: 14px auto 0;
   }
   .top {
     display: flex;
@@ -727,6 +757,20 @@
     color: var(--text);
     font-weight: 600;
   }
+  .last {
+    padding-left: 8px;
+    border-left: 2px solid var(--g);
+    font-size: var(--fs-sm);
+  }
+  .lesson {
+    margin: 0;
+    padding: 6px 10px;
+    border-left: 3px solid var(--g);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: color-mix(in srgb, var(--g) 10%, var(--surface-2));
+    font-size: var(--fs-base);
+    color: var(--text);
+  }
   .odds {
     font-size: var(--fs-sm);
   }
@@ -847,10 +891,6 @@
     letter-spacing: 0.04em;
     text-transform: uppercase;
   }
-  .streets li.off {
-    color: var(--text-3);
-    box-shadow: none;
-  }
   .streets i {
     font-style: normal;
     color: var(--g);
@@ -967,11 +1007,15 @@
     .answer {
       grid-column: 2;
     }
-    .buttons {
+    .lesson {
       order: 1;
+      grid-column: 1 / -1;
+    }
+    .buttons {
+      order: 2;
     }
     .summary {
-      order: 2;
+      order: 3;
       grid-column: 1 / -1;
     }
     .streets,

@@ -38,8 +38,9 @@ export const MODE_LABEL: Record<PlayMode, string> = {
 };
 export const ANTE_LABEL: Record<PlayAnte, string> = { none: "Ohne Ante", classic: "Ante für alle", big_blind: "BB-Ante" };
 
-export function choiceLabel(c: Choice): { label: string; size: string } {
-  const pct = c.pct_pot !== null ? ` · ${Math.round(c.pct_pot)} % Pot` : "";
+/** `withPct: false` leaves the share of the pot out, e.g. before the flop where sizes read in BB. */
+export function choiceLabel(c: Choice, withPct = true): { label: string; size: string } {
+  const pct = withPct && c.pct_pot !== null ? ` · ${Math.round(c.pct_pot)} % Pot` : "";
   switch (c.kind) {
     case "fold":
       return { label: "Fold", size: "" };

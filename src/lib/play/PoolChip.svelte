@@ -4,7 +4,8 @@
   import type { PoolStatus } from "./types";
 
   /** The stock of postflop spots: how many are ready, what is being prepared, and a stop. */
-  let { pool, onCancel, onResume }: { pool: PoolStatus | null; onCancel: () => void; onResume: () => void } = $props();
+  /** `compact`: at the table only the meter and the stop; the words are in the tooltip. */
+  let { pool, compact = false, onCancel, onResume }: { pool: PoolStatus | null; compact?: boolean; onCancel: () => void; onResume: () => void } = $props();
 
   const text = $derived.by(() => {
     if (!pool) return "";
@@ -26,14 +27,14 @@
 </script>
 
 {#if pool}
-  <div class="pool {pool.status}" role="status" title="Postflop-Spots werden im Hintergrund gerechnet, damit du nie warten musst. Das läuft weiter, auch wenn du die Seite wechselst.">
-    <span class="lbl">Postflop-Vorrat</span>
+  <div class="pool {pool.status}" class:compact role="status" title="{compact ? `${text}. ` : ''}Postflop-Spots werden im Hintergrund gerechnet, damit du nie warten musst. Das läuft weiter, auch wenn du die Seite wechselst.">
+    <span class="lbl">{compact ? "Vorrat" : "Postflop-Vorrat"}</span>
     <span class="meter" aria-hidden="true">
       {#each Array.from({ length: pool.target }, (_, i) => i) as i (i)}
         <i class:full={i < pool.ready} class:fill={pool.status === "running" && i === pool.ready} style:--f={pool.status === "running" && i === pool.ready ? (pool.fraction * pool.target - pool.ready) : 0}></i>
       {/each}
     </span>
-    <span class="txt">{text}</span>
+    {#if !compact}<span class="txt">{text}</span>{/if}
     {#if pool.status === "running" || pool.status === "paused_client"}
       <Button variant="quiet" size="sm" onclick={onCancel}>Anhalten</Button>
     {:else if pool.status === "cancelled" || pool.status === "error"}

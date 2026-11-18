@@ -203,6 +203,8 @@
           <b>{me ? `Du · ${view.positions[s]}` : view.positions[s]}</b>
           {#if made(s)}
             <span class="made" title="Hand beim Showdown">{made(s)}</span>
+          {:else if winners.includes(s)}
+            <span class="made">gewinnt</span>
           {:else}
             <span class="num">{num(snap.stacks[s])} BB</span>
           {/if}
@@ -317,7 +319,7 @@
   }
   .hole.big {
     gap: 5px;
-    margin-bottom: -14px;
+    margin-bottom: -8px;
   }
   .flip {
     display: inline-flex;

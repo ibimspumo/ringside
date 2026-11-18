@@ -6,7 +6,7 @@
   import PlayGrid from "./PlayGrid.svelte";
   import { GRADE, choiceColors, choiceLabel, num, signedBB } from "./labels";
   import { worst, type SessionHand } from "./session.svelte";
-  import type { HandView, Lesson } from "./types";
+  import type { HandView, Lesson, Verdict } from "./types";
 
   let {
     view,
@@ -14,7 +14,8 @@
     hands,
     reviewing,
     onOpen,
-  }: { view: HandView | null; lesson: Lesson | null; hands: SessionHand[]; reviewing: number | null; onOpen: (h: SessionHand) => void } = $props();
+    past = false,
+  }: { view: HandView | null; lesson: Lesson | null; hands: SessionHand[]; reviewing: number | null; onOpen: (h: SessionHand) => void; past?: boolean } = $props();
 
   let tab = $state<"info" | "hands">("info");
 
@@ -44,6 +45,8 @@
     });
     return out.map((x) => (total ? x / total : 0));
   });
+  /** "< 1 %" rather than "0 %" for a choice the range still takes now and then. */
+  const share = (x: number) => (x > 0 && x < 0.005 ? "< 1 %" : `${Math.round(x * 100)} %`);
   const hero = $derived(view ? comboClass(view.hero_cards[0], view.hero_cards[1]) : -1);
   const actor = $derived(view ? view.positions[view.hero] : "");
   const STREET: Record<string, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
@@ -53,9 +56,22 @@
     const street = STREET[lesson.street] ?? "";
     if ("chosen" in lesson && typeof lesson.chosen === "number") {
       const l = choiceLabel(lesson.choices[lesson.chosen]);
-      return { street, text: `Dein letzter Zug: ${l.label}${l.size ? ` ${l.size}` : ""}` };
+      return { street: `Rückblick · ${street}`, text: `Dein Zug: ${l.label}${l.size ? ` ${l.size}` : ""}` };
     }
     return { street, text: "Tipp für deine Entscheidung" };
+  });
+  /** A move the solution also plays that still costs: why it is graded so, in the move's own numbers. */
+  const mixedWhy = $derived.by(() => {
+    if (!lesson || !("judgement" in lesson)) return null;
+    const v = lesson as Verdict;
+    const j = v.judgement;
+    if (!j || !v.strategy) return null;
+    const f = v.strategy[v.chosen] ?? 0;
+    if (f < 0.05 || j.grade === "best" || j.grade === "mix" || j.best === v.chosen) return null;
+    const mine = choiceLabel(v.choices[v.chosen]).label;
+    const best = choiceLabel(v.choices[j.best]).label;
+    const cost = j.loss_bb !== null ? ` im Schnitt ${num(j.loss_bb, 2)} BB` : "";
+    return `${mine} spielt die Lösung in ${Math.round(f * 100)} % – trotzdem bringt er hier${cost} weniger als ${best}. Deshalb „${GRADE[j.grade].label}“.`;
   });
 </script>
 
@@ -68,14 +84,21 @@
   </div>
 
   {#if tab === "info"}
-    {#if lesson && cells}
+    {#if past}
+      <!-- While you decide anew the last move's range would read like advice for this one. -->
+      {#if about}<p class="about"><span>{about.street}</span> <b>{about.text}</b></p>{/if}
+      <div class="empty-note">
+        <p>Strategie und Range dieser Entscheidung erscheinen nach deinem Zug.</p>
+        <p class="hint">Vorher hilft <b>Tipp anzeigen</b> (Taste H) – der Zug zählt dann nur halb.</p>
+      </div>
+    {:else if lesson && cells}
       {#if about}<p class="about"><span>{about.street}</span> <b>{about.text}</b></p>{/if}
       {#if lesson.strategy && view}
         {@const own = lesson.strategy}
         <div class="mine">
           <p>Deine Hand {#each view.hero_cards as c (c)}<MiniCard card={c} />{/each} spielt die Lösung so:</p>
           <MixBar label="So oft spielt die Lösung deine Hand" parts={lesson.choices.map((c, k) => ({ label: choiceLabel(c).label, share: Math.round((own[k] ?? 0) * 100), color: colors[k] }))} />
-          <p class="faint small">Die Prozente sagen, wie oft die Lösung jeden Zug wählt. Bewertet wird, was dein Zug im Schnitt gegenüber dem besten kostet – auch ein Zug mit Anteil kann Punkte kosten.</p>
+          <span class="note" class:why={!!mixedWhy}>{mixedWhy ?? "Prozent: wie oft die Lösung jeden Zug wählt. Bewertet wird, was dein Zug gegenüber dem besten kostet."}</span>
         </div>
       {/if}
       <p class="cap">
@@ -89,7 +112,7 @@
           <li>
             <span class="sw" style:background={colors[k]}></span>
             <span>{l.label}{#if l.size} <small class="faint">{l.size}</small>{/if}</span>
-            <b class="num">{Math.round((mix[k] ?? 0) * 100)} %</b>
+            <b class="num">{share(mix[k] ?? 0)}</b>
           </li>
         {/each}
       </ul>
@@ -182,6 +205,23 @@
     align-items: center;
     gap: 8px;
   }
+  .empty-note {
+    display: grid;
+    gap: 6px;
+    padding: 18px 4px;
+    text-align: center;
+    font-size: var(--fs-base);
+    color: var(--text-2);
+  }
+  .empty-note p {
+    margin: 0;
+  }
+  .empty-note .hint {
+    font-size: var(--fs-sm);
+  }
+  .empty-note b {
+    color: var(--text);
+  }
   .mine {
     display: grid;
     gap: 6px;
@@ -196,6 +236,15 @@
     gap: 4px;
     margin: 0;
     font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .mine .note {
+    font-size: var(--fs-xs);
+    line-height: 1.45;
+    color: var(--text-2);
+  }
+  .mine .note.why {
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .legend .lh {
