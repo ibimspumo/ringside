@@ -536,6 +536,9 @@ input[type="range"] {
   --grid-label-out: var(--text-2);
   --grid-dim: 0.28;
   --fs-grid-min: 8px;
+  /* Your range against the model's: hands you play too often, hands you leave out. */
+  --range-wide: #e0703a;
+  --range-tight: #5aa9e6;
 
   /* Table. */
   --felt: #23312d;

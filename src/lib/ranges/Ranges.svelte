@@ -33,6 +33,7 @@
     bandOf,
     facet,
     hasOpponent,
+    fromPreset,
     initial,
     settle,
     stackHistogram,
@@ -43,15 +44,21 @@
     type Size,
   } from "./select";
   import { MOVES, type RangeChart, type RangeFilter, type RangeGroup } from "./types";
+  import type { RangePreset } from "../session/types";
 
   let {
     filter,
     refresh,
     onHands,
+    preset = null,
+    onPresetUsed,
   }: {
     filter: Filter;
     refresh: number;
     onHands: (range: RangeFilter, label: string) => void;
+    /** A situation to open on, e.g. a pattern of the session review; every depth. */
+    preset?: RangePreset | null;
+    onPresetUsed?: () => void;
   } = $props();
 
   let groups = $state<RangeGroup[] | null>(null);
@@ -73,6 +80,10 @@
         if (!live) return;
         groups = g;
         error = null;
+        if (preset) {
+          sel = fromPreset(g, preset);
+          onPresetUsed?.();
+        }
         // A new period or tournament keeps the situation while it still has hands.
         if (!sel || total(g, sel) === 0) sel = initial(g);
       })

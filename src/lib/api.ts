@@ -9,6 +9,8 @@ import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
 import * as reportDemo from "./report/demo";
+import * as sessionDemo from "./session/demo";
+import type { SessionPage } from "./session/types";
 import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./charts/preflop-types";
@@ -147,6 +149,9 @@ export const api = {
     const made = advice(() => reportDemo.demoReport(tournamentId));
     return sample<TournamentReport>("tournament_report", { tournamentId }, made, made, made);
   },
+  /** The latest session (or the one starting at `start`); advice is left out while PokerStars runs. */
+  sessionReview: (start: string | null) =>
+    sample<SessionPage>("session_review", { start }, () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start)),
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () =>

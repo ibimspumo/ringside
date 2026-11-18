@@ -257,7 +257,7 @@ fn tournament_filter_restricts_every_report() {
     assert_eq!(names(&Filter { tournament_id: Some(4046789301), ..Default::default() }), ["Lee Ann: KO", "Mo", "Short"]);
     let hero = db.players(&ko, "Hero", 1).unwrap().remove(0);
     assert_eq!((hero.counters.hands, hero.net), (1, results.net));
-    assert_eq!(db.sessions(&ko, 30.0).unwrap().iter().map(|s| s.hands).sum::<i64>(), 1);
+    assert_eq!(db.sessions(&ko).unwrap().iter().map(|s| s.hands).sum::<i64>(), 1);
     let by_pos = db.hero_groups(&ko, false).unwrap();
     assert_eq!(by_pos.iter().map(|g| (g.key.as_str(), g.counters.hands)).collect::<Vec<_>>(), [("BB", 1)]);
     assert_eq!(db.hero_groups(&ko, true).unwrap().iter().map(|g| g.key.as_str()).collect::<Vec<_>>(), ["AA"]);
@@ -269,7 +269,7 @@ fn tournament_filter_restricts_every_report() {
     // Without a tournament nothing changes: every hero hand and every player counts.
     assert_eq!(db.hero_results(&all, 100).unwrap().hands, 4);
     assert_eq!(ids(all.clone()), 5);
-    assert_eq!(db.sessions(&all, 30.0).unwrap().iter().map(|s| s.hands).sum::<i64>(), 4);
+    assert_eq!(db.sessions(&all).unwrap().iter().map(|s| s.hands).sum::<i64>(), 4);
     let everyone = names(&all);
     assert!(everyone.len() > 6 && ["Astrid", "Mo", "Hero"].iter().all(|n| everyone.iter().any(|e| e == n)));
     assert_eq!(everyone, names(&Filter { since: Some("0000".into()), ..all }), "running totals equal the per-hand rows");
