@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
   import { shortModel } from "./meaning";
+  import { appear, pop } from "./motion";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
 
   let {
@@ -104,7 +105,8 @@
     {/if}
   </header>
 
-  <div class="body" aria-live="polite">
+  {#key st.kind}
+  <div class="body" aria-live="polite" in:appear>
     {#if st.kind === "preparing"}
       <div class="line">
         <span class="spinner" aria-hidden="true"></span>
@@ -219,7 +221,7 @@
           <b class="num">{p?.tool_calls ?? 0}-mal</b>
           {#if used.length}
             <span class="tools">
-              {#each used as t (t)}<span class="tool" class:now={p?.stage === "tool" && p.tool === t}>{TOOLS[t] ?? t}</span>{/each}
+              {#each used as t (t)}<span in:pop class="tool" class:now={p?.stage === "tool" && p.tool === t}>{TOOLS[t] ?? t}</span>{/each}
             </span>
           {:else}
             <span class="note">Das Modell fragt jede Zahl bei Ringside ab.</span>
@@ -284,6 +286,7 @@
       </div>
     {/if}
   </div>
+  {/key}
 </section>
 
 <style>
@@ -556,7 +559,7 @@
     border-radius: 50%;
     border: 2px solid var(--surface-3);
     border-top-color: var(--text);
-    animation: spin 0.9s linear infinite;
+    animation: spin var(--dur-loop, 900ms) var(--ease-spin, cubic-bezier(0.45, 0.05, 0.55, 0.95)) infinite;
   }
   @keyframes spin {
     to {
@@ -573,7 +576,7 @@
     border-radius: var(--r-sm);
     background: var(--bg);
     border: 1px solid var(--line);
-    animation: pulse 1.6s ease-in-out infinite;
+    animation: pulse 1.6s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)) infinite;
   }
   @keyframes pulse {
     50% {
@@ -604,7 +607,7 @@
   }
   .track i.now {
     background: var(--text);
-    animation: pulse 1.6s ease-in-out infinite;
+    animation: pulse 1.6s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)) infinite;
   }
   .track span {
     margin-left: 6px;
@@ -645,6 +648,11 @@
     border: 1px solid var(--line-2);
     font-size: 12px;
     color: var(--text-2);
+  }
+  .tool {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
+      color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
   }
   .tool.now {
     background: var(--surface-3);

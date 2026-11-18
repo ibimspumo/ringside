@@ -1,10 +1,11 @@
 <script lang="ts">
   import { requestAnalysis } from "../analysis/store.svelte";
-  import type { LearnTarget } from "../app/Leaks.svelte";
   import Felt from "../Felt.svelte";
   import PlayingCard from "../PlayingCard.svelte";
   import { conceptName } from "./concepts";
-  import { positionHint, termsIn, verdictOf } from "./meaning";
+  import CardText from "./CardText.svelte";
+  import Figures from "./Figures.svelte";
+  import { positionHint, verdictOf } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
   import type { CoachSpot } from "./types";
 
@@ -13,17 +14,18 @@
     index,
     practice,
     onHand,
-    onTraining,
+    onDrill,
+    onRead,
   }: {
     spot: CoachSpot;
     index: number;
     practice: Practice;
     onHand: (id: number) => void;
-    onTraining: (target: LearnTarget | null) => void;
+    onDrill: () => void;
+    onRead: () => void;
   } = $props();
 
   const verdict = $derived(verdictOf(spot.verdict));
-  const terms = $derived(termsIn(spot.numbers.map((n) => n.label)));
   const stack = $derived(spot.stack_bb.toLocaleString("de-DE", { maximumFractionDigits: 1 }));
   const time = $derived(spot.played_at.slice(11, 16));
   const street = $derived(
@@ -56,45 +58,23 @@
       <span class="meaning">{verdict.meaning}</span>
       <span class="time num" title="Gespielt um {time} Uhr">{time}</span>
     </header>
-    <p class="action" id="spot-{index}-title">{spot.action}</p>
+    <p class="action" id="spot-{index}-title"><CardText text={spot.action} /></p>
     {#if spot.better}
-      <p class="better"><span>Besser</span><b>{spot.better}</b></p>
+      <p class="better"><span>Besser</span><b><CardText text={spot.better} /></b></p>
     {/if}
-    <p class="why">{spot.why}</p>
+    <p class="why"><CardText text={spot.why} /></p>
     {#if spot.numbers.length}
-      <dl class="figures">
-        {#each spot.numbers as n, i (i)}
-          <div class="fig" class:guess={n.source !== "berechnet"}>
-            <dt>{n.label}</dt>
-            <dd>
-              <b class:num={n.source === "berechnet"}>{n.value}</b>
-              <span
-                class="src"
-                title={n.source === "berechnet"
-                  ? "Von Ringsides Rechenkern berechnet, nicht vom Sprachmodell"
-                  : "Einschätzung des Sprachmodells, nicht nachgerechnet"}>{n.source === "berechnet" ? "berechnet" : "Einschätzung"}</span
-              >
-            </dd>
-          </div>
-        {/each}
-      </dl>
-      {#if terms.length}
-        <ul class="terms" aria-label="Begriffe">
-          {#each terms as t (t.term)}<li><b>{t.term}</b><span>{t.meaning}</span></li>{/each}
-        </ul>
-      {/if}
+      <Figures numbers={spot.numbers} />
     {/if}
     <footer>
       <div class="learn">
         <span class="topic"><span class="faint">Thema</span> {conceptName(spot.concept)}</span>
-        {#if practice.train}
-          <button class="btn small" onclick={() => onTraining(practice.train)} title="Passende Übung im Lernbereich öffnen">
-            Üben
-            <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-          </button>
-        {/if}
-        {#if practice.article}
-          <button class="link" onclick={() => onTraining({ article: practice.article!.id })}>Nachlesen</button>
+        <button class="btn small" onclick={onDrill} title="Die Hand hält vor deiner Entscheidung an; du entscheidest selbst">
+          Diesen Spot üben
+          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+        </button>
+        {#if practice.articles.length}
+          <button class="link" onclick={onRead} title={practice.articles[0].title}>Nachlesen</button>
         {/if}
       </div>
       <div class="hand">
@@ -262,76 +242,6 @@
     color: var(--text-2);
     line-height: 1.55;
     max-width: 78ch;
-  }
-  .figures {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 6px;
-    margin: 2px 0 0;
-  }
-  .fig {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 7px 10px 8px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid transparent;
-  }
-  .fig.guess {
-    background: transparent;
-    border: 1px dashed var(--line-2);
-  }
-  dt {
-    font-size: 12px;
-    color: var(--text-3);
-  }
-  dd {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 8px;
-    margin: 0;
-  }
-  dd b {
-    font-weight: 600;
-    font-size: 13.5px;
-    min-width: 0;
-  }
-  dd b.num {
-    font-size: 17px;
-  }
-  .src {
-    flex-shrink: 0;
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-    background: var(--surface-3);
-    color: var(--text);
-  }
-  .guess .src {
-    background: none;
-    padding: 0;
-    color: var(--text-3);
-  }
-
-  .terms {
-    list-style: none;
-    display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
-    gap: 2px 14px;
-    margin: 0;
-    padding: 0;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--text-2);
-  }
-  .terms li {
-    display: contents;
-  }
-  .terms b {
-    font-weight: 600;
-    color: var(--text);
   }
   footer {
     display: flex;

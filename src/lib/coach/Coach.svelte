@@ -11,8 +11,11 @@
   import CoachSettings from "./CoachSettings.svelte";
   import KeyForm from "./KeyForm.svelte";
   import { notAnalyzable, shortModel } from "./meaning";
+  import { appear, leave, rise } from "./motion";
   import ReportView, { type Practice } from "./ReportView.svelte";
   import RunPanel from "./RunPanel.svelte";
+  import SpotDrill from "./SpotDrill.svelte";
+  import SpotRead from "./SpotRead.svelte";
   import type { CoachReport, CoachStatus, ConceptCount, ReportListItem } from "./types";
 
   let {
@@ -40,6 +43,21 @@
   let setupOpen = $state(preview.setup);
   let concepts = $state<ConceptCount[]>([]);
   let progress = $state<LearnProgress | null>(null);
+  /** A spot of the report opened to practise or to read up on, by its 1-based number. */
+  let focus = $state<{ mode: "drill" | "read"; n: number } | null>(null);
+  let returnTo = $state<number | null>(null);
+
+  function openSpot(mode: "drill" | "read", n: number) {
+    focus = { mode, n };
+    returnTo = null;
+    window.scrollTo?.({ top: 0 });
+    document.querySelector(".layout")?.scrollIntoView({ block: "start" });
+  }
+
+  function back() {
+    returnTo = focus?.n ?? null;
+    focus = null;
+  }
 
   const titleOf = (id: number, item?: { name: string | null; game: string }) => {
     const t = tournaments.find((x) => x.id === id);
@@ -59,12 +77,11 @@
   /** Where to practise or read up on a concept of the reports. */
   function practice(concept: string): Practice {
     const c = concepts.find((x) => x.id === concept);
-    if (!c) return { train: null, article: null };
+    if (!c) return { train: null, articles: [] };
     const kind = trainableKind(c);
-    const article = c.articles.map((a) => ARTICLE_BY_ID[a]).find(Boolean);
     return {
       train: kind ? { kind, level: nextLevel(progress?.skills.find((s) => s.id === kind)) } : null,
-      article: article ? { id: article.id, title: article.title } : null,
+      articles: c.articles.flatMap((a) => (ARTICLE_BY_ID[a] ? [{ id: a, title: ARTICLE_BY_ID[a].title }] : [])),
     };
   }
 
@@ -118,6 +135,7 @@
 
   function start(id: number) {
     setupOpen = false;
+    focus = null;
     runFor = id;
   }
 
@@ -192,6 +210,8 @@
                         selected = r.tournament_id;
                         runFor = null;
                         setupOpen = false;
+                        focus = null;
+                        returnTo = null;
                       }}
                     >
                       <span class="name">{titleOf(r.tournament_id, r)}</span>
@@ -272,6 +292,7 @@
           {/if}
 
           {#if setupOpen}
+            <div in:rise out:leave>
             <CoachSettings
               onClose={() => (setupOpen = false)}
               onChange={(s) => {
@@ -279,6 +300,7 @@
                 if (!s.has_key) setupOpen = false;
               }}
             />
+            </div>
           {/if}
 
           {#if runFor !== null}
@@ -320,15 +342,49 @@
               {/if}
             </section>
           {:else if report && report.tournament_id === selected}
-            <ReportView
-              {report}
-              title={titleOf(report.tournament_id, list.find((r) => r.tournament_id === report?.tournament_id))}
-              {practice}
-              onHand={(id) => report && onHand(report.tournament_id, id)}
-              {onTraining}
-              onReanalyze={() => report && start(report.tournament_id)}
-              onDelete={() => report && remove(report.tournament_id)}
-            />
+            {@const reportTitle = titleOf(report.tournament_id, list.find((r) => r.tournament_id === report?.tournament_id))}
+            {@const spot = focus ? report.spots[focus.n - 1] : null}
+            {#if focus && spot && focus.mode === "drill"}
+              <div in:appear>
+              <SpotDrill
+                {spot}
+                n={focus.n}
+                total={report.spots.length}
+                title={reportTitle}
+                practice={practice(spot.concept)}
+                onBack={back}
+                {onTraining}
+                onRead={() => focus && (focus = { mode: "read", n: focus.n })}
+              />
+              </div>
+            {:else if focus && spot}
+              <div in:appear>
+              <SpotRead
+                {spot}
+                n={focus.n}
+                total={report.spots.length}
+                title={reportTitle}
+                practice={practice(spot.concept)}
+                onBack={back}
+                onDrill={() => focus && (focus = { mode: "drill", n: focus.n })}
+              />
+              </div>
+            {:else}
+              <div in:appear>
+              <ReportView
+                {report}
+                title={reportTitle}
+                {practice}
+                {returnTo}
+                onHand={(id) => report && onHand(report.tournament_id, id)}
+                {onTraining}
+                onReanalyze={() => report && start(report.tournament_id)}
+                onDelete={() => report && remove(report.tournament_id)}
+                onDrill={(n) => openSpot("drill", n)}
+                onRead={(n) => openSpot("read", n)}
+              />
+              </div>
+            {/if}
           {/if}
         </div>
       </div>
@@ -401,6 +457,10 @@
     padding: 7px 10px;
     border-radius: var(--r-sm);
   }
+  .start li {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+  }
   .start li:hover {
     background: var(--surface-2);
   }
@@ -413,6 +473,11 @@
     font-size: 12.5px;
   }
 
+  .reports ul {
+    max-height: min(52vh, 560px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
   .item {
     display: flex;
     flex-direction: column;
@@ -424,6 +489,11 @@
     background: transparent;
     text-align: left;
     cursor: pointer;
+  }
+  .item {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
+      box-shadow var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
   }
   .item:hover {
     background: var(--surface-2);
@@ -475,6 +545,11 @@
     text-align: left;
     cursor: pointer;
     color: var(--text);
+  }
+  .setup-card {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
+      border-color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
   }
   .setup-card:hover,
   .setup-card.on {

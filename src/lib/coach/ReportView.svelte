@@ -2,14 +2,17 @@
   import type { LearnTarget } from "../app/Leaks.svelte";
 
   /** Where a concept leads in the learning area. */
-  export type Practice = { train: LearnTarget | null; article: { id: string; title: string } | null };
+  export type Practice = { train: LearnTarget | null; articles: { id: string; title: string }[] };
 </script>
 
 <script lang="ts">
+  import { onMount } from "svelte";
   import PlayingCard from "../PlayingCard.svelte";
   import { cost, duration, tokens } from "./api";
+  import CardText from "./CardText.svelte";
   import { conceptName } from "./concepts";
   import { VERDICTS, shortModel, toPractise } from "./meaning";
+  import { rise } from "./motion";
   import SpotCard from "./SpotCard.svelte";
   import type { CoachReport } from "./types";
 
@@ -21,6 +24,9 @@
     onTraining,
     onReanalyze,
     onDelete,
+    onDrill,
+    onRead,
+    returnTo = null,
   }: {
     report: CoachReport;
     title: string;
@@ -29,6 +35,11 @@
     onTraining: (target: LearnTarget | null) => void;
     onReanalyze: () => void;
     onDelete: () => void;
+    /** Opens spot `n` (1-based) as an exercise, or its article. */
+    onDrill: (n: number) => void;
+    onRead: (n: number) => void;
+    /** A spot to scroll back to, after coming back from practising it. */
+    returnTo?: number | null;
   } = $props();
 
   type Show = "all" | "practise" | "good";
@@ -41,11 +52,26 @@
     show === "all" ? spots : show === "practise" ? weak : spots.filter((s) => !toPractise(s.spot.verdict)),
   );
   const counts = $derived(VERDICTS.map((v) => ({ ...v, n: report.spots.filter((s) => s.verdict === v.id).length })));
+  const good = $derived(spots.length - weak.length);
+  /** The ring: one arc per verdict, worst first from the top, with a small gap between arcs. */
+  const R = 32;
+  const C = 2 * Math.PI * R;
+  const arcs = $derived.by(() => {
+    const shown = counts.filter((c) => c.n > 0);
+    const gap = shown.length > 1 ? 3 : 0;
+    let from = 0;
+    return shown.map((c) => {
+      const full = (c.n / Math.max(1, spots.length)) * C;
+      const arc = { id: c.id, from, len: Math.max(0.5, full - gap) };
+      from += full;
+      return arc;
+    });
+  });
   const created = $derived(
     new Date(report.meta.created_at * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }),
   );
   /** The concept of the first spot to practise: the report's main lesson. */
-  const lesson = $derived(weak[0] ? { concept: weak[0].spot.concept, ...practice(weak[0].spot.concept) } : null);
+  const lesson = $derived(weak[0] ? { n: weak[0].n, concept: weak[0].spot.concept, ...practice(weak[0].spot.concept) } : null);
 
   /** The spot last jumped to, for stepping with the arrow keys. */
   let current = $state<number | null>(null);
@@ -59,6 +85,10 @@
       el?.focus({ preventScroll: true });
     });
   }
+
+  onMount(() => {
+    if (returnTo !== null) jump(returnTo, true);
+  });
 
   /** ← and → step through the shown decisions, like a hand replayer. */
   function onKey(e: KeyboardEvent) {
@@ -109,15 +139,13 @@
               {conceptName(lesson.concept)} üben
               <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
             </button>
+          {:else if lesson}
+            <button class="btn primary" onclick={() => onDrill(lesson.n)}>Entscheidung {lesson.n} üben</button>
           {:else}
-            <button class="btn primary" onclick={() => onTraining(lesson?.article ? { article: lesson.article.id } : null)}>
-              {lesson?.article ? `Nachlesen: ${lesson.article.title}` : "Zum Training"}
-            </button>
+            <button class="btn primary" onclick={() => onTraining(null)}>Zum Training</button>
           {/if}
-          {#if lesson?.train && lesson.article}
-            <button class="link" onclick={() => onTraining({ article: lesson.article!.id })}>
-              Nachlesen: {lesson.article.title}
-            </button>
+          {#if lesson?.articles.length}
+            <button class="link" onclick={() => onRead(lesson.n)}>Nachlesen: {lesson.articles[0].title}</button>
           {/if}
         </div>
       </div>
@@ -131,23 +159,31 @@
             Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
           {/if}
         </p>
-        <div class="strip">
-          {#each spots as s (s.n)}
-            <button
-              class="cell v-{s.spot.verdict}"
-              title="{s.n}. {VERDICTS.find((v) => v.id === s.spot.verdict)?.name}: {s.spot.action}"
-              aria-label="Zur Entscheidung {s.n}"
-              onclick={() => jump(s.n)}
-            ></button>
-          {/each}
+        <div class="grades">
+          <svg class="ring" viewBox="0 0 80 80" aria-hidden="true">
+            <circle class="track" cx="40" cy="40" r={R} />
+            {#each arcs as a (a.id)}
+              <circle
+                class="arc v-{a.id}"
+                cx="40"
+                cy="40"
+                r={R}
+                style="stroke-dasharray:{a.len} {C - a.len};stroke-dashoffset:{-a.from}"
+              />
+            {/each}
+            <text x="40" y="39" class="ring-n num">{good}/{spots.length}</text>
+            <text x="40" y="53" class="ring-l">gut</text>
+          </svg>
+          <ul class="breakdown">
+            {#each counts as c (c.id)}
+              <li class:zero={c.n === 0} title="{c.name}: {c.meaning}">
+                <span class="gname">{c.name}</span>
+                <span class="gbar"><i class="v-{c.id}" style="width:{spots.length ? (c.n / spots.length) * 100 : 0}%"></i></span>
+                <b class="num">{c.n}</b>
+              </li>
+            {/each}
+          </ul>
         </div>
-        <ul class="legend">
-          {#each counts as c (c.id)}
-            <li class:zero={c.n === 0} title="{c.name}: {c.meaning}">
-              <i class="v-{c.id}" aria-hidden="true"></i><b class="num">{c.n}</b> {c.name}
-            </li>
-          {/each}
-        </ul>
         {#if weak.length}
           <ol class="worst" aria-label="Entscheidungen zum Üben">
             {#each weak as s (s.n)}
@@ -158,7 +194,7 @@
                     {#each s.spot.hero_cards as c (c)}<PlayingCard card={c} size={18} />{/each}
                   </span>
                   <span class="pos">{s.spot.position ?? "–"}</span>
-                  <span class="txt">{s.spot.better ? `Besser: ${s.spot.better}` : s.spot.action}</span>
+                  <span class="txt">{#if s.spot.better}Besser: <CardText text={s.spot.better} />{:else}<CardText text={s.spot.action} />{/if}</span>
                   <span class="go num" aria-hidden="true">{s.n} →</span>
                 </button>
               </li>
@@ -196,8 +232,17 @@
   </div>
 
   <div class="spots">
-    {#each shown as s (s.n)}
-      <SpotCard spot={s.spot} index={s.n} practice={practice(s.spot.concept)} {onHand} {onTraining} />
+    {#each shown as s, i (s.n)}
+      <div in:rise={{ delay: Math.min(i, 6) * 40 }}>
+      <SpotCard
+        spot={s.spot}
+        index={s.n}
+        practice={practice(s.spot.concept)}
+        {onHand}
+        onDrill={() => onDrill(s.n)}
+        onRead={() => onRead(s.n)}
+      />
+      </div>
     {:else}
       <p class="none">Hier ist nichts. Alle Entscheidungen fallen unter den anderen Filter.</p>
     {/each}
@@ -343,24 +388,6 @@
     color: var(--text);
     margin-right: 2px;
   }
-  .strip {
-    display: flex;
-    gap: 4px;
-    height: 14px;
-  }
-  .cell {
-    flex: 1;
-    min-width: 10px;
-    padding: 0;
-    border: 0;
-    border-radius: 3px;
-    background: var(--c);
-    cursor: pointer;
-    transition: transform 0.12s;
-  }
-  .cell:hover {
-    transform: scaleY(1.35);
-  }
   .v-fehler {
     --c: var(--neg);
   }
@@ -373,33 +400,92 @@
   .v-stark {
     --c: var(--pos);
   }
-  .legend {
+  .grades {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .ring {
+    width: 84px;
+    height: 84px;
+    flex-shrink: 0;
+    transform: rotate(-90deg);
+  }
+  .ring circle {
+    fill: none;
+    stroke-width: 7;
+  }
+  .ring .track {
+    stroke: var(--surface-3);
+  }
+  .ring .arc {
+    stroke: var(--c);
+    transition: stroke-dasharray var(--dur-slow, 320ms) var(--ease-enter, cubic-bezier(0.05, 0.7, 0.1, 1));
+  }
+  @starting-style {
+    .ring .arc {
+      stroke-dasharray: 0 999;
+    }
+  }
+  .ring text {
+    transform: rotate(90deg);
+    transform-origin: 40px 40px;
+    text-anchor: middle;
+    fill: var(--text);
+  }
+  .ring-n {
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .ring-l {
+    font-size: 10.5px;
+    fill: var(--text-2) !important;
+  }
+  .breakdown {
+    flex: 1;
     list-style: none;
     margin: 0;
     padding: 0;
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px 14px;
+    flex-direction: column;
+    gap: 6px;
     font-size: 12.5px;
-    color: var(--text-2);
+    min-width: 0;
   }
-  .legend li {
-    display: flex;
-    align-items: baseline;
-    gap: 5px;
+  .breakdown li {
+    display: grid;
+    grid-template-columns: 62px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 10px;
     cursor: help;
   }
-  .legend i {
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
-    background: var(--c);
-    flex-shrink: 0;
-    transform: translateY(-1px);
+  .gname {
+    color: var(--text-2);
   }
-  .legend b {
-    color: var(--text);
+  .gbar {
+    height: 6px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .gbar i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--c);
+    transition: width var(--dur-slow, 320ms) var(--ease-enter, cubic-bezier(0.05, 0.7, 0.1, 1));
+  }
+  @starting-style {
+    .gbar i {
+      width: 0;
+    }
+  }
+  .breakdown b {
+    text-align: right;
     font-weight: 600;
+  }
+  .breakdown li.zero {
+    opacity: 0.45;
   }
   .worst {
     list-style: none;
@@ -422,6 +508,10 @@
     text-align: left;
     font-size: 13px;
     cursor: pointer;
+  }
+  .worst button {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
   }
   .worst button:hover {
     background: var(--surface-2);
@@ -460,10 +550,6 @@
   .worst button:hover .go {
     color: var(--text);
   }
-  .legend li.zero {
-    opacity: 0.45;
-  }
-
   h3 {
     margin: 0;
     font-size: 13px;
@@ -614,7 +700,8 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .cell {
+    .ring .arc,
+    .gbar i {
       transition: none;
     }
   }

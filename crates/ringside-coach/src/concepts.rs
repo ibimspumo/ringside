@@ -8,7 +8,8 @@ use serde::Serialize;
 pub struct Concept {
     pub id: &'static str,
     pub name: &'static str,
-    /// `ringside_learn::Kind` id of the matching exercise.
+    /// `ringside_learn::Kind` id of the matching exercise. New exercise kinds (bounty, ICM,
+    /// postflop …) dock here; the coach then offers "similar spots" after a practised spot.
     pub exercise: Option<&'static str>,
     /// Article ids in the knowledge area.
     pub articles: &'static [&'static str],
@@ -84,6 +85,12 @@ mod tests {
         }
         let entries = text.lines().filter(|l| l.trim_end().ends_with("\",")).count();
         assert_eq!(entries, CONCEPTS.len(), "concepts.ts hat Einträge, die es nicht gibt");
+    }
+
+    #[test]
+    fn every_concept_leads_to_an_exercise_or_an_article() {
+        let gaps: Vec<_> = CONCEPTS.iter().filter(|c| c.exercise.is_none() && c.articles.is_empty()).map(|c| c.id).collect();
+        assert!(gaps.is_empty(), "Konzepte ohne Übung und ohne Artikel: {gaps:?}");
     }
 
     #[test]

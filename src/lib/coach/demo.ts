@@ -1,4 +1,5 @@
 /** Browser-only stand-ins for the coach commands (design work, screenshots). Made-up hands. */
+import type { Hand } from "../types";
 import type {
   CoachProgress,
   CoachReport,
@@ -152,11 +153,20 @@ function report(tournament: number, created: number): CoachReport {
   };
 }
 
+/** `?coach=many`: a report for every finished tournament, the newest with a very long name. */
+const MANY = param("coach") === "many";
+const LONG_NAME = "Sunday Million – Day 2 · $109 Bounty Builder Special Edition [Progressive KO, 8-Max, Turbo]";
+const FINISHED = [...ROWS.values()].filter((t) => t.prize !== null && t.hands > 0).map((t) => t.id);
+
 const reports = new Map<number, CoachReport>(
-  param("coach") === "empty" ? [] : [
-    [T1, report(T1, 1794930251)],
-    [T2, { ...report(T2, 1794843851), spots: report(T2, 0).spots.slice(1, 4) }],
-  ],
+  param("coach") === "empty"
+    ? []
+    : MANY
+      ? FINISHED.map((id, i) => [id, { ...report(id, 1794930251 - i * 86400), spots: report(id, 0).spots.slice(0, 5 - (i % 4)) }])
+      : [
+          [T1, report(T1, 1794930251)],
+          [T2, { ...report(T2, 1794843851), spots: report(T2, 0).spots.slice(1, 4) }],
+        ],
 );
 
 export const status = (): CoachStatus => ({ has_key: hasKey, model, effort, running: false });
@@ -326,7 +336,7 @@ export function list(names: Map<number, { name: string | null; game: string; sta
       spots: r.spots.length,
       mistakes: r.spots.filter((s) => s.verdict === "fehler" || s.verdict === "fraglich").length,
       cost_usd: r.meta.cost_usd,
-      name: (names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.name ?? null,
+      name: MANY && r.tournament_id === FINISHED[0] ? LONG_NAME : ((names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.name ?? null),
       game: (names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.game ?? "NL Hold'em",
       started_at: (names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.started_at ?? "2026/11/16 20:00:00",
     }));
@@ -369,4 +379,94 @@ export function concepts(): ConceptCount[] {
     for (const id of new Set(r.spots.map((s) => s.concept))) counts.get(id)!.tournaments++;
   }
   return [...counts.values()].sort((a, b) => b.mistakes - a.mistakes || b.questionable - a.questionable || b.spots - a.spots);
+}
+
+/** Seats of a six-handed demo table, button on seat 4. */
+const SEAT_OF: Record<string, number> = { BTN: 4, SB: 5, BB: 6, UTG: 1, LJ: 1, HJ: 2, MP: 2, CO: 3 };
+const POSITIONS = ["UTG", "HJ", "CO", "BTN", "SB", "BB"];
+type Step = [Hand["actions"][number]["street"], string, Hand["actions"][number]["kind"], number, boolean?];
+
+/** The betting of each demo spot after the blinds, in chips (big blind 100), by spot number. */
+const LINES: Record<number, { steps: Step[]; board: string[]; shown?: [string, string[]][]; winner: string; pot: number }> = {
+  3: { steps: [["preflop", "UTG", "fold", 0], ["preflop", "HJ", "fold", 0], ["preflop", "CO", "fold", 0], ["preflop", "BTN", "fold", 0], ["preflop", "SB", "fold", 0]], board: [], winner: "BB", pot: 150 },
+  5: {
+    steps: [
+      ["preflop", "UTG", "fold", 0], ["preflop", "HJ", "fold", 0], ["preflop", "CO", "raise", 250], ["preflop", "BTN", "fold", 0],
+      ["preflop", "SB", "fold", 0], ["preflop", "BB", "call", 150], ["flop", "BB", "check", 0], ["flop", "CO", "bet", 200],
+      ["flop", "BB", "call", 200], ["turn", "BB", "check", 0], ["turn", "CO", "check", 0], ["river", "BB", "check", 0],
+      ["river", "CO", "bet", 900], ["river", "BB", "call", 900],
+    ],
+    board: ["Ks", "8d", "4c", "2h", "9s"], shown: [["CO", ["Kd", "Tc"]]], winner: "CO", pot: 2750,
+  },
+  9: { steps: [["preflop", "UTG", "call", 100], ["preflop", "HJ", "raise", 1400, true], ["preflop", "CO", "fold", 0], ["preflop", "BTN", "fold", 0], ["preflop", "SB", "fold", 0], ["preflop", "BB", "fold", 0], ["preflop", "UTG", "fold", 0]], board: [], winner: "HJ", pot: 350 },
+  14: {
+    steps: [
+      ["preflop", "UTG", "raise", 250], ["preflop", "HJ", "fold", 0], ["preflop", "CO", "call", 250], ["preflop", "BTN", "fold", 0],
+      ["preflop", "SB", "fold", 0], ["preflop", "BB", "fold", 0], ["flop", "UTG", "bet", 400], ["flop", "CO", "call", 400],
+      ["turn", "UTG", "check", 0], ["turn", "CO", "check", 0], ["river", "UTG", "check", 0], ["river", "CO", "check", 0],
+    ],
+    board: ["9d", "8c", "2d", "3s", "Kh"], shown: [["UTG", ["Qs", "Qh"]]], winner: "UTG", pot: 1450,
+  },
+  21: {
+    steps: [
+      ["preflop", "UTG", "fold", 0], ["preflop", "HJ", "fold", 0], ["preflop", "CO", "fold", 0], ["preflop", "BTN", "raise", 250],
+      ["preflop", "SB", "fold", 0], ["preflop", "BB", "call", 150], ["flop", "BB", "check", 0], ["flop", "BTN", "bet", 300],
+      ["flop", "BB", "call", 300], ["turn", "BB", "check", 0], ["turn", "BTN", "check", 0], ["river", "BB", "check", 0],
+      ["river", "BTN", "bet", 900], ["river", "BB", "call", 900],
+    ],
+    board: ["Qc", "7h", "3s", "Td", "Ad"], shown: [["BB", ["Qh", "9h"]]], winner: "BTN", pot: 2950,
+  },
+};
+
+/** A made-up hand that matches a demo spot: same cards, position, stack and line. */
+export function spotHand(spot: CoachSpot): Hand {
+  const n = 999 - (spot.hand_id % 1000);
+  const line = LINES[n] ?? LINES[3];
+  const heroPos = spot.position && SEAT_OF[spot.position] ? spot.position : "SB";
+  const name = (pos: string) => (pos === heroPos ? "Du" : `Spieler ${POSITIONS.indexOf(pos) + 1}`);
+  const seats = POSITIONS.map((pos) => ({
+    seat: SEAT_OF[pos],
+    name: name(pos),
+    stack: pos === heroPos ? Math.round(spot.stack_bb * 100) : 2600 + SEAT_OF[pos] * 130,
+    bounty: null,
+    sitting_out: false,
+  })).sort((a, b) => a.seat - b.seat);
+  const actions: Hand["actions"] = [
+    { street: "preflop", player: name("SB"), kind: "post_small_blind", amount: 50, to: null, all_in: false },
+    { street: "preflop", player: name("BB"), kind: "post_big_blind", amount: 100, to: null, all_in: false },
+    ...line.steps.map(([street, pos, kind, amount, allIn]) => ({
+      street,
+      player: name(pos),
+      kind,
+      amount,
+      to: kind === "raise" ? amount : null,
+      all_in: !!allIn,
+    })),
+  ];
+  return {
+    id: spot.hand_id,
+    game: "tournament",
+    tournament_id: Math.floor(spot.hand_id / 1000),
+    variant: "Hold'em No Limit",
+    table_name: `${Math.floor(spot.hand_id / 1000)} 3`,
+    max_seats: 6,
+    button_seat: 4,
+    small_blind: 50,
+    big_blind: 100,
+    currency: null,
+    played_at: spot.played_at,
+    seats,
+    hero: "Du",
+    hero_cards: spot.hero_cards,
+    board: line.board,
+    actions,
+    returned: [],
+    shown: [...(line.shown ?? []).map(([pos, cards]) => [name(pos), cards] as [string, string[]]), ...(line.shown ? [["Du", spot.hero_cards] as [string, string[]]] : [])],
+    collected: [[name(line.winner), line.pot]],
+    showdown: !!line.shown,
+    total_pot: line.pot,
+    rake: 0,
+    bounties_won: [],
+    bounty_currency: null,
+  };
 }

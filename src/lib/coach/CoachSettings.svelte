@@ -461,6 +461,10 @@
     color: var(--text-2);
     cursor: pointer;
   }
+  .lrow {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
+  }
   .lrow:last-child {
     border-bottom: 0;
   }
@@ -551,6 +555,11 @@
     background: transparent;
     text-align: left;
     cursor: pointer;
+  }
+  .choice {
+    transition:
+      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
+      border-color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
   }
   .choice:hover {
     background: var(--surface-2);

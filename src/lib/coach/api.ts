@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { call, inTauri, on } from "../api";
-import type { TournamentRow } from "../types";
+import type { Hand, TournamentRow } from "../types";
 import * as demo from "./demo";
 import type {
+  CoachSpot,
   CoachProgress,
   CoachReport,
   CoachStatus,
@@ -33,6 +34,9 @@ export const coachApi = {
     call<ReportListItem[]>("coach_reports", {}, () => demo.list(new Map(tournaments.map((t) => [t.id, t])))),
   report: (tournamentId: number) => call<CoachReport | null>("coach_report", { tournamentId }, () => demo.get(tournamentId)),
   deleteReport: (tournamentId: number) => call<boolean>("coach_delete_report", { tournamentId }, () => demo.remove(tournamentId)),
+  /** The hand of a spot, for practising its decision. */
+  spotHand: (spot: CoachSpot): Promise<Hand | null> =>
+    inTauri ? invoke<Hand | null>("hand", { id: spot.hand_id }) : Promise.resolve(demo.spotHand(spot)),
   /** Concepts of all stored reports, weakest first ("Deine Schwachstellen"). */
   concepts: () => call<ConceptCount[]>("coach_concepts", {}, demo.concepts),
 };
