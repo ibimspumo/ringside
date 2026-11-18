@@ -309,7 +309,25 @@ tauriOnly("Hand-Histories einlesen", async () => {
   log(`stored hands: ${n}`);
 });
 
-step("Übersicht", () => nav("Übersicht"));
+/** The first entry of „Was als Nächstes?“ on the overview; every page has to name the same. */
+let firstStep = null;
+/** The first entry under `sel`; the demo always has one, the fixture hands may have none. */
+async function stepAt(sel) {
+  if (!TAURI) return waitFor(`a step at ${sel}`, `return document.querySelector(arguments[0])?.dataset.step ?? null`, [sel]);
+  await sleep(1500);
+  return s.exec(`return document.querySelector(arguments[0])?.dataset.step ?? null`, sel);
+}
+async function sameFirstStep(where, sel) {
+  const id = await stepAt(sel);
+  if (id !== firstStep) throw new Error(`${where} starts with „${id}“, the overview with „${firstStep}“`);
+}
+
+step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
+  await nav("Übersicht");
+  firstStep = await stepAt("main .first[data-step]");
+  if (!TAURI && firstStep !== "spot:river_vs_bet|-|3|6") throw new Error(`the demo's first step is „${firstStep}“`);
+  if (firstStep) await sameFirstStep("„Fang hier an“", "main .focus [data-step]");
+});
 step("Statistik", () => nav("Statistik"));
 step("Turniere", async () => {
   await nav("Turniere");
@@ -321,6 +339,11 @@ step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async 
   await click(TAURI ? "main tbody tr:has(.gname[title*='#3500000001'])" : "main tbody tr:has(.gname[title*='Sunday Million'])");
   await waitText("Glück gegen All-in-EV");
   await waitText("Deine Entscheidungen");
+  // The report filters the same list: in the demo the overview's first step was played in this tournament.
+  if (!TAURI) {
+    await sameFirstStep("the report", "main .first[data-step]");
+    await waitText(/In diesem Turnier: 5,4 BB in 9 Entscheidungen/);
+  }
   await click("main button", "Frag den Coach");
   await waitText(/eigenen Key von OpenRouter|Kosten prüfen/);
   if (!TAURI) {
@@ -449,7 +472,11 @@ step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", as
     await find("main .cell.hero");
   });
 
-step("Leaks", () => nav("Leaks"));
+step("Schwachstellen: dieselbe Liste, derselbe erste Schritt", async () => {
+  await nav("Schwachstellen");
+  await waitText(/Was dich am meisten kostet|Werte außerhalb des Richtwerts|Alle Werte im Richtbereich|Noch zu wenig Hände|Noch keine sichere Abweichung/);
+  await sameFirstStep("„Schwachstellen“", "main .rows [data-step]");
+});
 step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", async () => {
   await nav("Deine Ranges");
   await waitText(/öffnest du|spielst du|callst du/);
@@ -633,7 +660,8 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
     return;
   }
   await waitText("Zuerst: aus deinem Spiel");
-  const title = await s.exec(`return document.querySelector("main .rows .row .title")?.textContent.trim() ?? null`);
+  await sameFirstStep("„Lernen › Heute“", "main .weak .rows [data-step]");
+  const title = await s.exec(`return document.querySelector("main .rows .row .step-title")?.textContent.trim() ?? null`);
   if (!title) throw new Error("no kind of spot among the weaknesses");
   await click("main .rows .row button", "Üben", { exact: false });
   await find("main .drill .origin", "Echte Hand", { exact: false });
@@ -770,7 +798,7 @@ step("Begriffe per Tastatur: Tab erreicht die Erklärung, Esc schließt sie", as
   await s.exec(`document.querySelector("#stack-axis").focus()`);
   for (let i = 0; i < 40; i++) {
     await press("\uE004");
-    if (await s.exec(`return !!document.activeElement?.matches(".ui-tooltip-anchor")`)) break;
+    if (await s.exec(`return !!document.activeElement?.matches(".ui-tooltip-anchor, .ui-term")`)) break;
   }
   await waitFor("Erklärung beim Fokus", `return !!document.querySelector(".ui-tooltip")`);
   await press("\uE00C");
@@ -788,7 +816,7 @@ async function fill(sel, text) {
 }
 
 step("Solver: Durchspielen erklärt vor dem Lösen, was dort kommt", async () => {
-  await nav("Solver");
+  await nav("Nachrechnen");
   await click("main [role='tab']", "Durchspielen", { exact: false });
   // A spot opened from the hand analysis is solved already; without it the tab explains itself.
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Verwerfen")?.click()`);

@@ -1,5 +1,6 @@
 // Mirrors `TournamentReport` in src-tauri/src/report.rs and `Report` in ringside-core/src/report.rs.
 import type { Rating, Source, SpotType } from "../analysis/types";
+import type { NextStep } from "../next/types";
 import type { TournamentRow } from "../types";
 
 export type Street = "preflop" | "flop" | "turn" | "river";
@@ -92,7 +93,8 @@ export interface StackPoint {
   mistake: number | null;
 }
 
-export interface Practice {
+/** What one kind of spot cost in the tournament. */
+export interface KindLoss {
   /** Group key of the playing profile, for "Lernen". */
   key: string;
   title: string;
@@ -132,7 +134,10 @@ export interface TournamentReport {
   best: Moment[];
   starting: StartingHand[];
   timeline: StackPoint[];
-  practice: Practice | null;
+  /** Loss per kind of spot, costliest first. */
+  kinds: KindLoss[];
+  /** „Was als Nächstes?“: the one list of the whole history, filtered to this tournament. */
+  next: NextStep[];
   history: PastTournament[];
   average: Average | null;
   /** A language-model review of this tournament is stored. */

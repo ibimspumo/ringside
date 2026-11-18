@@ -113,6 +113,8 @@ pub struct NextStep {
     pub score: f64,
     /// Key of the playing profile's kind of spot, for a spot.
     pub spot_key: Option<String>,
+    /// Spot types of the analysis it is about, for the hand list's filter.
+    pub spots: Vec<SpotType>,
     /// The hand, for a single decision.
     pub hand_id: Option<u64>,
     pub practice: Option<Target>,
@@ -341,6 +343,7 @@ fn spot(g: &Group, now: Option<i64>) -> NextStep {
         estimate: g.unsure,
         score: g.loss_bb * trust * fresh,
         spot_key: Some(g.key.clone()),
+        spots: g.lage.spots().to_vec(),
         hand_id: None,
         practice: Some(Target::Spot { spot: g.key.clone() }),
         hands: Some(Hands::Spot { key: g.key.clone(), label: format!("{}, {band}", g.title) }),
@@ -402,6 +405,7 @@ fn leak(c: &Check) -> NextStep {
         estimate: true,
         score: base * trust,
         spot_key: None,
+        spots: vec![],
         hand_id: None,
         practice: stat_exercise(c),
         hands: Some(Hands::Stat {
@@ -451,6 +455,7 @@ fn decision(d: &CostlyDecision, now: Option<i64>) -> Option<NextStep> {
         estimate,
         score: loss * trust * fresh,
         spot_key: None,
+        spots: vec![b.spot],
         hand_id: Some(d.hand_id),
         practice: None,
         hands: Some(Hands::Decision { hand_id: d.hand_id, action_index: b.action_index }),
@@ -487,6 +492,7 @@ fn concept(c: &Concept) -> Option<NextStep> {
         estimate: true,
         score: base * COACH_TRUST,
         spot_key: None,
+        spots: vec![],
         hand_id: None,
         practice: c.exercise.as_ref().map(|(kind, level)| Target::Skill { kind: kind.clone(), level: *level }),
         hands: None,
@@ -521,6 +527,7 @@ fn review(r: &Review) -> NextStep {
         estimate: false,
         score: base,
         spot_key: None,
+        spots: vec![],
         hand_id: None,
         practice: Some(Target::Skill { kind: r.kind.clone(), level: r.level }),
         hands: None,
@@ -548,6 +555,7 @@ fn rare_kind(k: &KindLoss) -> Option<NextStep> {
         estimate: false,
         score: k.loss_bb,
         spot_key: Some(k.key.clone()),
+        spots: kind.lage.spots().to_vec(),
         hand_id: None,
         practice: Some(Target::Spot { spot: k.key.clone() }),
         hands: Some(Hands::Spot { key: k.key.clone(), label: format!("{}, {band}", k.title) }),

@@ -4,6 +4,8 @@ import * as analysisDemo from "./analysis/demo";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision } from "./analysis/types";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
+import { demoNextSteps } from "./next/demo";
+import type { NextStep } from "./next/types";
 import type { DrillResult, DrillSpot, PlayProfile } from "./learn/profile";
 import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
@@ -187,6 +189,8 @@ export const api = {
     })(),
   analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, () => analysisDemo.demoDecisions(handId)),
   analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
+  /** „Was als Nächstes?“: the one ranked list every page reads, heaviest first. */
+  nextSteps: (filter: Filter) => sample<NextStep[]>("next_steps", { filter }, demoNextSteps, () => [], demoNextSteps),
   /** "Neue Hände automatisch analysieren"; also while PokerStars runs, it only changes the setting. */
   analysisSetAuto: (auto: boolean) =>
     call<void>("analysis_set_auto", { on: auto }, () => {

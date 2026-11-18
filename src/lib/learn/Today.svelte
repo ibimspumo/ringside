@@ -10,27 +10,31 @@
   import { openPlay } from "../play/nav.svelte";
   import { preview } from "./preview";
   import DecisionDrill from "./DecisionDrill.svelte";
-  import { bbText, costLine, weakGroups, type DrillSpot, type PlayProfile, type SpotGroup } from "./profile";
+  import { bbText, costLine, type DrillSpot, type PlayProfile } from "./profile";
+  import type { LearnTarget } from "../app/Leaks.svelte";
+  import type { NextStep, StepHands } from "../next/types";
   import Weaknesses from "./Weaknesses.svelte";
 
   let {
     progress,
     concepts,
     profile,
+    steps,
     focus = null,
     onFocusDone = () => {},
     onProgress,
     onPath,
     onOwn,
     onTrainer,
-    onTrain,
-    onRead,
+    onLearn,
     onHands,
   }: {
     progress: LearnProgress | null;
     concepts: ConceptCount[];
     /** The playing profile; null while it loads or while locked. */
     profile: PlayProfile | null;
+    /** „Was als Nächstes?“, heaviest first. */
+    steps: NextStep[];
     /** A kind of spot to practise right away (from "Üben" elsewhere). */
     focus?: string | null;
     onFocusDone?: () => void;
@@ -38,9 +42,8 @@
     onPath: () => void;
     onOwn: () => void;
     onTrainer: () => void;
-    onTrain: (kind: LearnKind, level: number) => void;
-    onRead: (id: string) => void;
-    onHands?: (key: string, label: string) => void;
+    onLearn: (target: LearnTarget) => void;
+    onHands?: (hands: StepHands) => void;
   } = $props();
 
   type Why = "Spiel" | "Tische" | "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
@@ -83,26 +86,26 @@
   const idOf = (x: Item) => (x.type === "skill" ? x.kind : x.key);
 
   /**
-   * The costliest kinds of spot from the user's own hands first (a real decision and a variation of
-   * each), opening at short tables when the history has them, then weak spots from coach reports,
-   * due reviews, something new and the weakest skills.
+   * In the order of „Was als Nächstes?“: its first kinds of spot from the user's own hands (a real
+   * decision and a variation of each), opening at short tables when the history has them, then its
+   * exercises for weak spots, due reviews, something new and the weakest skills.
    */
-  function buildPlan(p: LearnProgress | null, weak: ConceptCount[], own: SpotGroup[], short: number): Item[] {
+  function buildPlan(p: LearnProgress | null, steps: NextStep[], short: number): Item[] {
     const skills = TRAINABLE.map((k) => p?.skills.find((s) => s.id === k)).filter((s): s is SkillProgress => !!s);
     const items: Item[] = [];
-    const top = own.slice(0, 2);
-    for (const g of top) {
-      items.push({ type: "drill", key: g.key, real: true, why: "Spiel" });
-      items.push({ type: "drill", key: g.key, real: false, why: "Spiel" });
+    const top = own(steps).slice(0, 2);
+    for (const key of top) {
+      items.push({ type: "drill", key, real: true, why: "Spiel" });
+      items.push({ type: "drill", key, real: false, why: "Spiel" });
     }
-    if (top.length === 1) items.push({ type: "drill", key: top[0].key, real: false, why: "Spiel" });
+    if (top.length === 1) items.push({ type: "drill", key: top[0], real: false, why: "Spiel" });
     if (short >= SHORT_TABLES_MIN) {
       const s = skills.find((x) => x.id === "open_fold_short");
       for (let n = 0; n < 2; n++) items.push({ type: "skill", kind: "open_fold_short", level: nextLevel(s), why: "Tische" });
     }
     // With spots from the own game, coach concepts get one task each, else two.
     const perConcept = top.length ? 1 : 2;
-    const weakKinds = [...new Set(weakConcepts(weak).map(trainableKind).filter((k): k is LearnKind => !!k))].slice(0, 2);
+    const weakKinds = [...new Set(steps.filter((s) => s.kind !== "review").flatMap((s) => (s.practice && "kind" in s.practice ? [s.practice.kind] : [])))].slice(0, 2);
     for (const k of weakKinds) {
       const s = skills.find((x) => x.id === k);
       for (let n = 0; n < perConcept; n++) items.push({ type: "skill", kind: k, level: nextLevel(s), why: "Schwachstelle" });
@@ -142,10 +145,11 @@
     return out;
   }
 
-  const own = $derived(weakGroups(profile));
+  /** Kinds of spot of the own game in the list, in its order. */
+  const own = (steps: NextStep[]) => steps.flatMap((s) => (s.practice && "spot" in s.practice ? [s.practice.spot] : []));
   /** Rated decisions of the history at heads-up and three- to five-handed tables. */
   const shortTables = $derived((profile?.groups ?? []).filter((g) => g.table === "heads_up" || g.table === "few").reduce((t, g) => t + g.decisions, 0));
-  const plan = $derived(buildPlan(progress, concepts, own, shortTables));
+  const plan = $derived(buildPlan(progress, steps, shortTables));
   const groupOf = (key: string) => profile?.groups.find((g) => g.key === key) ?? null;
   const skillGroups = $derived(
     [...new Map(plan.filter((x): x is SkillItem => x.type === "skill").map((x) => [x.kind, x])).values()].map((x) => ({
@@ -290,7 +294,7 @@
 
   const LANES: { why: Why; label: string }[] = [
     { why: "Tische", label: "Für deine Tische mit 2 bis 5 Spielern" },
-    { why: "Schwachstelle", label: "Aus deinen Coach-Berichten" },
+    { why: "Schwachstelle", label: "Aus deinen Schwachstellen" },
     { why: "Wiederholen", label: "Wiederholen, damit es sitzt" },
     { why: "Festigen", label: "Festigen" },
     { why: "Neu", label: "Neu für dich" },
@@ -328,7 +332,7 @@
         <span class="eyebrow">Deine Runde für heute · etwa 5 Minuten</span>
         <h2 class="lead-title">{LENGTH} kurze Aufgaben</h2>
         <p class="dim lead">
-          Zusammengestellt aus {[drillGroups.length ? "deinen eigenen Händen" : "", lanes.some((l) => l.why === "Schwachstelle") ? "deinen Coach-Berichten" : "", "deinem Stand"]
+          Zusammengestellt aus {[drillGroups.length ? "deinen eigenen Händen" : "", lanes.some((l) => l.why === "Schwachstelle") ? "deinen Schwachstellen" : "", "deinem Stand"]
             .filter(Boolean)
             .join(", ")
             .replace(/, ([^,]*)$/, " und $1")}. Nach jeder Antwort siehst du sofort, warum.
@@ -410,7 +414,7 @@
     </section>
 
     <div class="weak-spots">
-      <Weaknesses {profile} {concepts} {progress} limit={4} empty onPractice={practice} {onHands} {onTrain} {onRead} />
+      <Weaknesses {steps} limit={4} empty {onLearn} {onHands} />
     </div>
 
     <div class="doors">
