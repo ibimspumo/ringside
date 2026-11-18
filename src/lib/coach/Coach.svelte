@@ -706,16 +706,14 @@
     .layout {
       grid-template-columns: minmax(0, 1fr);
     }
+    /* Report row first, then the open report or task, then starting a new one and the setup. */
     .rail {
-      position: static;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      align-items: start;
+      display: contents;
     }
-    /* The list becomes one scrolling row, so the open report starts right below. */
     .reports {
-      grid-column: 1 / -1;
-      grid-row: auto;
+      order: -2;
+    }
+    .main {
       order: -1;
     }
     .reports ul {
@@ -731,9 +729,9 @@
       min-width: 0;
       max-width: 260px;
     }
-    /* While a task runs, it comes first; the lists follow. */
+    /* While a task runs, it comes before the report row too. */
     .busy .main {
-      order: -1;
+      order: -3;
     }
   }
 </style>

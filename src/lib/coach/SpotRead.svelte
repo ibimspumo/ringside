@@ -204,10 +204,10 @@
   }
   .row {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    margin-top: 4px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    margin-top: var(--sp-1);
   }
 
   .divider {
