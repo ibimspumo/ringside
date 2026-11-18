@@ -90,6 +90,7 @@ impl Task {
 pub enum Solved {
     Spot { input: SpotInput, stored: Stored },
     Postflop { input: PostflopInput, id: SpotId, stored: Stored },
+    /// `exploitability` in the kind's units, as the verifier measures it.
     PushFoldMw { input: PushFoldMwInput, solution: PushFoldMwSolution, exploitability: f64 },
     PushFoldHu { input: PushFoldHuInput, solution: PushFoldHuSolution, exploitability: f64 },
 }
@@ -180,7 +181,7 @@ pub fn solve(
             if !solution.converged {
                 return Err("nicht konvergiert".into());
             }
-            let exploitability = solution.exploitability;
+            let exploitability = solution.exploitability * input.unit();
             Solved::PushFoldMw { input: input.clone(), solution: PushFoldMwSolution::from(&*solution), exploitability }
         }
         Task::PushFoldHu(input) => {
@@ -465,6 +466,30 @@ mod tests {
         let input = canonicalize(&body["input"]).unwrap();
         let verdict = (entry.check)(&done[0].key, &input, &body["result"].to_string());
         assert!(matches!(verdict, Verdict::Verified { .. }), "{verdict:?}");
+    }
+
+    #[test]
+    fn an_icm_gap_reports_what_the_verifier_measures() {
+        let seed = crate::operator::preflop_seeds().unwrap().into_iter().find(|s| s.kind == PushFoldMw::NAME).unwrap();
+        let work = Work {
+            key: seed.key,
+            kind: seed.kind.into(),
+            engine_version: seed.engine_version,
+            input: serde_json::from_str(&seed.input).unwrap(),
+            lease_until: 0,
+        };
+        let mut q = Fake { open: [work].into(), ..Fake::default() };
+        let (_, done) = collect(&mut q, &opts(), &|| false);
+        let body = &q.submitted[0];
+        let verdict = (kinds::find(PushFoldMw::NAME, PushFoldMw::ENGINE_VERSION).unwrap().check)(
+            &done[0].key,
+            &canonicalize(&body["input"]).unwrap(),
+            &body["result"].to_string(),
+        );
+        let Verdict::Verified { exploitability, .. } = verdict else { panic!("{verdict:?}") };
+        let (reported, unit) = done[0].exploitability.unwrap();
+        assert_eq!(unit, "% pool");
+        assert!((reported - exploitability).abs() <= PushFoldMw::TOLERANCE, "{reported} vs {exploitability}");
     }
 
     #[test]

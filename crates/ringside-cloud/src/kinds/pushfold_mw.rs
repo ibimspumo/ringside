@@ -134,7 +134,7 @@ impl PushFoldMwInput {
     }
 
     /// Engine result units (BB, or parts of [`POOL_PPM`]) → this kind's units.
-    fn unit(&self) -> f64 {
+    pub fn unit(&self) -> f64 {
         if self.icm() { 100.0 / self.payouts_ppm.iter().map(|&x| x as f64).sum::<f64>() } else { 1.0 }
     }
 }
