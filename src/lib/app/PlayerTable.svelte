@@ -6,6 +6,8 @@
     name: string;
     stats: StatValue[];
     label?: { name: string; color: string } | null;
+    /** Your note; a narrow list shows it under the name instead of in its own column. */
+    note?: string;
     hero?: boolean;
   }
 
@@ -138,7 +140,7 @@
           </Tooltip>
         </th>
       {/each}
-      {#each after as c (c.key)}<th class="extra left" class:wide={c.wide}><SortHeader>{c.head}</SortHeader></th>{/each}
+      {#each after as c (c.key)}<th class="extra left" class:wide={c.wide} class:note-col={c.key === "note"}><SortHeader>{c.head}</SortHeader></th>{/each}
     </tr>
   </thead>
   <tbody bind:this={body}>
@@ -149,7 +151,10 @@
         <td class="name">
           <CellButton current={selected === p.key} onclick={(e) => (e.stopPropagation(), onPick(p.key))} onkeydown={(e) => key(e, i)}>
             <Wheel stats={p.stats} {hud} size={18} />
-            <span class="n" title={p.name}>{p.name}</span>
+            <span class="who-text">
+              <span class="n" title={p.name}>{p.name}</span>
+              {#if p.note}<span class="note-line" title={p.note}>{p.note}</span>{/if}
+            </span>
             {#if p.label}<i class="dot" style="--c:{p.label.color}" title={p.label.name || "Label aus PokerStars"}></i>{/if}
             {#if p.hero}<Badge size="sm">du</Badge>{/if}
           </CellButton>
@@ -172,7 +177,7 @@
         {#each cols as id (id)}
           <td><StatCell stats={p.stats} {id} {hud} meter={columns === "core"} /></td>
         {/each}
-        {#each after as c (c.key)}<td class="extra left note" class:wide={c.wide} title={c.text(p) || undefined}>{c.text(p)}</td>{/each}
+        {#each after as c (c.key)}<td class="extra left note" class:wide={c.wide} class:note-col={c.key === "note"} title={c.text(p) || undefined}>{c.text(p)}</td>{/each}
       </tr>
     {/each}
   </tbody>
@@ -264,6 +269,27 @@
   td.name {
     padding: 0;
     text-align: left;
+  }
+  .who-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .note-line {
+    display: none;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  @container player-list (max-width: 760px) {
+    .note-line {
+      display: block;
+    }
+    .note-col {
+      display: none;
+    }
   }
   .n {
     overflow: hidden;

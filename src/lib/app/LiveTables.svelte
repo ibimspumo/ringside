@@ -56,13 +56,20 @@
   const rowKey = (t: TableView, s: SeatView) => `${t.table_key}:${s.seat}`;
 
   function rowsOf(t: TableView): PlayerRow[] {
-    return seatsOf(t).map((s) => ({ key: rowKey(t, s), name: s.name, stats: s.stats, label: s.note?.label ?? null, hero: s.is_hero }));
+    return seatsOf(t).map((s) => ({
+      key: rowKey(t, s),
+      name: s.name,
+      stats: s.stats,
+      label: s.note?.label ?? null,
+      note: s.note ? [s.note.label?.name, s.note.text].filter(Boolean).join(" – ") : "",
+      hero: s.is_hero,
+    }));
   }
 
   function extraOf(t: TableView): ExtraColumn[] {
     const seat = (r: PlayerRow) => t.seats.find((s) => rowKey(t, s) === r.key);
     const cols: ExtraColumn[] = [{ key: "stack", head: "Stack", help: "Stack in Big Blinds nach der letzten Hand", at: "before", unit: "BB", text: (r) => int(seat(r)?.stack_bb ?? 0) }];
-    if (t.seats.some((s) => s.bounty !== null))
+    if (tables.some((x) => x.table?.seats.some((s) => s.bounty !== null)))
       cols.push({ key: "bounty", head: "Bounty", help: "Kopfgeld auf diesen Spieler", at: "before", text: (r) => { const b = seat(r)?.bounty ?? null; return b === null ? "–" : moneyShort(b, t.bounty_currency); } });
     if (t.seats.some((s) => s.note?.text || s.note?.label))
       cols.push({ key: "note", head: "Deine Notiz", at: "after", wide: true, text: (r) => { const n = seat(r)?.note; return n ? [n.label?.name, n.text].filter(Boolean).join(" – ") : ""; } });
@@ -145,6 +152,7 @@
   {:else}
     {#if loaded}
       <EmptyState title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.">
+        {#snippet icon()}<path d="M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5z" /><path d="M9 12h6" />{/snippet}
         {#snippet action()}<Button size="sm" onclick={onPlayers}>Alle Gegner ansehen</Button>{/snippet}
       </EmptyState>
     {:else}
@@ -183,7 +191,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-4);
-    max-width: 1640px;
+    max-width: 1920px;
   }
   .split {
     display: grid;

@@ -12,6 +12,7 @@
     tone = "empty",
     compact = false,
     inline = false,
+    icon,
     action,
   }: {
     title: string;
@@ -19,6 +20,8 @@
     tone?: "empty" | "loading" | "error";
     compact?: boolean;
     inline?: boolean;
+    /** A symbol for what is missing (24×24 strokes); the generic box otherwise. */
+    icon?: Snippet;
     action?: Snippet;
   } = $props();
 </script>
@@ -29,6 +32,8 @@
       <span class="spin"></span>
     {:else if tone === "error"}
       <svg viewBox="0 0 24 24"><path d="M12 3l10 18H2z" /><path d="M12 10v5" /><circle cx="12" cy="18" r=".6" /></svg>
+    {:else if icon}
+      <svg viewBox="0 0 24 24">{@render icon()}</svg>
     {:else}
       <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 10h18" /></svg>
     {/if}

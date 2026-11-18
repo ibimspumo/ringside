@@ -407,7 +407,8 @@ export function demoLiveTables(): LiveTable[] {
   cash.bounty_currency = null;
   cash.seats = cash.seats.map((seat, i) => {
     const name = i === 0 ? "Hero" : ["Ondine", "Kestrel", "Rüdiger", "Nadir", "marlowe_77"][i - 1];
-    return { ...seat, stack: seat.stack_bb * 10, bounty: null, name, note: demoNote(name) };
+    const stats = mtt.seats.find((s) => s.name === name)?.stats ?? seat.stats;
+    return { ...seat, stack: seat.stack_bb * 10, bounty: null, name, stats, note: demoNote(name) };
   });
   return [
     { title: "$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10", table_key: mtt.table_key, table: mtt },

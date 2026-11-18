@@ -97,7 +97,7 @@
           <span class="kicker">Spielertyp</span>
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
         </div>
-        <p class="type"><b>{t.name}</b> <span>{t.sketch}</span></p>
+        <p class="type"><b>{t.name}{#if t.long !== t.name}<small> · {t.long.slice(t.name.length).replace(/[()]/g, "").trim()}</small>{/if}</b> <span>{t.sketch}</span></p>
         <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
         <p class="why">{t.why}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>
@@ -319,6 +319,12 @@
     font-size: var(--fs-2xl);
     font-weight: var(--fw-semibold);
     line-height: var(--lh-tight);
+  }
+  .type small {
+    color: var(--text-2);
+    font-family: var(--font-ui);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-regular);
   }
   .type span {
     color: var(--text-2);

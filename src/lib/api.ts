@@ -293,7 +293,13 @@ function demoWindows(): ClientWindow[] {
   const table = (title: string, key: string, has_hands = true): ClientWindow => ({ title, class: "PokerStarsTableFrameClass", table_key: key, has_hands });
   const lobby = (title: string): ClientWindow => ({ title, class: "PokerStarsLobbyClass", table_key: null, has_hands: false });
   const first = table("$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10 - Eingeloggt als Hero", "t:4046789300:10");
-  if (shown !== "many") return [first, lobby("PokerStars Lobby")];
+  if (shown !== "many")
+    return [
+      first,
+      table("Aquila II - $0.05/$0.10 USD - No Limit Hold'em - Eingeloggt als Hero", "c:Aquila II"),
+      table("$11 Bounty Hunters - Turnier 4046799120 Tisch 4 - Eingeloggt als Hero", "t:4046799120:4", false),
+      lobby("PokerStars Lobby"),
+    ];
   return [
     first,
     table(

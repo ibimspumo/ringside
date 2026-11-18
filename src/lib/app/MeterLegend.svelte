@@ -24,7 +24,7 @@
     gap: var(--sp-1) var(--sp-5);
     margin: 0;
     color: var(--text-2);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   /* Without the scales (narrow list) there is nothing to explain. */
   @container player-list (max-width: 760px) {
