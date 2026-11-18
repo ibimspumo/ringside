@@ -159,7 +159,7 @@
         <span class="tag won num" style="{at(p.badge)}; {from(i, p.badge)}" title="Was dieser Spieler aus dem Pot bekommt">+{amount(s.won)}</span>
       {:else if s.action}
         <span class="tag" class:graded={!!s.grade} style="{at(p.badge)}; {from(i, p.badge)}" title={s.grade ? GRADE[s.grade].label : undefined}
-          ><ActionLabel {...s.action} amount={undefined} size="sm" />{#if s.grade}<GradeIcon grade={s.grade} size={15} />{/if}</span
+          ><ActionLabel {...s.action} amount={undefined} size="sm" />{#if s.grade}<GradeIcon grade={s.grade} size={13} />{/if}</span
         >
       {/if}
       {#if s.dealer}<span class="dealer" style={at(p.dealer)} title="Dealer-Button">D</span>{/if}
@@ -408,13 +408,13 @@
   .tag {
     z-index: 1;
   }
-  .graded {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    padding-right: 3px;
-    border-radius: var(--r-pill);
-    background: var(--grid-plate);
+  /* The grade sits on the tag's corner, so a graded tag is as wide as everyone else's. */
+  .graded > :global(.ui-grade-icon) {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    border-radius: 50%;
+    background: var(--bg);
   }
   .won {
     padding: 1px var(--sp-2);

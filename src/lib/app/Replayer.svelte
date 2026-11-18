@@ -359,15 +359,16 @@
   const logBelow = $derived(besides && !!aside && logRoom >= 200);
   const MIN_SCALE = 0.85;
   /**
-   * The widest table whose height fits `free`. Below the width where chips and tags would
-   * overlap it takes the flattest clean shape instead, shrunk by at most 15 % to fit; whatever
-   * is still missing, the box scrolls. A room narrower than the clean width keeps its width.
+   * The widest table whose height fits `free`, never laid out narrower than the width where
+   * chips, tags and the dealer button stay apart: a smaller room gets that table scaled down
+   * whole. Without the height for it, the flattest clean shape is shrunk by at most 15 % and
+   * the rest scrolls.
    */
   function fitTable(free: number, room: number): { w: number; f: number } {
-    const floor = Math.min(room, CLEAN_FROM);
-    for (let w = room; w >= floor; w -= 10) if (tableHeight(w) <= free) return { w, f: 1 };
+    if (room < CLEAN_FROM) return { w: CLEAN_FROM, f: Math.min(room, free * (CLEAN_FROM / tableHeight(CLEAN_FROM))) / CLEAN_FROM };
+    for (let w = room; w >= CLEAN_FROM; w -= 10) if (tableHeight(w) <= free) return { w, f: 1 };
     let best = room;
-    for (let w = room; w >= floor; w -= 10) if (tableHeight(w) < tableHeight(best)) best = w;
+    for (let w = room; w >= CLEAN_FROM; w -= 10) if (tableHeight(w) < tableHeight(best)) best = w;
     return { w: best, f: Math.max(MIN_SCALE, Math.min(1, free / tableHeight(best))) };
   }
 

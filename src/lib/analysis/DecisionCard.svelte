@@ -127,7 +127,9 @@
         </li>
       {/each}
     </ul>
-    <p class="legend">„so oft“: wie oft die Quelle das mit deiner Hand spielt · „kostet“: was es im Schnitt weniger bringt als die beste Wahl.</p>
+    <p class="legend">
+      {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
+    </p>
 
     {#if kit}
       <SourceNote kind={kit} variant="block">
