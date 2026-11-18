@@ -396,6 +396,23 @@ step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await waitText("Modell");
 });
 
+/** Presses one key the way a keyboard would, on whatever has the focus. */
+async function press(key) {
+  await s.cmd("POST", "/actions", { actions: [{ type: "key", id: "k", actions: [{ type: "keyDown", value: key }, { type: "keyUp", value: key }] }] });
+}
+
+step("Begriffe per Tastatur: Tab erreicht die Erklärung, Esc schließt sie", async () => {
+  // Tab from the stack slider to the next explained word on the page.
+  await s.exec(`document.querySelector("#stack-axis").focus()`);
+  for (let i = 0; i < 40; i++) {
+    await press("\uE004");
+    if (await s.exec(`return !!document.activeElement?.matches(".ui-tooltip-anchor")`)) break;
+  }
+  await waitFor("Erklärung beim Fokus", `return !!document.querySelector(".ui-tooltip")`);
+  await press("\uE00C");
+  await waitFor("Erklärung zu nach Esc", `return !document.querySelector(".ui-tooltip")`);
+});
+
 /** Sets a field's text the way typing would, replacing what is there. */
 async function fill(sel, text) {
   const el = await find(sel);
