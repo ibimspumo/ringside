@@ -25,7 +25,7 @@
 
   /** Spots reached less often than this are left out. */
   const MIN_REACH = 1e-4;
-  const ANTE_LABEL: Record<PushFoldAnte, string> = { none: "Ohne", classic: "Ante", big_blind: "BB-Ante" };
+  const ANTE_LABEL: Record<PushFoldAnte, string> = { none: "Keine", classic: "Alle zahlen", big_blind: "Big Blind zahlt" };
   const SHOVE = actionColor("all_in");
   const CALL = actionColor("call");
 

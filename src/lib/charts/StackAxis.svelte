@@ -101,7 +101,10 @@
         return { seat: s.seat, name: s.name, x: x(p.stack) + 12, y: y(p.pct), at: y(p.pct) };
       })
       .sort((a, b) => a.y - b.y);
+    // Push apart downwards, then centre the stack on the line ends so each name stays near its line.
     for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
+    const drift = ends.reduce((t, e) => t + (e.y - e.at), 0) / Math.max(1, ends.length);
+    for (const e of ends) e.y -= drift;
     return ends;
   });
 
@@ -219,7 +222,7 @@
   <div class="foot">
   {#if folded}
     <Button variant="quiet" size="sm" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
-      {showCurve ? "Kurve ausblenden" : compare ? "Vergleich: Eröffnen je Position zeigen" : "Kurve zeigen"}
+      {showCurve ? "Vergleichskurve ausblenden" : "Vergleichskurve zeigen"}
     </Button>
   {/if}
   {#if custom}
