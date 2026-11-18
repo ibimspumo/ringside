@@ -177,7 +177,7 @@
               <div class="mine"><dt>Du</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
                 <dt>Damals</dt>
-                <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <GradeBadge grade={verdict.grade} size="sm" /></dd>
+                <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <GradeBadge grade={verdict.grade} size="sm" variant="icon" /></dd>
               </div>
               {#if spot.better}
                 <div><dt>Coach</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
