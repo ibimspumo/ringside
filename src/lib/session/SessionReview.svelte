@@ -341,8 +341,8 @@
                 <article class="sr-swing" style="--sr-grade:var(--grade-{s.rating ? GRADE_OF[s.rating] : 'best'})">
                   <span class="sr-swing-mark">{#if s.rating}<GradeIcon grade={GRADE_OF[s.rating]} size={18} />{/if}</span>
                   <div class="sr-swing-body">
-                    <span class="sr-swing-kind">Gut entschieden, Pech gehabt<span class="sr-swing-net sr-down" title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span></span>
-                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b></span>
+                    <span class="sr-swing-kind">Gut entschieden, Pech gehabt</span>
+                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b><span class="sr-swing-net sr-down" title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span></span>
                     <span class="sr-swing-line">{swingLine(s, true)}</span>
                   </div>
                 </article>
@@ -352,8 +352,8 @@
                 <article class="sr-swing" style="--sr-grade:var(--grade-{s.rating ? GRADE_OF[s.rating] : 'mistake'})">
                   <span class="sr-swing-mark">{#if s.rating}<GradeIcon grade={GRADE_OF[s.rating]} size={18} />{/if}</span>
                   <div class="sr-swing-body">
-                    <span class="sr-swing-kind">Glück gehabt<span class="sr-swing-net sr-up" title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span></span>
-                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b></span>
+                    <span class="sr-swing-kind">Glück gehabt</span>
+                    <span class="sr-swing-hand">{#each cardsOf(s.hero_cards) as c (c)}<MiniCard card={c} />{/each}<b>{s.played}</b><span class="sr-swing-net sr-up" title="Ergebnis der Hand">Hand {bb(s.net_bb, { sign: true })}</span></span>
                     <span class="sr-swing-line">{swingLine(s, false)}</span>
                   </div>
                 </article>
@@ -752,15 +752,14 @@
     min-width: 0;
   }
   .sr-swing-kind {
-    display: flex;
-    gap: var(--sp-2);
-    justify-content: space-between;
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
     color: var(--text-2);
   }
   .sr-swing-net {
+    margin-left: auto;
     font-family: var(--font-num);
+    font-size: var(--fs-sm);
     white-space: nowrap;
   }
   .sr-swing-hand {
