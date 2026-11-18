@@ -2,11 +2,13 @@ use ringside_engine::{Combo, HandClass};
 use ringside_learn::{Answer, AnswerSpec, Exercise, Kind, Prompt, TableSpot, check, generate, lookup_or_solve};
 
 /// Seeds per (kind, level); the exact equity and Nash kinds cost a second each in debug,
-/// a table solve up to a few seconds.
+/// a table solve (with ICM too) up to a few seconds.
 fn seeds(kind: Kind) -> u64 {
     match kind {
-        Kind::PushFoldOpen | Kind::PushFoldCall => 1,
+        Kind::PushFoldOpen | Kind::PushFoldCall | Kind::IcmCall => 1,
         Kind::EquityHand | Kind::PushFoldSb | Kind::PushFoldBb => 2,
+        Kind::RiverBet => 4,
+        Kind::OpenFold => 10,
         _ => 25,
     }
 }
@@ -25,15 +27,21 @@ fn every_kind_is_deterministic_and_its_truth_scores_full() {
                 assert_eq!(a, generate(kind, level, seed).unwrap(), "{kind:?} {level} {seed}");
                 assert_eq!((a.kind, a.level, a.seed, a.hand_id), (kind, level, seed, None));
                 assert!(!a.question.is_empty());
-                let (_, first) = check(kind, level, seed, &Answer::Number(-1.0))
-                    .or_else(|_| check(kind, level, seed, &Answer::Choice("fold".into())))
-                    .or_else(|_| check(kind, level, seed, &Answer::Seat(0)))
-                    .unwrap_or_else(|e| panic!("{kind:?} {level} {seed}: {e}"));
+                let any = match &a.answer {
+                    AnswerSpec::Number { .. } => Answer::Number(-1.0),
+                    AnswerSpec::Choice { options } => Answer::Choice(options[0].id.clone()),
+                    AnswerSpec::Cards { .. } => Answer::Cards(Vec::new()),
+                    AnswerSpec::Seat { seats } => Answer::Seat(seats[0]),
+                };
+                let (_, first) = check(kind, level, seed, &any).unwrap_or_else(|e| panic!("{kind:?} {level} {seed}: {e}"));
                 let (_, fb) = check(kind, level, seed, &first.truth).unwrap();
                 assert!(fb.correct && fb.score == 1.0, "{kind:?} {level} {seed}: {fb:?}");
                 assert!(!fb.facts.is_empty());
                 assert_eq!(fb.grading, a.grading);
-                assert_eq!(fb.model_note.is_some(), matches!(a.grading, ringside_learn::Grading::Modell));
+                assert_eq!(
+                    fb.model_note.is_some(),
+                    matches!(a.grading, ringside_learn::Grading::Modell | ringside_learn::Grading::Gleichgewicht)
+                );
             }
         }
     }

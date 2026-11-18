@@ -244,7 +244,20 @@ pub fn generate(kind: Kind, level: u8, rng: &mut Rng8) -> Result<Task, String> {
 }
 
 /// "im Big Blind", "am Button", "auf UTG+1".
-fn at(position: &str) -> String {
+/// "der Big Blind", "der Button", "UTG+1": a position as the subject of a sentence.
+pub(crate) fn subject(position: &str) -> String {
+    match position {
+        "BB" => "der Big Blind".into(),
+        "SB" => "der Small Blind".into(),
+        "BTN" => "der Button".into(),
+        "CO" => "der Cutoff".into(),
+        "HJ" => "der Hijack".into(),
+        "LJ" => "der Lojack".into(),
+        other => other.into(),
+    }
+}
+
+pub(crate) fn at(position: &str) -> String {
     match position {
         "BB" => "im Big Blind".into(),
         "SB" => "im Small Blind".into(),

@@ -3567,6 +3567,7 @@ dependencies = [
  "rand_chacha",
  "ringside-core",
  "ringside-engine",
+ "ringside-solver",
  "serde",
  "serde_json",
 ]
