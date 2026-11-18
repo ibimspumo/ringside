@@ -396,7 +396,8 @@ fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     for k in keys {
         stmts.push(("DELETE FROM solutions WHERE key = ?", vec![k.as_str().into()]));
         stmts.push(("DELETE FROM submissions WHERE key = ?", vec![k.as_str().into()]));
-        stmts.push(("DELETE FROM work WHERE key = ?", vec![k.as_str().into()]));
+        // Only the queue entry this run requested; a catalog spot it used stays queued.
+        stmts.push(("DELETE FROM work WHERE key = ? AND source = 'request'", vec![k.as_str().into()]));
     }
     stmts.push(("DELETE FROM reports WHERE app_version = ?", vec![SMOKE_VERSION.into()]));
     stmts.push(("DELETE FROM rate_limits WHERE window_start >= ?", vec![(started / 3600 * 3600).into()]));
@@ -407,7 +408,7 @@ fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     let sql = format!(
         "SELECT (SELECT count(*) FROM solutions WHERE key IN ({marks})) + \
          (SELECT count(*) FROM submissions WHERE key IN ({marks})) + \
-         (SELECT count(*) FROM work WHERE key IN ({marks})) + \
+         (SELECT count(*) FROM work WHERE key IN ({marks}) AND source = 'request') + \
          (SELECT count(*) FROM reports WHERE app_version = ?) AS n"
     );
     let mut args: Vec<SqlValue> = Vec::new();
