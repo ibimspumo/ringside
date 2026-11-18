@@ -62,7 +62,6 @@ try {
   await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height, deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 2), mobile: false });
   await page("Page.enable");
   await page("Runtime.enable");
-  await page("Page.navigate", { url });
   // The first visit compiles the app in Vite, so "load" comes long before anything is drawn:
   // wait until the page has content that stops changing, then for fonts and two frames.
   const ready = `new Promise((done) => {
@@ -78,7 +77,17 @@ try {
     };
     poll();
   })`;
-  await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
+  // Vite may reload the page once while it optimizes dependencies on the first visits; the wait
+  // then ends with "Inspected target navigated", and the page is loaded again.
+  for (let attempt = 1; ; attempt++) {
+    await page("Page.navigate", { url });
+    try {
+      await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
+      break;
+    } catch (e) {
+      if (attempt >= 3 || !/navigated or closed|context was destroyed/i.test(e.message)) throw e;
+    }
+  }
   if (full === "full") {
     const { result } = await page("Runtime.evaluate", {
       expression: `(() => { const el = document.querySelector("main .content") ?? document.scrollingElement; return el.scrollHeight - el.clientHeight; })()`,
