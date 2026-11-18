@@ -121,7 +121,6 @@
   /** While the analysis still runs, the losses below are a snapshot. */
   const running = $derived(analysis.status?.progress?.state === "running");
   const counts = $derived(analysis.status?.counts);
-  const started = $derived(!!analysis.status && (analysis.status.enabled || (counts?.analyzed ?? 0) > 0));
   const preflopDone = $derived(!!counts && counts.hands > 0 && counts.analyzed >= counts.hands);
   const byPosition = $derived(
     positions
