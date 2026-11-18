@@ -756,6 +756,8 @@ step("Solver: kleiner River-Spot mit deiner Hand", async () => {
     await click(`main .board button.ui-slot[aria-label='${slots[i]}-Karte wählen']`);
     await click(`.deck-pop button.pick[aria-label='${card}']:not(:disabled)`);
   }
+  // At once, not after the estimate: the hint follows the board, not the debounced estimate.
+  if ((await mainText()).includes("Wähle mindestens drei Boardkarten")) throw new Error("five board cards, yet the page asks for three");
   await click("main button", "Ranges anpassen");
   await fill("main textarea[aria-label='Range von OOP als Text']", "AA,KK");
   await fill("main textarea[aria-label='Range von IP als Text']", "QQ,JJ");
