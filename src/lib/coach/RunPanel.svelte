@@ -504,7 +504,13 @@
     gap: var(--sp-3);
   }
   .line.big {
+    min-height: 1.5em;
     font-size: var(--fs-lg);
+  }
+  .line.big > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .skeleton {
     display: grid;
@@ -525,10 +531,8 @@
   }
   .now-row {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: var(--sp-3) var(--sp-5);
+    flex-direction: column;
+    gap: var(--sp-3);
     padding-bottom: var(--sp-4);
     border-bottom: 1px solid var(--line);
   }
