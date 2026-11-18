@@ -16,6 +16,7 @@
   import RunPanel from "./RunPanel.svelte";
   import SpotDrill from "./SpotDrill.svelte";
   import SpotRead from "./SpotRead.svelte";
+  import type { Choice } from "./drill";
   import type { CoachReport, CoachStatus, ConceptCount, ReportListItem } from "./types";
 
   let {
@@ -47,6 +48,8 @@
   /** A spot of the report opened to practise or to read up on, by its 1-based number. */
   let focus = $state<{ mode: "drill" | "read"; n: number } | null>(null);
   let returnTo = $state<number | null>(null);
+  /** Spots practised in this visit, by "<tournament>:<n>": the answer and whether it matched. */
+  let practised = $state<Record<string, { answer: Choice; right: boolean | null }>>({});
 
   function openSpot(mode: "drill" | "read", n: number) {
     focus = { mode, n };
@@ -364,6 +367,9 @@
                 onBack={back}
                 {onTraining}
                 onRead={() => focus && (focus = { mode: "read", n: focus.n })}
+                onAnswer={(answer, right) => {
+                  if (report && focus) practised[`${report.tournament_id}:${focus.n}`] = { answer, right };
+                }}
               />
               </div>
             {:else if focus && spot}
@@ -385,6 +391,7 @@
                 title={reportTitle}
                 {practice}
                 {returnTo}
+                practised={(n) => (report ? practised[`${report.tournament_id}:${n}`] : undefined)}
                 onHand={(id) => report && onHand(report.tournament_id, id)}
                 {onTraining}
                 onReanalyze={() => report && start(report.tournament_id)}
@@ -409,7 +416,7 @@
 
 <style>
   .page {
-    max-width: 1600px;
+    max-width: 1880px;
     padding-top: 20px;
   }
   .layout {

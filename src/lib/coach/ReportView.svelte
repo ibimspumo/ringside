@@ -14,6 +14,7 @@
   import { VERDICTS, shortModel, toPractise } from "./meaning";
   import { rise } from "./motion";
   import SpotCard from "./SpotCard.svelte";
+  import type { Choice } from "./drill";
   import type { CoachReport } from "./types";
 
   let {
@@ -27,6 +28,7 @@
     onDrill,
     onRead,
     returnTo = null,
+    practised,
   }: {
     report: CoachReport;
     title: string;
@@ -40,6 +42,8 @@
     onRead: (n: number) => void;
     /** A spot to scroll back to, after coming back from practising it. */
     returnTo?: number | null;
+    /** How spot `n` was answered when practised in this visit. */
+    practised: (n: number) => { answer: Choice; right: boolean | null } | undefined;
   } = $props();
 
   type Show = "all" | "practise" | "good";
@@ -244,6 +248,7 @@
         spot={s.spot}
         index={s.n}
         practice={practice(s.spot.concept)}
+        practised={practised(s.n)}
         {onHand}
         onDrill={() => onDrill(s.n)}
         onRead={() => onRead(s.n)}

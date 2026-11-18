@@ -7,6 +7,7 @@
   import Figures from "./Figures.svelte";
   import { positionHint, verdictOf } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
+  import { CHOICE_NAME, type Choice } from "./drill";
   import type { CoachSpot } from "./types";
 
   let {
@@ -16,6 +17,7 @@
     onHand,
     onDrill,
     onRead,
+    practised,
   }: {
     spot: CoachSpot;
     index: number;
@@ -23,6 +25,7 @@
     onHand: (id: number) => void;
     onDrill: () => void;
     onRead: () => void;
+    practised?: { answer: Choice; right: boolean | null };
   } = $props();
 
   const verdict = $derived(verdictOf(spot.verdict));
@@ -56,6 +59,15 @@
       <span class="idx num">{index}</span>
       <span class="verdict">{verdict.name}</span>
       <span class="meaning">{verdict.meaning}</span>
+      {#if practised}
+        <span class="done" class:good={practised.right === true} class:off={practised.right === false}
+          title="In dieser Sitzung geübt">Geübt: {CHOICE_NAME[practised.answer]}{practised.right === true
+            ? " · wie der Coach"
+            : practised.right === false
+              ? " · anders als der Coach"
+              : ""}</span
+        >
+      {/if}
       <span class="time num" title="Gespielt um {time} Uhr">{time}</span>
     </header>
     <p class="action" id="spot-{index}-title"><CardText text={spot.action} /></p>
@@ -207,6 +219,23 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .done {
+    flex-shrink: 0;
+    padding: 1px 8px;
+    border-radius: 999px;
+    border: 1px solid var(--line-2);
+    font-size: 12px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .done.good {
+    color: var(--pos);
+    border-color: color-mix(in srgb, var(--pos) 45%, transparent);
+  }
+  .done.off {
+    color: var(--amber);
+    border-color: color-mix(in srgb, var(--amber) 45%, transparent);
   }
   .time {
     margin-left: auto;

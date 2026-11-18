@@ -22,6 +22,7 @@
     onBack,
     onTraining,
     onRead,
+    onAnswer,
   }: {
     spot: CoachSpot;
     /** The spot's number in the report. */
@@ -32,6 +33,8 @@
     onBack: () => void;
     onTraining: (target: LearnTarget | null) => void;
     onRead: () => void;
+    /** The answer and whether it matches the coach (null when the coach names no clear play). */
+    onAnswer?: (answer: Choice, right: boolean | null) => void;
   } = $props();
 
   let hand = $state<Hand | null>(null);
@@ -120,7 +123,13 @@
         {#if !answer}
           <div class="choices" role="group" aria-label="Deine Entscheidung" in:appear>
             {#each options as o (o.id)}
-              <button class="choice c-{o.id}" onclick={() => (answer = o.id)}>
+              <button
+                class="choice c-{o.id}"
+                onclick={() => {
+                  answer = o.id;
+                  onAnswer?.(o.id, ok ? ok.includes(o.id) : null);
+                }}
+              >
                 <b>{o.label}</b>
                 {#if o.hint}<span class="num">{o.hint}</span>{/if}
               </button>
