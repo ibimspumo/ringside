@@ -2,6 +2,7 @@ mod analysis;
 mod charts;
 pub mod cloud;
 mod coach;
+mod drill;
 mod gpu;
 mod importer;
 mod jobs;
@@ -701,6 +702,10 @@ pub fn run() {
             learn_check_own,
             learn_prepare_own,
             learn_progress,
+            drill::learn_profile,
+            drill::learn_drill_real,
+            drill::learn_drill_variant,
+            drill::learn_drill_check,
             charts::pushfold_grid,
             charts::pushfold_chart,
             charts::preflop_grid,
