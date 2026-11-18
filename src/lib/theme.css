@@ -29,6 +29,13 @@
   --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --font-num: "Bahnschrift", "DIN Alternate", "Barlow Semi Condensed", "Roboto Condensed", var(--font-ui);
 
+  /* Motion: calm, decelerating curves; never linear for moving elements. */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 520ms;
+
   --r-sm: 6px;
   --r: 10px;
   --r-lg: 8px;
