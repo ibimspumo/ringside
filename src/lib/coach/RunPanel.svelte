@@ -190,11 +190,12 @@
         </div>
       </div>
 
-      <div class="row">
+      <div class="row send-bar">
         <Button variant="primary" size="lg" onclick={() => send(e)}>
           Senden und analysieren{e.cost_usd != null ? ` · ca. ${cost(e.cost_usd)}` : ""}
         </Button>
         <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
+        <span class="bar-note">Hände ohne Namen an OpenRouter · <b class="num nowrap">{shortModel(e.model)}</b></span>
         <details class="tech">
           <summary>Tokens und Preise</summary>
           <p>
@@ -481,6 +482,25 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2);
+  }
+  /* The decision stays in reach while the cost cards scroll by. */
+  .send-bar {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    margin: 0 calc(-1 * var(--sp-6)) calc(-1 * var(--sp-6));
+    padding: var(--sp-3) var(--sp-6) var(--sp-4);
+    border-top: 1px solid var(--line);
+    border-radius: 0 0 var(--r-md) var(--r-md);
+    background: var(--surface-2);
+  }
+  .bar-note {
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .bar-note b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
   }
   .tech {
     margin-left: auto;
