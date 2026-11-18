@@ -503,8 +503,8 @@
           <SettingRow title="Bibliothek automatisch erweitern" sub="Gerechnet wird erst, wenn fünf Minuten lang niemand den PC benutzt.">
             {#snippet control()}<SegmentedControl label="Automatik" bind:value={libMode} options={[{ value: "off", label: "Aus" }, { value: "idle", label: "Wenn der PC frei ist" }, { value: "always", label: "Immer" }]} />{/snippet}
           </SettingRow>
-          <SettingRow title="GPU-Test" sub="Gesperrt: Während PokerStars läuft, startet Ringside keine Rechnung." locked>
-            {#snippet control()}<Button size="sm" disabled>Test starten</Button>{/snippet}
+          <SettingRow title="Bibliothek mitrechnen" sub="Gesperrt: Während PokerStars läuft, startet Ringside keine Rechnung." locked>
+            {#snippet control()}<Button size="sm" disabled>Mitrechnen</Button>{/snippet}
           </SettingRow>
           <SettingRow title="Erkannte Tische" sub="Unter der Zeile steht, was zur Einstellung gehört: Listen, Ergebnisse, Zustände.">
             {#snippet control()}<Button size="sm" variant="quiet">Aktualisieren</Button>{/snippet}

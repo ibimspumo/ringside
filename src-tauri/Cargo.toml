@@ -18,7 +18,6 @@ ringside-cloud = { path = "../crates/ringside-cloud" }
 ringside-coach = { path = "../crates/ringside-coach" }
 ringside-core = { path = "../crates/ringside-core" }
 ringside-engine = { path = "../crates/ringside-engine" }
-ringside-gpu = { path = "../crates/ringside-gpu" }
 ringside-learn = { path = "../crates/ringside-learn" }
 ringside-play = { path = "../crates/ringside-play" }
 ringside-solver = { path = "../crates/ringside-solver" }

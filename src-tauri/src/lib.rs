@@ -4,7 +4,6 @@ mod charts;
 pub mod cloud;
 mod coach;
 mod drill;
-mod gpu;
 mod importer;
 mod jobs;
 mod library;
@@ -741,7 +740,6 @@ pub fn run() {
             jobs::jobs_list,
             jobs::jobs_cancel,
             jobs::jobs_clear,
-            gpu::gpu_benchmark,
             coach::coach_status,
             coach::coach_set_key,
             coach::coach_test_key,

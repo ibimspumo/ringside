@@ -11,7 +11,6 @@
   import type { CoachStatus } from "../coach/types";
   import type { CloudSettings as CloudChoice } from "../cloud/types";
   import Card from "../ui/Card.svelte";
-  import GpuTest from "../gpu/GpuTest.svelte";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -446,7 +445,6 @@
       <Panel flush>
         <AutoAnalysisSettings onChange={(a) => (auto = a)} />
         <LibrarySettings />
-        <GpuTest locked={clientRunning} />
       </Panel>
     </section>
 
