@@ -3,7 +3,7 @@
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
-  import ProgressBar from "../ui/ProgressBar.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
   import { libraryApi } from "./api";
   import { cards, titleOf } from "./labels";
   import type { LibraryOverview, WorkerStatus } from "./types";
@@ -83,7 +83,14 @@
 
 <div class="run">
   <div class="say" class:live={running} aria-live="polite">
-    <p class="head"><span class="dot {tone}" aria-hidden="true"></span>{words[0]}</p>
+    <p class="head">
+      {#if worker.state === "solving"}
+        <span class="ring"><ProgressRing value={worker.progress} size={16} stroke={2.5} tone="good" label="Fortschritt des aktuellen Spots" /></span>
+      {:else}
+        <span class="dot {tone}" aria-hidden="true"></span>
+      {/if}
+      <span>{words[0]}{#if pct !== null}<span class="pct num"> · {pct}&nbsp;%</span>{/if}</span>
+    </p>
     {#if worker.state === "solving" && worker.community}
       {@const [where, flop] = worker.community.split(/,\s*Flop\s+/)}
       <p class="spot"><span>{where}</span>{#if flop}<span class="flop"><CardText text={flop} /></span>{/if}</p>
@@ -92,12 +99,6 @@
         <span>{titleOf(scenario)}</span>
         <span class="flop">{#each cards(worker.flop) as [r, s], k (k)}<MiniCard card={r + s} />{/each}</span>
       </p>
-    {/if}
-    {#if worker.state === "solving"}
-      <div class="track">
-        <ProgressBar value={worker.progress} tone="good" label="Fortschritt des aktuellen Spots" />
-        {#if pct !== null}<span class="pct num">{pct} %</span>{/if}
-      </div>
     {/if}
     {#if words[1]}<p class="sub">{words[1]}</p>{/if}
     {#if error}<p class="err" role="alert">{error}</p>{/if}
@@ -193,17 +194,13 @@
     gap: 2px;
     white-space: nowrap;
   }
-  .track {
+  .ring {
+    align-self: center;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--sp-2);
-    margin: var(--sp-1) 0;
+    line-height: 0;
   }
   .pct {
     color: var(--pos);
-    font-size: var(--fs-sm);
-    font-weight: var(--fw-semibold);
   }
   .sub {
     color: var(--text-2);

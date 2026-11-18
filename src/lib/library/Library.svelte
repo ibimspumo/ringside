@@ -429,7 +429,11 @@
         {/if}
       </div>
     {:else if error}
-      <EmptyState tone="error" title="Die Bibliothek ließ sich nicht laden" text={error}>
+      <EmptyState
+        tone="error"
+        title="Die Bibliothek ließ sich nicht laden"
+        text="{error} Meist sperrt ein Virenscanner oder ein fehlendes Schreibrecht den Datenordner von Ringside. Gib ihn frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
+      >
         {#snippet action()}<Button onclick={load}>Noch einmal versuchen</Button>{/snippet}
       </EmptyState>
     {:else}
