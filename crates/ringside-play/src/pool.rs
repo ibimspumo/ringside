@@ -4,7 +4,8 @@
 //! it picks one of the model's heads-up flops (weighted by how often the model plays there,
 //! and with the hero's seat in it when the seat is fixed) and a flop, one that is solved
 //! already when the [`Lookup`] knows one ([`Lookup::flops`]: the app's spot store, with
-//! spots of the library and of other players). It first asks the [`Lookup`] for it:
+//! spots of the library and of other players), dealt in a random suit renaming so the
+//! same solved flop does not come back in the same suits. It first asks the [`Lookup`] for it:
 //! stored spots open at once but know only the first street and the first decision on
 //! the turn. Otherwise it takes a [`Slot`] (the right to solve that spot now, see
 //! [`Lookup::slot`]) and solves with the solver page's
@@ -28,6 +29,8 @@ use std::time::{Duration, Instant};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use ringside_engine::{Card, CardSet};
+use ringside_solver::library::flops::canonical;
+use ringside_solver::suits;
 use ringside_solver::{Error, Settings, Solution, Spot, estimate, solve};
 use serde::Serialize;
 
@@ -79,8 +82,8 @@ impl Slot for Free {
 pub trait Lookup: Send + Sync {
     /// A stored solution of exactly this spot, at most `max_pct` exploitable.
     fn load(&self, spot: &Spot, line: Line, max_pct: f64) -> Option<Box<dyn Tree>>;
-    /// Flops that are solved already for the scenario's line at `table`, as the cards are
-    /// to be dealt.
+    /// Flops that are solved already for the scenario's line at `table`, one per suit
+    /// class: the pool deals any suit renaming of them and [`Lookup::load`] finds it.
     fn flops(&self, _table: TableKey, _scenario: &Scenario) -> Vec<String> {
         Vec::new()
     }
@@ -802,10 +805,19 @@ impl Pool {
         Some((table.key, scenario.clone(), flop))
     }
 
+    /// A solved flop of the line in one of its suit renamings, each renaming of each flop
+    /// alike, so a flop class comes up as often as it is dealt; none whose class the stock
+    /// holds already.
     fn stored_flop(&self, table: TableKey, scenario: &Scenario, rng: &mut ChaCha8Rng) -> Option<[Card; 3]> {
-        let taken: Vec<[Card; 3]> = self.inner.lock().unwrap().ready.iter().map(|e| e.flop).collect();
-        let flops: Vec<[Card; 3]> =
-            self.lookup.flops(table, scenario).iter().filter_map(|f| parse_flop(f)).filter(|f| !taken.contains(f)).collect();
+        let taken: Vec<[Card; 3]> = self.inner.lock().unwrap().ready.iter().map(|e| canonical(e.flop)).collect();
+        let flops: Vec<[Card; 3]> = self
+            .lookup
+            .flops(table, scenario)
+            .iter()
+            .filter_map(|f| parse_flop(f))
+            .filter(|f| !taken.contains(&canonical(*f)))
+            .flat_map(renamings)
+            .collect();
         (!flops.is_empty()).then(|| flops[rng.random_range(0..flops.len())])
     }
 }
@@ -892,6 +904,19 @@ pub fn parse_flop(text: &str) -> Option<[Card; 3]> {
     (set.len() == 3).then(|| [cards[0], cards[1], cards[2]])
 }
 
+/// Every suit renaming of `flop`, each once.
+pub fn renamings(flop: [Card; 3]) -> Vec<[Card; 3]> {
+    let mut out: Vec<[Card; 3]> = Vec::new();
+    for r in suits::all() {
+        let renamed = flop.map(|c| suits::rename(c, &r));
+        let set = CardSet::from_cards(&renamed);
+        if !out.iter().any(|f| CardSet::from_cards(f) == set) {
+            out.push(renamed);
+        }
+    }
+    out
+}
+
 pub fn random_flop(rng: &mut impl Rng) -> [Card; 3] {
     let mut used = CardSet::default();
     let mut card = || loop {
@@ -912,5 +937,21 @@ impl SeedFromTime for ChaCha8Rng {
     fn from_os_rng_or_time() -> ChaCha8Rng {
         let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(7);
         ChaCha8Rng::seed_from_u64(nanos)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_flop_has_one_renaming_per_suit_pattern_without_a_card_twice() {
+        let count = |text: &str| renamings(parse_flop(text).unwrap()).len();
+        // Rainbow, two-tone, monotone; a pair; trips.
+        assert_eq!([count("AsKh2d"), count("AsKs2d"), count("AsKs2s"), count("AsAh2d"), count("AsAhAd")], [24, 12, 4, 12, 4]);
+        for f in renamings(parse_flop("Js9s6h").unwrap()) {
+            assert_eq!(CardSet::from_cards(&f).len(), 3);
+            assert_eq!(canonical(f), canonical(parse_flop("Js9s6h").unwrap()));
+        }
     }
 }
