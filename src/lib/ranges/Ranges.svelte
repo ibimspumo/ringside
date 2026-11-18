@@ -10,6 +10,7 @@
   import type { Filter } from "../types";
   import { int } from "../app/format";
   import RangeGrid, { type GridMode } from "./RangeGrid.svelte";
+  import Button from "../ui/Button.svelte";
   import {
     FEW,
     HISTORY,
@@ -108,6 +109,10 @@
       clearTimeout(t);
     };
   });
+
+  /** The situation the page opens with; "Zurücksetzen" returns to it. */
+  const start = $derived(groups ? initial(groups) : null);
+  const changed = $derived(!!sel && !!start && JSON.stringify(sel) !== JSON.stringify(start));
 
   function update(patch: Partial<Selection>, resettle = false) {
     if (!sel || !groups) return;
@@ -238,6 +243,15 @@
 
     <div class="layout">
       <aside class="situation" aria-label="Situation wählen">
+        <div class="aside-head">
+          <Button
+            size="sm"
+            variant="quiet"
+            disabled={!changed}
+            title={changed ? "Alle Filter auf die Ausgangs-Auswahl zurück" : "Das ist schon die Ausgangs-Auswahl"}
+            onclick={() => start && (sel = $state.snapshot(start) as Selection)}>Filter zurücksetzen</Button
+          >
+        </div>
         <div class="pick full">
           <span class="pick-label">Was vor dir passiert ist</span>
           <div class="tiles history">
@@ -509,6 +523,12 @@
   }
   .pick.full {
     grid-column: 1 / -1;
+  }
+  .aside-head {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-end;
+    margin: calc(-1 * var(--sp-1)) 0 calc(-1 * var(--sp-2));
   }
   .pick-label {
     font-size: 12px;

@@ -362,6 +362,13 @@ step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", as
   await nav("Deine Ranges");
   await waitText(/öffnest du|spielst du|callst du/);
   await find("main figure figcaption b", "Du");
+  // A changed filter can be reset to the opening selection.
+  const reset = await find("main .situation button", "Filter zurücksetzen");
+  if (!(await s.exec(`return arguments[0].disabled`, reset))) throw new Error("reset is enabled before any filter changed");
+  await click("main .situation button.tile:not(.on):not([disabled])");
+  await waitFor("reset enabled", `return arguments[0].disabled ? null : true`, [reset]);
+  await s.click(reset);
+  await waitFor("reset disabled again", `return arguments[0].disabled ? true : null`, [reset]);
   const cell = await waitFor(
     "a visible cell with hands",
     `const you = [...document.querySelectorAll("main figure")].find((f) => f.querySelector("figcaption b")?.textContent.trim() === "Du");
