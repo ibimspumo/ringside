@@ -8,6 +8,9 @@
   import { ARTICLE_BY_ID } from "../learn/wissen/articles";
   import type { LearnProgress, TournamentRow } from "../types";
   import { coachApi, effortName, errorText, preview } from "./api";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
   import CoachSettings from "./CoachSettings.svelte";
   import KeyForm from "./KeyForm.svelte";
   import { notAnalyzable, shortModel } from "./meaning";
@@ -170,31 +173,37 @@
   </span>
 {/snippet}
 
+{#snippet loadFailed(message: string)}
+  <EmptyState tone="error" title="Die Berichte lassen sich gerade nicht laden." text={message}>
+    {#snippet action()}<Button onclick={() => loadList()}>Erneut laden</Button>{/snippet}
+  </EmptyState>
+{/snippet}
+
 <ClientLock feature="Der Coach">
-  <div class="page">
+  <div class="page wide">
     {#if list}
       <div class="layout">
         <aside class="rail">
-          <section class="panel start" aria-labelledby="start-title">
-            <h2 id="start-title" class="panel-title">Turnier besprechen</h2>
+          <Card pad="sm" aria-labelledby="start-title">
+            <h2 id="start-title" class="rail-title">Turnier besprechen</h2>
             {#if status && !status.has_key}
               <p class="sub pad">Erst den Key von OpenRouter hinterlegen, dann kannst du hier ein Turnier besprechen lassen.</p>
             {/if}
             {#if suggestions.length}
               <ul>
                 {#each suggestions as t (t.id)}
-                  <li>
+                  <li class="start">
                     <span class="what">
                       <span class="name" title={titleOf(t.id)}>{titleOf(t.id)}</span>
                       <span class="sub">{dayShort(t.started_at)} · <span class="num">{t.hands}</span> Hände</span>
                     </span>
-                    <button
-                      class="btn go"
+                    <Button
+                      size="sm"
                       disabled={running || !status?.has_key}
                       onclick={() => start(t.id)}
                       title={status?.has_key
                         ? "Vorher siehst du, was gesendet wird und was es kostet."
-                        : "Erst den Key von OpenRouter hinterlegen"}>Analysieren</button
+                        : "Erst den Key von OpenRouter hinterlegen"}>Analysieren</Button
                     >
                   </li>
                 {/each}
@@ -202,17 +211,18 @@
             {:else}
               <p class="sub pad">Alle fertigen Hold'em-Turniere sind besprochen. Neue findest du nach dem nächsten Turnier hier.</p>
             {/if}
-          </section>
+          </Card>
 
           {#if list.length}
-            <nav class="panel reports" aria-labelledby="reports-title">
-              <h2 id="reports-title" class="panel-title">Deine Berichte</h2>
+            <nav class="reports" aria-labelledby="reports-title">
+              <Card pad="sm">
+              <h2 id="reports-title" class="rail-title">Deine Berichte</h2>
               <ul>
                 {#each list as r (r.tournament_id)}
                   <li>
-                    <button
-                      class="item"
-                      class:on={r.tournament_id === selected && runFor === null}
+                    <Card
+                      pad="sm"
+                      selected={r.tournament_id === selected && runFor === null}
                       aria-current={r.tournament_id === selected ? "true" : undefined}
                       onclick={() => {
                         selected = r.tournament_id;
@@ -222,6 +232,7 @@
                         returnTo = null;
                       }}
                     >
+                      <span class="item">
                       <span class="name">{titleOf(r.tournament_id, r)}</span>
                       <span class="sub">{r.started_at ? dateTime(r.started_at) : "–"}</span>
                       <span class="score">
@@ -231,21 +242,24 @@
                           {:else}alle <span class="num">{r.spots}</span> gut gespielt{/if}
                         </span>
                       </span>
-                    </button>
+                      </span>
+                    </Card>
                   </li>
                 {/each}
               </ul>
+              </Card>
             </nav>
           {/if}
 
           {#if status?.has_key}
-            <button
-              class="panel setup-card"
-              class:on={setupOpen}
+            <Card
+              pad="sm"
+              selected={setupOpen}
               aria-expanded={setupOpen}
               onclick={() => (setupOpen = !setupOpen)}
               title="Modell, Gründlichkeit und Key ändern"
             >
+              <span class="setup">
               <span class="dot" class:busy={running} aria-hidden="true"></span>
               <span class="what">
                 <span class="name">{running ? "Coach analysiert" : "Coach eingerichtet"}</span>
@@ -254,15 +268,16 @@
               <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
                 ><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4.5v5M8 14.5v5" /></svg
               >
-            </button>
+              </span>
+            </Card>
           {/if}
         </aside>
 
         <div class="main">
           {#if status && !status.has_key}
-            <section class="panel onboard" aria-labelledby="key-title">
+            <Card pad="lg" tone="raised" aria-labelledby="key-title">
               <div class="onboard-head">
-                <h2 id="key-title">Für den Coach brauchst du einen API-Key von OpenRouter</h2>
+                <h2 id="key-title" class="big-title">Für den Coach brauchst du einen API-Key von OpenRouter</h2>
                 <p>
                   Über OpenRouter zahlst du die Analysen direkt beim Anbieter, meist wenige Cent je Turnier. Ringside
                   verdient daran nichts und schickt nie etwas ohne deine Bestätigung.
@@ -296,7 +311,7 @@
                   </div>
                 </li>
               </ol>
-            </section>
+            </Card>
           {/if}
 
           {#if setupOpen}
@@ -326,14 +341,10 @@
               />
             {/key}
           {:else if failed}
-            <div class="panel failed" role="alert">
-              <b>Die Berichte lassen sich gerade nicht laden.</b>
-              <span>{failed}</span>
-              <button class="btn" onclick={() => loadList()}>Erneut laden</button>
-            </div>
+            {@render loadFailed(failed)}
           {:else if list.length === 0 && status?.has_key}
-            <section class="panel intro" aria-labelledby="intro-title">
-              <h2 id="intro-title">Lass dein letztes Turnier besprechen</h2>
+            <Card pad="lg" aria-labelledby="intro-title">
+              <h2 id="intro-title" class="big-title">Lass dein letztes Turnier besprechen</h2>
               <p class="lead">
                 Der Coach sucht die Hände heraus, in denen du eine echte Entscheidung hattest, und sagt dir, was gut war und
                 was du üben solltest. Jede Zahl darin rechnet Ringside selbst.
@@ -346,13 +357,13 @@
               </ol>
               {#if suggestions[0]}
                 <div class="cta">
-                  <button class="btn primary" onclick={() => start(suggestions[0].id)}>
+                  <Button variant="primary" size="lg" onclick={() => start(suggestions[0].id)}>
                     {titleOf(suggestions[0].id)} analysieren
-                  </button>
+                  </Button>
                   <span class="sub">vom {dateTime(suggestions[0].started_at)}, {suggestions[0].hands} Hände</span>
                 </div>
               {/if}
-            </section>
+            </Card>
           {:else if report && report.tournament_id === selected}
             {@const reportTitle = titleOf(report.tournament_id, list.find((r) => r.tournament_id === report?.tournament_id))}
             {@const spot = focus ? report.spots[focus.n - 1] : null}
@@ -405,17 +416,13 @@
         </div>
       </div>
     {:else if failed}
-      <div class="panel failed" role="alert">
-        <b>Die Berichte lassen sich gerade nicht laden.</b>
-        <span>{failed}</span>
-        <button class="btn" onclick={() => loadList()}>Erneut laden</button>
-      </div>
+      {@render loadFailed(failed)}
     {/if}
   </div>
 </ClientLock>
 
 <style>
-  .page {
+  .wide {
     max-width: 1880px;
     padding-top: 20px;
   }
@@ -433,30 +440,33 @@
     gap: 12px;
     min-width: 0;
   }
-  .rail .panel-title {
-    padding: 14px 16px 6px;
+  .rail-title {
+    margin: 0;
+    padding: var(--sp-1) var(--sp-2) var(--sp-2);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
   }
   .rail ul {
     list-style: none;
     margin: 0;
-    padding: 0 6px 6px;
+    padding: 0;
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
   .name {
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .sub {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .pad {
     margin: 0;
-    padding: 0 16px 14px;
+    padding: 0 var(--sp-2) var(--sp-2);
     line-height: 1.5;
   }
   .what {
@@ -466,59 +476,27 @@
     min-width: 0;
   }
 
-  .start li {
+  .start {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 7px 10px;
-    border-radius: var(--r-sm);
-  }
-  .start li {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .start li:hover {
-    background: var(--surface-2);
+    gap: var(--sp-3);
+    padding: 7px var(--sp-2);
   }
   .start .what {
     flex: 1;
-  }
-  .go {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
   }
 
   .reports ul {
     max-height: min(52vh, 560px);
     overflow-y: auto;
     overscroll-behavior: contain;
-    mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+    mask-image: linear-gradient(to bottom, var(--text) calc(100% - 36px), transparent);
     padding-bottom: 24px;
   }
   .item {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    width: 100%;
-    padding: 9px 10px 10px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-  }
-  .item {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
-      box-shadow var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .item:hover {
-    background: var(--surface-2);
-  }
-  .item.on {
-    background: var(--surface-3);
-    box-shadow: inset 2px 0 0 var(--text);
   }
   .score {
     display: flex;
@@ -531,7 +509,7 @@
   }
   .warn {
     color: var(--amber);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .mini {
     display: flex;
@@ -551,30 +529,15 @@
     background: color-mix(in srgb, var(--pos) 70%, transparent);
   }
 
-  .setup-card {
+  .setup {
     display: flex;
     align-items: center;
-    gap: 10px;
-    width: 100%;
-    padding: 11px 14px;
-    text-align: left;
-    cursor: pointer;
-    color: var(--text);
+    gap: var(--sp-3);
   }
-  .setup-card {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
-      border-color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .setup-card:hover,
-  .setup-card.on {
-    background: var(--surface-2);
-    border-color: var(--line-2);
-  }
-  .setup-card .what {
+  .setup .what {
     flex: 1;
   }
-  .setup-card svg {
+  .setup svg {
     fill: none;
     stroke: var(--text-2);
     stroke-width: 1.7;
@@ -589,7 +552,7 @@
   }
   .dot.busy {
     background: var(--amber);
-    animation: breathe 1.6s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)) infinite;
+    animation: breathe var(--dur-loop) var(--ease-standard) infinite;
   }
   @keyframes breathe {
     50% {
@@ -609,19 +572,14 @@
     min-width: 0;
   }
 
-  .onboard {
-    padding: 22px 24px 24px;
-    border-color: var(--line-2);
-  }
   .onboard-head {
     max-width: 720px;
   }
-  .onboard h2,
-  .intro h2 {
+  .big-title {
     margin: 0 0 6px;
     font-family: var(--font-num);
-    font-size: 20px;
-    font-weight: 600;
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
   }
   .onboard-head p,
   .lead {
@@ -655,7 +613,7 @@
   }
   .steps p {
     margin: 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.5;
     color: var(--text-2);
   }
@@ -671,16 +629,13 @@
     height: 24px;
     border-radius: 50%;
     border: 1px solid var(--line-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .form {
     margin-top: 12px;
   }
 
-  .intro {
-    padding: 24px 26px 26px;
-  }
   .flow {
     list-style: none;
     counter-reset: flow;
@@ -707,11 +662,11 @@
   .flow li::before {
     content: counter(flow);
     font-family: var(--font-num);
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .flow span {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
     line-height: 1.5;
   }
@@ -722,23 +677,7 @@
     gap: 8px 14px;
     margin-top: 22px;
   }
-  .cta .btn {
-    height: 36px;
-    padding: 0 16px;
-  }
 
-  .failed {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 14px;
-    padding: 16px 18px;
-    border-color: rgba(229, 72, 59, 0.35);
-  }
-  .failed span {
-    flex: 1 1 260px;
-    color: var(--text-2);
-  }
 
   @container (max-width: 1040px) {
     .steps {

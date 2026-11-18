@@ -7,14 +7,23 @@
 
 <script lang="ts">
   import { onMount } from "svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import CardText from "../ui/CardText.svelte";
+  import GradeBars from "../ui/GradeBars.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
+  import Kbd from "../ui/Kbd.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
+  import SectionHead from "../ui/SectionHead.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import { cost, duration, tokens } from "./api";
-  import CardText from "./CardText.svelte";
   import { conceptName } from "./concepts";
-  import { VERDICTS, shortModel, toPractise } from "./meaning";
+  import type { Choice } from "./drill";
+  import { COACH_GRADES, VERDICTS, shortModel, toPractise, verdictOf } from "./meaning";
   import { rise } from "./motion";
   import SpotCard from "./SpotCard.svelte";
-  import type { Choice } from "./drill";
   import type { CoachReport } from "./types";
 
   let {
@@ -55,26 +64,19 @@
   const shown = $derived(
     show === "all" ? spots : show === "practise" ? weak : spots.filter((s) => !toPractise(s.spot.verdict)),
   );
-  const counts = $derived(VERDICTS.map((v) => ({ ...v, n: report.spots.filter((s) => s.verdict === v.id).length })));
+  const counts = $derived(
+    Object.fromEntries(VERDICTS.map((v) => [v.grade, report.spots.filter((s) => s.verdict === v.id).length])),
+  );
   const good = $derived(spots.length - weak.length);
+  const filters = $derived<{ value: Show; label: string }[]>([
+    { value: "all", label: `Alle ${spots.length}` },
+    { value: "practise", label: `Zum Üben ${weak.length}` },
+    { value: "good", label: `Gut gespielt ${good}` },
+  ]);
   /** Long names keep their bracketed or second part out of the headline: "Day 2 · $109 … [PKO, Turbo]". */
   const name = $derived.by(() => {
     const cut = title.search(/\s(?:·|\[|\()/);
     return cut > 12 ? { main: title.slice(0, cut), extra: title.slice(cut).replace(/^\s·\s/, "").trim() } : { main: title, extra: "" };
-  });
-  /** The ring: one arc per verdict, worst first from the top, with a small gap between arcs. */
-  const R = 32;
-  const C = 2 * Math.PI * R;
-  const arcs = $derived.by(() => {
-    const shown = counts.filter((c) => c.n > 0);
-    const gap = shown.length > 1 ? 3 : 0;
-    let from = 0;
-    return shown.map((c) => {
-      const full = (c.n / Math.max(1, spots.length)) * C;
-      const arc = { id: c.id, from, len: Math.max(0.5, full - gap) };
-      from += full;
-      return arc;
-    });
   });
   const created = $derived(
     new Date(report.meta.created_at * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }),
@@ -115,153 +117,128 @@
 
 <svelte:window onkeydown={onKey} />
 
+{#snippet arrow()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>{/snippet}
+{#snippet again()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></svg>{/snippet}
+
 <div class="report">
-  <section class="panel hero" aria-labelledby="report-title">
+  <Card pad="lg" aria-labelledby="report-title">
     <header class="top">
       <div class="titles">
         <h2 id="report-title" title={title}>{name.main}</h2>
-        {#if name.extra}<p class="sub extra">{name.extra}</p>{/if}
+        {#if name.extra}<p class="extra">{name.extra}</p>{/if}
         <p class="sub">Besprochen am <span class="nowrap">{created}</span></p>
       </div>
       <div class="buttons">
         {#if confirmDelete}
           <span class="sub">Bericht löschen?</span>
-          <button class="btn danger" onclick={onDelete}>Ja, löschen</button>
-          <button class="btn ghost" onclick={() => (confirmDelete = false)}>Behalten</button>
+          <Button variant="danger" onclick={onDelete}>Ja, löschen</Button>
+          <Button variant="quiet" onclick={() => (confirmDelete = false)}>Behalten</Button>
         {:else}
-          <button class="btn" onclick={onReanalyze}>
-            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
-              ><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></svg
-            >
-            Neu analysieren
-          </button>
-          <button class="btn ghost" onclick={() => (confirmDelete = true)}>Löschen</button>
+          <Button icon={again} onclick={onReanalyze}>Neu analysieren</Button>
+          <Button variant="quiet" onclick={() => (confirmDelete = true)}>Löschen</Button>
         {/if}
       </div>
     </header>
 
     <div class="answer">
       <div class="say">
-        <p class="summary">{report.summary}</p>
+        <p class="summary"><CardText hands text={report.summary} /></p>
         <div class="next">
           {#if lesson?.train}
-            <button class="btn primary" onclick={() => onTraining(lesson.train)}>
-              {conceptName(lesson.concept)} üben
-              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-            </button>
+            <Button variant="primary" size="lg" icon={arrow} onclick={() => onTraining(lesson.train)}>{conceptName(lesson.concept)} üben</Button>
           {:else if lesson}
-            <button class="btn primary" onclick={() => onDrill(lesson.n)}>Entscheidung {lesson.n} üben</button>
+            <Button variant="primary" size="lg" onclick={() => onDrill(lesson.n)}>Entscheidung {lesson.n} üben</Button>
           {:else}
-            <button class="btn primary" onclick={() => onTraining(null)}>Zum Training</button>
+            <Button variant="primary" size="lg" onclick={() => onTraining(null)}>Zum Lernen</Button>
           {/if}
           {#if lesson?.articles.length}
-            <button class="link" onclick={() => onRead(lesson.n)}>Nachlesen: {lesson.articles[0].title}</button>
+            <Button variant="quiet" onclick={() => onRead(lesson.n)}>Nachlesen: {lesson.articles[0].title}</Button>
           {/if}
         </div>
       </div>
 
-      <div class="score" aria-label="Urteile">
-        <p class="big">
+      <Card tone="sunken" aria-label="Urteile">
+        <div class="score">
+          <div class="score-top">
+            <ProgressRing value={spots.length ? good / spots.length : 0} size={76} stroke={7} tone="good" label="Gut gespielt">
+              <span class="ring-n num">{good}/{spots.length}</span>
+            </ProgressRing>
+            <p class="big">
+              {#if weak.length}
+                <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span>
+                {spots.length === 1 ? "Entscheidung" : "Entscheidungen"} zum Üben
+              {:else}
+                Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
+              {/if}
+            </p>
+          </div>
+          <GradeBars grades={COACH_GRADES} {counts} label="Urteile des Coaches" />
           {#if weak.length}
-            <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span>
-            {spots.length === 1 ? "Entscheidung" : "Entscheidungen"} zum Üben
-          {:else}
-            Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
+            <ol class="worst" aria-label="Entscheidungen zum Üben">
+              {#each weak as s (s.n)}
+                {@const v = verdictOf(s.spot.verdict)}
+                <li>
+                  <Card pad="sm" onclick={() => jump(s.n)} aria-label="Zur Entscheidung {s.n}">
+                    <span class="row">
+                      <GradeIcon grade={v.grade} size={15} />
+                      <span class="mini-cards">{#each s.spot.hero_cards as c (c)}<PlayingCard card={c} size={18} />{/each}</span>
+                      <span class="seat">{s.spot.position ?? "–"}</span>
+                      <span class="txt"
+                        >{#if s.spot.better}Besser: <CardText hands text={s.spot.better} />{:else}<CardText hands text={s.spot.action} />{/if}</span
+                      >
+                      <span class="go num" aria-hidden="true">{s.n} →</span>
+                    </span>
+                  </Card>
+                </li>
+              {/each}
+            </ol>
           {/if}
-        </p>
-        <div class="grades">
-          <svg class="ring" viewBox="0 0 80 80" aria-hidden="true">
-            <circle class="track" cx="40" cy="40" r={R} />
-            {#each arcs as a (a.id)}
-              <circle
-                class="arc v-{a.id}"
-                cx="40"
-                cy="40"
-                r={R}
-                style="stroke-dasharray:{a.len} {C - a.len};stroke-dashoffset:{-a.from}"
-              />
-            {/each}
-            <text x="40" y="39" class="ring-n num">{good}/{spots.length}</text>
-            <text x="40" y="53" class="ring-l">gut</text>
-          </svg>
-          <ul class="breakdown">
-            {#each counts as c (c.id)}
-              <li class:zero={c.n === 0} title="{c.name}: {c.meaning}">
-                <span class="gname">{c.name}</span>
-                <span class="gbar"><i class="v-{c.id}" style="width:{spots.length ? (c.n / spots.length) * 100 : 0}%"></i></span>
-                <b class="num">{c.n}</b>
-              </li>
-            {/each}
-          </ul>
         </div>
-        {#if weak.length}
-          <ol class="worst" aria-label="Entscheidungen zum Üben">
-            {#each weak as s (s.n)}
-              <li>
-                <button class="v-{s.spot.verdict}" onclick={() => jump(s.n)}>
-                  <i aria-hidden="true"></i>
-                  <span class="mini-cards">
-                    {#each s.spot.hero_cards as c (c)}<PlayingCard card={c} size={18} />{/each}
-                  </span>
-                  <span class="pos">{s.spot.position ?? "–"}</span>
-                  <span class="txt">{#if s.spot.better}Besser: <CardText text={s.spot.better} />{:else}<CardText text={s.spot.action} />{/if}</span>
-                  <span class="go num" aria-hidden="true">{s.n} →</span>
-                </button>
-              </li>
-            {/each}
-          </ol>
-        {/if}
-      </div>
+      </Card>
     </div>
-  </section>
+  </Card>
 
   {#if report.focus.length}
-    <section class="panel plan" aria-labelledby="plan-title">
+    <Card>
       <div class="plan-head">
-        <h3 id="plan-title">Woran du arbeiten solltest</h3>
-        <button class="btn small" onclick={() => onTraining(null)}>Zum Training</button>
+        <SectionHead level={3} title="Woran du arbeiten solltest" />
+        <Button size="sm" onclick={() => onTraining(null)}>Zum Lernen</Button>
       </div>
-      <ol>
+      <ol class="plan">
         {#each report.focus as f, i (i)}
-          <li><span class="rank num">{i + 1}</span><span>{f}</span></li>
+          <li><span class="rank num">{i + 1}</span><span><CardText hands text={f} /></span></li>
         {/each}
       </ol>
-    </section>
+    </Card>
   {/if}
 
   <div class="list-head">
     <h3>Deine Entscheidungen</h3>
-    <span class="keys"><kbd>←</kbd><kbd>→</kbd> springen</span>
-    <div class="seg" role="radiogroup" aria-label="Entscheidungen filtern">
-      {#each [["all", "Alle", spots.length], ["practise", "Zum Üben", weak.length], ["good", "Gut gespielt", spots.length - weak.length]] as [id, label, n] (id)}
-        <button role="radio" aria-checked={show === id} class:on={show === id} onclick={() => (show = id as Show)}>
-          {label} <span class="num faint">{n}</span>
-        </button>
-      {/each}
-    </div>
+    <span class="keys"><Kbd keys="←" /><Kbd keys="→" /> springen</span>
+    <SegmentedControl options={filters} bind:value={show} label="Entscheidungen filtern" />
   </div>
 
   <div class="spots">
     {#each shown as s, i (s.n)}
       <div in:rise={{ delay: Math.min(i, 6) * 40 }}>
-      <SpotCard
-        spot={s.spot}
-        index={s.n}
-        practice={practice(s.spot.concept)}
-        practised={practised(s.n)}
-        {onHand}
-        onDrill={() => onDrill(s.n)}
-        onRead={() => onRead(s.n)}
-      />
+        <SpotCard
+          spot={s.spot}
+          index={s.n}
+          practice={practice(s.spot.concept)}
+          practised={practised(s.n)}
+          {onHand}
+          onDrill={() => onDrill(s.n)}
+          onRead={() => onRead(s.n)}
+        />
       </div>
     {:else}
       <p class="none">Hier ist nichts. Alle Entscheidungen fallen unter den anderen Filter.</p>
     {/each}
   </div>
 
-  <footer class="panel how">
-    <h3>So ist der Bericht entstanden</h3>
-    <dl>
+  <Card tone="sunken">
+    <SectionHead level={3} title="So ist der Bericht entstanden" />
+    <dl class="how">
       <div><dt>Modell</dt><dd class="num">{shortModel(report.meta.model)}</dd></div>
       <div><dt>Kosten</dt><dd class="num">{cost(report.meta.cost_usd)}</dd></div>
       <div><dt>Dauer</dt><dd class="num">{duration(report.meta.seconds)}</dd></div>
@@ -274,46 +251,32 @@
         <dt>Tokens</dt><dd class="num">{tokens(report.meta.prompt_tokens + report.meta.completion_tokens)}</dd>
       </div>
     </dl>
-    <p>
-      <span class="tag calc">berechnet</span> stammt aus Ringsides Rechenkern (Equity, Pot Odds, Push/Fold-Nash, ICM, Outs).
-      <span class="tag guess">Einschätzung</span> ist die Meinung des Sprachmodells, etwa über die Ranges deiner Gegner.
-      {#if report.meta.downgraded}
-        <b class="warn">
-          {report.meta.downgraded}
-          {report.meta.downgraded === 1 ? "Zahl hat" : "Zahlen hat"} das Modell als berechnet ausgegeben, ohne dass ein Werkzeug
-          sie geliefert hat; sie stehen hier als Einschätzung.
-        </b>
-      {/if}
+    <p class="legend">
+      <SourceNote kind="computed" /> stammt aus Ringsides Rechenkern (Equity, Pot Odds, Push/Fold-Nash, ICM, Outs).
+      <SourceNote kind="opinion" /> ist die Meinung des Sprachmodells, etwa über die Ranges deiner Gegner.
     </p>
-  </footer>
+    {#if report.meta.downgraded}
+      <p class="downgraded">
+        {report.meta.downgraded}
+        {report.meta.downgraded === 1 ? "Zahl hat" : "Zahlen hat"} das Modell als berechnet ausgegeben, ohne dass ein Werkzeug sie
+        geliefert hat; sie stehen hier als Einschätzung.
+      </p>
+    {/if}
+  </Card>
 </div>
 
 <style>
   .report {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--sp-4);
     min-width: 0;
   }
-  .sub {
+  .sub,
+  .extra {
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
-  }
-
-  .hero {
-    padding: 20px 24px 24px;
-  }
-  .top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px 20px;
-  }
-  .titles {
-    flex: 1 1 360px;
-    min-width: 0;
   }
   .extra {
     margin-bottom: 2px;
@@ -322,22 +285,7 @@
   .nowrap {
     white-space: nowrap;
   }
-  h2 {
-    margin: 0 0 2px;
-    font-family: var(--font-num);
-    font-size: 24px;
-    font-weight: 600;
-    line-height: 1.2;
-  }
-  .buttons {
-    display: flex;
-    flex-shrink: 0;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .buttons svg,
-  .next svg {
+  svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -345,20 +293,46 @@
     stroke-linejoin: round;
   }
 
+  .top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-3) var(--sp-5);
+  }
+  .titles {
+    flex: 1 1 360px;
+    min-width: 0;
+  }
+  h2 {
+    margin: 0 0 2px;
+    font-family: var(--font-num);
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
+    line-height: 1.2;
+  }
+  .buttons {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--sp-2);
+    flex-wrap: wrap;
+  }
+
   .answer {
     display: grid;
-    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
-    gap: 28px;
-    margin-top: 18px;
+    grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr);
+    gap: var(--sp-6);
+    margin-top: var(--sp-5);
   }
   .say {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: var(--sp-5);
   }
   .summary {
     margin: 0;
-    font-size: 17px;
+    font-size: var(--fs-xl);
     line-height: 1.6;
     text-wrap: pretty;
     max-width: 68ch;
@@ -367,192 +341,59 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 10px 18px;
-  }
-  .next .btn {
-    height: 36px;
-    padding: 0 16px;
-  }
-  .link {
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font-size: 13px;
-    text-decoration: underline;
-    text-decoration-color: var(--line-2);
-    text-underline-offset: 3px;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
+    gap: var(--sp-3) var(--sp-4);
   }
 
   .score {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px 18px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid var(--line);
+    gap: var(--sp-4);
+  }
+  .score-top {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+  }
+  .ring-n {
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
   }
   .big {
     margin: 0;
-    font-size: 14px;
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .big b {
-    font-size: 26px;
-    font-weight: 600;
+    font-size: var(--fs-3xl);
+    font-weight: var(--fw-semibold);
     color: var(--text);
     margin-right: 2px;
   }
-  .v-fehler {
-    --c: var(--neg);
-  }
-  .v-fraglich {
-    --c: var(--amber);
-  }
-  .v-ok {
-    --c: var(--text-3);
-  }
-  .v-stark {
-    --c: var(--pos);
-  }
-  .grades {
-    display: flex;
-    align-items: center;
-    gap: 18px;
-  }
-  .ring {
-    width: 84px;
-    height: 84px;
-    flex-shrink: 0;
-    transform: rotate(-90deg);
-  }
-  .ring circle {
-    fill: none;
-    stroke-width: 7;
-  }
-  .ring .track {
-    stroke: var(--surface-3);
-  }
-  .ring .arc {
-    stroke: var(--c);
-    transition: stroke-dasharray var(--dur-slow, 320ms) var(--ease-enter, cubic-bezier(0.05, 0.7, 0.1, 1));
-  }
-  @starting-style {
-    .ring .arc {
-      stroke-dasharray: 0 999;
-    }
-  }
-  .ring text {
-    transform: rotate(90deg);
-    transform-origin: 40px 40px;
-    text-anchor: middle;
-    fill: var(--text);
-  }
-  .ring-n {
-    font-size: 17px;
-    font-weight: 600;
-  }
-  .ring-l {
-    font-size: 10.5px;
-    fill: var(--text-2) !important;
-  }
-  .breakdown {
-    flex: 1;
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 12.5px;
-    min-width: 0;
-  }
-  .breakdown li {
-    display: grid;
-    grid-template-columns: 62px minmax(0, 1fr) 16px;
-    align-items: center;
-    gap: 10px;
-    cursor: help;
-  }
-  .gname {
-    color: var(--text-2);
-  }
-  .gbar {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .gbar i {
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    background: var(--c);
-    transition: width var(--dur-slow, 320ms) var(--ease-enter, cubic-bezier(0.05, 0.7, 0.1, 1));
-  }
-  @starting-style {
-    .gbar i {
-      width: 0;
-    }
-  }
-  .breakdown b {
-    text-align: right;
-    font-weight: 600;
-  }
-  .breakdown li.zero {
-    opacity: 0.45;
-  }
   .worst {
     list-style: none;
-    margin: 2px 0 0;
-    padding: 8px 0 0;
+    margin: 0;
+    padding: var(--sp-3) 0 0;
     border-top: 1px solid var(--line);
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--sp-1);
   }
-  .worst button {
+  .row {
     display: flex;
     align-items: center;
-    gap: 9px;
-    width: 100%;
-    padding: 5px 6px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    text-align: left;
-    font-size: 13px;
-    cursor: pointer;
-  }
-  .worst button {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .worst button:hover {
-    background: var(--surface-2);
-  }
-  .worst i {
-    width: 3px;
-    align-self: stretch;
-    border-radius: 2px;
-    background: var(--c);
-    flex-shrink: 0;
+    gap: var(--sp-2);
+    font-size: var(--fs-md);
   }
   .mini-cards {
     display: flex;
     gap: 2px;
     flex-shrink: 0;
   }
-  .pos {
+  .seat {
     width: 28px;
     flex-shrink: 0;
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
     color: var(--text-2);
   }
   .txt {
@@ -564,44 +405,29 @@
   }
   .go {
     flex-shrink: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .worst button:hover .go {
-    color: var(--text);
-  }
-  h3 {
-    margin: 0;
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-  }
-  .plan {
-    padding: 14px 18px 16px;
-  }
+
   .plan-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--sp-3);
   }
-  .small {
-    height: 28px;
-    font-size: 12.5px;
-  }
-  .plan ol {
+  .plan {
     list-style: none;
-    margin: 10px 0 0;
+    margin: var(--sp-3) 0 0;
     padding: 0;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 8px;
+    gap: var(--sp-2);
   }
   .plan li {
     display: flex;
-    gap: 10px;
+    gap: var(--sp-3);
     align-items: flex-start;
-    padding: 10px 12px;
+    padding: var(--sp-3);
     border-radius: var(--r-sm);
     background: var(--surface-2);
     line-height: 1.45;
@@ -614,115 +440,73 @@
     height: 22px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
 
   .list-head {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 6px;
+    gap: var(--sp-3);
+    margin-top: var(--sp-2);
   }
   .list-head h3 {
-    font-size: 15px;
+    margin: 0;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
   }
   .keys {
     margin-right: auto;
     display: flex;
     align-items: center;
-    gap: 3px;
-    font-size: 12.5px;
+    gap: var(--sp-1);
+    font-size: var(--fs-sm);
     color: var(--text-2);
-  }
-  kbd {
-    display: inline-grid;
-    place-items: center;
-    min-width: 20px;
-    height: 20px;
-    padding: 0 4px;
-    border: 1px solid var(--line-2);
-    border-bottom-width: 2px;
-    border-radius: 4px;
-    font-family: var(--font-ui);
-    font-size: 11px;
-    color: var(--text-2);
-  }
-  .keys kbd:last-of-type {
-    margin-right: 4px;
   }
   .spots {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--sp-3);
   }
   .none {
     margin: 0;
-    padding: 24px;
+    padding: var(--sp-6);
     text-align: center;
     color: var(--text-2);
   }
 
   .how {
-    padding: 14px 18px 16px;
-    margin-top: 4px;
-    background: transparent;
-  }
-  .how h3 {
-    color: var(--text-2);
-  }
-  dl {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 10px 16px;
-    margin: 12px 0 0;
+    gap: var(--sp-3) var(--sp-4);
+    margin: var(--sp-3) 0 0;
   }
   dt {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   dd {
     margin: 1px 0 0;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
   }
-  .how p {
-    margin: 14px 0 0;
-    font-size: 12.5px;
-    line-height: 1.7;
+  .legend,
+  .downgraded {
+    margin: var(--sp-4) 0 0;
+    font-size: var(--fs-md);
+    line-height: 1.9;
     color: var(--text-2);
   }
-  .tag {
-    padding: 1px 6px;
-    border-radius: 4px;
-    font-size: 11px;
-  }
-  .tag.calc {
-    background: var(--surface-3);
-    color: var(--text);
-  }
-  .tag.guess {
-    border: 1px dashed var(--line-2);
-    color: var(--text-2);
-  }
-  .warn {
-    display: block;
-    margin-top: 6px;
-    font-weight: 400;
+  .downgraded {
+    margin-top: var(--sp-2);
+    line-height: 1.5;
     color: var(--amber);
   }
 
   @container (max-width: 860px) {
     .answer {
       grid-template-columns: minmax(0, 1fr);
-      gap: 20px;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .ring .arc,
-    .gbar i {
-      transition: none;
+      gap: var(--sp-5);
     }
   }
 </style>

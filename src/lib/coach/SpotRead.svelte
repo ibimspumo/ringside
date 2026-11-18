@@ -3,7 +3,7 @@
   import { ARTICLE_BY_ID } from "../learn/wissen/articles";
   import { loadRead, storeRead } from "../learn/wissen/read";
   import PlayingCard from "../PlayingCard.svelte";
-  import CardText from "./CardText.svelte";
+  import CardText from "../ui/CardText.svelte";
   import { conceptName } from "./concepts";
   import Figures from "./Figures.svelte";
   import { positionHint, verdictOf } from "./meaning";
@@ -71,8 +71,8 @@
       </div>
       <div class="text">
         <p class="eyebrow">Dein Spot zum Thema {conceptName(spot.concept)} · <span class="vname">{verdict.name}</span></p>
-        <h2 id="mine-title"><CardText text={spot.action} /></h2>
-        {#if spot.better}<p class="better"><span>Besser</span><b><CardText text={spot.better} /></b></p>{/if}
+        <h2 id="mine-title"><CardText hands text={spot.action} /></h2>
+        {#if spot.better}<p class="better"><span>Besser</span><b><CardText hands text={spot.better} /></b></p>{/if}
         {#if spot.numbers.length}
           <p class="lead">
             Deine Zahlen aus diesem Spot. Der Artikel unten rechnet mit eigenen Beispielen – vergleiche sie mit deinen:
@@ -138,7 +138,7 @@
     stroke-linejoin: round;
   }
   .where {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .body {
@@ -158,7 +158,7 @@
     gap: 3px;
   }
   .meta {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   abbr {
@@ -174,17 +174,17 @@
   }
   .eyebrow {
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .vname {
     color: var(--accent);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   h2 {
     margin: 0;
-    font-size: 17px;
-    font-weight: 600;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
     line-height: 1.4;
   }
   .better {
@@ -199,12 +199,12 @@
     border-left: 2px solid var(--text);
   }
   .better span {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .lead {
     margin: 4px 0 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .row {
@@ -220,7 +220,7 @@
     align-items: center;
     gap: 12px;
     margin: 8px 0 -4px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .divider::before,

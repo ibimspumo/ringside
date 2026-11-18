@@ -45,3 +45,33 @@ export function splitCards(text: string): ({ text: string } | { card: string })[
   if (at < text.length) out.push({ text: text.slice(at) });
   return out;
 }
+
+export type TextPart = { text: string } | { card: string } | { hand: string[]; kind: string; title: string };
+
+const KIND: Record<string, string> = { s: "suited, gleiche Farbe", o: "offsuit, verschiedene Farben", "+": "und besser" };
+
+/**
+ * Like `splitCards`, and also hand classes ("K6o", "99", "T9s", "K8+") as rank pairs. Two digits
+ * alone ("22") count only when they are a pair, and nothing touching a unit (bb, %, $) is a hand.
+ */
+export function splitHands(text: string): TextPart[] {
+  const out: TextPart[] = [];
+  const re = /(?<![\w,.])([AKQJT2-9])([AKQJT2-9])([so]?\+?)(?![\w+]|[,.]\d|\s?(?:bb|BB|%|\$|Tsd))/g;
+  for (const part of splitCards(text)) {
+    if (!("text" in part)) {
+      out.push(part);
+      continue;
+    }
+    let at = 0;
+    for (const m of part.text.matchAll(re)) {
+      const [whole, a, b, kind] = m;
+      if (/\d/.test(a) && /\d/.test(b) && a !== b && !kind) continue;
+      if (m.index > at) out.push({ text: part.text.slice(at, m.index) });
+      const title = [`${a}${b}`, ...[...kind].map((k) => KIND[k])].join(", ");
+      out.push({ hand: [a, b], kind, title });
+      at = m.index + whole.length;
+    }
+    if (at < part.text.length) out.push({ text: part.text.slice(at) });
+  }
+  return out;
+}

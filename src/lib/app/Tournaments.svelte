@@ -5,6 +5,7 @@
   import type { Filter, TournamentRow, Tournaments } from "../types";
   import { dateTime, int, sign, signed } from "./format";
   import ResultsChart, { type Series } from "./ResultsChart.svelte";
+  import Button from "../ui/Button.svelte";
 
   let {
     filter,
@@ -144,6 +145,10 @@
   }
 </script>
 
+{#snippet coachIcon()}<svg class="coach-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"
+    ><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" /></svg
+  >{/snippet}
+
 <div class="page">
   {#if failed}
     <div class="panel empty-state">Die Turniere konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
@@ -278,16 +283,14 @@
                 <td>{int(r.hands)}</td>
                 <td class="coach">
                   {#if notAnalyzable(r) === null}
-                    <button
-                      class="btn analyze"
+                    <Button
+                      size="sm"
+                      icon={coachIcon}
                       title="Vom KI-Coach analysieren lassen. Vorher siehst du, was gesendet wird und was es kostet."
                       onclick={(e) => {
                         e.stopPropagation();
                         onAnalyze(r.id);
-                      }}
-                      ><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"
-                        ><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" /></svg
-                      >Analysieren</button
+                      }}>Analysieren</Button
                     >
                   {:else}
                     <span class="na" title={notAnalyzable(r)}>–</span>
@@ -441,30 +444,12 @@
     width: 1%;
     padding-right: 12px;
   }
-  .analyze {
-    gap: 6px;
-    height: 26px;
-    padding: 0 10px 0 8px;
-    border-color: var(--line);
-    background: transparent;
-    color: var(--text-2);
-    font-size: 12.5px;
-  }
-  .analyze svg {
+  .coach-icon {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.8;
     stroke-linejoin: round;
     stroke-linecap: round;
-  }
-  tr:hover .analyze,
-  .analyze:focus-visible {
-    border-color: var(--line-2);
-    background: var(--surface-2);
-    color: var(--text);
-  }
-  .analyze:hover {
-    background: var(--surface-3);
   }
   .na {
     color: var(--text-3);

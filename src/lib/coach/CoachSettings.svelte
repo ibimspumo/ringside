@@ -1,6 +1,9 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { EFFORTS, coachApi, cost, errorText, usd } from "./api";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import IconButton from "../ui/IconButton.svelte";
   import KeyForm from "./KeyForm.svelte";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
 
@@ -111,9 +114,9 @@
   <div class="panel-head">
     <h2 class="panel-title" id="coach-settings-title">KI-Coach</h2>
     {#if onClose}
-      <button class="btn ghost close" onclick={onClose} aria-label="Einstellungen schließen" title="Schließen">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-      </button>
+      <IconButton label="Einstellungen schließen" onclick={onClose}
+        ><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></IconButton
+      >
     {/if}
   </div>
   <p class="hint">
@@ -131,9 +134,9 @@
         {#if status?.has_key}
           <div class="keyline">
             <span class="state on"><i></i>Key hinterlegt</span>
-            <button class="btn small" onclick={test} disabled={busy}>Testen</button>
-            <button class="btn small ghost" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</button>
-            <button class="btn small ghost danger" onclick={remove} disabled={busy}>Löschen</button>
+            <Button size="sm" onclick={test} disabled={busy}>Testen</Button>
+            <Button size="sm" variant="quiet" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
+            <Button size="sm" variant="danger" onclick={remove} disabled={busy}>Löschen</Button>
           </div>
           {#if replacing}
             <div class="sub-block"><KeyForm replace onSaved={saved} /></div>
@@ -174,8 +177,8 @@
             </div>
           {/if}
           {#if !open}
-            <button class="btn small" onclick={loadModels} disabled={!status?.has_key}
-              title={status?.has_key ? undefined : "Erst mit Key lädt Ringside die Modelle von OpenRouter."}>Anderes Modell</button
+            <Button size="sm" onclick={loadModels} disabled={!status?.has_key}
+              title={status?.has_key ? undefined : "Erst mit Key lädt Ringside die Modelle von OpenRouter."}>Anderes Modell</Button
             >
           {/if}
         </div>
@@ -184,18 +187,19 @@
           <div class="picker">
             <div class="tools-row">
               <input class="field search" type="search" placeholder="Modell suchen" aria-label="Modell suchen" bind:value={search} />
-              <label class="check"
-                ><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
+              <span class="opt"
+                ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
+                ></span
               >
-              <label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label>
-              <button class="btn small ghost" onclick={() => (open = false)}>Fertig</button>
+              <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
+              <Button size="sm" variant="quiet" onclick={() => (open = false)}>Fertig</Button>
             </div>
             {#if modelsError}
               <p class="msg">{modelsError}</p>
             {:else if !models}
               <p class="fine">Lade die Modelle von OpenRouter …</p>
             {:else}
-              <div class="list" class:technical role="listbox" aria-label="Modelle">
+              <div class="list" class:technical role="group" aria-label="Modelle">
                 <div class="lhead" aria-hidden="true">
                   <span>Modell</span><span title={RICHTWERT}>ca. je Turnier</span>{#if technical}<span>Ein / Aus je 1 Mio.</span><span
                       >Kontext</span
@@ -203,15 +207,14 @@
                 </div>
                 {#each filtered.slice(0, 200) as m (m.id)}
                   {@const t = perTournament(m)}
-                  <button
-                    class="lrow"
-                    class:on={m.id === status?.model}
-                    role="option"
-                    aria-selected={m.id === status?.model}
+                  <Card
+                    pad="sm"
+                    selected={m.id === status?.model}
                     disabled={!m.tools}
                     onclick={() => choose(m)}
                     title={m.tools ? m.id : "Ohne Werkzeuge kann der Coach nicht rechnen."}
                   >
+                    <span class="lgrid">
                     <span class="mname">
                       <span class="mtitle">
                         {modelName(m)}
@@ -228,7 +231,8 @@
                       <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>
                       <span class="num">{ctx(m.context_length)}</span>
                     {/if}
-                  </button>
+                    </span>
+                  </Card>
                 {:else}
                   <p class="fine pad">Kein Modell gefunden.</p>
                 {/each}
@@ -248,18 +252,14 @@
         </div>
         <div class="rbody">
           {#if reasons}
-            <div class="choices" role="radiogroup" aria-labelledby="effort-label">
+            <div class="choices" role="group" aria-labelledby="effort-label">
               {#each [...EFFORTS].reverse() as e (e.id)}
-                <button
-                  role="radio"
-                  aria-checked={status.effort === e.id}
-                  class="choice"
-                  class:on={status.effort === e.id}
-                  onclick={() => setEffort(e.id)}
-                >
-                  <b>{e.name}</b>
-                  <span>{e.hint}</span>
-                </button>
+                <Card pad="sm" selected={status.effort === e.id} onclick={() => setEffort(e.id)}>
+                  <span class="choice">
+                    <b>{e.name}</b>
+                    <span>{e.hint}</span>
+                  </span>
+                </Card>
               {/each}
             </div>
           {:else}
@@ -274,11 +274,6 @@
 <style>
   .coach {
     grid-column: 1 / -1;
-  }
-  .close {
-    width: 32px;
-    height: 28px;
-    padding: 0;
   }
   svg {
     fill: none;
@@ -313,12 +308,12 @@
     gap: 2px;
   }
   .rlabel b {
-    font-size: 13.5px;
-    font-weight: 600;
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
   }
   .rlabel span,
   .fine {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .rbody {
@@ -353,14 +348,9 @@
     background: var(--pos);
     border-color: var(--pos);
   }
-  .small {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
-  }
   .msg {
-    font-size: 13px;
-    color: #ff9d93;
+    font-size: var(--fs-md);
+    color: var(--danger-text);
   }
   .msg.ok {
     color: var(--pos);
@@ -384,8 +374,8 @@
     min-width: 0;
   }
   .what b {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
   }
   .price {
     display: flex;
@@ -394,8 +384,8 @@
     cursor: help;
   }
   .price b {
-    font-size: 17px;
-    font-weight: 600;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
   }
 
   .picker {
@@ -413,71 +403,50 @@
     flex: 1 1 220px;
     max-width: 320px;
   }
-  .check {
+  .opt {
+    display: flex;
     align-items: center;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
-  .check input {
-    margin: 0;
-  }
   .list {
-    max-height: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    max-height: 380px;
     overflow: auto;
+    padding: 0 var(--sp-1) var(--sp-1);
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
   }
   .lhead,
-  .lrow {
+  .lgrid {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 190px;
-    gap: 12px;
+    gap: var(--sp-3);
     align-items: center;
-    padding: 7px 12px;
   }
   .technical .lhead,
-  .technical .lrow {
+  .technical .lgrid {
     grid-template-columns: minmax(0, 1fr) 190px 130px 76px;
   }
   .lhead {
     position: sticky;
     top: 0;
+    z-index: 1;
+    padding: var(--sp-2) var(--sp-3);
     background: var(--surface);
     border-bottom: 1px solid var(--line);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .lhead span:not(:first-child),
-  .lrow > span:not(:first-child) {
+  .lgrid > span:not(:first-child) {
     text-align: right;
   }
-  .lrow {
-    width: 100%;
-    border: 0;
-    border-bottom: 1px solid var(--line);
-    background: transparent;
-    text-align: left;
-    font-size: 13px;
+  .lgrid {
+    font-size: var(--fs-md);
     color: var(--text-2);
-    cursor: pointer;
-  }
-  .lrow {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .lrow:last-child {
-    border-bottom: 0;
-  }
-  .lrow:hover:not(:disabled) {
-    background: var(--surface-2);
-  }
-  .lrow.on {
-    background: var(--surface-3);
-    box-shadow: inset 2px 0 0 var(--text);
-  }
-  .lrow:disabled {
-    cursor: default;
-    opacity: 0.5;
   }
   .mname {
     display: flex;
@@ -496,7 +465,7 @@
     padding: 0 6px;
     border-radius: 4px;
     border: 1px solid var(--line-2);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-style: normal;
     line-height: 17px;
     color: var(--text-2);
@@ -524,17 +493,17 @@
     border-radius: 3px;
     background: var(--text-2);
   }
-  .lrow .strong {
+  .lgrid .strong {
     min-width: 52px;
     text-align: right;
   }
   .mname small {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .strong {
     color: var(--text);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .pad {
     padding: 12px;
@@ -549,31 +518,13 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    padding: 11px 13px 12px;
-    border-radius: var(--r-sm);
-    border: 1px solid var(--line-2);
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-  }
-  .choice {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
-      border-color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .choice:hover {
-    background: var(--surface-2);
-  }
-  .choice.on {
-    background: var(--surface-3);
-    border-color: var(--text);
   }
   .choice b {
-    font-size: 13.5px;
-    font-weight: 600;
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
   }
   .choice span {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     line-height: 1.45;
     color: var(--text-2);
   }
@@ -587,11 +538,11 @@
       grid-template-columns: minmax(0, 1fr);
     }
     .technical .lhead,
-    .technical .lrow {
+    .technical .lgrid {
       grid-template-columns: minmax(0, 1fr) 150px 110px;
     }
     .technical .lhead span:last-child,
-    .technical .lrow > span:last-child {
+    .technical .lgrid > span:last-child {
       display: none;
     }
     .pbar {

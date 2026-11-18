@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from "../ui/Button.svelte";
   import { coachApi, errorText, usd } from "./api";
   import type { KeyInfo } from "./types";
 
@@ -29,7 +30,7 @@
 </script>
 
 <form class="key" onsubmit={save}>
-  <input
+  <span class="key-input"><input
     class="field"
     type="password"
     autocomplete="off"
@@ -37,10 +38,10 @@
     placeholder={replace ? "Neuen Key einfügen, um den alten zu ersetzen" : "sk-or-v1-…"}
     aria-label="OpenRouter-API-Key"
     bind:value={key}
-  />
-  <button class="btn primary" type="submit" disabled={busy || !key.trim()}>
+  /></span>
+  <Button variant="primary" type="submit" loading={busy} disabled={busy || !key.trim()}>
     {busy ? "Wird geprüft …" : "Speichern und testen"}
-  </button>
+  </Button>
 </form>
 {#if message}
   <p class="msg" class:ok={message.ok} role="status">{message.text}</p>
@@ -50,18 +51,22 @@
   .key {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--sp-2);
   }
-  .field {
+  .key-input {
+    display: flex;
     flex: 1 1 240px;
     max-width: 420px;
+  }
+  .key-input input {
+    flex: 1;
     font-family: var(--font-num);
   }
   .msg {
-    margin: 8px 0 0;
-    font-size: 13px;
+    margin: var(--sp-2) 0 0;
+    font-size: var(--fs-md);
     line-height: 1.45;
-    color: #ff9d93;
+    color: var(--danger-text);
   }
   .msg.ok {
     color: var(--pos);

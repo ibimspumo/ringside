@@ -1,13 +1,16 @@
 <script lang="ts">
   import { requestAnalysis } from "../analysis/store.svelte";
   import Felt from "../Felt.svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import Badge from "../ui/Badge.svelte";
+  import Button from "../ui/Button.svelte";
+  import CardText from "../ui/CardText.svelte";
+  import GradeBadge from "../ui/GradeBadge.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { conceptName } from "./concepts";
-  import CardText from "./CardText.svelte";
+  import { CHOICE_NAME, type Choice } from "./drill";
   import Figures from "./Figures.svelte";
   import { positionHint, verdictOf } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
-  import { CHOICE_NAME, type Choice } from "./drill";
   import type { CoachSpot } from "./types";
 
   let {
@@ -36,11 +39,14 @@
   );
 </script>
 
-<article class="spot v-{spot.verdict}" id="spot-{index}" tabindex="-1" aria-labelledby="spot-{index}-title">
+{#snippet arrow()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>{/snippet}
+{#snippet play()}<svg class="fill" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>{/snippet}
+
+<article class="spot" style:--accent="var(--grade-{verdict.grade})" id="spot-{index}" tabindex="-1" aria-labelledby="spot-{index}-title">
   <div class="visual" aria-label="Deine Karten {street}">
     <Felt>
-      <span class="chip pos" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
-      <span class="chip stack num" title="Dein Stack in Big Blinds zu Beginn der Hand">{stack} BB</span>
+      <span class="seat-tag at-left" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
+      <span class="seat-tag at-right num" title="Dein Stack in Big Blinds zu Beginn der Hand">{stack} BB</span>
       {#if spot.board.length}
         <div class="board">
           {#each spot.board as c (c)}<PlayingCard card={c} size={26} />{/each}
@@ -57,44 +63,38 @@
   <div class="text">
     <header>
       <span class="idx num">{index}</span>
-      <span class="verdict">{verdict.name}</span>
+      <GradeBadge grade={verdict.grade} size="sm" />
       <span class="meaning">{verdict.meaning}</span>
       {#if practised}
-        <span class="done" class:good={practised.right === true} class:off={practised.right === false}
-          title="In dieser Sitzung geübt">Geübt: {CHOICE_NAME[practised.answer]}{practised.right === true
+        <Badge size="sm" tone={practised.right === true ? "good" : practised.right === false ? "warn" : "neutral"} title="In dieser Sitzung geübt"
+          >Geübt: {CHOICE_NAME[practised.answer]}{practised.right === true
             ? " · wie der Coach"
             : practised.right === false
               ? " · anders als der Coach"
-              : ""}</span
+              : ""}</Badge
         >
       {/if}
       <span class="time num" title="Gespielt um {time} Uhr">{time}</span>
     </header>
-    <p class="action" id="spot-{index}-title"><CardText text={spot.action} /></p>
+    <p class="action" id="spot-{index}-title"><CardText hands text={spot.action} /></p>
     {#if spot.better}
-      <p class="better"><span>Besser</span><b><CardText text={spot.better} /></b></p>
+      <p class="better"><span>Besser</span><b><CardText hands text={spot.better} /></b></p>
     {/if}
-    <p class="why"><CardText text={spot.why} /></p>
+    <p class="why"><CardText hands text={spot.why} /></p>
     {#if spot.numbers.length}
       <Figures numbers={spot.numbers} />
     {/if}
     <footer>
       <div class="learn">
-        <span class="topic"><span class="faint">Thema</span> {conceptName(spot.concept)}</span>
-        <button class="btn small" onclick={onDrill} title="Die Hand hält vor deiner Entscheidung an; du entscheidest selbst">
-          Diesen Spot üben
-          <svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-        </button>
+        <span class="topic"><span class="label">Thema</span> {conceptName(spot.concept)}</span>
+        <Button size="sm" onclick={onDrill} icon={arrow} title="Die Hand hält vor deiner Entscheidung an; du entscheidest selbst">Diesen Spot üben</Button>
         {#if practice.articles.length}
-          <button class="link" onclick={onRead} title={practice.articles[0].title}>Nachlesen</button>
+          <Button size="sm" variant="quiet" onclick={onRead} title={practice.articles[0].title}>Nachlesen</Button>
         {/if}
       </div>
       <div class="hand">
-        <button class="btn ghost small" onclick={() => onHand(spot.hand_id)}>
-          <svg class="fill" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M8 5.5v13l10-6.5z" /></svg>
-          Im Replayer ansehen
-        </button>
-        <button class="btn ghost small" onclick={() => requestAnalysis(spot.hand_id)}>Diese Hand analysieren</button>
+        <Button size="sm" variant="quiet" icon={play} onclick={() => onHand(spot.hand_id)}>Im Replayer ansehen</Button>
+        <Button size="sm" variant="quiet" onclick={() => requestAnalysis(spot.hand_id)}>Diese Hand analysieren</Button>
       </div>
     </footer>
   </div>
@@ -102,11 +102,10 @@
 
 <style>
   .spot {
-    --accent: var(--text-3);
     display: grid;
     grid-template-columns: 252px minmax(0, 1fr);
-    gap: 20px;
-    padding: 16px 20px 16px 16px;
+    gap: var(--sp-5);
+    padding: var(--sp-4) var(--sp-5) var(--sp-4) var(--sp-4);
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
     background: var(--surface);
@@ -119,15 +118,6 @@
   .spot:focus-visible {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
-  }
-  .v-stark {
-    --accent: var(--pos);
-  }
-  .v-fraglich {
-    --accent: var(--amber);
-  }
-  .v-fehler {
-    --accent: var(--neg);
   }
   .visual {
     position: relative;
@@ -149,9 +139,9 @@
     left: 50%;
     top: 40%;
     transform: translate(-50%, -50%);
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     letter-spacing: 0.04em;
-    color: rgba(236, 235, 231, 0.38);
+    color: color-mix(in srgb, var(--text) 40%, transparent);
     white-space: nowrap;
   }
   .hero {
@@ -162,23 +152,23 @@
     display: flex;
     gap: 3px;
   }
-  .chip {
+  .seat-tag {
     position: absolute;
     top: 7px;
     padding: 1px 7px;
-    border-radius: 999px;
-    background: rgba(18, 20, 24, 0.82);
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--bg) 82%, transparent);
     border: 1px solid var(--line-2);
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     color: var(--text);
     cursor: help;
     z-index: 1;
   }
-  .chip.pos {
+  .at-left {
     left: 7px;
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
-  .chip.stack {
+  .at-right {
     right: 7px;
   }
 
@@ -202,52 +192,27 @@
     height: 22px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .verdict {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--accent);
-  }
-  .v-ok .verdict {
-    color: var(--text);
-  }
   .meaning {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .done {
-    flex-shrink: 0;
-    padding: 1px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--line-2);
-    font-size: 12.5px;
-    color: var(--text-2);
-    white-space: nowrap;
-  }
-  .done.good {
-    color: var(--pos);
-    border-color: color-mix(in srgb, var(--pos) 45%, transparent);
-  }
-  .done.off {
-    color: var(--amber);
-    border-color: color-mix(in srgb, var(--amber) 45%, transparent);
-  }
   .time {
     margin-left: auto;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   p {
     margin: 0;
   }
   .action {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
     line-height: 1.4;
   }
   .better {
@@ -261,11 +226,11 @@
     border-left: 2px solid var(--text);
   }
   .better span {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .better b {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .why {
     color: var(--text-2);
@@ -294,15 +259,9 @@
     margin-left: auto;
   }
   .topic {
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
-  .small {
-    height: 30px;
-    padding: 0 10px;
-    font-size: 13px;
-    gap: 6px;
-  }
-  .ghost {
+  .label {
     color: var(--text-2);
   }
   svg {
@@ -315,20 +274,6 @@
   svg.fill {
     fill: currentColor;
     stroke: none;
-  }
-  .link {
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font-size: 12.5px;
-    text-decoration: underline;
-    text-decoration-color: var(--line-2);
-    text-underline-offset: 3px;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
   }
 
   @container (max-width: 820px) {

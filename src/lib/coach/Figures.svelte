@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SourceNote from "../ui/SourceNote.svelte";
   import { termsIn } from "./meaning";
   import type { Figure } from "./types";
 
@@ -15,12 +16,8 @@
       <div class="fig" class:guess={!calc}>
         <dt>{n.label}</dt>
         <dd>
-          <b class:num={calc}>{n.value}</b>
-          <span
-            class="src"
-            title={calc ? "Von Ringsides Rechenkern berechnet, nicht vom Sprachmodell" : "Einschätzung des Sprachmodells, nicht nachgerechnet"}
-            >{calc ? "berechnet" : "Einschätzung"}</span
-          >
+          <b class:num={calc} class:big={calc}>{n.value}</b>
+          <span class="src"><SourceNote kind={calc ? "computed" : "opinion"} /></span>
         </dd>
       </div>
     {/each}
@@ -36,7 +33,7 @@
   .wrap {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--sp-3);
     container-type: inline-size;
   }
   .figures {
@@ -51,9 +48,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 6px 16px;
-    min-height: 38px;
-    padding: 7px 12px;
+    gap: 6px var(--sp-4);
+    min-height: 40px;
+    padding: 7px var(--sp-3);
     border-top: 1px solid var(--line);
   }
   .fig:first-child {
@@ -61,40 +58,30 @@
   }
   dt {
     min-width: 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   dd {
     display: flex;
-    align-items: baseline;
-    gap: 10px;
+    align-items: center;
+    gap: var(--sp-3);
     margin: 0;
     flex-shrink: 0;
     max-width: 60%;
     text-align: right;
   }
   dd b {
-    font-weight: 600;
-    font-size: 13.5px;
+    font-weight: var(--fw-semibold);
+    font-size: var(--fs-base);
   }
-  dd b.num {
-    font-size: 17px;
+  dd b.big {
+    font-size: var(--fs-xl);
   }
   .src {
+    display: flex;
+    justify-content: flex-end;
+    width: 104px;
     flex-shrink: 0;
-    width: 86px;
-    padding: 1px 0;
-    border-radius: 4px;
-    font-size: 11.5px;
-    text-align: center;
-    background: var(--surface-3);
-    color: var(--text);
-    cursor: help;
-  }
-  .guess .src {
-    background: none;
-    border: 1px dashed var(--line-2);
-    color: var(--text-2);
   }
 
   @container (max-width: 460px) {
@@ -113,10 +100,10 @@
     list-style: none;
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
-    gap: 2px 14px;
+    gap: 2px var(--sp-4);
     margin: 0;
     padding: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     line-height: 1.5;
     color: var(--text-2);
   }
@@ -124,7 +111,7 @@
     display: contents;
   }
   .terms b {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     color: var(--text);
   }
 </style>

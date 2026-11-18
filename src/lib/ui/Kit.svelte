@@ -411,6 +411,7 @@
           <Card tone="raised"><Stat size="lg" label="Genauigkeit" value="84" unit="%" meaning="12 von 14 Entscheidungen richtig." /></Card>
           <Card onclick={() => {}}><SectionHead level={3} title="Klickbare Karte" sub="Ganze Fläche ist ein Knopf." /></Card>
           <Card onclick={() => {}} selected><SectionHead level={3} title="Ausgewählt" sub="Rahmen in Textfarbe." /></Card>
+          <Card onclick={() => {}} disabled title="Gerade nicht wählbar"><SectionHead level={3} title="Gesperrt" sub="Klickbar, aber gerade nicht wählbar." /></Card>
         </div>
         <Panel title="Panel mit Kopf" sub="Titel, Erklärzeile und Aktionen rechts.">
           {#snippet actions()}<Button size="sm" variant="quiet">Alle ansehen</Button>{/snippet}
@@ -477,6 +478,8 @@
         <div class="two">
           <Panel title="Session" sub="Wie bei Zug-Listen: Stufe auf einen Blick, Balken je Stufe.">
             <GradeBars counts={{ best: 9, mix: 3, good: 4, inaccurate: 2, mistake: 1, blunder: 0 }} />
+            <p class="muted">Mit <code>grades</code> nur die Stufen einer Quelle, etwa die vier des Coaches:</p>
+            <GradeBars grades={["best", "good", "inaccurate", "mistake"]} counts={{ best: 2, good: 1, inaccurate: 1, mistake: 1 }} />
           </Panel>
           <Panel title="Zug-Liste" sub="Symbol trägt die Stufe, nicht nur die Wortfarbe.">
             <ol class="moves">
@@ -497,6 +500,7 @@
           <PlayingCard card="Th" size={40} /><PlayingCard card="9d" size={40} /><PlayingCard card="8c" size={40} /><PlayingCard hidden size={40} />
         </div>
         <p class="card-text"><CardText text="Zwei Paare (Th Tc 9h 9c Js) gegen Straße (Jh Tc 9c 8c 7c)." /></p>
+        <p class="card-text small">Handklassen mit <code>hands</code>: <CardText hands text="Mit 8 bb schiebst du K6o immer, 99 und T9s auch; K8+ callt." /></p>
         <p class="card-text small">Notation mit Symbolen: <CardText text="A♠K♠ auf Q♥J♦T♣" /> · einzeln: <MiniCard card="7d" /> <MiniCard card="7d" dim /> (abgeblendet)</p>
         <div class="two">
           <Card><BestHand hole={["Jh", "7c"]} board={["Tc", "9c", "8c", "Ts", "9h"]} winner /></Card>

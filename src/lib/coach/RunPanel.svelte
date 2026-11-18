@@ -1,5 +1,14 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import Badge from "../ui/Badge.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import IconButton from "../ui/IconButton.svelte";
+  import ProgressBar from "../ui/ProgressBar.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import Stat from "../ui/Stat.svelte";
   import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
   import { shortModel } from "./meaning";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
@@ -83,10 +92,14 @@
   });
 
   const perM = (v: number | null) => (v == null ? "?" : v.toLocaleString("de-DE", { maximumFractionDigits: 3 }));
-  const share = (a: number, b: number) => `${b > 0 ? Math.max(2, Math.min(100, (a / b) * 100)) : 0}%`;
+  /** "ca. 0,143 $" → value and unit for a Stat. */
+  const money = (v: number) => cost(v).replace(/\s\$$/, "");
+  const effortOptions = [...EFFORTS].reverse().map((x) => ({ value: x.id, label: x.name }));
 </script>
 
-<section class="panel run" aria-labelledby="run-title">
+{#snippet closeIcon()}<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>{/snippet}
+
+<Card pad="lg" tone="raised" aria-labelledby="run-title">
   <header class="head">
     <div class="titles">
       <p class="eyebrow">Analyse</p>
@@ -105,61 +118,57 @@
       </ol>
     {/if}
     {#if st.kind !== "running"}
-      <button class="btn ghost close" onclick={onClose} aria-label="Analyse schließen" title="Schließen">
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
-      </button>
+      <IconButton label="Analyse schließen" onclick={onClose}>{@render closeIcon()}</IconButton>
     {/if}
   </header>
 
   <div class="body" aria-live="polite">
     {#if st.kind === "preparing"}
       <div class="line">
-        <span class="spinner" aria-hidden="true"></span>
+        <ProgressRing value={null} size={18} stroke={2} label="Ringside bereitet vor" />
         <span>Ringside sucht deine Entscheidungen heraus und rechnet die Spots vor …</span>
       </div>
-      <p class="faint">Push/Fold-Spots am ganzen Tisch brauchen dabei einige Sekunden. Noch wird nichts gesendet.</p>
+      <p class="explain">Push/Fold-Spots am ganzen Tisch brauchen dabei einige Sekunden. Noch wird nichts gesendet.</p>
       <div class="skeleton" aria-hidden="true"><i></i><i></i></div>
     {:else if st.kind === "confirm"}
       {@const e = st.estimate}
       <div class="cards">
-        <div class="card money">
-          <span class="label">Das kostet die Analyse</span>
-          <strong class="num">{e.cost_usd == null ? "unbekannt" : `ca. ${cost(e.cost_usd)}`}</strong>
-          {#if e.cost_usd != null && e.max_cost_usd != null}
-            <div class="cap" aria-hidden="true">
-              <i style="width:{share(e.cost_usd, e.max_cost_usd)}"></i>
-            </div>
-            <span class="note">
-              Deckel <b class="num">{cost(e.max_cost_usd)}</b>: Wird es teurer, bricht Ringside ab. Bezahlt wird direkt bei
-              OpenRouter.
-            </span>
-          {:else}
-            <span class="note">Der Preis des Modells ist nicht geladen, deshalb gibt es keine Schätzung.</span>
-          {/if}
-        </div>
-        <div class="card">
-          <span class="label">Das sieht sich der Coach an</span>
-          <strong class="num">{e.hands_sent} <small>von {e.hands_total} Händen</small></strong>
-          <div class="cap hands" aria-hidden="true"><i style="width:{share(e.hands_sent, e.hands_total)}"></i></div>
-          <span class="note">
-            Die <span class="num">{e.hands_without_decision}</span> Hände, die du nur gefoldet hast, bleiben hier{e.hands_dropped
-              ? `, ${e.hands_dropped} weniger wichtige lässt Ringside weg`
-              : ""}. <span class="num">{e.spots}</span> Push/Fold- und All-in-Spots hat Ringside schon vorgerechnet.
-          </span>
-        </div>
+        <Card tone="sunken">
+          <div class="fact">
+            {#if e.cost_usd != null}
+              <Stat size="lg" label="Das kostet die Analyse" value="ca. {money(e.cost_usd)}" unit="$" />
+            {:else}
+              <Stat size="lg" label="Das kostet die Analyse" value="unbekannt" />
+            {/if}
+            {#if e.cost_usd != null && e.max_cost_usd != null}
+              <ProgressBar value={e.cost_usd / e.max_cost_usd} size="md" label="Geschätzte Kosten im Verhältnis zum Deckel" />
+              <p class="note">
+                Deckel <b class="num">{cost(e.max_cost_usd)}</b>: Wird es teurer, bricht Ringside ab. Bezahlt wird direkt bei
+                OpenRouter.
+              </p>
+            {:else}
+              <p class="note">Der Preis des Modells ist nicht geladen, deshalb gibt es keine Schätzung.</p>
+            {/if}
+          </div>
+        </Card>
+        <Card tone="sunken">
+          <div class="fact">
+            <Stat size="lg" label="Das sieht sich der Coach an" value={String(e.hands_sent)} unit="von {e.hands_total} Händen" />
+            <ProgressBar value={e.hands_total ? e.hands_sent / e.hands_total : 0} size="md" label="Gesendete Hände" />
+            <p class="note">
+              Die <span class="num">{e.hands_without_decision}</span> Hände, die du nur gefoldet hast, bleiben hier{e.hands_dropped
+                ? `, ${e.hands_dropped} weniger wichtige lässt Ringside weg`
+                : ""}. <span class="num">{e.spots}</span> Push/Fold- und All-in-Spots hat Ringside schon vorgerechnet.
+            </p>
+          </div>
+        </Card>
       </div>
 
       {#if e.effort}
         {@const current = EFFORTS.find((x) => x.id === e.effort)}
         <div class="effort">
-          <span class="label" id="effort-run">Wie gründlich?</span>
-          <div class="seg" role="radiogroup" aria-labelledby="effort-run">
-            {#each [...EFFORTS].reverse() as x (x.id)}
-              <button role="radio" aria-checked={e.effort === x.id} class:on={e.effort === x.id} onclick={() => setEffort(x.id)}
-                >{x.name}</button
-              >
-            {/each}
-          </div>
+          <span class="label">Wie gründlich?</span>
+          <SegmentedControl options={effortOptions} value={e.effort} label="Gründlichkeit" onchange={setEffort} />
           <span class="hint">{current?.hint} Die Kosten oben passen sich an.</span>
         </div>
       {/if}
@@ -174,16 +183,16 @@
         </ul>
         <p class="never">
           Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
-          <b class="num nowrap">{shortModel(e.model)}</b>
-          <button class="link" onclick={onSettings}>Modell ändern</button>
+          <b class="num nowrap">{shortModel(e.model)}</b>.
+          <Button size="sm" variant="quiet" onclick={onSettings}>Modell ändern</Button>
         </p>
       </div>
 
       <div class="row">
-        <button class="btn primary send" onclick={() => send(e)}>
+        <Button variant="primary" size="lg" onclick={() => send(e)}>
           Senden und analysieren{e.cost_usd != null ? ` · ca. ${cost(e.cost_usd)}` : ""}
-        </button>
-        <button class="btn ghost" onclick={onClose}>Abbrechen</button>
+        </Button>
+        <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
         <details class="tech">
           <summary>Tokens und Preise</summary>
           <p>
@@ -200,7 +209,7 @@
       {@const live = p && (p.stage === "thinking" || p.stage === "writing" || p.stage === "calling")}
       <div class="now-row">
         <div class="line big">
-          <span class="spinner" aria-hidden="true"></span>
+          <ProgressRing value={null} size={18} stroke={2} label="Analyse läuft" />
           <span>{p?.message ?? "Verbindung zu OpenRouter …"}</span>
         </div>
         <div class="track" aria-label="Schritt {p?.step ?? 1} von höchstens {p?.max_steps ?? 12}">
@@ -211,30 +220,27 @@
         </div>
       </div>
       <div class="figs">
-        <div>
-          <span class="label">Läuft seit</span>
-          <b class="num">{duration(p?.total_seconds ?? 0)}</b>
-          <span class="note">dieser Schritt seit <span class="num">{duration(p?.step_seconds ?? 0)}</span></span>
-        </div>
-        <div>
-          <span class="label">Bisher bezahlt</span>
-          <b class="num">{cost(p?.cost_usd ?? 0)}</b>
-          <span class="note">{max != null ? `Deckel ${cost(max)}` : "kein Deckel bekannt"}</span>
-        </div>
-        <div>
-          <span class="label">Ringside hat gerechnet</span>
-          <b class="num">{p?.tool_calls ?? 0}-mal</b>
-          {#if used.length}
-            <span class="tools">
-              {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<span class="tool" class:now
-                  >{#if !now}<svg viewBox="0 0 24 24" width="11" height="11" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
-                    >{/if}{TOOLS[t] ?? t}</span
-                >{/each}
-            </span>
-          {:else}
-            <span class="note">Jede Zahl rechnet Ringside nach.</span>
-          {/if}
-        </div>
+        <Card tone="sunken">
+          <Stat label="Läuft seit" value={duration(p?.total_seconds ?? 0)} meaning="dieser Schritt seit {duration(p?.step_seconds ?? 0)}" />
+        </Card>
+        <Card tone="sunken">
+          <div class="fact">
+            <Stat label="Bisher bezahlt" value={money(p?.cost_usd ?? 0)} unit="$" meaning={max != null ? `Deckel ${cost(max)}` : "kein Deckel bekannt"} />
+            {#if max != null}<ProgressBar value={(p?.cost_usd ?? 0) / max} label="Bezahlt im Verhältnis zum Deckel" />{/if}
+          </div>
+        </Card>
+        <Card tone="sunken">
+          <div class="fact">
+            <Stat label="Ringside hat gerechnet" value="{p?.tool_calls ?? 0}-mal" meaning={used.length ? undefined : "Jede Zahl rechnet Ringside nach."} />
+            {#if used.length}
+              <span class="tools">
+                {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
+                    >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
+                  >{/each}
+              </span>
+            {/if}
+          </div>
+        </Card>
       </div>
       {#if p?.idle_limit != null && p.idle_seconds >= 15}
         <p class="wait" role="status">
@@ -252,13 +258,13 @@
         {/if}
       </p>
       <div class="row">
-        <button
-          class="btn"
+        <Button
+          loading={cancelling}
           disabled={cancelling}
           onclick={() => {
             cancelling = true;
             coachApi.cancel();
-          }}>{cancelling ? "Wird abgebrochen …" : "Analyse abbrechen"}</button
+          }}>{cancelling ? "Wird abgebrochen …" : "Analyse abbrechen"}</Button
         >
         <details class="tech">
           <summary>Technische Details</summary>
@@ -277,35 +283,26 @@
         </details>
       </div>
     {:else}
-      <div class="error" role="alert">
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.2v.3" /></svg>
-        <div>
-          <b>{st.noKey ? "Es fehlt noch der Key von OpenRouter." : "Die Analyse hat nicht geklappt."}</b>
-          <p>{st.message}</p>
-        </div>
-      </div>
-      <div class="row">
-        {#if st.noKey}
-          <button class="btn primary" onclick={onSettings}>Key hinterlegen</button>
-        {:else}
-          <button class="btn primary" onclick={prepareRun}>Erneut versuchen</button>
-        {/if}
-        <button class="btn ghost" onclick={onClose}>Schließen</button>
-      </div>
+      <EmptyState tone="error" title={st.noKey ? "Es fehlt noch der Key von OpenRouter." : "Die Analyse hat nicht geklappt."} text={st.message}>
+        {#snippet action()}
+          {#if st.kind === "error" && st.noKey}
+            <Button variant="primary" onclick={onSettings}>Key hinterlegen</Button>
+          {:else}
+            <Button variant="primary" onclick={prepareRun}>Erneut versuchen</Button>
+          {/if}
+          <Button variant="quiet" onclick={onClose}>Schließen</Button>
+        {/snippet}
+      </EmptyState>
     {/if}
   </div>
-</section>
+</Card>
 
 <style>
-  .run {
-    border-color: var(--line-2);
-  }
   .head {
     display: flex;
     align-items: center;
-    gap: 12px 24px;
+    gap: var(--sp-3) var(--sp-6);
     flex-wrap: wrap;
-    padding: 18px 22px 0;
   }
   .titles {
     min-width: 0;
@@ -313,28 +310,28 @@
   }
   .eyebrow {
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   h2 {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 20px;
-    font-weight: 600;
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
   }
   .stepper {
     list-style: none;
     display: flex;
-    gap: 18px;
+    gap: var(--sp-5);
     margin: 0;
     padding: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .stepper li {
     display: flex;
     align-items: center;
-    gap: 7px;
+    gap: var(--sp-2);
     white-space: nowrap;
   }
   .stepper .dot {
@@ -346,11 +343,10 @@
     border: 1.5px solid var(--text-3);
   }
   .stepper .dot svg {
+    fill: none;
     stroke: var(--bg);
     stroke-width: 3.5;
-  }
-  .stepper .done {
-    color: var(--text-2);
+    stroke-linecap: round;
   }
   .stepper .done .dot {
     background: var(--pos);
@@ -358,15 +354,11 @@
   }
   .stepper .now {
     color: var(--text);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .stepper .now .dot {
     border-color: var(--text);
-    box-shadow: 0 0 0 3px rgba(236, 235, 231, 0.12);
-  }
-  .close {
-    width: 32px;
-    padding: 0;
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 12%, transparent);
   }
   svg {
     fill: none;
@@ -378,176 +370,100 @@
   .body {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 18px 22px 22px;
+    gap: var(--sp-4);
+    margin-top: var(--sp-5);
   }
   p {
     margin: 0;
     line-height: 1.5;
   }
   .label {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
-  .note {
-    font-size: 12.5px;
+  .note,
+  .explain,
+  .hint,
+  .never {
+    font-size: var(--fs-md);
     line-height: 1.5;
     color: var(--text-2);
   }
-  .explain {
-    font-size: 13px;
-    color: var(--text-2);
-  }
-  .note b {
+  .note b,
+  .never b {
     color: var(--text);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
+  }
+  .nowrap {
+    white-space: nowrap;
   }
 
   .cards {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: var(--sp-3);
   }
-  .card {
+  .fact {
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    padding: 16px 18px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    min-width: 0;
-  }
-  .card strong {
-    font-size: 30px;
-    font-weight: 600;
-    line-height: 1.1;
-  }
-  .card strong small {
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--text-2);
-  }
-  .cap {
-    height: 6px;
-    margin: 4px 0 2px;
-    border-radius: 3px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .cap i {
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    background: var(--text);
-  }
-  .cap.hands i {
-    background: var(--text-2);
-  }
-  .money .cap {
-    position: relative;
-    overflow: visible;
-  }
-  .money .cap::after {
-    content: "";
-    position: absolute;
-    right: -1px;
-    top: -4px;
-    bottom: -4px;
-    width: 2px;
-    border-radius: 1px;
-    background: var(--amber);
+    gap: var(--sp-3);
   }
 
   .effort {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 14px;
+    gap: var(--sp-2) var(--sp-4);
   }
   .hint {
     flex: 1 1 260px;
-    font-size: 12.5px;
-    color: var(--text-2);
   }
 
   .privacy {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding-top: 14px;
+    gap: var(--sp-2);
+    padding-top: var(--sp-4);
     border-top: 1px solid var(--line);
   }
   .swaps {
     list-style: none;
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--sp-2);
     margin: 0;
     padding: 0;
   }
   .swaps li {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 4px 10px;
-    border-radius: 999px;
+    gap: var(--sp-2);
+    padding: var(--sp-1) var(--sp-3);
+    border-radius: var(--r-pill);
     background: var(--surface-2);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
   }
-  .swaps s {
-    color: var(--text-2);
-    text-decoration-color: var(--text-3);
-  }
+  .swaps s,
   .swaps span {
     color: var(--text-2);
   }
   .swaps b {
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .swaps .plain {
     background: none;
     color: var(--text-2);
-  }
-  .never {
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .never b {
-    color: var(--text);
-  }
-  .nowrap {
-    white-space: nowrap;
-  }
-  .link {
-    margin-left: 6px;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font: inherit;
-    text-decoration: underline;
-    text-decoration-color: var(--line-2);
-    text-underline-offset: 3px;
-    cursor: pointer;
-  }
-  .link:hover {
-    color: var(--text);
   }
 
   .row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-  }
-  .send {
-    height: 38px;
-    padding: 0 18px;
+    gap: var(--sp-2);
   }
   .tech {
     margin-left: auto;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .tech summary {
@@ -556,43 +472,28 @@
   }
   .tech p {
     max-width: 420px;
-    margin-top: 6px;
-    font-size: 12.5px;
+    margin-top: var(--sp-2);
   }
 
   .line {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--sp-3);
   }
   .line.big {
-    font-size: 16px;
-  }
-  .spinner {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-    border-radius: 50%;
-    border: 2px solid var(--surface-3);
-    border-top-color: var(--text);
-    animation: spin var(--dur-loop, 900ms) var(--ease-spin, cubic-bezier(0.45, 0.05, 0.55, 0.95)) infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
+    font-size: var(--fs-lg);
   }
   .skeleton {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
+    gap: var(--sp-3);
   }
   .skeleton i {
     height: 112px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
+    border-radius: var(--r-md);
+    background: var(--surface-sunken);
     border: 1px solid var(--line);
-    animation: pulse 1.6s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)) infinite;
+    animation: pulse var(--dur-loop) var(--ease-spin) infinite alternate;
   }
   @keyframes pulse {
     50% {
@@ -604,119 +505,53 @@
     align-items: center;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 10px 20px;
-    padding-bottom: 14px;
+    gap: var(--sp-3) var(--sp-5);
+    padding-bottom: var(--sp-4);
     border-bottom: 1px solid var(--line);
   }
   .track {
     display: flex;
     align-items: center;
     gap: 5px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .track i {
     width: 18px;
     height: 6px;
-    border-radius: 3px;
+    border-radius: var(--r-pill);
     background: var(--text-2);
   }
   .track i.now {
     background: var(--text);
-    animation: pulse 1.6s var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)) infinite;
+    animation: pulse var(--dur-loop) var(--ease-spin) infinite alternate;
   }
   .track span {
     margin-left: 6px;
   }
   .track b {
     color: var(--text);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .figs {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-  }
-  .figs > div {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 14px 16px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    min-width: 0;
-  }
-  .figs b {
-    font-size: 24px;
-    font-weight: 600;
-    line-height: 1.15;
+    gap: var(--sp-3);
   }
   .tools {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 2px;
-  }
-  .tool {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 8px;
-    border-radius: 999px;
-    border: 1px solid var(--line-2);
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .tool {
-    transition:
-      background var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1)),
-      color var(--dur-fast, 120ms) var(--ease-standard, cubic-bezier(0.2, 0, 0, 1));
-  }
-  .tool svg {
-    fill: none;
-    stroke: var(--pos);
-    stroke-width: 2.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .tool.now {
-    background: var(--text);
-    border-color: var(--text);
-    color: var(--bg);
-    font-weight: 600;
+    gap: var(--sp-1);
   }
   .wait {
-    padding: 10px 14px;
+    padding: var(--sp-3) var(--sp-4);
     border-radius: var(--r-sm);
-    border: 1px solid rgba(242, 177, 46, 0.35);
-    background: rgba(242, 177, 46, 0.07);
-    font-size: 13px;
+    border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent);
+    background: color-mix(in srgb, var(--amber) 7%, transparent);
+    font-size: var(--fs-md);
   }
   .wait b {
     color: var(--amber);
-  }
-
-  .error {
-    display: flex;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: var(--r-sm);
-    border: 1px solid rgba(229, 72, 59, 0.35);
-    background: rgba(229, 72, 59, 0.06);
-  }
-  .error svg {
-    flex-shrink: 0;
-    color: #ff9d93;
-    margin-top: 1px;
-  }
-  .error div {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .error p {
-    color: var(--text-2);
   }
 
   @container (max-width: 760px) {
@@ -727,7 +562,6 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .spinner,
     .skeleton i,
     .track i.now {
       animation: none;

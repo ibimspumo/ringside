@@ -1,12 +1,16 @@
+import { GRADE, type Grade } from "../ui/poker";
 import type { Verdict } from "./types";
 
-/** Verdicts from worst to best, with what each means for the player. */
-export const VERDICTS: { id: Verdict; name: string; meaning: string }[] = [
-  { id: "fehler", name: "Fehler", meaning: "hat dich Chips gekostet" },
-  { id: "fraglich", name: "Fraglich", meaning: "knapp, meist geht es besser" },
-  { id: "ok", name: "Okay", meaning: "vertretbar gespielt" },
-  { id: "stark", name: "Stark", meaning: "genau richtig gespielt" },
+/** The coach's four verdicts on the app's grade scale, worst first, with what each means here. */
+export const VERDICTS: { id: Verdict; grade: Grade; name: string; meaning: string }[] = [
+  { id: "fehler", grade: "mistake", name: GRADE.mistake.label, meaning: "hat dich Chips gekostet" },
+  { id: "fraglich", grade: "inaccurate", name: GRADE.inaccurate.label, meaning: "knapp, meist geht es besser" },
+  { id: "ok", grade: "good", name: GRADE.good.label, meaning: "vertretbar gespielt" },
+  { id: "stark", grade: "best", name: GRADE.best.label, meaning: "genau richtig gespielt" },
 ];
+
+/** The grades the coach uses, best first, as the grade bars list them. */
+export const COACH_GRADES: Grade[] = ["best", "good", "inaccurate", "mistake"];
 
 export const verdictOf = (v: Verdict) => VERDICTS.find((x) => x.id === v)!;
 
