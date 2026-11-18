@@ -10,6 +10,7 @@
   import { loadNode } from "./nodes";
   import { STREET_INDEX, STREET_NAME, actionText, isAggressive, matchStep, nearestSize, targetAmount, withSize, type Crumb, type SizeMatch } from "./play";
   import MiniCard from "../ui/MiniCard.svelte";
+  import MixBar from "../ui/MixBar.svelte";
   import { handNumbers } from "./practice";
   import { classLabel } from "./range";
   import StrategyGrid, { type GridMode } from "./StrategyGrid.svelte";
@@ -351,15 +352,7 @@
           </div>
         </div>
         <p class="mixcap"><b>Deine Hand</b> · so oft spielt die Lösung jede Aktion mit genau diesen zwei Karten <span class="faint">(Farbe = Aktion, keine Bewertung)</span></p>
-        <div class="handmix" role="img" aria-label="So spielt die Lösung deine Hand">
-          {#each h.strategy as f, k (k)}
-            {#if f >= 0.005}
-              <i style="flex-grow:{f}; --c:{colors[k]}" title="{labels[k]}: in {heroShares[k]} % der Fälle">
-                <span>{labels[k].replace(/ \(.*\)$/, "")}</span><b class="num">{heroShares[k]} %</b>
-              </i>
-            {/if}
-          {/each}
-        </div>
+        <MixBar parts={h.strategy.map((_, k) => ({ label: labels[k].replace(/ \(.*\)$/, ""), share: heroShares[k], color: colors[k] }))} />
         <details class="whyrange" open={roomy}>
           <summary>Warum? Deine Hand im Vergleich zur ganzen Range</summary>
           <div class="whytext">
@@ -393,14 +386,18 @@
     {#if node.kind === "action" && node.player}
       <section class="acts" class:busy={loading}>
         <div class="actor">
-          <span><b>Weiterspielen</b> – Klick auf eine Aktion. Jeder Knopf zeigt, wie oft die ganze Range und wie oft deine Hand sie wählt.</span>
+          <span
+            ><b>Weiterspielen</b> – Klick auf eine Aktion. {heroShares.length
+              ? "Jeder Knopf zeigt, wie oft die ganze Range und wie oft deine Hand sie wählt."
+              : `Die Zahl zeigt, wie oft ${pos(node.player)} sie mit der ganzen Range wählt.`}</span
+          >
           <span class="faint keys">Tasten 1–{Math.min(9, node.actions.length)}</span>
         </div>
         <ActionBar {node} {colors} onAct={act} mine={heroShares.length ? heroShares : null} />
         {#if canBet}
           <div class="own">
             {#if !sizeOpen}
-              <button class="link" onclick={() => (sizeOpen = true)}>Eigene Größe eingeben …</button>
+              <Button variant="quiet" size="sm" onclick={() => (sizeOpen = true)}>Eigene Größe eingeben …</Button>
             {:else}
               <form class="ownform" onsubmit={tryOwn}>
                 <label for="own-size">Eigene Größe</label>
@@ -654,38 +651,10 @@
     font-size: var(--fs-md);
     color: var(--text);
   }
-  .handmix {
-    display: flex;
-    gap: 2px;
-    height: 28px;
-    margin-top: var(--sp-1);
-    border-radius: var(--r-xs);
-    overflow: hidden;
-  }
-  .handmix i {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-2);
-    min-width: 0;
-    padding: 0 var(--sp-2);
-    background: color-mix(in srgb, var(--c) 24%, var(--surface-2));
-    box-shadow: inset 0 -3px 0 var(--c);
-    color: var(--text);
-    font-size: var(--fs-xs);
-    font-style: normal;
-    font-weight: var(--fw-semibold);
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .handmix span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: var(--fw-medium);
-  }
-  .handmix b {
-    font-weight: var(--fw-bold);
-  }
+
+
+
+
   .mixcap {
     margin: var(--sp-3) 0 0;
     font-size: var(--fs-sm);

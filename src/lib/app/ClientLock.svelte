@@ -62,7 +62,7 @@
     font-size: 15px;
     line-height: 1.55;
     color: var(--text);
-    text-wrap: balance;
+    text-wrap: pretty;
   }
   .dim {
     font-size: 13px;

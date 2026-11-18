@@ -33,6 +33,7 @@
   import Stat from "./Stat.svelte";
   import Tabs from "./Tabs.svelte";
   import CardSlot from "./CardSlot.svelte";
+  import MixBar from "./MixBar.svelte";
   import Tag from "./Tag.svelte";
   import Toast from "./Toast.svelte";
   import Term from "./Term.svelte";
@@ -495,6 +496,10 @@
     {#if show("bewertung")}
       <section id="bewertung">
         <SectionHead title="Bewertung" sub="Sechs Stufen: Symbol, Form und Farbe unterscheiden sie – auch ohne Farbe." />
+        <div class="mixdemo">
+          <p class="muted">Mischung einer Hand: Breite = wie oft, Farbe = Aktion (keine Bewertung).</p>
+          <MixBar parts={[{ label: "Check", share: 46, color: "var(--act-check)" }, { label: "Bet 33 % Pot", share: 33, color: "var(--act-bet-1)" }, { label: "Bet 75 % Pot", share: 21, color: "var(--act-bet-3)" }]} />
+        </div>
         <div class="grades">
           {#each GRADES as g (g)}
             <div class="grade-col">
@@ -775,6 +780,12 @@
     color: var(--text-2);
     font-family: ui-monospace, "Cascadia Mono", Menlo, monospace;
     font-size: var(--fs-xs);
+  }
+  .mixdemo {
+    display: grid;
+    gap: var(--sp-2);
+    max-width: 640px;
+    margin-bottom: var(--sp-4);
   }
   .muted {
     margin: 0;

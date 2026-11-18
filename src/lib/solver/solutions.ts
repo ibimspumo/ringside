@@ -64,7 +64,7 @@ let demo: SavedSolution[] = [
   ip: ip as string,
   pot_bb: pot as number,
   stack_bb: stack as number,
-  ranges: source === "hand" ? "aus dem Preflop-Modell, 8-max, 50 BB" : "aus dem Preflop-Modell, 9 Spieler, 40 BB",
+  ranges: source === "hand" ? "aus dem Preflop-Modell, 8-max, 50 BB" : "aus dem Preflop-Modell, 9-max, 40 BB",
   sizes: (board as string).length >= 10 ? "River 75 %, Raise 60 %" : "Flop 33/75 %, Raise 60 % · Turn 66 % · River 75 %",
   exploitability_pct: expl as number,
   target_pct: 0.5,

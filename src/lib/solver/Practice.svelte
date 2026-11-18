@@ -10,6 +10,7 @@
   import { STREET_NAME, actionText, type Crumb } from "./play";
   import MiniCard from "../ui/MiniCard.svelte";
   import GradeBadge from "../ui/GradeBadge.svelte";
+  import MixBar from "../ui/MixBar.svelte";
   import {
     BEST_MIN_FREQUENCY,
     GRADES,
@@ -252,10 +253,18 @@
         {ownHand && useOwn ? "Du spielst deine Hand aus dem Aufbau" : "Du bekommst eine Hand aus deiner Range"}; der Gegner spielt die Lösung.
       </span>
     </div>
-    <div class="seg" role="group" aria-label="Dein Platz">
-      {#each ["oop", "ip"] as const as p (p)}
-        <button class:on={me === p} disabled={phase === "me" || phase === "wait"} onclick={() => (me = p)}>{pos(p)} ({p === "oop" ? "OOP" : "IP"})</button>
-      {/each}
+    <div class="me">
+      <span class="dim">Ich bin</span>
+      <SegmentedControl
+        size="sm"
+        label="Dein Platz"
+        options={[
+          { value: "oop", label: `${pos("oop")} · zuerst dran`, disabled: phase === "me" || phase === "wait" },
+          { value: "ip", label: `${pos("ip")} · zuletzt dran`, disabled: phase === "me" || phase === "wait" },
+        ]}
+        value={me}
+        onchange={(v: string) => (me = v as SolverPlayer)}
+      />
     </div>
     {#if ownHand}
       <SegmentedControl
@@ -339,13 +348,8 @@
           </div>
           <p class="intro">{last.intro}</p>
           <p class="lesson">{last.lesson}</p>
-          <p class="line">
-            Die Lösung spielt mit deiner Hand
-            {#each last.strategy as s, k (k)}{#if s >= 0.005}<span class="pill"><i style="background:{last.colors[k]}"></i>{last.labels[k].replace(/ \(.*\)$/, "")} · <b class="num">{whole(last.strategy)[k]} %</b></span>{/if}{/each}
-          </p>
-          <div class="mix" aria-hidden="true">
-            {#each last.strategy as s, k (k)}<i style="width:{s * 100}%; background:{last.colors[k]}"></i>{/each}
-          </div>
+          <p class="line">Die Lösung spielt mit deiner Hand <span class="faint">(Farbe = Aktion, keine Bewertung)</span></p>
+          <MixBar parts={last.strategy.map((_, k) => ({ label: last.labels[k].replace(/ \(.*\)$/, ""), share: whole(last.strategy)[k], color: last.colors[k] }))} />
           {#if last.verdict.loss !== null}
             <p class="loss num">
               {#if last.verdict.loss < 0.005}
@@ -583,26 +587,9 @@
     line-height: 1.8;
     color: var(--text-2);
   }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 6px;
-    color: var(--text);
-    white-space: nowrap;
-  }
-  .pill i {
-    width: 8px;
-    height: 8px;
-    border-radius: 2px;
-  }
-  .mix {
-    display: flex;
-    height: 8px;
-    border-radius: 3px;
-    overflow: hidden;
-    background: var(--surface-2);
-  }
+
+
+
   .loss {
     margin: 10px 0 0;
     font-size: 13px;
@@ -660,6 +647,12 @@
   details p {
     margin-top: 6px;
     color: var(--text-2);
+  }
+  .me {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
   }
   .quick {
     display: none;

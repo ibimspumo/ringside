@@ -13,8 +13,8 @@
   }
 
   const options = $derived([
-    { value: "oop" as SolverPlayer, label: `${positions.oop} (OOP)` },
-    { value: "ip" as SolverPlayer, label: `${positions.ip} (IP)` },
+    { value: "oop" as SolverPlayer, label: `${positions.oop} · zuerst dran` },
+    { value: "ip" as SolverPlayer, label: `${positions.ip} · zuletzt dran` },
   ]);
 </script>
 

@@ -200,7 +200,7 @@
   .bar {
     display: flex;
     justify-content: space-between;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: 16px 32px;
     flex-wrap: wrap;
   }

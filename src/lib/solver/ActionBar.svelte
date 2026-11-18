@@ -53,7 +53,7 @@
         {#if !parts[k].chips && !mine}&nbsp;{/if}
       </span>
       {#if !blind}
-        <b class="freq num">{#if mine}<small>Range</small>{/if}{pct(shown[k])}</b>
+        <b class="freq num"><small>Range</small>{pct(shown[k])}</b>
         <i class="fill" style="width:{Math.max(0, Math.min(1, shown[k])) * 100}%"></i>
       {/if}
     </button>

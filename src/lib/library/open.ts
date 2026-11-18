@@ -19,7 +19,7 @@ export async function openInSolver(s: LibraryScenario, flop: string): Promise<vo
   solver.positions = { oop: o.oop, ip: o.ip };
   solver.notes = { oop: o.oop_note, ip: o.ip_note };
   solver.custom = { oop: false, ip: false };
-  solver.origin = `aus dem Preflop-Modell, 9 Spieler, ${num(s.stack_bb)} BB`;
+  solver.origin = `aus dem Preflop-Modell, 9-max, ${num(s.stack_bb)} BB`;
   solver.source = `Bibliothek: ${labelOf(s)}`;
   solver.replay = null;
   solver.labels = { [o.oop]: shortNote(o.oop_note), [o.ip]: shortNote(o.ip_note) };
