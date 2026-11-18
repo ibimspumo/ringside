@@ -288,11 +288,11 @@
       {#if last}
         <p class="quick" aria-hidden="true">
           <GradeBadge grade={last.verdict.grade} size="sm" />
-          <span>Deine Entscheidung am {STREET_NAME[last.street]}: <b>{last.label.replace(/ \(.*\)$/, "")}</b> – {last.intro}</span>
+          <span>Am {STREET_NAME[last.street]}: <b>{last.label.replace(/ \(.*\)$/, "")}</b> – {last.intro} <span class="why">{last.lesson}</span></span>
         </p>
       {/if}
       {#if phase === "me" && node}
-        <div class="actor"><span>{#if lastOther}<span class="dim">{pos(other)}: {lastOther} – </span>{/if}<b>Du bist dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
+        <div class="actor"><span>{#if lastOther}<span class="dim">{pos(other)}: {lastOther} – </span>{/if}<b>Du bist am {STREET_NAME[node.street]} dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
         <ActionBar {node} {colors} onAct={choose} blind />
       {:else if phase === "wait"}
         <div class="actor"><span class="dim">{node?.kind === "chance" ? "Die nächste Karte kommt …" : `${pos(other)} überlegt …`}</span></div>
@@ -429,6 +429,7 @@
     align-items: start;
   }
   .left {
+    --stage-vh: min(52vh, 600px);
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -641,7 +642,7 @@
   }
   .quick {
     display: none;
-    align-items: center;
+    align-items: flex-start;
     gap: var(--sp-2);
     margin: 0;
     font-size: var(--fs-md);
@@ -649,6 +650,11 @@
   }
   .quick b {
     color: var(--text);
+  }
+  .quick .why {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--fs-sm);
   }
   @container solverpage (max-width: 900px) {
     .quick {

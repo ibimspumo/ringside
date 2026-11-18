@@ -197,7 +197,7 @@
 
 <style>
   .wait {
-    max-width: 1080px;
+    max-width: none;
     margin-top: var(--sp-2);
   }
   .main {
@@ -266,9 +266,8 @@
     color: var(--text-2);
   }
   ul {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
-    gap: 0 var(--sp-6);
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: 0;
     list-style: none;

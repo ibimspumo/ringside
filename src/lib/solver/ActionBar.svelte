@@ -14,12 +14,15 @@
     onAct,
     blind = false,
     disabled = false,
+    mine = null,
   }: {
     node: SolverNode;
     colors: string[];
     onAct: (k: number) => void;
     blind?: boolean;
     disabled?: boolean;
+    /** Your hand's share of each action in whole percents, shown beside the range's. */
+    mine?: number[] | null;
   } = $props();
 
   const parts = $derived(node.actions.map((a) => actionParts(a, node)));
@@ -43,7 +46,7 @@
     >
       <span class="key num" aria-hidden="true">{k + 1}</span>
       <span class="what">{parts[k].label}</span>
-      <span class="chips num">{parts[k].chips || " "}</span>
+      <span class="chips num">{parts[k].chips}{#if mine}{parts[k].chips ? " · " : ""}<span class="mine">du {mine[k]} %</span>{/if}{#if !parts[k].chips && !mine}&nbsp;{/if}</span>
       {#if !blind}
         <b class="freq num">{pct(shown[k])}</b>
         <i class="fill" style="width:{Math.max(0, Math.min(1, shown[k])) * 100}%"></i>
@@ -122,6 +125,10 @@
     font-size: var(--fs-xs);
     color: var(--text-2);
     white-space: nowrap;
+  }
+  .mine {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
   }
   .freq {
     grid-area: freq;

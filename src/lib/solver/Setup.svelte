@@ -454,6 +454,7 @@
 
 
 {#if picker}
+  {#key picker.slot}
   <DeckPopover
     anchor={picker.anchor}
     title={picker.slot < 3 ? `Flop, Karte ${picker.slot + 1}` : picker.slot === 3 ? "Turn" : "River"}
@@ -467,9 +468,11 @@
     }}
     onClose={() => (picker = null)}
   />
+  {/key}
 {/if}
 
 {#if handPicker}
+  {#key handPicker.slot}
   <DeckPopover
     anchor={handPicker.anchor}
     side="top"
@@ -484,6 +487,7 @@
     }}
     onClose={() => (handPicker = null)}
   />
+  {/key}
 {/if}
 
 <style>

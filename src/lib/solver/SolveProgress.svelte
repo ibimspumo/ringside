@@ -34,7 +34,7 @@
       <span class="num">ca. {duration(total)}</span> insgesamt{/if}
   </p>
 </div>
-<Button variant="danger" onclick={() => api.solverCancel()}>Abbrechen</Button>
+<Button variant="quiet" onclick={() => api.solverCancel()}>Abbrechen</Button>
 
 <style>
   .solving {

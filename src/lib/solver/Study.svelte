@@ -401,10 +401,10 @@
     {#if node.kind === "action" && node.player}
       <section class="acts" class:busy={loading}>
         <div class="actor">
-          <span><b>Weiterspielen · ganze Range</b> – Klick auf eine Aktion. Zahl und Balken im Knopf zeigen, wie oft die ganze Range sie wählt.</span>
+          <span><b>Weiterspielen · alle Hände der Range</b> – Klick auf eine Aktion. Große Zahl und Balken: wie oft die ganze Range sie wählt{heroShares.length ? "; „du“: deine Hand" : ""}.</span>
           <span class="faint keys">Tasten 1–{Math.min(9, node.actions.length)}</span>
         </div>
-        <ActionBar {node} {colors} onAct={act} />
+        <ActionBar {node} {colors} onAct={act} mine={heroShares.length ? heroShares : null} />
         {#if canBet}
           <div class="own">
             {#if !sizeOpen}
