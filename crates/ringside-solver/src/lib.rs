@@ -8,6 +8,7 @@ mod node;
 pub mod saved;
 mod solve;
 mod spot;
+pub mod suits;
 
 use std::fmt;
 

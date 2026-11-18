@@ -121,6 +121,20 @@ impl Db {
         stmt.query_map([key, local_key], read)?.collect()
     }
 
+    /// Which of `keys` the index holds, under its key; with `origin` only rows of it.
+    pub fn store_has(&self, keys: &[String], origin: Option<&str>) -> Result<std::collections::HashSet<String>, Error> {
+        let mut out = std::collections::HashSet::new();
+        for chunk in keys.chunks(500) {
+            let marks = vec!["?"; chunk.len()].join(",");
+            let mut stmt = self.conn.prepare(&format!("SELECT DISTINCT key FROM spot_store WHERE key IN ({marks}) AND (?{} IS NULL OR origin = ?{0})", chunk.len() + 1))?;
+            let args: Vec<&dyn rusqlite::ToSql> = chunk.iter().map(|k| k as &dyn rusqlite::ToSql).chain(std::iter::once(&origin as &dyn rusqlite::ToSql)).collect();
+            for key in stmt.query_map(args.as_slice(), |r| r.get::<_, String>(0))? {
+                out.insert(key?);
+            }
+        }
+        Ok(out)
+    }
+
     /// Every row of `origin`, newest first; all rows without one.
     pub fn store_rows(&self, origin: Option<&str>) -> Result<Vec<StoreRow>, Error> {
         let mut stmt = self.conn.prepare_cached(&format!(
@@ -189,5 +203,17 @@ mod tests {
         assert_eq!(db.store_counts().unwrap(), [("cloud".to_string(), 1), ("own".to_string(), 1)]);
         db.store_delete_file("solutions/a.rsms").unwrap();
         assert!(db.store_find("spot:x", "local:a").unwrap().is_empty());
+    }
+
+    #[test]
+    fn many_keys_are_checked_at_once() {
+        let db = Db::open_in_memory().unwrap();
+        db.store_put(&row("solutions/a.rsms", "spot:a", "local:a", 0.5, 1)).unwrap();
+        db.store_put(&StoreRow { origin: "library".into(), ..row("library/b.rsls", "postflop:b", "local:b", 0.5, 1) }).unwrap();
+        let mut keys: Vec<String> = (0..1200).map(|i| format!("spot:{i}")).collect();
+        keys.extend(["spot:a".to_string(), "postflop:b".to_string()]);
+        let all = db.store_has(&keys, None).unwrap();
+        assert_eq!(all, ["spot:a".to_string(), "postflop:b".to_string()].into_iter().collect());
+        assert_eq!(db.store_has(&keys, Some("own")).unwrap(), ["spot:a".to_string()].into_iter().collect());
     }
 }

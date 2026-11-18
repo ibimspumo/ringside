@@ -17,7 +17,7 @@
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
 
-use ringside_cloud::kinds::{Kind, SpotInput, SpotKind};
+use ringside_cloud::kinds::SpotInput;
 use ringside_core::db::{NewSolution, SavedSolution, StoreFormat, StoreRow};
 use ringside_engine::preflop_table::ModelLine;
 use ringside_play::tree::{StoredTree, Tree};
@@ -43,6 +43,8 @@ const DOWNLOADS: &str = "store/cloud";
 const KEEP_DOWNLOADS: usize = 1000;
 /// Set once the files from before the store are in the index.
 const MIGRATED_KEY: &str = "spot_store_migrated";
+/// Set once own solves filed under the key of their dealt board have their suit class key.
+const REKEYED_KEY: &str = "spot_store_iso";
 
 /// One solve at a time, see `ringside_solver::gate`.
 pub fn gate() -> &'static Gate {
@@ -300,8 +302,9 @@ pub(crate) fn save_download(data: &Path, state: &AppState, input: &SpotInput, st
 
 /// A stored solution of the spot asked for, ready to be read node by node.
 pub enum Found {
-    /// An own solve, with its id in "Meine Lösungen".
-    Snapshot { id: i64, snapshot: Box<Snapshot> },
+    /// An own solve, with its id in "Meine Lösungen" unless it was renamed to another
+    /// suit renaming of its board (the saved one shows other cards).
+    Snapshot { id: Option<i64>, snapshot: Box<Snapshot> },
     /// The library format, on the board asked for.
     Stored { stored: Box<Stored>, catalog: Box<Catalog>, origin: Origin },
 }
@@ -316,7 +319,7 @@ impl Found {
 
     pub fn saved_id(&self) -> Option<i64> {
         match self {
-            Found::Snapshot { id, .. } => Some(*id),
+            Found::Snapshot { id, .. } => *id,
             Found::Stored { .. } => None,
         }
     }
@@ -376,21 +379,38 @@ fn on_board(input: &SpotInput, stored: Stored, board: &str) -> Option<(Stored, C
     Some((renamed, catalog))
 }
 
+/// A catalog spot stored on its catalog flop, renamed to the board asked for.
+fn on_catalog_board(stored: Stored, board: &str) -> Option<Stored> {
+    let board = compact(board);
+    if stored.flop == board {
+        return Some(stored);
+    }
+    let c = catalog();
+    stored.renamed(&c.scenarios[c.scenario(&stored.scenario)?], &board).ok()
+}
+
 /// The best entry of the index for `ask`; with `others` false only own solves.
 pub(crate) fn find_local(data: &Path, state: &AppState, ask: &Ask, others: bool) -> Option<Found> {
     let rows = state.db.lock().unwrap().store_find(&ask.keyed.key, &ask.keyed.local).ok()?;
     let board = compact(&ask.spot.board);
     rows.into_iter().filter(|r| others || r.origin == origin_text(Origin::Own)).find_map(|row| match row.format {
         StoreFormat::Snapshot => {
-            // A snapshot holds its dealt board; only the same spot reads it.
-            if row.local_key != ask.keyed.local || row.exploitability_pct > ask.target_pct + 1e-9 {
+            if row.exploitability_pct > ask.target_pct + 1e-9 {
                 return None;
             }
             let id = row.solution_id?;
             let saved = state.db.lock().unwrap().solution(id).ok()??;
             let snapshot = read_snapshot(data, &saved).ok()?;
             let same = spot_key(&snapshot.meta.spot).ok()? == saved.info.spot_key && good_enough(&snapshot.meta, ask.target_pct);
-            same.then(|| Found::Snapshot { id, snapshot: Box::new(snapshot) })
+            if !same {
+                return None;
+            }
+            if row.local_key == ask.keyed.local {
+                return Some(Found::Snapshot { id: Some(id), snapshot: Box::new(snapshot) });
+            }
+            // Filed under the same key on another board: a suit renaming of the same spot.
+            let renamed = snapshot.renamed(&ask.spot.board).ok()?;
+            (local_key(&renamed.meta.spot).ok()? == ask.keyed.local).then(|| Found::Snapshot { id: None, snapshot: Box::new(renamed) })
         }
         StoreFormat::Library => {
             let bytes = std::fs::read(data.join(&row.file)).ok()?;
@@ -402,11 +422,10 @@ pub(crate) fn find_local(data: &Path, state: &AppState, ask: &Ask, others: bool)
                     let (stored, catalog) = on_board(&input, stored, &board)?;
                     Some(Found::Stored { stored: Box::new(stored), catalog: Box::new(catalog), origin })
                 }
-                None if row.board == board => {
-                    let stored = Stored::from_bytes(&bytes, catalog()).ok()?;
+                None => {
+                    let stored = on_catalog_board(Stored::from_bytes(&bytes, catalog()).ok()?, &board)?;
                     Some(Found::Stored { stored: Box::new(stored), catalog: Box::new(catalog().clone()), origin })
                 }
-                None => None,
             }
         }
     })
@@ -423,6 +442,7 @@ fn find_library(data: &Path, state: &AppState, ask: &Ask) -> Option<Found> {
         let _ = state.db.lock().unwrap().store_put(&row);
     }
     let origin = if source == Source::Local { Origin::Own } else { Origin::Library };
+    let stored = on_catalog_board(stored, &ask.spot.board)?;
     Some(Found::Stored { stored: Box::new(stored), catalog: Box::new(catalog().clone()), origin })
 }
 
@@ -445,13 +465,14 @@ pub(crate) fn find_cloud(app: &AppHandle, data: &Path, ask: &Ask) -> Option<Foun
             if let Err(e) = write_library(&state, data, &root, Source::Cloud, *id, &bytes) {
                 eprintln!("store: keeping a library spot: {e}");
             }
+            let stored = on_catalog_board(stored, &ask.spot.board)?;
             Some(Found::Stored { stored: Box::new(stored), catalog: Box::new(catalog().clone()), origin: Origin::Library })
         }
     }
 }
 
 /// What a lookup may do now. `others`: spots others solved count (always, except for
-/// practice with "nur eigene, frisch gegebene Spots"); `solve`: the caller solves on a miss.
+/// practice with "Üben mit fertigen Spots anderer" off); `solve`: the caller solves on a miss.
 pub(crate) fn policy(app: &AppHandle, others: bool, solve: bool) -> Policy {
     let state = app.state::<AppState>();
     let fetch = state.settings.lock().unwrap().cloud.fetch;
@@ -505,21 +526,14 @@ pub(crate) fn share(app: &AppHandle, keyed: &Keyed, solution: &mut Solution) {
     }
 }
 
-/// The flops of `keys` ((key, flop) pairs) that are ready on this computer: own solves, the
-/// library, kept downloads; with `others` false only own solves.
-pub(crate) fn ready_flops(state: &AppState, keys: &[(String, String)], others: bool) -> Vec<String> {
-    let db = state.db.lock().unwrap();
-    keys.iter()
-        .filter(|(key, _)| {
-            db.store_find(key, key).is_ok_and(|rows| rows.iter().any(|r| others || r.origin == origin_text(Origin::Own)))
-        })
-        .map(|(_, flop)| flop.clone())
-        .collect()
-}
-
-/// The cloud key of a model flop, for [`ready_flops`].
-pub(crate) fn model_key(input: &SpotInput) -> Option<String> {
-    SpotKind::key(input).ok().map(|k| format!("{}:{k}", SpotKind::NAME))
+/// The flops of a line that are ready on this computer, from its (key, canonical flop)
+/// pairs (`ringside_store::key::line_flops`): own solves, the library, kept downloads;
+/// with `others` false only own solves. One query for all of them.
+pub(crate) fn ready_flops(state: &AppState, flops: &[(String, String)], others: bool) -> Vec<String> {
+    let keys: Vec<String> = flops.iter().map(|(k, _)| k.clone()).collect();
+    let origin = (!others).then_some(origin_text(Origin::Own));
+    let Ok(have) = state.db.lock().unwrap().store_has(&keys, origin) else { return Vec::new() };
+    flops.iter().filter(|(k, _)| have.contains(k)).map(|(_, f)| f.clone()).collect()
 }
 
 /// The key of `spot` with its model line, if known.
@@ -580,16 +594,41 @@ pub(crate) fn migrate(data: &Path, state: &AppState) -> CmdResult<Migrated> {
     Ok(out)
 }
 
-/// Runs [`migrate`] off the main thread at start.
+/// Files every own solve that has only the key of its dealt board under its suit class
+/// key (`ringside_store::key::iso_key`), once; returns how many.
+pub(crate) fn rekey(data: &Path, state: &AppState) -> CmdResult<usize> {
+    if state.db.lock().unwrap().setting(REKEYED_KEY).map_err(err)?.is_some() {
+        return Ok(0);
+    }
+    let rows = state.db.lock().unwrap().store_rows(Some(origin_text(Origin::Own))).map_err(err)?;
+    let mut moved = 0;
+    for row in rows.into_iter().filter(|r| r.format == StoreFormat::Snapshot && r.key == r.local_key) {
+        let Ok(bytes) = std::fs::read(data.join(&row.file)) else { continue };
+        let Ok(meta) = Snapshot::meta(&bytes) else { continue };
+        let key = key_of(&meta.spot, None)?.key;
+        if key != row.key {
+            state.db.lock().unwrap().store_put(&ringside_core::db::StoreRow { key, ..row }).map_err(err)?;
+            moved += 1;
+        }
+    }
+    state.db.lock().unwrap().set_setting(REKEYED_KEY, "1").map_err(err)?;
+    Ok(moved)
+}
+
+/// Runs [`migrate`] and [`rekey`] off the main thread at start.
 pub fn spawn_migration(app: AppHandle) {
     std::thread::spawn(move || {
         let Ok(data) = data(&app) else { return };
-        match migrate(&data, &app.state::<AppState>()) {
+        let state = app.state::<AppState>();
+        match migrate(&data, &state) {
             Ok(m) if m != Migrated::default() => {
                 eprintln!("spot store: {} solutions, {} library spots filed ({} files missing)", m.solutions, m.library, m.missing)
             }
             Ok(_) => {}
             Err(e) => eprintln!("spot store: migration failed: {e}"),
+        }
+        if let Err(e) = rekey(&data, &state) {
+            eprintln!("spot store: suit class keys failed: {e}");
         }
     });
 }
@@ -661,7 +700,7 @@ mod tests {
         assert_eq!((solves.get(), cloud.get()), (1, 1), "found on this computer: no cloud, no solve");
         let rows = state.db.lock().unwrap().store_rows(None).unwrap();
         assert_eq!(rows.len(), 1);
-        assert_eq!((rows[0].origin.as_str(), rows[0].key.starts_with("local:")), ("own", true));
+        assert_eq!((rows[0].origin.as_str(), rows[0].key.starts_with("iso:")), ("own", true));
         let _ = std::fs::remove_dir_all(&data);
     }
 
@@ -687,10 +726,82 @@ mod tests {
         assert_eq!(ask_for(&data, &state, &spot, &all(), &solves, &cloud), Some(Step::Library));
         assert_eq!((solves.get(), cloud.get()), (0, 0));
         assert_eq!(ask_for(&data, &state, &spot, &all(), &solves, &cloud), Some(Step::Local), "now in the index");
-        // Only own spots for "nur eigene, frisch gegebene Spots": a pack's spot does not count.
+        // Only own spots for practice without others' spots: a pack's spot does not count.
         let own_only = Policy { others: false, ..all() };
         let keyed = key_of(&spot, None).unwrap();
         assert!(find_local(&data, &state, &Ask::new(&spot, &keyed, 1.0), own_only.others).is_none());
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    /// An own solve opens on every suit renaming of its board, renamed, and without its id
+    /// in "Meine Lösungen" (that one shows the other suits).
+    #[test]
+    fn an_own_solve_serves_every_suit_renaming_of_its_board() {
+        // Its own stack: tests on `river()` hold the same key in the shared in-flight list.
+        let deep = || Spot { stack: 15.0, ..river() };
+        let (data, state) = (folder("renamed"), test_state());
+        let (solves, cloud) = (Cell::new(0), Cell::new(0));
+        assert_eq!(ask_for(&data, &state, &deep(), &all(), &solves, &cloud), Some(Step::Solve));
+        let renamed = Spot { board: "Kh Ts 7c 4d 2h".into(), ..deep() };
+        let keyed = key_of(&renamed, None).unwrap();
+        let found = find_local(&data, &state, &Ask::new(&renamed, &keyed, 1.0), false).expect("found on the renamed board");
+        assert_eq!(found.saved_id(), None);
+        let root = found.node(&[]).unwrap();
+        assert_eq!(root.board, ["Kh", "Ts", "7c", "4d", "2h"]);
+        assert!(root.hands.iter().all(|h| !root.board.iter().any(|c| h.combo.contains(c.as_str()))), "no hand holds a board card");
+        let Found::Snapshot { snapshot, .. } = find_local(&data, &state, &Ask::new(&deep(), &key_of(&deep(), None).unwrap(), 1.0), false).unwrap() else {
+            panic!("a snapshot")
+        };
+        let original = snapshot.node(&[]).unwrap();
+        for h in &original.hands {
+            let combo: String = h.combo.chars().map(|c| match c { 's' => 'h', 'h' => 's', 'd' => 'c', 'c' => 'd', x => x }).collect();
+            let r = root.hands.iter().find(|x| x.combo == combo || x.combo == format!("{}{}", &combo[2..], &combo[..2])).expect(&combo);
+            assert_eq!(r.strategy, h.strategy, "{combo}");
+        }
+        assert_eq!(ask_for(&data, &state, &renamed, &all(), &solves, &cloud), Some(Step::Local));
+        assert_eq!(solves.get(), 1, "solved once for both boards");
+        // Another suit pattern is another spot.
+        let other = Spot { board: "Ks Ts 7d 4c 2s".into(), ..deep() };
+        assert!(find_local(&data, &state, &Ask::new(&other, &key_of(&other, None).unwrap(), 1.0), true).is_none());
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn a_library_spot_serves_every_suit_renaming_of_its_flop() {
+        let (data, state) = (folder("library-renamed"), test_state());
+        let (id, stored) = library_spot(3);
+        write_atomic(&library_path(&library_root(&data), Source::Cloud, id), &stored.to_bytes()).unwrap();
+        let flop = &catalog().flops[id.flop];
+        let renamed: String = flop.chars().map(|c| match c { 's' => 'd', 'd' => 's', 'h' => 'c', 'c' => 'h', x => x }).collect();
+        assert_ne!(&renamed, flop);
+        let spot = catalog().scenarios[id.scenario].spot(&renamed);
+        let (solves, cloud) = (Cell::new(0), Cell::new(0));
+        assert_eq!(ask_for(&data, &state, &spot, &all(), &solves, &cloud), Some(Step::Library));
+        let keyed = key_of(&spot, None).unwrap();
+        let Some(Found::Stored { stored, .. }) = find_local(&data, &state, &Ask::new(&spot, &keyed, 1.0), true) else { panic!("filed") };
+        assert_eq!(stored.flop, renamed);
+        assert_eq!((solves.get(), cloud.get()), (0, 0));
+        // "Nur eigene": the pack's spot is not ready, neither as a flop nor as a spot.
+        let flops = vec![(keyed.key.clone(), flop.clone())];
+        assert_eq!(ready_flops(&state, &flops, true), std::slice::from_ref(flop));
+        assert!(ready_flops(&state, &flops, false).is_empty());
+        let _ = std::fs::remove_dir_all(&data);
+    }
+
+    #[test]
+    fn own_solves_filed_under_their_dealt_board_get_their_suit_class_key_once() {
+        let (data, state) = (folder("rekey"), test_state());
+        let mut solution = solve(&river(), &SETTINGS, 1 << 30, |_| {}, || false).unwrap();
+        let (id, keyed) = save_solution(&data, &state, &mut solution, &SETTINGS, &SaveInfo::default()).unwrap();
+        // As filed before suit class keys.
+        let row = state.db.lock().unwrap().store_row_of_solution(id).unwrap().unwrap();
+        state.db.lock().unwrap().store_put(&ringside_core::db::StoreRow { key: keyed.local.clone(), ..row }).unwrap();
+        let renamed = Spot { board: "Kh Ts 7c 4d 2h".into(), ..river() };
+        let ask = |s: &Spot| find_local(&data, &state, &Ask::new(s, &key_of(s, None).unwrap(), 1.0), false).is_some();
+        assert!(ask(&river()) && !ask(&renamed));
+        assert_eq!(rekey(&data, &state).unwrap(), 1);
+        assert!(ask(&river()) && ask(&renamed));
+        assert_eq!(rekey(&data, &state).unwrap(), 0, "only once");
         let _ = std::fs::remove_dir_all(&data);
     }
 
@@ -771,7 +882,8 @@ mod tests {
         assert_eq!(migrate(&data, &state).unwrap(), Migrated::default(), "only once");
         let db = state.db.lock().unwrap();
         let mine = db.store_row_of_solution(old).unwrap().expect("the old solution is filed");
-        assert_eq!((mine.key.as_str(), mine.origin.as_str(), mine.file.as_str()), (format!("local:{}", row.spot_key).as_str(), "own", "solutions/old.rsms"));
+        assert_eq!((mine.local_key.as_str(), mine.origin.as_str(), mine.file.as_str()), (format!("local:{}", row.spot_key).as_str(), "own", "solutions/old.rsms"));
+        assert_eq!(mine.key, key_of(&river(), None).unwrap().key, "filed under its suit class");
         assert!(db.store_row_of_solution(gone).unwrap().is_none());
         let lib = db.store_find(&catalog_key(a), "").unwrap();
         assert_eq!((lib.len(), lib[0].origin.as_str(), lib[0].exploitability_pct as f32), (1, "own", sa.exploitability_pct));

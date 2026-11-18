@@ -196,7 +196,7 @@ pub async fn solver_start(
             if let Some((_, crate::store::Found::Snapshot { id, snapshot })) = found {
                 let summary = snapshot.meta.summary.clone();
                 show(Shown::Saved(snapshot));
-                let _ = app.emit("solver-done", DoneEvent::Solved { run, summary, saved: Some(id), reused: true });
+                let _ = app.emit("solver-done", DoneEvent::Solved { run, summary, saved: id, reused: true });
                 return Ok(());
             }
         }
