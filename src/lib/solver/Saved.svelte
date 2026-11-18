@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { MARK_NAME, markOf, markText } from "../library/labels";
+  import ShareMark from "../library/ShareMark.svelte";
   import PlayingCard from "../PlayingCard.svelte";
   import { openSaved, solutionsApi, type SavedSolution, type SolutionsView } from "./solutions";
   import { solver } from "./store.svelte";
@@ -153,6 +155,11 @@
           </dl>
           <p class="line"><span>Größen</span>{s.sizes}</p>
           <p class="line"><span>Ranges</span>{s.ranges || "eigene"}</p>
+          {#if s.shared}
+            <p class="cloud" title={markText(s.shared, data.share)}>
+              <ShareMark mark={markOf(s.shared)} />{MARK_NAME[markOf(s.shared)]}
+            </p>
+          {/if}
           <p class="meta">
             {when(s.created_at)} · {SOURCE[s.source]} · {size(s.bytes)}
             {#if !s.complete}· <span title="Gespeichert sind die erste Straße und der Einstieg in die nächste. Tiefer rechnet Ringside bei Bedarf neu.">erste Straße + Einstieg</span>{/if}
@@ -353,6 +360,15 @@
   }
   .line span {
     color: var(--text-3);
+  }
+  .cloud {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-2);
+    cursor: help;
   }
   .meta {
     margin: 0;

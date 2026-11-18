@@ -36,6 +36,16 @@ pub(crate) fn model(ante: Ante, players: usize, stack: f64) -> Option<Arc<Soluti
     sol
 }
 
+/// The model configuration and the line in model seats that the flop ranges follow from,
+/// so a spot can be named without its ranges.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SpotModel {
+    pub ante: Ante,
+    pub players: usize,
+    pub stack_bb: f64,
+    pub line: Vec<Step>,
+}
+
 /// What the postflop analysis needs from the preflop line.
 #[derive(Clone, Debug)]
 pub struct Flop {
@@ -46,6 +56,7 @@ pub struct Flop {
     pub raises: usize,
     /// Model configuration and deviations, for the postflop note.
     pub note: String,
+    pub model: SpotModel,
 }
 
 pub struct Preflop {
@@ -321,6 +332,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                         .collect(),
                     raises,
                     note,
+                    model: SpotModel { ante: t.ante, players, stack_bb: stack, line: line.clone() },
                 })
             }
         }

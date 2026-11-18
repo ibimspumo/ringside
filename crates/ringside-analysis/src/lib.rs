@@ -30,6 +30,7 @@ use serde::Serialize;
 
 pub use grade::rate;
 pub use postflop::{PostflopJob, solve_job};
+pub use preflop::SpotModel;
 
 /// Stored with every decision; a hand analysed with another version is analysed again.
 pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.1");

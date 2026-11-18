@@ -58,6 +58,9 @@ pub trait Lookup: Send + Sync {
     /// Keeps a fresh solve where [`Lookup::load`] and the solver page find it; `seats` are
     /// OOP and IP.
     fn save(&self, _table: TableKey, _seats: [usize; 2], _solution: &mut Solution, _settings: &Settings) {}
+    /// A background solve of the model's flop after `line` at `table`, solved to [`TARGET_PCT`]
+    /// (live solves are too rough to pass on).
+    fn solved(&self, _table: TableKey, _line: &[ringside_engine::preflop::Step], _solution: &mut Solution) {}
 }
 
 pub struct NoLookup;
@@ -545,6 +548,7 @@ impl Pool {
         match result {
             Ok(mut solution) => {
                 self.lookup.save(table, scenario.seats(), &mut solution, &settings);
+                self.lookup.solved(table, &scenario.line, &mut solution);
                 let memory = solution.summary.memory_bytes;
                 self.inner.lock().unwrap().times.push(secs);
                 self.add(generation, table, scenario, flop, Box::new(solution), memory, report);

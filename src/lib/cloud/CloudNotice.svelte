@@ -32,9 +32,9 @@
       <path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.7-1A4.5 4.5 0 0 0 7 18.5z" />
     </svg>
     <p>
-      <b>Ringside Cloud ist an.</b> Lösungen, die andere schon gerechnet haben (Push/Fold und Spots der Bibliothek), werden
-      geladen; deine eigenen werden geteilt. Geteilt wird nur die Rechen-Eingabe (Stacks, Blinds, Antes, Auszahlungen; bei
-      Bibliothek-Spots Board, Ranges und Größen) und das Ergebnis, nichts Persönliches. Deine IP-Adresse sieht der Anbieter
+      <b>Ringside Cloud ist an.</b> Lösungen, die andere schon gerechnet haben (Push/Fold, Spots der Bibliothek und Flop-Spots),
+      werden geladen; deine eigenen werden geteilt. Geteilt wird nur die Rechen-Eingabe (Stacks, Blinds, Antes, Auszahlungen;
+      bei Flop-Spots Board, Pot, Größen und die Modell-Linie der Ranges) und das Ergebnis, nie deine Hände, Karten oder Namen. Deine IP-Adresse sieht der Anbieter
       Bunny technisch, gespeichert wird sie nur gehasht.
     </p>
     <div class="actions">

@@ -4,7 +4,8 @@
 //! The stock's worker starts with the first hand and keeps running whichever page is open;
 //! it pauses while PokerStars runs. Each round of filling it is a task in the task center
 //! (`jobs`) and also goes to the page as `play-pool`. Before it solves a spot it looks for a
-//! saved solution (`solutions`) and in the spot library.
+//! saved solution (`solutions`) and in the spot library; a spot solved in the background
+//! is offered to Ringside Cloud (`cloud::share_spot`) if the user shares.
 //!
 //! A hand that reaches a spot nobody prepared waits while the same worker solves it live
 //! (`play-live` to the table, a task in the task center, cancellable); the hand then goes
@@ -299,6 +300,13 @@ impl Lookup for AppLookup {
         };
         if let Err(e) = crate::solutions::save(&self.0, solution, settings, &info) {
             eprintln!("saving a practice solve: {e}");
+        }
+    }
+
+    fn solved(&self, table: ringside_play::TableKey, line: &[ringside_engine::preflop::Step], solution: &mut ringside_solver::Solution) {
+        let model = ringside_analysis::SpotModel { ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: line.to_vec() };
+        if let Some(input) = crate::cloud::spot_input(&model, &solution.spot) {
+            crate::cloud::share_spot(&self.0, input, solution);
         }
     }
 }

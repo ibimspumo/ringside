@@ -161,21 +161,42 @@ pub(crate) fn find(dir: &Path, state: &AppState, spot: &Spot, target_pct: f64) -
     })
 }
 
+/// A saved solution with what became of it in Ringside Cloud, if it was offered.
+#[derive(Serialize)]
+pub struct Listed {
+    #[serde(flatten)]
+    saved: SavedSolution,
+    shared: Option<crate::library::Shared>,
+}
+
 #[derive(Serialize)]
 pub struct SolutionsView {
-    items: Vec<SavedSolution>,
+    items: Vec<Listed>,
     bytes: u64,
     max_mb: u64,
+    /// The user shares own solutions.
+    share: bool,
 }
 
 #[tauri::command]
 pub async fn solutions_list(app: AppHandle) -> CmdResult<SolutionsView> {
-    blocking(app, |state| {
+    let log = crate::cloud::spot_log(&app);
+    blocking(app, move |state| {
         let db = state.db.lock().unwrap();
+        let items = db
+            .solutions()
+            .map_err(err)?
+            .into_iter()
+            .map(|saved| {
+                let shared = log.get(&saved.info.spot_key).map(|s| s.shared.clone());
+                Listed { saved, shared }
+            })
+            .collect();
         Ok(SolutionsView {
-            items: db.solutions().map_err(err)?,
+            items,
             bytes: db.solutions_bytes().map_err(err)?,
             max_mb: db.setting(LIMIT_KEY).ok().flatten().and_then(|v| v.parse().ok()).unwrap_or(DEFAULT_MAX_MB),
+            share: state.settings.lock().unwrap().cloud.share,
         })
     })
     .await

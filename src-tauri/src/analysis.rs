@@ -25,8 +25,10 @@ use std::time::{Duration, Instant};
 use ringside_analysis::postflop::{JobError, TARGET_PCT, rate, settings, solve_spot};
 use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets};
 use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, SolutionSource, Status};
-use ringside_solver::Solution;
+use ringside_core::model::Street;
+use ringside_solver::library::format::{Stored, View};
 use ringside_solver::saved::NOT_STORED;
+use ringside_solver::{Solution, Summary};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -363,14 +365,17 @@ fn save_info(job: &PostflopJob) -> SaveInfo {
 }
 
 /// Rates `job` from a saved solution of its spot as exact as a queued solve, if every
-/// decision lies in its saved part; otherwise solves with `solve` and saves the solution
-/// in `dir`. The flag is true when nothing was solved. The spot library is not searched:
-/// its catalog spots (nine players, big-blind ante, fixed depths) match no hand's pot,
-/// stack and ranges exactly.
+/// decision lies in its saved part; then, with `cloud`, from a verified solution of
+/// Ringside Cloud if every hero decision is on the flop (it stores the flop per hand, but
+/// no EV per action, so the rating goes by frequency); otherwise solves with `solve`,
+/// saves the solution in `dir` and offers it to the cloud, or, if this computer cannot
+/// solve it, asks the community to. The flag is true when nothing was solved. The spot library is not searched: its catalog spots (nine players,
+/// big-blind ante, fixed depths) match no hand's pot, stack and ranges exactly.
 fn rate_job(
     dir: &Path,
     state: &AppState,
     job: &PostflopJob,
+    cloud: Option<&AppHandle>,
     solve: impl FnOnce() -> Result<Solution, JobError>,
 ) -> Result<(Vec<Decision>, bool), JobError> {
     if let Some((id, snapshot)) = solutions::find(dir, state, &job.spot, TARGET_PCT)
@@ -378,12 +383,50 @@ fn rate_job(
     {
         return Ok((decisions, true));
     }
-    let mut solution = solve()?;
+    let input = cloud.and(job.model.as_ref()).and_then(|m| crate::cloud::spot_input(m, &job.spot));
+    let flop_only = job.actions.iter().filter(|a| a.hero.is_some()).all(|a| a.street == Street::Flop);
+    if let (Some(app), Some(input)) = (cloud, &input)
+        && flop_only
+        && let Some((catalog, stored)) = crate::cloud::fetch_spot(app, input, &job.spot.board)
+        && let Ok(view) = View::new(&stored, &catalog)
+        && let Ok(mut decisions) = rate(job, &cloud_summary(&stored), None, |path| view.node(path))
+    {
+        for d in &mut decisions {
+            d.note.push_str(" Lösung aus Ringside Cloud (geprüft); ohne EV je Aktion, bewertet nach Häufigkeit.");
+        }
+        return Ok((decisions, true));
+    }
+    let mut solution = match solve() {
+        Ok(s) => s,
+        Err(e) => {
+            if let (Some(app), Some(input), JobError::Failed(_)) = (cloud, input, &e) {
+                crate::cloud::request_spot(app, input);
+            }
+            return Err(e);
+        }
+    };
     let saved = solutions::store(dir, state, &mut solution, &settings(threads()), &save_info(job));
     // Not saved only costs the reuse; the rating stands either way.
     let saved = saved.inspect_err(|e| eprintln!("saving the analysis solve of hand {}: {e}", job.hand_id)).ok();
+    if let (Some(app), Some(input)) = (cloud, input) {
+        crate::cloud::share_spot(app, input, &mut solution);
+    }
     let summary = solution.summary.clone();
     rate(job, &summary, saved, |path| solution.node(path)).map(|d| (d, false))
+}
+
+/// What a stored spot says about its solve, as a solver summary.
+fn cloud_summary(stored: &Stored) -> Summary {
+    Summary {
+        iterations: stored.iterations,
+        exploitability: 0.0,
+        exploitability_pct: stored.exploitability_pct as f64,
+        converged: true,
+        elapsed_ms: 0,
+        memory_bytes: 0,
+        compressed: false,
+        threads: 0,
+    }
 }
 
 /// Solves the next queued spot (only marked ones while the bulk run is off); false when
@@ -429,7 +472,7 @@ fn solve_next(app: &AppHandle, bulk: bool) -> bool {
                     || client_running(app) || state.preempt.load(Ordering::Relaxed),
                 )
             };
-            let result = rate_job(&dir, &main, &job, solve);
+            let result = rate_job(&dir, &main, &job, Some(app), solve);
             if let Ok((_, false)) = result {
                 let mut solved = state.solved.lock().unwrap();
                 solved.0 += started.elapsed().as_secs_f64();
@@ -683,6 +726,7 @@ mod tests {
             players: 6,
             note: String::new(),
             pot_bb: 20.0,
+            model: None,
         }
     }
 
@@ -719,7 +763,7 @@ mod tests {
         let info = SaveInfo { source: Some(SolutionSource::Own), ..Default::default() };
         let id = solutions::store(&dir, &state, &mut solution, &page, &info).unwrap();
 
-        let (decisions, reused) = rate_job(&dir, &state, &job, || panic!("the saved solution is used, nothing is solved")).unwrap();
+        let (decisions, reused) = rate_job(&dir, &state, &job, None, || panic!("the saved solution is used, nothing is solved")).unwrap();
         assert!(reused);
         let [d] = decisions.as_slice() else { panic!("{decisions:?}") };
         assert_eq!(d.status, Status::Rated, "{d:?}");
@@ -733,7 +777,7 @@ mod tests {
         let (dir, state) = (folder("save"), test_state());
         let calls = Cell::new(0);
         let job = flop_cbet(42);
-        let (first, reused) = rate_job(&dir, &state, &job, || fresh(&job, &calls)).unwrap();
+        let (first, reused) = rate_job(&dir, &state, &job, None, || fresh(&job, &calls)).unwrap();
         assert!(!reused);
         assert_eq!(calls.get(), 1);
 
@@ -743,7 +787,7 @@ mod tests {
         assert_eq!((row.info.title.as_str(), row.info.oop.as_str(), row.info.ip.as_str()), ("BTN gegen BB", "BB", "BTN"));
         assert_eq!(link(&first[0])["saved"], row.id);
 
-        let (again, reused) = rate_job(&dir, &state, &job, || fresh(&job, &calls)).unwrap();
+        let (again, reused) = rate_job(&dir, &state, &job, None, || fresh(&job, &calls)).unwrap();
         assert!(reused && calls.get() == 1);
         assert_eq!(again[0].strategy.len(), first[0].strategy.len());
         assert_eq!(again[0].best, first[0].best);
@@ -755,7 +799,7 @@ mod tests {
         let (dir, state) = (folder("deeper"), test_state());
         let calls = Cell::new(0);
         let first = flop_cbet(7);
-        rate_job(&dir, &state, &first, || fresh(&first, &calls)).unwrap();
+        rate_job(&dir, &state, &first, None, || fresh(&first, &calls)).unwrap();
         // Same spot, but the hero acts after the big blind on the turn: the snapshot keeps
         // only the turn's first decision.
         let turn = job(
@@ -771,7 +815,7 @@ mod tests {
         let (_, snapshot) = solutions::find(&dir, &state, &turn.spot, TARGET_PCT).expect("the flop spot is saved");
         let from_snapshot = rate(&turn, &snapshot.meta.summary, None, |path| snapshot.node(path));
         assert!(matches!(from_snapshot, Err(JobError::NotStored)), "{from_snapshot:?}");
-        let (decisions, reused) = rate_job(&dir, &state, &turn, || fresh(&turn, &calls)).unwrap();
+        let (decisions, reused) = rate_job(&dir, &state, &turn, None, || fresh(&turn, &calls)).unwrap();
         assert!(!reused);
         assert_eq!(calls.get(), 2);
         assert!(decisions.iter().all(|d| d.status == Status::Rated), "{decisions:?}");
@@ -842,7 +886,7 @@ mod tests {
                     calls.set(calls.get() + 1);
                     solve_spot(j, threads, 8 << 30, |_| {}, || false)
                 };
-                if let Ok((_, true)) = rate_job(&dir, &state, j, solve) {
+                if let Ok((_, true)) = rate_job(&dir, &state, j, None, solve) {
                     reused += 1;
                 }
             }
