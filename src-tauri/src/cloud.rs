@@ -268,6 +268,21 @@ pub(crate) fn served(app: &AppHandle, keys: &[String]) -> Vec<String> {
     out
 }
 
+/// The flops on which the line of `input` is served, in one request; `None` when the
+/// cloud may not be asked, fails, or does not know the request yet (API before 1.5.0).
+pub(crate) fn served_flops(app: &AppHandle, input: &SpotInput) -> Option<Vec<String>> {
+    if !cloud_settings_of(app).fetch || !may_talk(app) {
+        return None;
+    }
+    match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).served_flops(input) {
+        Ok(flops) => flops,
+        Err(e) => {
+            app.state::<CloudState>().note(&e);
+            None
+        }
+    }
+}
+
 /// With `cloud.share`: asks the community queue to solve a spot this computer could not.
 /// A refusal is only logged; it must not keep the cloud away for the other requests.
 pub(crate) fn request_spot(app: &AppHandle, input: SpotInput) {
