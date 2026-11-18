@@ -316,7 +316,8 @@
           {:else}
             <span class="faint">Schätze …</span>
           {/if}
-          {#if solver.error}<span class="neg">{solver.error}</span>{/if}
+          {#if deriveNote && !solver.custom.oop && !solver.custom.ip}<span class="warn-inline">Ranges: einfache Vorlagen</span>{/if}
+      {#if solver.error}<span class="neg">{solver.error}</span>{/if}
           {#if solver.status === "cancelled" && !solver.error}<span class="dim">Abgebrochen.</span>{/if}
         </div>
         <button class="btn primary" disabled={!canStart} onclick={() => startSolve()}>Lösen</button>
@@ -686,6 +687,9 @@
   }
   .est .spot b {
     font-weight: 700;
+  }
+  .warn-inline {
+    color: var(--amber);
   }
   .est b.neg {
     color: var(--neg);

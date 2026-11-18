@@ -163,7 +163,7 @@
           {/if}
           <p class="meta">
             {when(s.created_at)} · {SOURCE[s.source]} · {size(s.bytes)}
-            {#if !s.complete}· <span title="Gespeichert sind die erste Straße und der Einstieg in die nächste. Tiefer rechnet Ringside bei Bedarf neu.">erste Straße + Einstieg</span>{/if}
+            {#if !s.complete}· <span title="Tiefer rechnet Ringside bei Bedarf neu.">{street(s.board)} vollständig, danach nur der Einstieg</span>{/if}
           </p>
           <div class="acts">
             <span class="grow">
@@ -348,8 +348,8 @@
     border-block: 1px solid var(--line);
   }
   .facts dt {
-    font-size: 11.5px;
-    color: var(--text-3);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
   }
   .facts dd {
     margin: 0;
@@ -359,11 +359,11 @@
     display: grid;
     grid-template-columns: 56px minmax(0, 1fr);
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .line span {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .cloud {
     display: flex;
@@ -376,7 +376,7 @@
   }
   .meta {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .meta span {

@@ -290,8 +290,7 @@
       <div class="stats">
         <span>
           <Term term="exploit">Lösung</Term>
-          <b class:warn={!summary.converged}>{precision(summary.exploitability_pct)}</b>
-          <span class="num faint">({summary.exploitability_pct.toLocaleString("de-DE", { maximumFractionDigits: 2 })} % des Pots)</span>
+          <b class:warn={!summary.converged} title="Ein perfekter Gegner gewönne dagegen höchstens {summary.exploitability_pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} % des Pots mehr.">{precision(summary.exploitability_pct)}</b>
         </span>
         {#if summary.threads > 0}<span>Zeit <b class="num">{duration(summary.elapsed_ms / 1000)}</b></span>{/if}
         <span>Speicher <b class="num">{bytes(summary.memory_bytes)}{summary.compressed ? " (16 Bit)" : ""}</b></span>
@@ -358,7 +357,7 @@
             {#if heroAdvice.close}<p class="close">{heroAdvice.close}</p>{/if}
           </div>
         </div>
-        <p class="mixcap"><b>Deine Hand</b> · so oft spielt die Lösung jede Aktion mit genau diesen zwei Karten</p>
+        <p class="mixcap"><b>Deine Hand</b> · so oft spielt die Lösung jede Aktion mit genau diesen zwei Karten <span class="faint">(Farbe = Aktion, keine Bewertung)</span></p>
         <div class="handmix" role="img" aria-label="So spielt die Lösung deine Hand">
           {#each h.strategy as f, k (k)}
             {#if f >= 0.005}
@@ -784,7 +783,7 @@
   }
   .body {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(340px, 1fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(340px, 680px);
     grid-template-areas: "left right";
     gap: 12px 16px;
     align-items: start;

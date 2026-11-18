@@ -456,7 +456,7 @@
     margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .story li {
@@ -659,6 +659,10 @@
   @container solverpage (max-width: 900px) {
     .quick {
       display: flex;
+    }
+    /* The line above the actions already says verdict and why. */
+    .box :is(.verdict, .intro, .lesson) {
+      display: none;
     }
     .body {
       grid-template-columns: minmax(0, 1fr);

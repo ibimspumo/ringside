@@ -125,6 +125,9 @@
     font-size: var(--fs-xs);
     color: var(--text-2);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
   }
   .mine {
     color: var(--text);
@@ -135,6 +138,7 @@
     font-size: var(--fs-lg);
     font-weight: var(--fw-bold);
     line-height: 1;
+    white-space: nowrap;
     justify-self: end;
   }
   .fill {
