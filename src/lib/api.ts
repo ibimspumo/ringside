@@ -167,9 +167,9 @@ export const api = {
   analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
   hand: (id: number) => call<Hand | null>("hand", { id }, () => learnDemo.demoSpotHand(id) ?? demo.demoHandById(id)),
   learnExercise: (kind: LearnKind, level: number, seed: number | null = null) =>
-    call<Exercise>("learn_exercise", { kind, level, seed }, () => learnDemo.demoExercise(kind, level, seed)),
+    inTauri ? invoke<Exercise>("learn_exercise", { kind, level, seed }) : learnDemo.demoExercise(kind, level, seed),
   learnCheck: (exercise: Exercise, answer: LearnAnswer) =>
-    call<Feedback>("learn_check", { exercise, answer }, () => learnDemo.demoCheck(exercise, answer)),
+    inTauri ? invoke<Feedback>("learn_check", { exercise, answer }) : learnDemo.demoCheck(exercise, answer),
   learnOwnSpots: (filter: Filter, kind: LearnKind | null = null, limit = 60) =>
     call<OwnSpot[]>("learn_own_spots", { filter, kind, limit }, () => learnDemo.demoOwnSpots(kind, limit)),
   learnCheckOwn: (spotId: string, answer: LearnAnswer) =>

@@ -394,10 +394,19 @@ export type LearnKind =
   /** Only from own hands (`learnOwnSpots`), never generated. */
   | "all_in"
   /** One attempt per hand of the practice with whole hands, never generated. */
-  | "full_hands";
+  | "full_hands"
+  | "bounty_odds"
+  | "icm_call"
+  | "open_fold"
+  | "river_bet"
+  | "stack_depth"
+  | "hud_read";
 
-/** exakt = exact maths; formel = formula / rule of thumb; modell = exact within the model in `model_note`. */
-export type Grading = "exakt" | "formel" | "modell";
+/**
+ * exakt = exact maths; formel = formula / rule of thumb; modell = exact within the model in `model_note`;
+ * gleichgewicht = a solved equilibrium of the game in `model_note`.
+ */
+export type Grading = "exakt" | "formel" | "modell" | "gleichgewicht";
 
 /** Generated when `hand_id` is null: (kind, level, seed) rebuilds it. Send it back unchanged. */
 export interface Exercise {
@@ -461,7 +470,74 @@ export type ExercisePrompt =
       bb_ante_bb: number;
       dead_bb: number;
     }
-  | { type: "all_in"; hero: string[]; opponents: string[][]; board: string[]; pots: PotView[] };
+  | { type: "all_in"; hero: string[]; opponents: string[][]; board: string[]; pots: PotView[] }
+  | {
+      /** Hero (not in the blinds) faces an all-in and may win the shover's bounty. */
+      type: "bounty";
+      dead_bb: number;
+      shove_bb: number;
+      hero_stack_bb: number;
+      /** Dollars, levels 2 and 3. */
+      villain_bounty: number | null;
+      hero_bounty: number | null;
+      rate: { start_chips: number; prize_dollars: number; big_blind_chips: number; bb_per_dollar: number } | null;
+      /** Level 1 names the bounty in big blinds. */
+      bounty_bb: number | null;
+      equity_pct: number | null;
+    }
+  | {
+      /** `ask`: seat whose prize value is asked (level 1); otherwise `hero` faces `shover`. Action order, BB last. */
+      type: "icm";
+      positions: string[];
+      stacks_bb: number[];
+      /** Dollars per place, first place first. */
+      payouts: number[];
+      ask: number | null;
+      hero: number | null;
+      shover: number | null;
+      hand: string[];
+      class: string | null;
+      ante_bb: number;
+    }
+  | {
+      type: "open_fold";
+      positions: string[];
+      hero: number;
+      hand: string[];
+      class: string;
+      stack_bb: number;
+      ante_bb: number;
+      bb_ante_bb: number;
+      open_to_bb: number;
+    }
+  | {
+      type: "river_bet";
+      scenario: string;
+      board: string[];
+      hand: string[];
+      class: string;
+      oop: string;
+      ip: string;
+      hero_ip: boolean;
+      pot_type: "srp" | "3bp";
+      pot_bb: number;
+      stack_bb: number;
+      bet_bb: number;
+    }
+  | {
+      /** Chips for "bb" and "m", big blinds for "ante_odds". */
+      type: "stack_depth";
+      ask: "bb" | "m" | "ante_odds";
+      stack: number;
+      small_blind: number;
+      big_blind: number;
+      ante: number;
+      bb_ante: boolean;
+      players: number;
+      shove_bb: number | null;
+      shover: string | null;
+    }
+  | { type: "hud_read"; vpip: number; pfr: number; three_bet: number; hands: number; ask: "type" | "counter" | "trust" };
 
 export type PositionAsk = { type: "seat_of"; label: string } | { type: "label_of"; seat: number };
 
@@ -496,6 +572,18 @@ export interface Feedback {
   ev_loss_bb: number | null;
   grading: Grading;
   model_note: string | null;
+  /** A strategy over the 13×13 classes, shown with the answer. */
+  grid: LearnGrid | null;
+}
+
+/** How often each class (HandClass index) takes `action`, 0–1; null when the class can't be here. */
+export interface LearnGrid {
+  title: string;
+  action: string;
+  cells: (number | null)[];
+  hero: number;
+  /** Share of all combos here taking the action, in percent. */
+  pct: number;
 }
 
 export interface Fact {
