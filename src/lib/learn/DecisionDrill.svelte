@@ -29,12 +29,15 @@
     onGraded,
     onNext,
     nextLabel = "Weiter",
+    why = null,
   }: {
     spot: DrillSpot;
     check: (choice: number) => Promise<DrillResult>;
     onGraded?: (r: DrillResult) => void;
     onNext?: () => void;
     nextLabel?: string;
+    /** Why this kind of spot is practised: "38-mal gespielt, kostet dich etwa 0,4 BB pro Mal". */
+    why?: string | null;
   } = $props();
 
   let result = $state<DrillResult | null>(null);
@@ -96,13 +99,17 @@
   const facing = $derived(view.toCallBB > 0 && !view.unopened);
   const allIn = $derived(facing && view.toCallBB >= view.behindBB - 0.005);
   const spr = $derived(facing ? Math.max(0, view.behindBB - view.toCallBB) / (view.potBB + view.toCallBB) : view.behindBB / Math.max(view.potBB, 0.01));
+  const river = $derived(view.street === "River");
   const sprMeaning = $derived.by(() => {
     if (allIn) return "Der Call ist dein ganzer Stack: danach ist alles drin.";
     if (spr < 0.5) return "Fast alles liegt schon im Pot: Mit dem Call bist du praktisch festgelegt.";
     if (spr < 2) return "Klein: Mit einem weiteren Einsatz ist alles drin.";
+    if (view.street === "Turn") return "Genug Platz für einen vollen Einsatz auf dem River.";
     if (spr < 6) return "Mittel: Platz für Einsätze auf ein, zwei Straßen.";
     return "Tief: viel Spielraum, die nächsten Straßen entscheiden mit.";
   });
+  /** "All-in oder Fold": the choices of this task in words. */
+  const offered = $derived(spot.choices.map((c) => c.label.split(" ")[0]).join(", ").replace(/, ([^,]*)$/, " oder $1"));
   const stackMeaning = $derived(
     view.behindBB <= 20
       ? "Kurz: Meist geht es um All-in oder Fold."
@@ -172,7 +179,7 @@
   </header>
 
   <div class="table-col">
-    <ActionChain streets={moves} turn={result ? undefined : { pos: `Du · ${seat ?? "?"}`, text: "bist dran" }} label="Bisher in der Hand" />
+    <div class="chain"><ActionChain streets={moves} turn={result ? undefined : { pos: `Du · ${seat ?? "?"}`, text: "bist dran" }} label="Bisher in der Hand" /></div>
     <div class="felt-box" bind:this={feltEl} style:height="{feltH}px">
       <Replayer hand={spot.hand} upTo={spot.action_index} quiz={!result} inBigBlinds quietPlay solve={false} moveList={false} />
     </div>
@@ -193,7 +200,11 @@
               value={bb(view.toCallBB)}
               meaning={allIn ? "Das ist dein ganzer Stack." : `${pct(view.toCallBB / view.behindBB)} deines Stacks von ${bb(view.behindBB)}.`}
             />
-            <Stat label={allIn ? "Stack zu Pot" : "Stack zu Pot nach dem Call"} value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
+            {#if river}
+              <Stat label="Pot nach dem Call" value={bb(view.potBB + view.toCallBB)} meaning="Keine Karte kommt mehr: Callst du, werden die Karten gezeigt." />
+            {:else}
+              <Stat label={allIn ? "Stack zu Pot" : "Stack zu Pot nach dem Call"} value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
+            {/if}
           {:else}
             <Stat label="Pot" value={bb(view.potBB)} meaning="liegt schon in der Mitte, Blinds und Antes eingerechnet." />
             {#if view.street === "Vor dem Flop"}
@@ -207,8 +218,9 @@
           <PotOdds pot={view.potBB} call={view.toCallBB} />
         {:else}
           <p class="free">
-            {#if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes. Du kannst folden, mitgehen (limpen) oder eröffnen.
-            {:else}Noch hat niemand gesetzt: Du kannst checken oder setzen, ohne etwas zu zahlen.{/if}
+            {#if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes.
+            {:else}Noch hat niemand gesetzt: Du zahlst nichts, um weiterzuspielen.{/if}
+            Du entscheidest zwischen {offered}.
           </p>
         {/if}
       </section>
@@ -221,6 +233,12 @@
         {/each}
       </div>
       {#if error}<p class="error" role="alert">{error}</p>{/if}
+      {#if why}
+        <p class="why">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg>
+          <span><b>Warum diese Lage?</b> In deinen Händen: {why}.</span>
+        </p>
+      {/if}
     {:else}
       <div class="after" in:rise>
         <div class="verdict"><DecisionCard decision={result.decision} quiet /></div>
@@ -334,6 +352,27 @@
     border-radius: 2px;
     background: var(--c);
   }
+  .why {
+    display: flex;
+    gap: var(--sp-2);
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
+  }
+  .why b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
+  .why svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.7;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .after {
     display: flex;
     flex-direction: column;
@@ -345,8 +384,10 @@
     bottom: 0;
     z-index: 1;
     padding: var(--sp-3) 0 var(--sp-4);
+    margin-top: calc(-1 * var(--sp-1));
     margin-bottom: calc(-1 * var(--sp-4));
-    background: linear-gradient(to bottom, transparent, var(--surface) var(--sp-3));
+    border-top: 1px solid var(--line);
+    background: var(--surface);
   }
   .then {
     display: flex;
@@ -368,7 +409,17 @@
   @container drill (max-width: 900px) {
     .grid {
       grid-template-columns: minmax(0, 1fr);
-      grid-template-areas: "top" "side" "table";
+      grid-template-areas: "top" "chain" "side" "table";
+    }
+    /* Narrow: what happened comes before the question, the table after the choices. */
+    .table-col {
+      display: contents;
+    }
+    .chain {
+      grid-area: chain;
+    }
+    .felt-box {
+      grid-area: table;
     }
   }
 </style>

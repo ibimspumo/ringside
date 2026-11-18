@@ -8,6 +8,7 @@
   import { money, moneyShort } from "../stats";
   import type { Action, Hand, Street } from "../types";
   import BestHand from "../ui/BestHand.svelte";
+  import { bb } from "../ui/format";
   import Button from "../ui/Button.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
   import IconButton from "../ui/IconButton.svelte";
@@ -314,7 +315,7 @@
 
   /** Writes an amount given in big blinds in the unit chosen below the table. */
   function format(v: number): string {
-    if (inBB || hand.big_blind <= 0) return `${v.toLocaleString("de-DE", { maximumFractionDigits: v < 10 ? 1 : 0 })} BB`;
+    if (inBB || hand.big_blind <= 0) return bb(v);
     return money(v * unit, hand.currency, hand.game);
   }
 

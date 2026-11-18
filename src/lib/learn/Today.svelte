@@ -10,7 +10,7 @@
   import { openPlay } from "../play/nav.svelte";
   import { preview } from "./preview";
   import DecisionDrill from "./DecisionDrill.svelte";
-  import { bbText, weakGroups, type DrillSpot, type PlayProfile, type SpotGroup } from "./profile";
+  import { bbText, costLine, weakGroups, type DrillSpot, type PlayProfile, type SpotGroup } from "./profile";
   import Weaknesses from "./Weaknesses.svelte";
 
   let {
@@ -489,6 +489,7 @@
             }}
             onNext={next}
             nextLabel={index + 1 < items.length ? "Weiter" : "Zum Ergebnis"}
+            why={groupOf(spot.key) ? costLine(groupOf(spot.key)!) : null}
           />
         {/key}
       {:else}

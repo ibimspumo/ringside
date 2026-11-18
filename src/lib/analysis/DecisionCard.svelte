@@ -31,6 +31,13 @@
   const WHO: Record<Source, Who> = { model: "model", equilibrium: "equilibrium", solver: "solution", estimate: "solution", forced: "solution" };
 
   const grade = $derived(d.rating ? GRADE_OF[d.rating] : null);
+  /** The estimate rates the kind of move, not its size, so it names the move without one. */
+  const MOVE_WORD: Record<MoveKind, string> = { fold: "Folden", check: "Checken", call: "Callen", limp: "Limpen", bet: "Setzen", raise: "Erhöhen", all_in: "All-in" };
+  const better = $derived.by(() => {
+    if (!d.best || d.best === d.played) return undefined;
+    const best = d.strategy.find((c) => c.label === d.best);
+    return d.source === "estimate" && best?.kind ? MOVE_WORD[best.kind] : d.best;
+  });
   const context = $derived(SPOT[d.spot] === STREET[d.street] ? STREET[d.street] : `${SPOT[d.spot]} · ${STREET[d.street]}`);
   const kind = (c: Choice): MoveKind => (c.kind || "call") as MoveKind;
   const played = $derived(d.strategy.find((c) => c.played) ?? null);
@@ -89,7 +96,7 @@
     <Verdict
       {grade}
       played={d.played}
-      better={d.best && d.best !== d.played ? d.best : undefined}
+      {better}
       cost={d.ev_loss_bb ?? undefined}
       {potShare}
       {context}
