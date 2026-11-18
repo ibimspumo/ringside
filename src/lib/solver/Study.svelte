@@ -6,7 +6,7 @@
   import ActionBar from "./ActionBar.svelte";
   import { actionColors, bb, bytes, duration, whole } from "./actions";
   import DeckPopover from "./DeckPopover.svelte";
-  import { cap, GLOSSARY, handAdvice, headline, often, precision, verb, why } from "./explain";
+  import { cap, handAdvice, headline, often, precision, verb, why } from "./explain";
   import { loadNode } from "./nodes";
   import { STREET_INDEX, STREET_NAME, actionText, isAggressive, matchStep, nearestSize, targetAmount, withSize, type Crumb, type SizeMatch } from "./play";
   import MiniCard from "../ui/MiniCard.svelte";
@@ -19,7 +19,8 @@
   import { meSide, solvedTable, solver, startSolve } from "./store.svelte";
   import type { SeatView } from "./SolverTable.svelte";
   import SolverTable from "./SolverTable.svelte";
-  import Term from "./Term.svelte";
+  import Term from "../ui/Term.svelte";
+  import { explain } from "../ui/words";
   import type { SolverHand, SolverNode, SolverPlayer, SolverStep } from "./types";
   import Button from "../ui/Button.svelte";
 
@@ -278,7 +279,7 @@
     {#if summary}
       <div class="stats">
         <span>
-          <Term term="exploit">Lösung</Term>
+          <Term id="exploit">Lösung</Term>
           <b class:warn={!summary.converged} title="Ein perfekter Gegner gewönne dagegen höchstens {summary.exploitability_pct.toLocaleString('de-DE', { maximumFractionDigits: 2 })} % des Pots mehr.">{precision(summary.exploitability_pct)}</b>
         </span>
         {#if summary.threads > 0}<span>Zeit <b class="num">{duration(summary.elapsed_ms / 1000)}</b></span>{/if}
@@ -363,7 +364,7 @@
       {:else if node.kind === "action" && node.player}
         <span class="who">
           <b>{pos(node.player)}</b> ist am Zug ·
-          {#if node.player === "oop"}<Term term="oop">OOP</Term>{:else}<Term term="ip">IP</Term>{/if}
+          {#if node.player === "oop"}<Term id="oop">OOP</Term>{:else}<Term id="ip">IP</Term>{/if}
         </span>
         {#if hero && heroNumbers && !heroNumbers.hand}
           <p class="say">Deine Hand <span class="inline">{#each hero as c (c)}<MiniCard card={c} />{/each}</span> kommt hier nicht vor.</p>
@@ -480,13 +481,13 @@
               <b>{pos(node.player)}</b>
               {#if players}
                 <span class="dim num"
-                  >{bb(players.combos, 1)} Kombos · <Term term="equity">Equity</Term> {pct(players.equity)} · <Term term="ev">EV</Term>
+                  >{bb(players.combos, 1)} Kombos · <Term id="equity">Equity</Term> {pct(players.equity)} · <Term id="ev">EV</Term>
                   {signed(players.ev, 2)} BB</span
                 >
               {/if}
             </div>
             <div class="seg" role="group" aria-label="Ansicht">
-              {#each [["strategy", "Strategie", "Was jede Hand hier spielt; Farbe je Aktion"], ["range", "Range", GLOSSARY.range], ["ev", "EV", GLOSSARY.ev], ["equity", "Equity", GLOSSARY.equity]] as [m, l, hint] (m)}
+              {#each [["strategy", "Strategie", "Was jede Hand hier spielt; Farbe je Aktion"], ["range", "Range", explain("range")], ["ev", "EV", explain("ev")], ["equity", "Equity", explain("equity")]] as [m, l, hint] (m)}
                 <button class:on={mode === m} title={hint} onclick={() => (mode = m as GridMode)}>{l}</button>
               {/each}
             </div>

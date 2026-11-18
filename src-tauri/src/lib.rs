@@ -8,6 +8,7 @@ mod importer;
 mod jobs;
 mod library;
 mod memory;
+mod next;
 mod overlay;
 mod play;
 mod ranges;
@@ -754,6 +755,7 @@ pub fn run() {
             analysis::analysis_summary,
             analysis::analysis_set_auto,
             report::tournament_report,
+            next::next_steps,
             report::session_review,
             solver::solver_estimate,
             solver::solver_start,

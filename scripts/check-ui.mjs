@@ -35,7 +35,14 @@ const RULES = {
   "kbd-style": "Eigener Stil für <kbd> außerhalb von src/lib/ui/ – nimm Kbd oder Button mit kbd; Lage (margin, grid, position) ist erlaubt.",
   motion: "transition/animation mit linear, ease oder freier Dauer – nimm var(--dur…) und var(--ease…).",
   "page-heading": "Eigene Seitenüberschrift (<h1> oder Intro-Block .page-head) – Titel, Zeile und Bereiche gehören in den PageHeader (usePageHead).",
+  jargon: "Fachbegriff als fester Text ohne Erklärung – in <Term id=\"…\"> setzen; Wörter und Erklärungen stehen in src/lib/ui/words.ts.",
+  "old-word": "Altes Wort als Anzeigetext – „Leaks“ heißt „Schwachstellen“, „EV-Verlust“ heißt „kostet im Schnitt“ (src/lib/ui/words.ts).",
 };
+
+/** Poker words a beginner does not know; in markup text they belong inside <Term>. */
+const JARGON = /\b(?:VPIP|PFR|[34]-Bet|SPR|Equity|Ranges?|ICM|EV|C-Bet|ROI|ITM|Pot Odds|GTO|OOP|WTSD)(?![\w-])/g;
+/** Words the glossary replaced. */
+const OLD_WORDS = /(?<![<\/.\w])(?:Leaks?|EV-Verlust)\b/g;
 
 const posix = (p) => p.split(sep).join("/");
 
@@ -200,6 +207,37 @@ function stylesButton(selector, ownButtonClasses) {
   });
 }
 
+/** Markup without script, style, comments, expressions and tags; positions stay put. */
+function markupText(clean) {
+  const blank = (m) => m.replace(/[^\n]/g, " ");
+  let t = clean.replace(/<script[^>]*>[\s\S]*?<\/script>/g, blank).replace(/<style[^>]*>[\s\S]*?<\/style>/g, blank);
+  let out = "";
+  let depth = 0;
+  for (const c of t) {
+    if (c === "{") depth++;
+    out += depth > 0 && c !== "\n" ? " " : c;
+    if (c === "}" && depth > 0) depth--;
+  }
+  return out;
+}
+
+/** Visible text of a component's markup: tags and the words inside <Term>…</Term> blanked. */
+function visibleText(clean) {
+  const blank = (m) => m.replace(/[^\n]/g, " ");
+  return markupText(clean).replace(/<Term\b[^>]*>[\s\S]*?<\/Term>/g, blank).replace(/<[^>]*>/g, blank);
+}
+
+/** String literals of script code that read as display text, not as import paths or keys. */
+function displayStrings(code) {
+  const out = [];
+  for (const m of code.matchAll(/"((?:[^"\\\n]|\\.)*)"|'((?:[^'\\\n]|\\.)*)'|`((?:[^`\\]|\\.)*)`/g)) {
+    const str = m[1] ?? m[2] ?? m[3];
+    if (/\.(svelte|ts|js|css)$|^\.{1,2}\//.test(str)) continue;
+    out.push({ str, index: m.index + 1 });
+  }
+  return out;
+}
+
 function scan(file, text, globals) {
   const rel = posix(relative(root, file));
   const inKit = rel.startsWith("ui/");
@@ -223,6 +261,25 @@ function scan(file, text, globals) {
     const markup = clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, (m) => m.replace(/[^\n]/g, " "));
     for (const m of markup.matchAll(/<h1\b/g)) add("page-heading", m.index, "<h1>");
     for (const m of markup.matchAll(/class="[^"]*\bpage-head\b[^"]*"/g)) add("page-heading", m.index, m[0]);
+  }
+
+  if (file.endsWith(".svelte")) {
+    const visible = visibleText(clean);
+    for (const m of visible.matchAll(JARGON)) add("jargon", m.index, m[0]);
+    // Old words count in attributes and inside <Term> too: a title or an explanation is display text.
+    for (const m of markupText(clean).matchAll(OLD_WORDS)) add("old-word", m.index, m[0]);
+  }
+  if (rel !== "ui/words.ts") {
+    const code = file.endsWith(".svelte")
+      ? [...clean.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map((m) => ({ code: m[1], at: m.index + m[0].indexOf(">") + 1 }))
+      : file.endsWith(".ts")
+        ? [{ code: clean, at: 0 }]
+        : [];
+    for (const { code: c, at } of code) {
+      for (const { str, index } of displayStrings(c)) {
+        for (const m of str.matchAll(OLD_WORDS)) add("old-word", at + index + m.index, m[0]);
+      }
+    }
   }
 
   const ownButtons = file.endsWith(".svelte") ? buttonClasses(clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "")) : new Set();

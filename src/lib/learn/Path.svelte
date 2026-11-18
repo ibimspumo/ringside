@@ -1,30 +1,29 @@
 <script lang="ts">
-  import type { ConceptCount } from "../coach/types";
   import type { LearnKind, LearnProgress } from "../types";
-  import { LEVEL_HINT, LEVEL_TEXT, SKILLS, UNITS, currentUnit, fmtPct, mastery, nextLevel, trainableKind, weakConcepts } from "./catalog";
+  import { LEVEL_HINT, LEVEL_TEXT, SKILLS, UNITS, currentUnit, fmtPct, mastery, nextLevel } from "./catalog";
     import Ring from "./Ring.svelte";
   import SkillBadge from "./SkillBadge.svelte";
   import Weaknesses from "./Weaknesses.svelte";
   import { ARTICLE_BY_ID } from "./wissen/articles";
   import { loadRead } from "./wissen/read";
-  import { weakGroups, type PlayProfile } from "./profile";
+  import type { LearnTarget } from "../app/Leaks.svelte";
+  import type { NextStep, StepHands } from "../next/types";
 
   let {
     progress,
-    concepts,
-    profile,
+    steps,
     onTrain,
     onRead,
-    onPractice,
+    onLearn,
     onHands,
   }: {
     progress: LearnProgress | null;
-    concepts: ConceptCount[];
-    profile: PlayProfile | null;
+    /** „Was als Nächstes?“, heaviest first. */
+    steps: NextStep[];
     onTrain: (kind: LearnKind, level: number) => void;
     onRead: (id: string) => void;
-    onPractice: (key: string) => void;
-    onHands?: (key: string, label: string) => void;
+    onLearn: (target: LearnTarget) => void;
+    onHands?: (hands: StepHands) => void;
   } = $props();
 
   const read = loadRead();
@@ -42,7 +41,7 @@
   /** The one skill the path suggests next: the first in the current unit that is not yet "mit Hilfe". */
   const nextKind = $derived(UNITS.find((u) => u.id === here)?.skills.find((k) => (byKind.get(k)?.level ?? 0) < 2) ?? null);
   /** With weak spots from the own game or the coach, the first of them is the one main action on this page. */
-  const weakFirst = $derived(weakGroups(profile).length > 0 || weakConcepts(concepts).some((c) => !!trainableKind(c)));
+  const weakFirst = $derived(!!steps[0]?.practice);
   const total = $derived(progress?.skills.filter((s) => s.id !== "all_in" && s.id !== "own_decision") ?? []);
   const solid = $derived(total.filter((s) => s.level >= 3).length);
 </script>
@@ -72,7 +71,7 @@
     <span class="dim small">Zeig auf eine Stufe, um zu sehen, was sie verlangt.</span>
   </div>
 
-  <Weaknesses {profile} {concepts} {progress} limit={6} primary={weakFirst} {onPractice} {onHands} {onTrain} {onRead} />
+  <Weaknesses {steps} limit={6} primary={weakFirst} {onLearn} {onHands} />
 
 <ol class="units">
     {#each units as u (u.id)}

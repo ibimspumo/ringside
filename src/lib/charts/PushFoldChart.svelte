@@ -1,10 +1,10 @@
 <script lang="ts">
+  import Term from "../ui/Term.svelte";
   import type { PushFoldNode } from "../types";
   import { signed } from "../app/format";
   import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
-  import Tooltip from "../ui/Tooltip.svelte";
   import { classCombos, classLabel } from "../solver/range";
-  import { TERM, amount } from "./words";
+  import { amount } from "./words";
   import { actionColor } from "./preflop-labels";
 
   /** 13×13 grid of one push/fold node on the shared RangeGrid: each hand split into all-in (or call) and fold. */
@@ -102,16 +102,16 @@
     {@const h = hands[i]}
     <header class="c-head">
       <b class="c-key">{h.key}</b>
-      <Tooltip text={TERM.combos}><span class="term">{h.combos} Kombos</span></Tooltip>
+      <Term id="hand_combos">{h.combos} Kombos</Term>
     </header>
     <p class="verdict">{verdict(h)}.</p>
     <p class="why">{why(h)}</p>
     {#if share(h) > 0 && share(h) < 100}
-      <p class="why"><Tooltip text={TERM.mixed}><span class="term">Warum gemischt?</span></Tooltip></p>
+      <p class="why"><Term id="mixed">Warum gemischt?</Term></p>
     {/if}
     <div class="bar split" aria-hidden="true"><i style="width:{h.freq * 100}%;background:{tone}"></i></div>
     <table class="acts">
-      <thead><tr><th>Aktion</th><th>Wie oft</th><th><Tooltip text={TERM.ev}><span class="term">EV</span></Tooltip></th></tr></thead>
+      <thead><tr><th>Aktion</th><th>Wie oft</th><th><Term id="ev">EV</Term></th></tr></thead>
       <tbody>
         <tr class:best={h.ev >= h.fold}>
           <td><i class="sw" style="background:{tone}"></i>{verb}</td>
@@ -157,12 +157,6 @@
     align-items: baseline;
     gap: var(--sp-3);
     margin-bottom: var(--sp-2);
-  }
-  .term {
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
-    text-underline-offset: 3px;
   }
   .bar {
     display: flex;

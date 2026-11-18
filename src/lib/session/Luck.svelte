@@ -6,6 +6,7 @@
   import MiniCard from "../ui/MiniCard.svelte";
   import Reason from "../ui/Reason.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
+  import Term from "../ui/Term.svelte";
   import { cardsOf, luckLine, outcomeLine, swingLine } from "./labels";
   import type { SessionReview, Swing } from "./types";
 
@@ -61,7 +62,7 @@
   <div class="lk-cols">
     <section aria-labelledby="lk-bad">
       <h2 id="lk-bad" class="lk-title">Gut entschieden, Pech gehabt</h2>
-      <p class="lk-sub">Richtig nach Gleichgewicht, Modell oder Solver – und trotzdem Chips verloren. Auf Dauer gewinnst du mit genau diesen Entscheidungen.</p>
+      <p class="lk-sub">Richtig nach <Term id="equilibrium" />, <Term id="model" /> oder <Term id="solved" /> – und trotzdem Chips verloren. Auf Dauer gewinnst du mit genau diesen Entscheidungen.</p>
       {#each review.bad_luck as s (s.hand_id)}{@render card(s, true)}{:else}<p class="lk-sub">Diesmal keine.</p>{/each}
     </section>
     <section aria-labelledby="lk-good">

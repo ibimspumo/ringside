@@ -2,7 +2,7 @@
   import { onMount, untrack } from "svelte";
   import { preview } from "../learn/preview";
   import { solver } from "../solver/store.svelte";
-  import Term from "../solver/Term.svelte";
+  import Term from "../ui/Term.svelte";
   import { Playback, SPEEDS, nudgeSpeed, setSpeed, speed, stepMs, type Speed } from "../table/playback.svelte";
   import BestHand from "../ui/BestHand.svelte";
   import Button from "../ui/Button.svelte";
@@ -369,8 +369,8 @@
           <p class="head" aria-live="polite">
             {#if head}
               <b>{head.street}</b> · {head.players}: Du ({view.positions[view.hero]},
-              <Term term={head.inPosition ? "ip" : "oop"}>{head.inPosition ? "mit Position" : "ohne Position"}</Term>) gegen {head.others}
-              · <Term term="effective">effektiv</Term>
+              <Term id={head.inPosition ? "ip" : "oop"}>{head.inPosition ? "mit Position" : "ohne Position"}</Term>) gegen {head.others}
+              · <Term id="effective">effektiv</Term>
               <span class="num">{num(head.effective, 0)} BB</span>
               {#if view.spot?.source === "live" && view.snapshots[at].street !== "preflop"}
                 · <span class="live">live gerechnet, Genauigkeit <span class="num">{num(view.spot.exploitability_pct)} %</span></span>
@@ -403,12 +403,12 @@
           {:else if decision && sit}
             <p class="situation" aria-live="polite">
               <span class="lead">
-                {#if sit.board}<CardText text={sit.board} />.&nbsp;{/if}{sit.lead}{#if sit.raise}&nbsp;(<Term term="threebet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
+                {#if sit.board}<CardText text={sit.board} />.&nbsp;{/if}{sit.lead}{#if sit.raise}&nbsp;(<Term id="three_bet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
               </span>
               <span><CardText text={sit.you} /></span>
               {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
-                <span class="odds"><Term term="potodds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
+                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
               {/if}
             </p>
             <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>

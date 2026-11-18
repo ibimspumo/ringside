@@ -2,6 +2,9 @@
   import { GRADE_OF } from "../analysis/labels";
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import NextSteps from "../next/NextSteps.svelte";
+  import type { NextStep, StepHands } from "../next/types";
+  import type { Filter } from "../types";
   import { dayShort, time } from "../app/format";
   import type { RangeFilter } from "../ranges/types";
   import { NO_RANGE } from "../ranges/types";
@@ -25,19 +28,25 @@
 
   let {
     refresh,
+    filter,
     onReport,
     onHand,
     onRanges,
     onHands,
     onLearn,
+    onStepHands,
   }: {
     refresh: number;
+    /** The app's game and period: „Als Nächstes üben“ filters the overview's list to the session. */
+    filter: Filter;
     onReport: (tournamentId: number) => void;
     /** Opens a hand of the session in the replayer at a decision. */
     onHand: (scope: SessionScope, handId: number, actionIndex: number) => void;
     onRanges: (scope: SessionScope, preset: RangePreset | null) => void;
     onHands: (scope: SessionScope, range: RangeFilter, label: string) => void;
     onLearn: (target: LearnTarget) => void;
+    /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+    onStepHands?: (hands: StepHands) => void;
   } = $props();
 
   const query = new URLSearchParams(window.location.search);
@@ -144,11 +153,25 @@
     vs_position: preset?.vs ?? null,
   });
 
-  const practice = $derived.by(() => {
-    if (rep?.practice) return { key: rep.practice.key, title: rep.practice.title, detail: rep.practice.detail, why: `${int(rep.practice.flawed)} von ${int(rep.practice.decisions)} Entscheidungen daneben, zusammen ${bb(rep.practice.loss_bb)}.` };
-    const p = pre?.patterns.find((x) => x.practice);
-    return p?.practice ? { key: p.practice, title: "Dein auffälligstes Muster", detail: "", why: p.text } : null;
+  /** „Was als Nächstes?“, filtered to this session: the overview's first step when it came up here. */
+  let steps = $state<NextStep[]>([]);
+  $effect(() => {
+    void refresh;
+    const f = { ...filter, tournament_id: null };
+    const s = span;
+    if (!s || review?.locked) {
+      steps = [];
+      return;
+    }
+    let live = true;
+    api.nextSteps(f, { game: null, since: s.start, until: s.end, tournament_id: null }).then(
+      (x) => live && (steps = x),
+      () => live && (steps = []),
+    );
+    return () => (live = false);
   });
+  /** Without an entry from the list, the session's most striking preflop pattern. */
+  const pattern = $derived(pre?.patterns.find((x) => x.practice) ?? null);
   const analysing = $derived(!!rep && rep.unanalyzed > 0);
   const preflopReady = $derived(!!rep && rep.unanalyzed === 0);
   const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
@@ -164,7 +187,7 @@
             {preflopReady ? "Vor dem Flop fertig" : `Analyse läuft: noch ${int(rep!.unanalyzed)} Hände`}
           </span>
           {#if rep!.pending > 0}
-            <span class="sr-state" title="Flop-Spots rechnet der Solver im Hintergrund. Bis dahin sind die Zahlen nach dem Flop vorläufig.">
+            <span class="sr-state" title="Flop-Spots rechnet Ringside im Hintergrund nach. Bis dahin sind die Zahlen nach dem Flop vorläufig.">
               <ProgressRing size={18} stroke={3} value={null} tone="info" label="Flop-Spots" />
               {rep!.pending === 1 ? "1 Flop-Spot wird noch gerechnet" : `${int(rep!.pending)} Flop-Spots werden noch gerechnet`}
             </span>
@@ -176,10 +199,13 @@
 {#snippet nextTile()}
         <section class="sr-tile sr-next" aria-labelledby="sr-next-title">
           <header class="sr-head"><h2 id="sr-next-title" class="sr-title">Als Nächstes üben</h2></header>
-          {#if practice}
-            <p class="sr-next-what"><b>{practice.title}</b>{#if practice.detail}<span class="sr-next-detail">&nbsp;· {practice.detail}</span>{/if}</p>
-            <p class="sr-say">{practice.why}</p>
-            <span class="sr-more"><Button variant="primary" onclick={() => onLearn({ spot: practice.key })}>In „Lernen“ üben</Button></span>
+          {#if steps.length}
+            <NextSteps {steps} mode="first" {onLearn} onHands={onStepHands} />
+          {:else if pattern?.practice}
+            {@const key = pattern.practice}
+            <p class="sr-next-what"><b>Dein auffälligstes Muster</b></p>
+            <p class="sr-say">{pattern.text}</p>
+            <span class="sr-more"><Button variant="primary" onclick={() => onLearn({ spot: key })}>Üben</Button></span>
           {:else}
             <p class="sr-say">Noch nichts Bestimmtes – in dieser Session hat dich keine Spot-Art spürbar Chips gekostet.</p>
           {/if}
@@ -308,7 +334,7 @@
 
           {#if pre.compared > 0 && scope}
             <footer class="sr-foot">
-              <Button size="sm" onclick={() => onRanges(scope, null)}>Deine Ranges dieser Session</Button>
+              <Button size="sm" onclick={() => onRanges(scope, null)}>Deine gespielten Starthände</Button>
               <Button size="sm" variant="quiet" onclick={() => onHands(scope, sessionRange(null), "Preflop-Entscheidungen dieser Session")}>Die Hände dazu</Button>
               <span class="sr-src"><SourceNote kind={pre.equilibrium === pre.compared ? "equilibrium" : "model"} hint="Bei kurzen Stacks vergleicht Ringside mit dem Push/Fold-Gleichgewicht, sonst mit dem Preflop-Modell." /></span>
             </footer>
@@ -827,9 +853,6 @@
   .sr-next-what {
     margin: 0;
     font-size: var(--fs-lg);
-  }
-  .sr-next-detail {
-    color: var(--text-2);
   }
 
   .sr-locked {

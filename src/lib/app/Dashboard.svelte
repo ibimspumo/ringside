@@ -2,8 +2,6 @@
   import AnalyzeBar from "../analysis/AnalyzeBar.svelte";
   import Summary from "../analysis/Summary.svelte";
   import { analysis } from "../analysis/store.svelte";
-  import { LEARN, SPOT, SPOT_HINT, bb } from "../analysis/labels";
-  import type { SpotLoss, SpotType } from "../analysis/types";
   import { api } from "../api";
   import type { LearnTarget } from "./Leaks.svelte";
   import { PALETTES, RATED_STATS, STAT_META, bountyText, compact, fmt, stat } from "../stats";
@@ -15,28 +13,19 @@
   import Panel from "../ui/Panel.svelte";
   import Term from "../ui/Term.svelte";
   import Wheel from "./Wheel.svelte";
+  import NextSteps from "../next/NextSteps.svelte";
+  import type { NextStep, StepHands } from "../next/types";
+  import { WORDS, explain } from "../ui/words";
   import AtTable from "./AtTable.svelte";
   import { adviceLocked, watchPokerClient } from "./client.svelte";
 
   const SERIES: Series<ResultPoint>[] = [
     { key: "net_bb", label: "Gesamt", color: "var(--text)", width: 2 },
-    { key: "ev_bb", label: "All-in-EV", color: "var(--amber)", width: 1.5, dash: "5 3" },
-    { key: "showdown_bb", label: "Mit Showdown", color: "var(--sd)", width: 1.5 },
-    { key: "non_showdown_bb", label: "Ohne Showdown", color: "var(--neg)", width: 1.5 },
+    { key: "ev_bb", label: WORDS.all_in_ev.word, color: "var(--amber)", width: 1.5, dash: "5 3" },
+    { key: "showdown_bb", label: WORDS.showdown.word, color: "var(--sd)", width: 1.5 },
+    { key: "non_showdown_bb", label: WORDS.no_showdown.word, color: "var(--neg)", width: 1.5 },
   ];
 
-  const EV_HELP =
-    "All-in-EV: dein Ergebnis, wenn jedes All-in mit offenen Karten so ausgegangen wäre, wie es im Schnitt ausgeht. " +
-    "Ringside rechnet je Side Pot die exakte Equity × Pot nach Rake − deinen Einsatz. Bounties zählen nicht mit.";
-  const LUCK_HELP =
-    "Glück: tatsächliches Ergebnis − EV in diesen All-ins. Positiv heißt, du hast öfter gewonnen, als die Karten erwarten ließen.";
-  const BB_HELP = "BB = Big Blind, der große Pflichteinsatz. Ergebnisse in Big Blinds lassen sich über alle Limits und Turnierstufen vergleichen.";
-  const WINRATE_HELP =
-    "Winrate: wie viele Big Blinds du im Schnitt je 100 Hände gewinnst (BB/100). Über 0 heißt: Du gewinnst auf Dauer, unter 0: Du verlierst.";
-  const SD_HELP = "Showdown: Am Ende der Hand werden die Karten aufgedeckt. Diese Linie zeigt, was du in solchen Händen gewonnen oder verloren hast.";
-  const NSD_HELP =
-    "Ohne Showdown: Pots, die enden, bevor Karten aufgedeckt werden – weil jemand foldet. Steigt die Linie, gewinnst du Pots durch Druck; fällt sie, gibst du oft auf.";
-  const BOUNTY_HELP = "Bounty: Geld, das du bekommst, wenn du in einem Knockout-Turnier einen Spieler rauswirfst.";
   const POSITION_HELP: Record<string, string> = {
     UTG: "Under the Gun: als Erster vor dem Flop dran, nach dem Flop fast immer zuerst. Schwerste Position – hier nur starke Hände.",
     "UTG+1": "Direkt nach UTG: früh dran, fast so schwer wie UTG.",
@@ -56,6 +45,7 @@
     refresh,
     onHand = () => {},
     onLearn,
+    onStepHands,
   }: {
     filter: Filter;
     hud: HudConfig | null;
@@ -63,14 +53,16 @@
     /** Opens a hand in the replayer at one of its decisions. */
     onHand?: (handId: number, actionIndex: number | null) => void;
     onLearn?: (target: LearnTarget) => void;
+    /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+    onStepHands?: (hands: StepHands) => void;
   } = $props();
 
   let data = $state<Dashboard | null>(null);
   let positions = $state<GroupView[]>([]);
   /** Stats the leak finder flags for some position or stack depth, with where. */
   let flagged = $state<Map<StatId, string>>(new Map());
-  /** The spot type that costs the most, for the next step at the top. */
-  let next = $state<SpotLoss | null>(null);
+  /** „Was als Nächstes?“: the page shows its first entry. */
+  let steps = $state<NextStep[]>([]);
   let failed = $state(false);
   let retry = $state(0);
   /** The curve fills whatever height the answer column gives the row. */
@@ -106,14 +98,14 @@
     void analysis.status?.counts.analyzed;
     const f = { ...filter };
     if (locked) {
-      next = null;
+      steps = [];
       flagged = new Map();
       return;
     }
     let live = true;
-    api.analysisSummary(f).then(
-      (s) => live && (next = s.by_spot.find((x) => x.spot && x.loss_bb > 0.5) ?? null),
-      () => live && (next = null),
+    api.nextSteps(f).then(
+      (s) => live && (steps = s),
+      () => live && (steps = []),
     );
     api.leaks(f).then(
       (rep) => {
@@ -175,18 +167,18 @@
   }
 </script>
 
-{#snippet nextStep(spot: SpotType, loss: number)}
-  <div class="next">
-    <span class="next-label"
-      >Dein nächster Schritt{#if running}<span class="early"
-          ><Term tip="Die Analyse läuft noch. Mit jeder bewerteten Hand kann sich die teuerste Baustelle ändern.">vorläufig</Term></span
-        >{/if}</span
-    >
-    <p><b>{SPOT[spot]}</b> kostet dich laut Hand-Analyse am meisten: {bb(loss)}. {SPOT_HINT[spot]}</p>
-    {#if onLearn}
-      <Button variant="primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</Button>
-    {/if}
-  </div>
+{#snippet nextStep()}
+  {#if onLearn}
+    <div class="next">
+      <NextSteps
+        {steps}
+        mode="first"
+        label={running ? "Dein nächster Schritt · vorläufig, die Analyse läuft noch" : "Dein nächster Schritt"}
+        {onLearn}
+        onHands={onStepHands}
+      />
+    </div>
+  {/if}
 {/snippet}
 
 <div class="page dash">
@@ -213,23 +205,23 @@
     <section class="panel hero">
       <div class="answer">
         <span class="eyebrow">Dein Ergebnis</span>
-        <strong class="big num {sign(r.net_bb)}">{signed(r.net_bb)}<span class="big-unit"><Term tip={BB_HELP}>BB</Term></span></strong>
+        <strong class="big num {sign(r.net_bb)}">{signed(r.net_bb)}<span class="big-unit"><Term id="bb" /></span></strong>
         <p class="say">
           {r.net_bb >= 0 ? "Du liegst im Plus" : "Du liegst im Minus"} – nach {int(r.hands)} Händen{data.heroes.length
             ? ` als ${data.heroes.join(", ")}`
             : ""}.
           {#if r.hands < FEW_HANDS}<span class="chance">Bei so wenigen Händen spielt der Zufall noch stark mit.</span>{/if}
         </p>
-        {#if next?.spot}<div class="next-narrow">{@render nextStep(next.spot, next.loss_bb)}</div>{/if}
+        {#if steps.length && !locked}<div class="next-narrow">{@render nextStep()}</div>{/if}
 
         <dl class="facts">
           <div>
-            <dt><Term tip={WINRATE_HELP}>Winrate</Term></dt>
+            <dt><Term id="winrate" /></dt>
             <dd class="num {sign(bb100)}">{signed(bb100, 2)}<span class="unit">BB/100</span></dd>
             <small>{bb100 >= 0 ? "Du gewinnst im Schnitt" : "Du verlierst im Schnitt"} {plain(bb100)} BB je 100 Hände.</small>
           </div>
           <div>
-            <dt><Term tip="{LUCK_HELP} {EV_HELP}">Glück</Term></dt>
+            <dt><Term tip="{explain('luck')} {explain('all_in_ev')}">{WORDS.luck.word}</Term></dt>
             <dd class="num">{r.all_ins ? signed(r.luck_bb) : "–"}<span class="unit">BB</span></dd>
             <small>
               {#if !r.all_ins}
@@ -242,7 +234,7 @@
             </small>
           </div>
           <div>
-            <dt><Term tip={NSD_HELP}>Ohne Showdown</Term></dt>
+            <dt><Term id="no_showdown" /></dt>
             <dd class="num {sign(r.non_showdown_bb)}">{signed(r.non_showdown_bb)}<span class="unit">BB</span></dd>
             <small>
               {r.non_showdown_bb >= 0 ? "Du gewinnst Pots, ohne Karten zu zeigen." : "Du gibst Pots oft kampflos ab."}
@@ -251,7 +243,7 @@
           </div>
           {#if filter.game !== "cash"}
             <div>
-              <dt><Term tip={BOUNTY_HELP}>Bounties</Term></dt>
+              <dt><Term id="bounty">Bounties</Term></dt>
               <dd class="num bounties" class:pos={!!bounties}>
                 {#each bounties ? bounties.split(" · ") : ["–"] as b, i (b)}<span class:more={i > 0}>{b}</span>{/each}
               </dd>
@@ -266,10 +258,10 @@
           <h2 class="curve-title">So kam es dazu</h2>
           <div class="legend">
             <span><i class="sw total"></i>Gesamt <b class="num {sign(r.net_bb)}">{signed(r.net_bb)}</b></span>
-            <span><i class="sw ev"></i><Term side="bottom" tip={EV_HELP}>All-in-EV</Term> <b class="num {sign(r.ev_bb)}">{signed(r.ev_bb)}</b></span>
-            <span><i class="sw sd"></i><Term side="bottom" tip={SD_HELP}>Mit Showdown</Term> <b class="num {sign(r.showdown_bb)}">{signed(r.showdown_bb)}</b></span>
+            <span><i class="sw ev"></i><Term side="bottom" id="all_in_ev" /> <b class="num {sign(r.ev_bb)}">{signed(r.ev_bb)}</b></span>
+            <span><i class="sw sd"></i><Term side="bottom" id="showdown" /> <b class="num {sign(r.showdown_bb)}">{signed(r.showdown_bb)}</b></span>
             <span
-              ><i class="sw nsd"></i><Term side="bottom" tip={NSD_HELP}>Ohne Showdown</Term>
+              ><i class="sw nsd"></i><Term side="bottom" id="no_showdown" />
               <b class="num {sign(r.non_showdown_bb)}">{signed(r.non_showdown_bb)}</b></span
             >
           </div>
@@ -280,7 +272,7 @@
       </div>
     </section>
 
-    {#if next?.spot}<div class="next-wide">{@render nextStep(next.spot, next.loss_bb)}</div>{/if}
+    {#if steps.length && !locked}<div class="next-wide">{@render nextStep()}</div>{/if}
 
     <section class="loss">
       <div class="section-head">
@@ -297,7 +289,7 @@
         <AtTable compact hands={r.hands} />
       {:else}
         <AnalyzeBar compact title="Analyse starten" />
-        <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpot={() => onHand(-1, null)} {onLearn} />
+        <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpots={() => onHand(-1, null)} {onLearn} {onStepHands} />
       {/if}
     </section>
 
@@ -330,7 +322,7 @@
     <Panel
       flush
       title="Dein Spielstil"
-      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ heißt noch nicht schlecht – ob ein Wert dich Geld kostet, prüft die Seite Leaks."
+      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ heißt noch nicht schlecht – ob ein Wert dich Geld kostet, prüft die Seite Schwachstellen."
     >
       {#if hero && hud}
         <div class="style">
@@ -365,8 +357,8 @@
                 >
                 {#if flagged.get(id)}
                   <small class="leak-hint"
-                    ><Term tip="Die Seite Leaks meldet diesen Wert an einer Stelle als Abweichung vom Richtwert: {flagged.get(id)}."
-                      >Leak: {flagged.get(id)}</Term
+                    ><Term tip="Die Seite Schwachstellen meldet diesen Wert an einer Stelle als Abweichung vom Richtwert: {flagged.get(id)}."
+                      >Schwachstelle: {flagged.get(id)}</Term
                     ></small
                   >
                 {/if}
@@ -431,30 +423,11 @@
     color: var(--text-2);
   }
   .next {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 6px 18px;
     padding: 14px 18px;
     border: 1px solid var(--line);
     border-left: 3px solid var(--text);
     border-radius: var(--r-lg);
     background: var(--surface);
-  }
-  .next-label {
-    font-size: var(--fs-md);
-    font-weight: 600;
-    color: var(--text-2);
-    white-space: nowrap;
-  }
-  .next p {
-    margin: 0;
-    font-size: var(--fs-base);
-    line-height: 1.45;
-    color: var(--text-2);
-  }
-  .next p b {
-    color: var(--text);
   }
   .next-narrow {
     display: none;
@@ -468,12 +441,6 @@
     .next-narrow {
       display: block;
     }
-    .next {
-      grid-template-columns: minmax(0, 1fr) auto;
-    }
-    .next-label {
-      grid-column: 1 / -1;
-    }
   }
   .bounties {
     display: flex;
@@ -483,11 +450,6 @@
   .bounties .more {
     font-size: var(--fs-md);
     font-weight: var(--fw-medium);
-  }
-  .early {
-    margin-left: var(--sp-2);
-    color: var(--amber);
-    font-weight: var(--fw-regular);
   }
   .facts {
     display: flex;

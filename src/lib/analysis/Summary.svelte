@@ -11,40 +11,47 @@
   import type { Grade } from "../ui/poker";
   import Term from "../ui/Term.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
-  import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING, RATING_RULE, RATINGS, SOURCE, SPOT, SPOT_HINT, bb, reliabilityText } from "./labels";
+  import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, RATING, RATING_RULE, RATINGS, SOURCE, bb, reliabilityText } from "./labels";
+  import NextSteps from "../next/NextSteps.svelte";
+  import type { NextStep, StepHands } from "../next/types";
   import { analysis } from "./store.svelte";
   import AtTable from "../app/AtTable.svelte";
   import { adviceLocked, watchPokerClient } from "../app/client.svelte";
   import type { AnalysisSummary, Rating, SpotType } from "./types";
 
   /**
-   * What the analysis found, as three things to work on: the spot types that cost the most,
-   * each with an exercise or article, then the costliest single decisions.
+   * What the analysis found: the loss and how the decisions were rated, the first three steps of
+   * „Was als Nächstes?“ (the same list as everywhere), then the costliest single decisions.
    */
   let {
     filter,
     refresh,
     onOpen,
-    onSpot,
+    onSpots,
     onLearn,
+    onStepHands,
     strip = false,
   }: {
     filter: Filter;
     refresh: number;
     onOpen: (handId: number, actionIndex: number) => void;
-    onSpot?: (spot: SpotType) => void;
+    /** Narrows the hand list to these spot types. */
+    onSpots?: (spots: SpotType[]) => void;
     onLearn?: (target: LearnTarget) => void;
+    onStepHands?: (hands: StepHands) => void;
     /** One low band above a list that already shows the costliest hands. */
     strip?: boolean;
   } = $props();
 
   let data = $state<AnalysisSummary | null>(null);
+  let steps = $state<NextStep[]>([]);
   watchPokerClient();
   const locked = $derived(adviceLocked());
 
   $effect(() => {
     if (locked) {
       data = null;
+      steps = [];
       return;
     }
     void refresh;
@@ -56,10 +63,15 @@
       (s) => live && (data = s),
       () => {},
     );
+    api.nextSteps(f).then(
+      (s) => live && (steps = s),
+      () => live && (steps = []),
+    );
     return () => (live = false);
   });
 
-  const focus = $derived((data?.by_spot ?? []).filter((s) => s.spot && s.loss_bb > 0.5).slice(0, 3));
+  /** Steps the hand list can be narrowed to. */
+  const focus = $derived(steps.filter((s) => s.spots.length).slice(0, 3));
   const flawed = $derived(data ? data.ratings.slice(RATINGS.indexOf("inaccuracy")).reduce((a, b) => a + b, 0) : 0);
   const cards = (s: string) => s.split(" ").filter(Boolean);
   const grade = (r: Rating): Grade => GRADE_OF[r];
@@ -70,29 +82,26 @@
   {#if !strip}<AtTable compact />{/if}
 {:else if data && data.rated > 0 && strip}
   <section class="band">
-    <span class="lead"><abbr title={EV_LOSS_EXPLAIN}>Verlust durch Fehler</abbr> <b class="num">{bb(data.loss_bb)}</b></span>
+    <span class="lead"><abbr title={EV_LOSS_EXPLAIN}>Kostet dich zusammen</abbr> <b class="num">{bb(data.loss_bb)}</b></span>
     {#if focus.length}
-      <span class="faint">Baustellen:</span>
-      {#each focus as f (f.spot)}
-        {@const spot = f.spot!}
+      <span class="faint">Fang hier an:</span>
+      {#each focus as f (f.id)}
+        {@const practice = f.practice}
         <span class="pair">
-          <button class="name-chip" onclick={() => onSpot?.(spot)} title="{SPOT_HINT[spot]} Klick zeigt nur diese Hände.">
-            {SPOT[spot]} <b class="num">−{bb(f.loss_bb, 0)}</b>
-          </button>
-          {#if onLearn}
-            <button class="learn" onclick={() => onLearn(LEARN[spot][0].target)} title={LEARN[spot][0].label}>Üben</button>
+          <button class="name-chip" onclick={() => onSpots?.(f.spots)} title="{f.why} Klick zeigt nur diese Hände.">{f.title}</button>
+          {#if onLearn && practice}
+            <button class="learn" onclick={() => onLearn(practice)} title="{f.title} üben">Üben</button>
           {/if}
         </span>
       {/each}
     {/if}
   </section>
 {:else if data && data.rated > 0}
-  {@const top = focus[0]?.loss_bb ?? 1}
   {@const ratings = data.ratings}
   <section class="summary">
     <div class="totals">
       <span class="label"
-        ><Term tip={EV_LOSS_EXPLAIN}>Verlust durch Fehler</Term>{#if analysis.status?.progress?.state === "running"}&nbsp;– bisher{/if}</span
+        ><Term id="ev_loss">Kostet dich zusammen</Term>{#if analysis.status?.progress?.state === "running"}&nbsp;– bisher{/if}</span
       >
       <b class="big num">{bb(data.loss_bb)}</b>
       <p class="mean">
@@ -115,38 +124,10 @@
       </p>
     </div>
 
-    {#if focus.length}
+    {#if steps.length && onLearn}
       <div class="focus">
-        <h3>Fang hier an: {focus.length === 1 ? "deine wichtigste Baustelle" : `deine ${focus.length} wichtigsten Baustellen`}</h3>
-        <ol>
-          {#each focus as f, i (f.spot)}
-            {@const spot = f.spot!}
-            <li>
-              <span class="rank num">{i + 1}</span>
-              <div class="body">
-                <div class="row">
-                  <b class="spot">{SPOT[spot]}</b>
-                  <b class="cost num">kostet {bb(f.loss_bb)}</b>
-                </div>
-                <span class="meter" aria-hidden="true"><i style="width:{Math.max(4, (f.loss_bb / top) * 100)}%"></i></span>
-                <span class="hint">
-                  {SPOT_HINT[spot]} <span class="num">{int(f.flawed)} von {int(f.rated)}</span> Entscheidungen waren ungenau oder schlechter.
-                </span>
-                <span class="links">
-                  {#if onLearn}
-                    <!-- The first spot's exercise is already the next step above the summary. -->
-                    {#each LEARN[spot].filter((_, j) => i > 0 || LEARN[spot].length === 1 || j > 0) as l, j (l.label)}
-                      <Button size="sm" variant={j === 0 ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
-                    {/each}
-                  {/if}
-                  {#if onSpot}
-                    <Button size="sm" variant="quiet" onclick={() => onSpot(spot)}>Hände ansehen</Button>
-                  {/if}
-                </span>
-              </div>
-            </li>
-          {/each}
-        </ol>
+        <h3>Fang hier an</h3>
+        <NextSteps {steps} limit={3} compact primary={false} {onLearn} onHands={onStepHands} />
       </div>
     {/if}
 
@@ -251,76 +232,6 @@
     font-size: var(--fs-md);
     color: var(--text-2);
   }
-  ol {
-    display: grid;
-    gap: 14px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  ol > li {
-    display: grid;
-    grid-template-columns: 22px minmax(0, 1fr);
-    gap: 10px;
-  }
-  .rank {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--surface-3);
-    color: var(--text);
-    font-size: var(--fs-md);
-    font-weight: 600;
-  }
-  .body {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    min-width: 0;
-  }
-  .row {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 12px;
-  }
-  .spot {
-    font-size: var(--fs-base);
-    font-weight: 600;
-  }
-  .cost {
-    flex-shrink: 0;
-    color: var(--neg);
-    font-size: var(--fs-base);
-    font-weight: 600;
-  }
-  .meter {
-    display: block;
-    height: 4px;
-    border-radius: 2px;
-    background: var(--surface-2);
-  }
-  .meter i {
-    transform-origin: left;
-    animation: grow-x var(--dur-slow) var(--ease-enter) both;
-    display: block;
-    height: 100%;
-    border-radius: 2px;
-    background: color-mix(in srgb, var(--neg) 75%, transparent);
-  }
-  .hint {
-    color: var(--text-2);
-    font-size: var(--fs-md);
-    line-height: 1.5;
-  }
-  .links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 1px;
-  }
   .costly {
     display: flex;
     flex-direction: column;
@@ -392,11 +303,6 @@
   }
   .pair button:hover {
     background: var(--surface-2);
-  }
-  .name-chip b {
-    margin-left: 3px;
-    font-weight: 500;
-    color: var(--neg);
   }
   .pair .learn {
     border-left: 1px solid var(--line-2);

@@ -12,6 +12,7 @@
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
   import Leaks, { type LearnTarget } from "./Leaks.svelte";
+  import type { StepHands } from "../next/types";
   import HudEditor from "./HudEditor.svelte";
   import LiveTables from "./LiveTables.svelte";
   import Players from "./Players.svelte";
@@ -75,7 +76,7 @@
         { id: "overview", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
         { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
         { id: "reports", label: "Statistik", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
-        { id: "leaks", label: "Leaks", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
+        { id: "leaks", label: "Schwachstellen", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
         { id: "ranges", label: "Deine Ranges", icon: "M4.5 4.5h15v15h-15zM4.5 12h15M12 4.5v15M7 7h2.5v2.5H7zM14.5 14.5H17V17h-2.5z" },
         { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
       ],
@@ -94,7 +95,7 @@
         { id: "coach", label: "KI-Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
         { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
         { id: "charts", label: "Ranges nach Stack", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
-        { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
+        { id: "solver", label: "Nachrechnen", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
         { id: "library", label: "Bibliothek", icon: "M5 4.5h3v15H5zM10 4.5h3v15h-3zM15.2 5.3l2.9-.8 3.6 14.4-2.9.8z" },
       ],
     },
@@ -118,7 +119,7 @@
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
-    leaks: "Deine Werte gegen veröffentlichte Richtwerte.",
+    leaks: "Was dich am meisten kostet, das Wichtigste zuerst. Darunter deine Werte gegen veröffentlichte Richtwerte.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Optional: Ein Sprachmodell erklärt deine Zahlen und bespricht Turniere ausführlich. Jede Zahl rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
@@ -291,6 +292,20 @@
     handToOpen = handId;
     handOpenAt = null;
     tab = "hands";
+  }
+
+  /** „Hände ansehen“ of a step of „Was als Nächstes?“. */
+  function stepHands(h: StepHands) {
+    if (h.by === "decision") {
+      showHands(null, h.hand_id);
+      handOpenAt = h.action_index;
+    } else {
+      showHands(null);
+      handsSpot =
+        h.by === "spot"
+          ? { profile: h.key, label: h.label }
+          : { filter: { stat: h.stat, made: h.made, positions: h.positions, band: h.band, game: h.game }, label: h.label };
+    }
   }
 
   /** Game and period stay visible while a tournament is chosen; picking one of them drops it. */
@@ -468,6 +483,8 @@
       {#if tab === "dashboard"}
         <SessionReview
           {refresh}
+          {filter}
+          onStepHands={stepHands}
           onReport={openReport}
           onHand={(scope, hand, at) => {
             session = scope;
@@ -498,6 +515,7 @@
           {hud}
           {refresh}
           onHand={(id) => showHands(null, id >= 0 ? id : null)}
+          onStepHands={stepHands}
           onLearn={(target) => {
             learnOpen = target;
             tab = "training";
@@ -515,6 +533,7 @@
             showHands(null);
             handsSpot = { filter: spot, label };
           }}
+          onStepHands={stepHands}
           onLearn={(target) => {
             learnOpen = target;
             tab = "training";
@@ -547,6 +566,7 @@
               tournament = id;
               showHands(null);
             }}
+            onStepHands={stepHands}
             onLearn={(target) => {
               learnOpen = target;
               tab = "training";
@@ -583,12 +603,10 @@
       {:else if tab === "training"}
         <Training
           {hud}
+          {filter}
           open={learnOpen}
           onOpened={() => (learnOpen = null)}
-          onHands={(profile, label) => {
-            showHands(null);
-            handsSpot = { profile, label };
-          }}
+          onStepHands={stepHands}
         />
       {:else if tab === "play"}
         <PlayPage />

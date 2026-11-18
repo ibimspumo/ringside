@@ -15,7 +15,7 @@
   import OvalFelt from "../table/OvalFelt.svelte";
   import { clear, layout, placeOf } from "../table/seats";
   import { bb } from "./actions";
-  import { GLOSSARY } from "./explain";
+  import { explain } from "../ui/words";
   import { positionsFor } from "./scenario";
   import type { SolverPlayer } from "./types";
 
@@ -217,7 +217,7 @@
           {#if s && acting === s}<span class="turn">am Zug</span>{/if}
           <div class="who">
             <span class="posname">{pos}</span>
-            {#if s}<span class="role" title={GLOSSARY[s]}>{s === "oop" ? "OOP" : "IP"}</span>{/if}
+            {#if s}<span class="role" title={explain(s)}>{s === "oop" ? "OOP" : "IP"}</span>{/if}
           </div>
           {#if s}
             <div class="num stack"><b>{bb(stacks[idx(s)], 2)}</b> <span>BB</span></div>

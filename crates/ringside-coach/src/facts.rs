@@ -172,8 +172,8 @@ pub fn report_facts(t: &TournamentRow, r: &Report) -> String {
             moment(&mut out, i, m, false);
         }
     }
-    if let Some(p) = &r.practice {
-        let _ = writeln!(out, "Als Nächstes üben: {} ({}), {} BB Verlust in {} Entscheidungen.", p.title, p.detail, num(p.loss_bb, 1), p.decisions);
+    if let Some(n) = r.next.first() {
+        let _ = writeln!(out, "Als Nächstes üben (Ringsides Rangliste): {} – {}. {}", n.title, n.number, n.why);
     }
     if r.pending > 0 || r.unanalyzed > 0 {
         let _ = writeln!(out, "Vorläufig: {} Entscheidungen nach dem Flop warten noch auf den Solver, {} Hände sind noch nicht bewertet.", r.pending, r.unanalyzed);

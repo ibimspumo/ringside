@@ -41,3 +41,20 @@ test("keyword curves, linear and literal durations are free motion", () => {
   });
   assert.equal(out.filter((l) => l.includes("[motion]")).length, 5, out.join("\n"));
 });
+
+test("poker words in markup text need a Term", () => {
+  const out = findings({
+    "app/A.svelte": '<p>Dein VPIP ist hoch.</p>\n<p>Deine <Term id="range">Range</Term> passt.</p>\n',
+    "app/B.svelte": '<script>\n  const x = "Equity";\n</script>\n<p>{x} und {"EV"}</p>\n<span title="3-Bet">Erhöhen</span>\n',
+  });
+  assert.deepEqual(out.filter((l) => l.includes("[jargon]")).map((l) => l.split("  ")[0]), ["app/A.svelte:1"]);
+});
+
+test("old words count as display text, not as names of files or components", () => {
+  const out = findings({
+    "app/A.svelte": '<script>\n  import Leaks from "./Leaks.svelte";\n  const t = "Deine Leaks";\n</script>\n<Leaks />\n<Panel sub="EV-Verlust je Hand" />\n<Term tip="x">Leak</Term>\n',
+    "app/b.ts": 'export const label = `3 Leaks`;\nimport x from "../Leaks.svelte";\n',
+  });
+  const lines = out.filter((l) => l.includes("[old-word]")).map((l) => l.split("  ")[0]);
+  assert.deepEqual(lines.sort(), ["app/A.svelte:3", "app/A.svelte:6", "app/A.svelte:7", "app/b.ts:1"]);
+});

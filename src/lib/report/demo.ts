@@ -2,7 +2,8 @@
 // every click (hand, practice, coach) leads somewhere. `?report=<id>&data=pending` shows a
 // preliminary report, `?data=empty` one without rated decisions.
 import { demoTournaments } from "../demo";
-import type { AskAbout, AskAnswer, AskEstimate, Moment, StackPoint, TournamentReport } from "./types";
+import { demoWithin } from "../next/demo";
+import type { AskAbout, AskAnswer, AskEstimate, KindLoss, Moment, StackPoint, TournamentReport } from "./types";
 
 /** The demo tournament with a stored coach review. */
 export const DEMO_REVIEWED = 4046787838;
@@ -258,9 +259,8 @@ export function demoReport(id: number): TournamentReport {
           { class: "QJo", hands: 4, net_bb: -4.5, loss_bb: 0.9, flawed: 1, hand_ids: [250000000000] },
         ],
     timeline: timeline(hands, tournament.prize === 0),
-    practice: empty
-      ? null
-      : { key: "vs_limp|SB|2|9", title: "Gegen Limper im Small Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_limp", decisions: 6, flawed: 3, loss_bb: 4.1 },
+    kinds: empty ? [] : KINDS,
+    next: empty ? [] : demoWithin(KINDS, "in diesem Turnier"),
     history: empty
       ? []
       : all
@@ -302,7 +302,15 @@ export async function demoAsk(about: AskAbout): Promise<AskAnswer> {
   await new Promise((r) => setTimeout(r, 900));
   const text =
     about.kind === "tournament"
-      ? "Dein Score ist ordentlich: 88,3 % deiner Entscheidungen waren gut. Teuer wurde es vor allem am River gegen eine Bet.\n\nDort hast du mit starken Händen nur gecallt. Ein Raise holt mehr Chips aus Gegnern, die schwächere Hände bezahlen. Das nennt man Value: Du setzt, weil schlechtere Hände mitgehen.\n\nÜbe als Nächstes „Gegen Limper im Small Blind“ – dort hast du 4,1 BB verloren."
+      ? "Dein Score ist ordentlich: 88,3 % deiner Entscheidungen waren gut. Teuer wurde es vor allem am River gegen eine Bet.\n\nDort hast du mit starken Händen nur gecallt. Ein Raise holt mehr Chips aus Gegnern, die schwächere Hände bezahlen. Das nennt man Value: Du setzt, weil schlechtere Hände mitgehen.\n\nÜbe als Nächstes „River gegen Bet“ – dort hast du 5,4 BB verloren."
       : "Ein Raise ist hier besser, weil du mit 99 eine starke Hand hast und der Limper meist schwächer ist.\n\nMit dem Call lässt du ihn billig mitspielen und spielst später ohne Position. Ringside rechnet den Unterschied mit 1,52 BB.";
   return { text, unchecked: [], cost_usd: 0.0041, model: "openai/gpt-6.1-sol" };
 }
+
+/** Loss per kind of spot of the demo tournament, costliest first. */
+const KINDS: KindLoss[] = [
+  { key: "river_vs_bet|-|3|6", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 9, flawed: 3, loss_bb: 5.4 },
+  { key: "vs_limp|SB|3|6", title: "Gegen Limper im Small Blind", detail: "ab 40 BB · 6 Spieler", lage: "vs_limp", decisions: 6, flawed: 3, loss_bb: 4.1 },
+  { key: "push_fold|BTN|1|6", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler", lage: "push_fold", decisions: 31, flawed: 3, loss_bb: 3.2 },
+  { key: "vs_open|BB|2|6", title: "Gegen Open im Big Blind", detail: "20–40 BB · 6 Spieler", lage: "vs_open", decisions: 7, flawed: 2, loss_bb: 2.6 },
+];
