@@ -3467,7 +3467,7 @@ dependencies = [
 
 [[package]]
 name = "ringside"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "keyring",
  "rayon",
@@ -3495,7 +3495,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-analysis"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "rand",
  "rand_chacha",
@@ -3512,7 +3512,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-cloud"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "base64 0.22.1",
  "ctrlc",
@@ -3529,7 +3529,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-coach"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "ringside-core",
  "ringside-engine",
@@ -3541,7 +3541,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-core"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "regex",
  "ringside-engine",
@@ -3554,7 +3554,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-engine"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "miniz_oxide 0.8.9",
  "rand",
@@ -3566,7 +3566,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-gpu"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "bytemuck",
  "pollster",
@@ -3579,7 +3579,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-learn"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "rand",
  "rand_chacha",
@@ -3592,7 +3592,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-play"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "rand",
  "rand_chacha",
@@ -3604,7 +3604,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-solver"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "flate2",
  "postflop-solver",
@@ -3616,7 +3616,7 @@ dependencies = [
 
 [[package]]
 name = "ringside-store"
-version = "0.15.0"
+version = "0.16.0"
 dependencies = [
  "ringside-cloud",
  "ringside-engine",
