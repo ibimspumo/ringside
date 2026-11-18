@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::canonical::canonicalize;
-use crate::kinds::{self, Kind};
+use crate::kinds::{self, Kind, SpotInput, SpotKind};
 
 /// Public URL of the `ringside-api` Edge Script.
 pub const DEFAULT_BASE_URL: &str = "https://ringside-api.bunny.run";
@@ -262,6 +262,23 @@ impl Client {
                 Ok((k.clone(), status))
             })
             .collect()
+    }
+
+    /// The flops on which the line of `input` (a model flop on any flop) is served, as
+    /// canonical flops, in one request. `None` from a server without the endpoint (API
+    /// before 1.5.0): the caller asks [`Client::statuses`] instead.
+    pub fn served_flops(&self, input: &SpotInput) -> Result<Option<Vec<String>>, Error> {
+        let body = serde_json::json!({ "kind": SpotKind::NAME, "engine_version": SpotKind::ENGINE_VERSION, "input": input }).to_string();
+        let url = format!("{}/v1/solutions/flops", self.base);
+        let Some((_, text)) = self.send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), true)? else {
+            return Ok(None);
+        };
+        #[derive(Deserialize)]
+        struct Flops {
+            flops: Vec<String>,
+        }
+        let r: Flops = serde_json::from_str(&text).map_err(|e| Error::Protocol(e.to_string()))?;
+        Ok(Some(r.flops))
     }
 
     /// The next spot of the community queue among `kinds` (name and engine version),
