@@ -123,16 +123,7 @@ export const api = {
       last_error: null,
       upgrade: null,
     })),
-  clientWindows: () =>
-    call<ClientWindow[]>("client_windows", {}, () => [
-      {
-        title: "$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10 - Eingeloggt als Hero",
-        class: "PokerStarsTableFrameClass",
-        table_key: "t:4046789300:10",
-        has_hands: true,
-      },
-      { title: "PokerStars Lobby", class: "PokerStarsLobbyClass", table_key: null, has_hands: false },
-    ]),
+  clientWindows: () => call<ClientWindow[]>("client_windows", {}, demoWindows),
   liveTables: () => call<LiveTable[]>("live_tables", {}, demo.demoLiveTables),
   pokerClientRunning: () =>
     call<boolean>("poker_client_running", {}, () => new URLSearchParams(window.location.search).get("locked") === "1"),
@@ -145,7 +136,10 @@ export const api = {
   },
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
-  detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
+  detectedDirs: () =>
+    call<string[]>("detected_dirs", {}, () =>
+      new URLSearchParams(window.location.search).has("nohistory") ? [] : ["C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\HandHistory\\Hero"],
+    ),
   dashboard: (filter: Filter) => sample<Dashboard>("dashboard", { filter }, () => demo.demoDashboard(filter), demo.emptyDashboard, () =>
       demo.bigDashboard(filter),
     ),
@@ -289,4 +283,29 @@ export function onAnalysisHand(handler: (handId: number) => void): Promise<Unlis
 export async function on<T>(event: string, handler: (payload: T) => void): Promise<UnlistenFn> {
   if (!inTauri) return () => {};
   return listen<T>(event, (e) => handler(e.payload));
+}
+
+/** Browser preview: `?windows=0` no PokerStars window, `?windows=many` a busy evening with lobbies. */
+function demoWindows(): ClientWindow[] {
+  const shown = new URLSearchParams(window.location.search).get("windows");
+  if (shown === "0") return [];
+  const table = (title: string, key: string, has_hands = true): ClientWindow => ({ title, class: "PokerStarsTableFrameClass", table_key: key, has_hands });
+  const lobby = (title: string): ClientWindow => ({ title, class: "PokerStarsLobbyClass", table_key: null, has_hands: false });
+  const first = table("$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10 - Eingeloggt als Hero", "t:4046789300:10");
+  if (shown !== "many") return [first, lobby("PokerStars Lobby")];
+  return [
+    first,
+    table(
+      "$11 Sunday Storm Special Edition Progressive Knockout Hyper Turbo 6-Max - 400/800 Ante 100 - Turnier 4046791122 Tisch 287 - Eingeloggt als Hero",
+      "t:4046791122:287",
+      false,
+    ),
+    table("Halley III - $0.02/$0.05 USD - No Limit Hold'em - Eingeloggt als Hero", "c:halley-iii"),
+    lobby("PokerStars Lobby"),
+    lobby("Turnier-Lobby: $5.50 Mini Early Battle"),
+    lobby("Turnier-Lobby: $11 Sunday Storm Special Edition Progressive Knockout Hyper Turbo 6-Max"),
+    lobby("Turnier-Lobby: $3.30 Bounty Builder"),
+    lobby("Kassierer"),
+    lobby("Spielhistorie"),
+  ];
 }

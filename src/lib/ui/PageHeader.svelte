@@ -56,7 +56,7 @@
   </div>
   {#if sections?.tabs?.length}
     <div class="sections">
-      <Tabs label={sections.label ?? `Bereiche von ${title}`} tabs={sections.tabs} bind:value={tab} onchange={(id) => sections?.onchange?.(id)} />
+      <Tabs label={sections.label ?? `Bereiche von ${title}`} tabs={sections.tabs} jump={sections.jump} bind:value={tab} onchange={(id) => sections?.onchange?.(id)} />
       {#if sections.end}<div class="end">{@render sections.end()}</div>{/if}
     </div>
   {/if}

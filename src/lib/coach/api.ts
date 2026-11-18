@@ -56,6 +56,10 @@ export async function onProgress(handler: (p: CoachProgress) => void): Promise<(
   return inTauri ? on<CoachProgress>("coach-progress", handler) : demo.onProgress(handler);
 }
 
+/** What the coach sends, and when. */
+export const COACH_INTRO =
+  "Der Coach schickt deine Hände nur, wenn du eine Analyse startest und die Kosten bestätigst – ohne Namen, über OpenRouter an ein Sprachmodell deiner Wahl.";
+
 export const EFFORTS: { id: Effort; name: string; hint: string }[] = [
   { id: "high", name: "Gründlich", hint: "Denkt am längsten nach. Ein Schritt kann mehrere Minuten dauern." },
   { id: "medium", name: "Ausgewogen", hint: "Etwa halb so viel Nachdenken, spürbar schneller." },

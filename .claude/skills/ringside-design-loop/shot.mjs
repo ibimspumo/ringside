@@ -2,13 +2,15 @@
 // then captures the full viewport. `chrome --screenshot` raced the compositor and left parts
 // of some pictures unpainted.
 //
-//   node shot.mjs <chrome> <url> <width> <height> <out.png>
+//   node shot.mjs <chrome> <url> <width> <height> <out.png> [full]
+// With `full` the window grows by what the scrolling content area hides, so the whole page is in
+// one picture.
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const [chrome, url, width, height, out] = process.argv.slice(2);
+const [chrome, url, width, height, out, full] = process.argv.slice(2);
 const profile = mkdtempSync(join(tmpdir(), "ringside-shot-"));
 const proc = spawn(
   chrome,
@@ -77,6 +79,19 @@ try {
     poll();
   })`;
   await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
+  if (full === "full") {
+    const { result } = await page("Runtime.evaluate", {
+      expression: `(() => { const el = document.querySelector("main .content") ?? document.scrollingElement; return el.scrollHeight - el.clientHeight; })()`,
+      returnByValue: true,
+    });
+    if (result.value > 0) {
+      await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height + result.value, deviceScaleFactor: 2, mobile: false });
+      await page("Runtime.evaluate", {
+        expression: "new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 150))))",
+        awaitPromise: true,
+      });
+    }
+  }
   const { data } = await page("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
   writeFileSync(out, Buffer.from(data, "base64"));
 } finally {
