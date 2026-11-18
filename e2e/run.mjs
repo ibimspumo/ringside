@@ -790,9 +790,61 @@ step("Bibliothek: Mitrechnen startet von Hand, steht in den Aufgaben und hält a
   await find("main button.go", "Jetzt mitrechnen", { timeout: 60_000 });
 });
 
+// Practice table. Every move is found and clicked inside the page in one call, then the test
+// waits for its effect: a button read in one call may show the next decision by the next one
+// (the buttons are kept per index), and a fixed pause misses an end that is still drawing.
+
+/** "end", "solving", "decide" (your buttons are live) or null while the table plays on. */
+const playNow = (timeout = 60_000) =>
+  waitFor(
+    "your decision, a live solve or the end",
+    `if (document.querySelector("main section.end")) return "end";
+     if (document.querySelector("main [data-part='solving']")) return "solving";
+     return document.querySelector("main .actions button.act:not(:disabled)") ? "decide" : null;`,
+    [],
+    timeout,
+  );
+
+const heroMoves = () => s.exec(`return document.querySelectorAll("main nav.timeline button.move.hero").length`);
+
+/** Plays the first live button matching `want` (else the first one, unless `strict`) and waits until the move is in the history. */
+async function playMove(want, { strict = false } = {}) {
+  const before = await heroMoves();
+  const label = await s.exec(
+    `const b = [...document.querySelectorAll("main .actions button.act:not(:disabled)")];
+     const m = b.find((x) => new RegExp(arguments[0]).test(x.textContent)) ?? (arguments[1] ? null : b[0]);
+     if (!m) return null;
+     m.click();
+     return m.textContent.replace(/\\s+/g, " ").trim();`,
+    want.source,
+    strict,
+  );
+  if (!label) throw new Error(`no button like /${want.source}/ to play`);
+  await waitFor(`your move „${label}“ in the history`, `return document.querySelectorAll("main nav.timeline button.move.hero").length > arguments[0]`, [before]);
+  return label;
+}
+
+/** Stops a live solve if it still runs; the hand plays on without a grade. */
+const cancelSolve = () =>
+  s.exec(`const b = document.querySelector("main [data-part='solving'] button:not(:disabled)"); b?.click(); return !!b;`);
+
+/** Deals the next hand from the end of one and waits until it is on the table. */
+async function nextHandFromEnd() {
+  const clicked = await s.execAsync(
+    `const done = arguments[arguments.length - 1];
+     const b = [...document.querySelectorAll("main section.end button")].find((x) => /Nächste Hand/.test(x.textContent));
+     if (!b || b.disabled) return done(false);
+     b.click();
+     setTimeout(() => done(true), 0);`,
+  );
+  if (!clicked) throw new Error("no „Nächste Hand“ to click");
+  // While the hand is dealt the old end stays with its buttons off.
+  await waitFor("the next hand", `return ![...document.querySelectorAll("main section.end button")].some((x) => x.disabled)`);
+}
+
 step("Hände spielen: eine Hand startet", async () => {
   await click("nav button", "Hände spielen");
-  await find("main h2", "Hände spielen");
+  await find("main h1", "Hände spielen");
   await click("main .tiles button.tile");
   await waitText("Tipp anzeigen");
 });
@@ -842,25 +894,17 @@ step("Hände spielen: die Hand läuft bis zum Handende, auch über einen live ge
   const until = Date.now() + 300_000;
   for (;;) {
     if (Date.now() > until) throw new Error("the hand did not reach its end");
-    const now = await s.exec(
-      `if (document.querySelector("main section.end")) return "end";
-       if (document.querySelector("main [data-part='solving']")) return "solving";
-       return document.querySelector("main .actions button.act") ? "decide" : "wait";`,
-    );
+    const now = await playNow(TAURI ? 120_000 : 60_000);
     if (now === "end") break;
     if (now === "solving") {
       solving ??= Date.now();
       // A slow machine may take long for a live spot: then the hand goes on without it.
-      if (TAURI && Date.now() - solving > 60_000) await click("main [data-part='solving'] button", "Abbrechen", { exact: false });
-    } else if (now === "decide") {
+      if (TAURI && Date.now() - solving > 60_000) await cancelSolve();
+      await sleep(250);
+    } else {
       if (solving !== null) solved = true;
-      const move = await s.exec(
-        `const b = [...document.querySelectorAll("main .actions button.act")];
-         return b.find((x) => /Call|Check/.test(x.textContent)) ?? b[0];`,
-      );
-      await s.click(move);
+      await playMove(/Call|Check/);
     }
-    await sleep(250);
   }
   const text = await mainText();
   if (/anders weitergegangen|endet diese Hand|nichts mehr hinterlegt/.test(text)) throw new Error("the hand stopped before its end");
@@ -879,7 +923,7 @@ step("Hände spielen: heads-up ist der Button der Small Blind, zuerst vor dem Fl
   // Your seat is dealt at random in the app: play hands until one reaches a flop.
   for (let hand = 0; ; hand++) {
     if (hand >= 15) throw new Error("no heads-up flop in 15 hands");
-    await waitFor("your decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+    let now = await playNow();
     const table = await s.exec(
       `const seats = [...document.querySelectorAll("main [data-part='seat']")].map((el) => {
          const r = el.getBoundingClientRect();
@@ -893,16 +937,11 @@ step("Hände spielen: heads-up ist der Button der Small Blind, zuerst vor dem Fl
     if (table.names.join() !== "BB,SB") throw new Error(`heads-up seats ${table.names.join(", ")}`);
     if (table.button !== "SB") throw new Error(`the dealer button sits at ${table.button}, not at the small blind`);
     let flop = null;
-    for (let i = 0; i < 40 && !flop; i++) {
-      const now = await s.exec(
-        `if (document.querySelector("main section.end")) return "end";
-         if (document.querySelector("main [data-part='solving']")) return "solving";
-         return document.querySelector("main .actions button.act") ? "decide" : "wait";`,
-      );
-      if (now === "end") break;
+    while (now !== "end" && !flop) {
       if (now === "solving") {
-        await click("main [data-part='solving'] button", "Abbrechen", { exact: false });
-      } else if (now === "decide") {
+        await cancelSolve();
+        await sleep(250);
+      } else {
         const streets = await s.exec(
           `return [...document.querySelectorAll("main nav.timeline section.street")].map((sec) => ({
              name: sec.querySelector(".name").textContent.trim(),
@@ -910,33 +949,26 @@ step("Hände spielen: heads-up ist der Button der Small Blind, zuerst vor dem Fl
            }));`,
         );
         if (streets[0]?.first && streets[0].first !== "SB") throw new Error(`preflop starts with ${streets[0].first}`);
-        const after = streets.find((x) => x.name === "Flop" && x.first);
-        if (after) {
-          flop = after;
-          break;
-        }
-        const move = await s.exec(
-          `const b = [...document.querySelectorAll("main .actions button.act")];
-           return b.find((x) => /Raise|Call|Check/.test(x.textContent)) ?? b[0];`,
-        );
-        await s.click(move);
+        flop = streets.find((x) => x.name === "Flop" && x.first) ?? null;
+        if (!flop) await playMove(/Raise|Call|Check/);
       }
-      await sleep(250);
+      if (!flop) now = await playNow();
     }
     if (flop) {
       if (flop.first !== "BB") throw new Error(`the flop starts with ${flop.first}, not with the big blind`);
       break;
     }
-    await click("main section.end button", "Nächste Hand", { exact: false });
+    await nextHandFromEnd();
   }
   await waitText(/Heads-up: Du \((SB, mit|BB, ohne) Position\)/);
   if (!TAURI) {
     // The demo hand: you open on the button, the big blind calls and checks to you on every street.
-    for (let i = 0; i < 6; i++) {
-      if (await s.exec(`return !!document.querySelector("main section.end")`)) break;
-      await click("main .actions button.act", "Check", { exact: false });
-      await sleep(250);
+    let checks = 0;
+    while ((await playNow()) === "decide") {
+      if (++checks > 3) throw new Error("more than three decisions after the flop");
+      await playMove(/Check/, { strict: true });
     }
+    if (checks !== 3) throw new Error(`${checks} checks to the showdown, expected 3`);
     await waitText("Du gewinnst beim Showdown");
   }
 });
