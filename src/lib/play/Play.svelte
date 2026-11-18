@@ -173,7 +173,7 @@
     const m = bad.reduce((a, b) => ((b.v.judgement!.loss_bb ?? 0) > (a.v.judgement!.loss_bb ?? 0) ? b : a));
     const j = m.v.judgement!;
     const main = m.v.choices[j.main];
-    const share = m.v.strategy ? ` (${Math.round((m.v.strategy[j.main] ?? 0) * 100)} %)` : "";
+    const share = m.v.strategy ? ` (${Math.round((m.v.strategy[j.main] ?? 0) * 100)}\u00a0%)` : "";
     const w = verdictWords(m.v, m.street)!;
     return { text: `${w.text} Die Lösung spielt hier meist ${choiceLabel(main, m.street !== "preflop").label}${share}.`, color: w.color };
   });
@@ -371,7 +371,7 @@
                 · <span class="live">live gerechnet, Genauigkeit <span class="num">{num(view.spot.exploitability_pct)} %</span></span>
               {/if}
             {:else}
-              <b>Preflop</b> · {view.players} Spieler · <span class="num">{num(view.stack_bb, 0)} BB</span> Stacks
+              <b>Preflop</b> · Pot <span class="num">{num(view.snapshots[at].pot)} BB</span>
             {/if}
           </p>
         </div>
@@ -511,7 +511,7 @@
                 <ol>
                   {#each listed as m (m.n)}
                     {@const c = m.v.choices[m.v.chosen]}
-                    {@const l = choiceLabel(c)}
+                    {@const l = choiceLabel(c, m.street !== "preflop")}
                     <li>
                       <button class="move" class:on={open === m.n} aria-expanded={open === m.n} onclick={() => (open = open === m.n ? null : m.n)}>
                         <span class="n num">{m.n}.</span>
@@ -595,10 +595,10 @@
     grid-template-columns: 236px minmax(0, 1fr) 40px;
   }
   .body.right {
-    grid-template-columns: 40px minmax(0, 1fr) clamp(280px, 22vw, 380px);
+    grid-template-columns: 40px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .body.left.right {
-    grid-template-columns: 236px minmax(0, 1fr) clamp(280px, 22vw, 380px);
+    grid-template-columns: 236px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .side {
     position: sticky;
@@ -703,8 +703,12 @@
     gap: 8px;
     font-size: 12px;
   }
+  /* On very wide windows the oval stops growing, so seats, board and buttons stay close together. */
   .tablebox {
     position: relative;
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
   }
   .skip {
     position: absolute;
@@ -1018,9 +1022,12 @@
       order: 3;
       grid-column: 1 / -1;
     }
-    .streets,
-    .hands {
+    .streets {
       display: none;
+    }
+    .hands {
+      grid-column: 1 / -1;
+      order: 1;
     }
     .buttons {
       grid-column: 1 / -1;

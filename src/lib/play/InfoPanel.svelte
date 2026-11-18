@@ -55,7 +55,7 @@
     if (!lesson) return null;
     const street = STREET[lesson.street] ?? "";
     if ("chosen" in lesson && typeof lesson.chosen === "number") {
-      const l = choiceLabel(lesson.choices[lesson.chosen]);
+      const l = choiceLabel(lesson.choices[lesson.chosen], lesson.street !== "preflop");
       return { street: `Rückblick · ${street}`, text: `Dein Zug: ${l.label}${l.size ? ` ${l.size}` : ""}` };
     }
     return { street, text: "Tipp für deine Entscheidung" };
@@ -71,7 +71,7 @@
     const mine = choiceLabel(v.choices[v.chosen]).label;
     const best = choiceLabel(v.choices[j.best]).label;
     const cost = j.loss_bb !== null ? ` im Schnitt ${num(j.loss_bb, 2)} BB` : "";
-    return `${mine} spielt die Lösung in ${Math.round(f * 100)} % – trotzdem bringt er hier${cost} weniger als ${best}. Deshalb „${GRADE[j.grade].label}“.`;
+    return `${mine} spielt die Lösung in ${Math.round(f * 100)}\u00a0% – trotzdem bringt er hier${cost} weniger als ${best}. Deshalb „${GRADE[j.grade].label}“.`;
   });
 </script>
 
@@ -84,23 +84,29 @@
   </div>
 
   {#if tab === "info"}
-    {#if past}
-      <!-- While you decide anew the last move's range would read like advice for this one. -->
-      {#if about}<p class="about"><span>{about.street}</span> <b>{about.text}</b></p>{/if}
-      <div class="empty-note">
-        <p>Strategie und Range dieser Entscheidung erscheinen nach deinem Zug.</p>
-        <p class="hint">Vorher hilft <b>Tipp anzeigen</b> (Taste H) – der Zug zählt dann nur halb.</p>
-      </div>
-    {:else if lesson && cells}
+    {#if lesson && (past || cells)}
       {#if about}<p class="about"><span>{about.street}</span> <b>{about.text}</b></p>{/if}
       {#if lesson.strategy && view}
         {@const own = lesson.strategy}
         <div class="mine">
           <p>Deine Hand {#each view.hero_cards as c (c)}<MiniCard card={c} />{/each} spielt die Lösung so:</p>
           <MixBar label="So oft spielt die Lösung deine Hand" parts={lesson.choices.map((c, k) => ({ label: choiceLabel(c).label, share: Math.round((own[k] ?? 0) * 100), color: colors[k] }))} />
+          <p class="key">
+            {#each lesson.choices as c, k (k)}
+              {#if (own[k] ?? 0) >= 0.005}<span><i style:background={colors[k]}></i>{choiceLabel(c).label} {Math.round((own[k] ?? 0) * 100)} %</span>{/if}
+            {/each}
+          </p>
           <span class="note" class:why={!!mixedWhy}>{mixedWhy ?? "Prozent: wie oft die Lösung jeden Zug wählt. Bewertet wird, was dein Zug gegenüber dem besten kostet."}</span>
         </div>
       {/if}
+    {/if}
+    {#if past}
+      <!-- The range of the last move would read like advice for this one: it waits for your move. -->
+      <div class="nowbox">
+        <b>Jetzt bist du dran.</b>
+        <span>Strategie und Range dieser Entscheidung erscheinen nach deinem Zug. Vorher hilft <b>Tipp anzeigen</b> (Taste H) – der Zug zählt dann nur halb.</span>
+      </div>
+    {:else if lesson && cells}
       <p class="cap">
         Range von {actor} an dieser Stelle: wie {lesson.source === "model" ? "das Modell" : lesson.source === "equilibrium" ? "das Gleichgewicht" : "die Lösung"} jede Hand spielt. Deine Hand ist umrandet.
       </p>
@@ -108,7 +114,7 @@
       <ul class="legend" aria-label="Wie oft die Range welchen Zug spielt">
         <li class="lh" aria-hidden="true"><span></span><span>Zug</span><span>Anteil der Range</span></li>
         {#each lesson.choices as c, k (k)}
-          {@const l = choiceLabel(c)}
+          {@const l = choiceLabel(c, lesson.street !== "preflop")}
           <li>
             <span class="sw" style:background={colors[k]}></span>
             <span>{l.label}{#if l.size} <small class="faint">{l.size}</small>{/if}</span>
@@ -205,22 +211,37 @@
     align-items: center;
     gap: 8px;
   }
-  .empty-note {
+  .nowbox {
     display: grid;
-    gap: 6px;
-    padding: 18px 4px;
-    text-align: center;
-    font-size: var(--fs-base);
+    gap: 4px;
+    padding: 12px 14px;
+    border-radius: var(--r-sm);
+    border: 1px solid var(--focus);
+    background: color-mix(in srgb, var(--focus) 8%, var(--surface));
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .empty-note p {
-    margin: 0;
-  }
-  .empty-note .hint {
-    font-size: var(--fs-sm);
-  }
-  .empty-note b {
+  .nowbox b {
     color: var(--text);
+  }
+  .nowbox > b {
+    font-size: var(--fs-base);
+  }
+  .key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 12px;
+    font-size: var(--fs-xs);
+  }
+  .key span {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .key i {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
   }
   .mine {
     display: grid;
