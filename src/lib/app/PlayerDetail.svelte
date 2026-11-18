@@ -134,7 +134,7 @@
       <section class="group" aria-label={title}>
         <h3>{title}</h3>
         {#if unsure}
-          <p class="few"><i aria-hidden="true"></i>{unsure === ids.length ? "Alle" : `${unsure} von ${ids.length}`} Werten stammen aus weniger als {SMALL_SAMPLE} Gelegenheiten: noch unsicher.</p>
+          <p class="few"><i aria-hidden="true"></i>{unsure === ids.length ? "Alle Werte" : `${unsure} von ${ids.length} Werten`} stammen aus weniger als {SMALL_SAMPLE} Gelegenheiten: noch unsicher.</p>
         {/if}
         <dl>
           {#each ids as id (id)}
