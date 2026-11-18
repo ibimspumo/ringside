@@ -18,6 +18,7 @@
   import { usePageHead } from "../ui/page.svelte";
   import PlayingCard from "../ui/PlayingCard.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import Tag from "../ui/Tag.svelte";
   import type { Filter, Hand, HandQuery, HandSummary, SpotFilter, Street } from "../types";
   import type { RangeFilter } from "../ranges/types";
@@ -80,6 +81,8 @@
   let source = $state<Source | null>(null);
   let filtersOpen = $state(preview("filters") === "1");
   let showSummary = $state(readSummary());
+  /** Narrow windows need the height for the table: there the summary only opens on request. */
+  let summaryNarrow = $state(false);
 
   let list = $state<HandSummary[]>([]);
   let loaded = $state(false);
@@ -87,6 +90,7 @@
   let selected = $state<Hand | null>(null);
   let decisions = $state<Decision[] | null>(null);
   let chosen = $state<number | null>(null);
+  const current = $derived(decisions?.find((d) => d.action_index === chosen) ?? null);
   let jumpTo = $state<{ action: number } | null>(null);
   let busy = $state(false);
   let tournamentBusy = $state(false);
@@ -115,6 +119,8 @@
   });
 
   const locked = $derived(analysis.status?.state === "locked");
+  /** Before the first run over all hands, starting that run is the page's main action. */
+  const started = $derived(!!analysis.status && (analysis.status.enabled || analysis.status.counts.analyzed > 0));
   const tournament = $derived(filter.tournament_id);
   const extra = $derived(spots.length + (minRating ? 1 : 0) + (minLoss ? 1 : 0) + (street ? 1 : 0) + (source ? 1 : 0) + (showdownOnly ? 1 : 0) + (result ? 1 : 0) + (minPot ? 1 : 0));
   const decisionFilter = $derived.by((): DecisionFilter | null => {
@@ -193,7 +199,9 @@
       analysis.request = null;
       await analyze();
     }
-    if (chosen !== null && (jump || (at !== null && view === "mistakes"))) jumpTo = { action: chosen };
+    // The replay starts right before the decision the verdict is about, as the row promised.
+    if (chosen !== null && (jump || preview("step") === null)) jumpTo = { action: chosen };
+    else if (standing !== undefined) follow(standing);
   }
 
   async function loadDecisions(id: number, at: number | null) {
@@ -244,6 +252,25 @@
   function brief(list: Decision[]): DecisionBrief | null {
     const id = worstOf(list);
     return list.find((d) => d.action_index === id) ?? null;
+  }
+
+  /** Playing on shows the verdict of the decision the replay stands before. */
+  let standing = $state<number | null | undefined>(undefined);
+  /** Says whether the table shows the moment of the decision on the right, or a later one. */
+  const caption = $derived(
+    current && standing !== undefined
+      ? standing === current.action_index
+        ? `Am Tisch bist du jetzt dran – bewertet wird dein ${current.played.split(" ")[0]}:`
+        : standing === null || standing > current.action_index
+          ? `Bewertet wird dein ${current.played.split(" ")[0]} am ${({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}:`
+          : `Als Nächstes bist du dran – so wird dein ${current.played.split(" ")[0]} bewertet:`
+      : null,
+  );
+  function follow(next: number | null) {
+    standing = next;
+    if (!decisions?.length) return;
+    const d = (next === null ? undefined : decisions.find((x) => x.action_index >= next)) ?? decisions[decisions.length - 1];
+    chosen = d.action_index;
   }
 
   function select(action: number) {
@@ -306,12 +333,22 @@
   let bodyW = $state(1200);
   let detailW = $state(900);
   const rail = $derived(bodyW < 1000);
+  const summaryShown = $derived(rail ? summaryNarrow : showSummary);
+  function flipSummary() {
+    if (rail) summaryNarrow = !summaryNarrow;
+    else toggleSummary();
+  }
+  // Narrow: table and controls fill what is visible below the verdict line, the log follows below.
+  let workH = $state(600);
+  let lineH = $state(48);
+  const replayH = $derived(Math.max(520, workH - lineH + 162));
   const wide = $derived(detailW >= 900);
 
   // The detail keeps the hand's place in the list: up and down walk through it.
   const at = $derived(selected ? list.findIndex((h) => h.id === selected!.id) : -1);
   const summaryOf = $derived(at >= 0 ? list[at] : null);
   let listEl = $state<HTMLElement>();
+  let analysisEl = $state<HTMLElement>();
 
   async function step(by: number) {
     const next = list[at + by];
@@ -324,6 +361,10 @@
   function key(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+    if (e.key === "Escape" && filtersOpen) {
+      filtersOpen = false;
+      return;
+    }
     if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
     e.preventDefault();
     step(e.key === "ArrowDown" ? 1 : -1);
@@ -333,8 +374,14 @@
 
 {#snippet headEnd()}
   <AnalyzeStatus />
-  {#if view === "mistakes" && !showSummary}
-    <Button size="sm" variant="quiet" onclick={toggleSummary}>Zusammenfassung</Button>
+  {#if view === "mistakes" && !summaryShown}
+    {#if rail}
+      <IconButton size="sm" label="Zusammenfassung zeigen" onclick={flipSummary}>
+        <svg class="stroke" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5" /></svg>
+      </IconButton>
+    {:else}
+      <Button size="sm" variant="quiet" onclick={flipSummary}>Zusammenfassung</Button>
+    {/if}
   {/if}
   <Button size="sm" variant={filtersOpen || extra ? "secondary" : "quiet"} aria-expanded={filtersOpen} onclick={() => (filtersOpen = !filtersOpen)}>
     {#snippet icon()}<svg class="stroke" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>{/snippet}
@@ -342,8 +389,35 @@
   </Button>
 {/snippet}
 
+{#snippet verdictLine()}
+  <div class="brief" bind:clientHeight={lineH}>
+    {#if locked}
+      <SourceNote kind="locked" />
+      <p class="faint">Die Analyse pausiert – Nachspielen geht weiter.</p>
+    {:else if current?.rating}
+      {@const g = gradeOf(current.rating)}
+      <GradeIcon grade={g} size={18} />
+      <p>
+        <b style:color="color-mix(in srgb, var(--grade-{g}) 60%, var(--text))">{RATING[current.rating].label}</b>
+        <span class="faint">· {({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}</span>
+        {#if current.best && (current.rating === "mistake" || current.rating === "blunder" || current.rating === "inaccuracy")}
+          – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} kostet im Schnitt <b class="num">{bb(current.ev_loss_bb ?? 0, 2)}</b>
+        {:else}
+          – {current.played.split(" ")[0]} passt
+        {/if}
+      </p>
+      <Button size="sm" variant="quiet" onclick={() => analysisEl?.scrollIntoView({ block: "start", behavior: "smooth" })}>Warum?</Button>
+    {:else if decisions && !decisions.length && !locked}
+      <p>Diese Hand ist noch nicht bewertet.</p>
+      <Button size="sm" variant={started ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={() => analyze()}>Diese Hand analysieren</Button>
+    {:else if current}
+      <p class="faint">{current.status === "pending" ? "Der Solver rechnet diese Entscheidung noch." : "Diese Entscheidung bewertet Ringside nicht."}</p>
+    {/if}
+  </div>
+{/snippet}
+
 {#snippet panel()}
-  <HandPanel {decisions} selected={chosen} {busy} {locked} onAnalyze={() => analyze()} onSelect={select} {onLearn} />
+  <HandPanel {decisions} selected={chosen} {busy} {locked} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} main={started} />
 {/snippet}
 
 {#snippet close()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>{/snippet}
@@ -373,7 +447,8 @@
   {/if}
 
   {#if filtersOpen}
-    <div class="filters">
+    <button class="scrim" aria-label="Filter schließen" tabindex="-1" onclick={() => (filtersOpen = false)}></button>
+    <div class="filters" role="dialog" aria-label="Filter">
       <div class="group wide">
         <span class="title">Situation</span>
         <div class="spot-groups">
@@ -447,11 +522,14 @@
           BB
         </label>
       </div>
-      {#if extra}<div class="reset"><Button size="sm" variant="quiet" onclick={clearFilters}>Filter zurücksetzen</Button></div>{/if}
+      <div class="reset">
+        {#if extra}<Button size="sm" variant="quiet" onclick={clearFilters}>Zurücksetzen</Button>{/if}
+        <Button size="sm" kbd="Esc" onclick={() => (filtersOpen = false)}>Fertig</Button>
+      </div>
     </div>
   {/if}
 
-  {#if view === "mistakes" && showSummary}
+  {#if view === "mistakes" && summaryShown}
     <div class="summary">
       <Summary
         strip
@@ -461,7 +539,7 @@
         onSpot={(s) => (spots = [s])}
         {onLearn}
       />
-      <IconButton size="sm" label="Zusammenfassung ausblenden" onclick={toggleSummary}>{@render close()}</IconButton>
+      <IconButton size="sm" label="Zusammenfassung ausblenden" onclick={flipSummary}>{@render close()}</IconButton>
     </div>
   {/if}
 
@@ -470,7 +548,10 @@
       {#if list.length}
         <div class="list-head">
           <span class="num">{list.length}{more ? "+" : ""} Hände</span>
-          <span>{view === "mistakes" ? "teuerste Fehler zuerst" : "neueste zuerst"}</span>
+          {#if rail}<span class="rail-what">{view === "mistakes" ? "Fehler kostet" : "Ergebnis"}</span>{/if}
+          <span title={view === "mistakes" ? "Rechts: was dein teuerster Fehler der Hand im Schnitt kostet" : "Rechts: was du in der Hand gewonnen oder verloren hast"}
+            >{view === "mistakes" ? "Kosten des Fehlers · teuerste zuerst" : "Ergebnis · neueste zuerst"}</span
+          >
         </div>
       {/if}
       {#each list as h (h.id)}
@@ -488,18 +569,16 @@
           onclick={() => open(h.id, w?.action_index ?? null)}
           onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), open(h.id, w?.action_index ?? null))}
         >
-          <span class="hole">
-            {#each cards(h.hero_cards) as c (c)}<PlayingCard card={c} size={22} />{:else}<span class="faint">–</span>{/each}
+          <span class="who">
+            <span class="hole">
+              {#each cards(h.hero_cards) as c (c)}<PlayingCard card={c} size={22} />{:else}<span class="faint">–</span>{/each}
+            </span>
+            <b class="pos num">{h.hero_position ?? "–"}</b>
           </span>
           <span class="mid">
             <span class="line">
-              <b class="pos num">{h.hero_position ?? "–"}</b>
-              <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{/each}</span>
-              {#if h.hero_showdown}
-                <svg class="sd" viewBox="0 0 24 24" width="14" height="14" role="img" aria-label="Showdown"
-                  ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle cx="12" cy="12" r="2.8" /></svg
-                >
-              {/if}
+              <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="faint">kein Flop</span>{/each}</span>
+
             </span>
             {#if w && v}
               <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""}` : (w.reason ?? "")}>
@@ -511,12 +590,20 @@
             {/if}
           </span>
           <span class="end">
-            {#if costly(w)}
+            {#if view === "mistakes" && costly(w)}
               <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{bb(w!.ev_loss_bb!, 2)}</span>
             {:else}
               <span class="net num {sign(net)}" title="Was du in dieser Hand gewonnen oder verloren hast">{net === null ? "–" : signed(net)}<span class="unit">BB</span></span>
             {/if}
-            <small class="num" title={date(h.played_at)}>{time(h.played_at)} · {date(h.played_at).slice(0, 6)}</small>
+            <small class="num" title="{date(h.played_at)}, {time(h.played_at)} Uhr"
+              >{#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
+                  ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
+                    cx="12"
+                    cy="12"
+                    r="2.8"
+                  /></svg
+                >{/if}{time(h.played_at)}</small
+            >
           </span>
         </div>
       {:else}
@@ -554,8 +641,8 @@
             </p>
           </div>
           {#if net !== null}
-            <div class="result" title="Was du in dieser Hand gewonnen oder verloren hast">
-              <span>Ergebnis</span>
+            <div class="result" title="Was du in dieser einen Hand gewonnen oder verloren hast – mit Glück und Pech. Die Bewertung rechts sagt dagegen, was eine Entscheidung im Schnitt kostet.">
+              <span>Ergebnis der Hand</span>
               <b class="num {sign(net)}">{signed(net)} BB</b>
             </div>
           {/if}
@@ -569,18 +656,19 @@
             </IconButton>
           </div>
         </header>
-        <div class="work" class:wide>
+        <div class="work" class:wide bind:clientHeight={workH}>
           {#if wide}
             <div class="replay">
-              <Replayer hand={selected} {marks} {jumpTo} onMark={select} quietPlay>
+              <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay>
                 {#snippet aside()}{@render panel()}{/snippet}
               </Replayer>
             </div>
           {:else}
-            <div class="analysis">{@render panel()}</div>
-            <div class="replay">
-              <Replayer hand={selected} {marks} {jumpTo} onMark={select} quietPlay />
+            {@render verdictLine()}
+            <div class="replay" style:height="{replayH}px">
+              <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay />
             </div>
+            <div class="analysis" bind:this={analysisEl}>{@render panel()}</div>
           {/if}
         </div>
       {:else if loaded && list.length}
@@ -592,10 +680,20 @@
 
 <style>
   .hands {
+    position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
+  }
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: var(--z-popover);
+    border: 0;
+    background: var(--overlay);
+    cursor: default;
+    animation: fade var(--dur) var(--ease-standard) both;
   }
   .stroke path {
     fill: none;
@@ -645,6 +743,15 @@
   }
 
   .filters {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: var(--z-popover);
+    max-height: 100%;
+    overflow: auto;
+    box-shadow: var(--shadow-3);
+    animation: drop var(--dur) var(--ease-enter) both;
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
@@ -702,7 +809,21 @@
     accent-color: var(--text);
   }
   .reset {
+    display: flex;
+    gap: var(--sp-2);
+    margin-left: auto;
     align-self: flex-end;
+  }
+  @keyframes drop {
+    from {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
   }
   .faint {
     color: var(--text-3);
@@ -712,7 +833,7 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: clamp(330px, 26%, 420px) minmax(0, 1fr);
+    grid-template-columns: clamp(300px, 24%, 420px) minmax(0, 1fr);
   }
   .list {
     overflow: auto;
@@ -759,7 +880,12 @@
     gap: 2px;
     flex-shrink: 0;
   }
-  .row .hole {
+  .who {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    flex-shrink: 0;
     width: 48px;
   }
   .mid {
@@ -776,10 +902,10 @@
     min-width: 0;
   }
   .pos {
-    min-width: 30px;
-    color: var(--text);
-    font-size: var(--fs-md);
+    color: var(--text-2);
+    font-size: var(--fs-xs);
     font-weight: var(--fw-semibold);
+    line-height: 1;
   }
   .board {
     display: flex;
@@ -787,7 +913,8 @@
     overflow: hidden;
   }
   .sd {
-    flex-shrink: 0;
+    margin-right: 5px;
+    vertical-align: -2px;
     fill: none;
     stroke: var(--sd);
     stroke-width: 2;
@@ -846,6 +973,19 @@
   }
   .more {
     padding: var(--sp-2) var(--sp-1);
+  }
+  .brief {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 48px;
+    padding: var(--sp-2) var(--sp-4);
+  }
+  .brief p {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--fs-md);
   }
 
   /* The detail is the hand: its head, then the verdict and the replay side by side, or stacked when narrow. */
@@ -931,22 +1071,28 @@
   /* Narrow: the verdict first, then the replay; the detail scrolls. */
   .work:not(.wide) .replay {
     flex: none;
-    height: 820px;
     padding: 0 var(--sp-4) var(--sp-4);
   }
   .analysis {
     padding: var(--sp-4);
   }
+  /* Narrow: one line for the hand; its cards are on the table right below. */
   @container detail (max-width: 860px) {
     .hand-head {
-      padding-inline: var(--sp-4);
+      padding: var(--sp-2) var(--sp-4);
       gap: var(--sp-3);
     }
-  }
-  @container detail (max-width: 560px) {
     .hand-head .hole,
     .where {
       display: none;
+    }
+    .result {
+      flex-direction: row;
+      align-items: baseline;
+      gap: var(--sp-2);
+    }
+    .result b {
+      font-size: var(--fs-lg);
     }
   }
 
@@ -958,12 +1104,17 @@
     padding-inline: var(--sp-1);
   }
   .rail .list-head {
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
     padding-inline: 0;
+    text-align: center;
   }
-  .rail .list-head span:last-child,
-  .rail .mid,
-  .rail .end small {
+  .rail-what {
+    font-size: var(--fs-xs);
+  }
+  .rail .list-head span:last-child:not(.rail-what),
+  .rail .mid {
     display: none;
   }
   .rail .row {
@@ -971,7 +1122,7 @@
     gap: var(--sp-1);
     padding: var(--sp-2) var(--sp-1);
   }
-  .rail .row .hole {
+  .rail .row .who {
     width: auto;
   }
   .rail .end {

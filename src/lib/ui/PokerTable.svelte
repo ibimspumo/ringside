@@ -6,7 +6,9 @@
    * Below this width the full plates leave no room round the board, so the table turns compact:
    * smaller plates at the same type sizes, action tags on the plate's edge, a taller stage.
    */
-  export const COMPACT_BELOW = 760;
+  export const COMPACT_BELOW = 880;
+  /** Narrowest table on which nothing overlaps, at six and nine seats (checked against `clear`). */
+  export const CLEAN_FROM = 570;
 
   const FULL: Sizes = {
     seat: { w: 112, h: 74 },
@@ -18,17 +20,17 @@
     margin: 8,
   };
   const COMPACT: Sizes = {
-    seat: { w: 84, h: 52 },
-    me: { w: 100, h: 74 },
-    badge: { w: 64, h: 20 },
-    bet: { w: 52, h: 20 },
+    seat: { w: 80, h: 50 },
+    me: { w: 96, h: 72 },
+    badge: { w: 58, h: 20 },
+    bet: { w: 50, h: 20 },
     dealer: 16,
     gap: 4,
     margin: 6,
     onEdge: true,
   };
   /** Pot, board and street name, stacked in the middle. */
-  const MIDDLE = { full: { w: 186, h: 92 }, compact: { w: 140, h: 70 } };
+  const MIDDLE = { full: { w: 186, h: 96 }, compact: { w: 150, h: 82 } };
 
   /** One size step from about 900 px on, at most a third larger. */
   export const scaleAt = (w: number) => (w < COMPACT_BELOW ? 1 : Math.min(1.3, Math.max(1, w / 900)));
@@ -45,7 +47,9 @@
     const compact = w < COMPACT_BELOW;
     const k = scaleAt(w);
     const mid = compact ? MIDDLE.compact : { w: MIDDLE.full.w * k, h: MIDDLE.full.h * k };
-    return Math.max(minHeight(sizesAt(w), [{ box: mid, dy: 0 }]), Math.round(w * (compact ? 0.85 : 0.66)));
+    // Narrower tables get taller, so the lines from the seats to the middle keep room for tag and chips.
+    const ratio = compact ? (w < 610 ? 0.95 : w < 640 ? 0.85 : 0.75) : 0.66;
+    return Math.max(minHeight(sizesAt(w), [{ box: mid, dy: 0 }]), Math.round(w * ratio));
   }
 
   export type TableSeat = {
@@ -92,6 +96,7 @@
     board = [],
     pot,
     note,
+    noteWin = false,
     format,
     label = "Pokertisch",
   }: {
@@ -100,6 +105,8 @@
     board?: string[];
     pot?: number;
     note?: string;
+    /** The note says who won: it stands out instead of whispering the street. */
+    noteWin?: boolean;
     format?: (bb: number) => string;
     label?: string;
   } = $props();
@@ -134,9 +141,9 @@
   <div class="middle" style={at(table.center)}>
     {#if pot !== undefined}<span class="pot num" class:hidden={pot <= 0}>Pot {format ? format(pot) : bb(pot)}</span>{/if}
     <div class="board" aria-label="Board">
-      {#each board as c, j (c)}<PlayingCard card={c} size={w < COMPACT_BELOW ? 25 : Math.round(32 * k)} reveal delay={j * 70} />{/each}
+      {#each board as c, j (c)}<PlayingCard card={c} size={w < COMPACT_BELOW ? 24 : Math.round(32 * k)} reveal delay={j * 70} />{/each}
     </div>
-    {#if note}<span class="note">{note}</span>{/if}
+    {#if note}<span class="note" class:win={noteWin}>{note}</span>{/if}
   </div>
 
   {#each seats as s, i (i)}
@@ -229,7 +236,22 @@
     color: var(--text-3);
     font-size: var(--fs-xs);
     font-weight: var(--fw-semibold);
+    white-space: nowrap;
     scale: var(--k);
+  }
+  .note.win {
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--grid-plate);
+    color: var(--pos);
+    font-size: var(--fs-sm);
+    animation: rise var(--dur-slow) var(--ease-enter) both;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      translate: 0 4px;
+    }
   }
   .pot {
     padding: 2px var(--sp-2);
@@ -304,11 +326,11 @@
     line-height: 1.1;
   }
   .compact .plate {
-    min-width: 76px;
-    padding: 3px var(--sp-2);
+    min-width: 72px;
+    padding: 3px 6px;
   }
   .compact .who {
-    max-width: 76px;
+    max-width: 72px;
   }
   .compact .middle {
     gap: 4px;

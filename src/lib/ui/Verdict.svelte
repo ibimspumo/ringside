@@ -59,7 +59,7 @@
       <p class="fix">
         Besser: <b>{better}</b> – dein {played}
         {#if costly}
-          kostet <b class="num">{bb(cost ?? 0, { digits: 2 })}</b>{#if potShare !== undefined}{" "}<span class="share">({pct(potShare)} des Pots)</span>{/if}.
+          kostet im Schnitt <b class="num">{bb(cost ?? 0, { digits: 2 })}</b>{#if potShare !== undefined}{" "}<span class="share">({pct(potShare)} des Pots)</span>{/if}.
         {:else}
           ist schwächer.
         {/if}
@@ -190,6 +190,8 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--sp-2);
     margin-left: auto;
   }

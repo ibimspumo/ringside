@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
   import { preview } from "../learn/preview";
+  import { CATEGORY, categoryOf } from "../learn/wissen/poker";
   import { openInSolver } from "../solver/handoff.svelte";
   import { spotFromHand } from "../solver/presets";
   import { money, moneyShort } from "../stats";
@@ -9,7 +10,7 @@
   import Button from "../ui/Button.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
   import IconButton from "../ui/IconButton.svelte";
-  import PokerTable, { tableHeight, type TableSeat } from "../ui/PokerTable.svelte";
+  import PokerTable, { CLEAN_FROM, tableHeight, type TableSeat } from "../ui/PokerTable.svelte";
   import type { ActionKind, Grade } from "../ui/poker";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
 
@@ -30,6 +31,7 @@
     upTo = null,
     marks = null,
     onMark,
+    onStep,
     jumpTo = null,
     children,
     aside,
@@ -41,6 +43,8 @@
     upTo?: number | null;
     marks?: Map<number, { grade: Grade | null; label: string }> | null;
     onMark?: (action: number) => void;
+    /** The action the replay stands before (index into `actions`), or null once all are played. */
+    onStep?: (next: number | null) => void;
     jumpTo?: { action: number } | null;
     children?: Snippet;
     aside?: Snippet;
@@ -124,6 +128,12 @@
         playing = false;
       }
     });
+  });
+
+  $effect(() => {
+    const next = events.slice(step).find((e) => e.type === "action");
+    const at = next?.type === "action" ? next.index : null;
+    untrack(() => onStep?.(at));
   });
 
   /** Graded actions with their place on the timeline. */
@@ -333,13 +343,31 @@
   let ctrlH = $state(40);
   const LOG_MIN = 150;
   const besides = $derived(boxW >= (aside ? 860 : 1150));
-  const sideW = $derived(besides ? Math.round(aside ? Math.min(420, Math.max(320, boxW * 0.3)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
+  const sideW = $derived(besides ? Math.round(aside ? Math.min(420, Math.max(300, boxW * 0.28)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
   const tableW = $derived.by(() => {
     const room = besides ? boxW - sideW - 20 : boxW;
     const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
-    let w = Math.min(room, 1100);
-    while (w > 300 && tableHeight(w) > free) w -= 10;
-    return Math.max(0, w);
+    return Math.min(room, 1100, fitWidth(free, room));
+  });
+  /**
+   * The widest table up to 1100 px whose height fits `free`; it never shrinks below the width
+   * where chips and tags overlap (the box scrolls instead), unless the room itself is narrower.
+   */
+  function fitWidth(free: number, room: number): number {
+    const floor = Math.min(room, CLEAN_FROM);
+    let w = 1100;
+    while (w > floor && tableHeight(w) > free) w -= 10;
+    return Math.max(w, floor);
+  }
+
+  /** Under the board at the end: who won and with what, in words. */
+  const outcome = $derived.by(() => {
+    if (!done || upTo !== null || !table.winners.size) return null;
+    const [name] = [...table.winners.entries()].sort((a, b) => b[1] - a[1])[0];
+    const who = name === hand.hero ? "Du gewinnst" : `${name} gewinnt`;
+    const cards = name === hand.hero ? hand.hero_cards : hand.shown.find(([p]) => p === name)?.[1];
+    if (!hand.shown.length || !cards?.length || hand.board.length < 3) return `${who} – alle anderen haben gefoldet`;
+    return `${who}: ${CATEGORY[categoryOf([...cards, ...hand.board])]}`;
   });
 
   function key(e: KeyboardEvent) {
@@ -375,7 +403,8 @@
           hero={heroSeat - 1}
           board={hand.board.slice(0, table.board)}
           pot={Math.max(table.total, 0) / unit}
-          note={STREET_NAME[table.street]}
+          note={outcome ?? STREET_NAME[table.street]}
+          noteWin={!!outcome}
           {format}
           label="Tisch der Hand"
         />
@@ -526,14 +555,20 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-2);
-    width: var(--table);
-    max-width: 100%;
-    justify-self: center;
     min-width: 0;
   }
   .stage {
-    min-width: 0;
+    width: var(--table);
+    max-width: 100%;
+    align-self: center;
   }
+  /* Beside the side column, controls line up with the table; stacked, they take the full width. */
+  .besides .main {
+    width: var(--table);
+    max-width: 100%;
+    justify-self: center;
+  }
+
 
   .controls {
     flex-shrink: 0;

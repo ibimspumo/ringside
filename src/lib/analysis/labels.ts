@@ -19,7 +19,7 @@ export const SPOT: Record<SpotType, string> = {
   open: "Eröffnen",
   steal: "Steal",
   three_bet: "3-Bet",
-  vs_open: "Gegen einen Raise",
+  vs_open: "Gegen Raise oder Limp",
   vs_three_bet: "Gegen eine 3-Bet",
   shove: "All-in oder Fold",
   call_shove: "Call gegen All-in",

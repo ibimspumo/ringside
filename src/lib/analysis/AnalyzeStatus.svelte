@@ -34,7 +34,7 @@
 </script>
 
 {#if s && c}
-  <div class="status" role="status">
+  <div class="status" role="status" title={line || undefined}>
     {#if !started}
       <span class="text">Noch keine Hand bewertet.</span>
       <Button size="sm" variant="primary" disabled={busy || s.state === "locked"} onclick={() => act(() => api.analysisRun(true))}>
@@ -42,6 +42,7 @@
       </Button>
     {:else if p?.state === "paused_pokerstars" || s.state === "locked"}
       <SourceNote kind="locked" hint="Die Analyse macht weiter, sobald du PokerStars schließt." />
+      <span class="text">Analyse pausiert</span>
     {:else if p}
       <ProgressRing
         size={20}
@@ -64,6 +65,7 @@
 
 <style>
   .status {
+    flex-shrink: 1;
     display: flex;
     align-items: center;
     gap: var(--sp-2);
@@ -76,5 +78,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .status > :global(button),
+  .status > :global(.ui-ring) {
+    flex-shrink: 0;
   }
 </style>

@@ -101,18 +101,25 @@
   }
   .sections {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: var(--sp-4);
+    gap: 0 var(--sp-4);
     padding: 0 var(--sp-6);
     margin-top: calc(-1 * var(--sp-1));
   }
+  /* Without room beside the tabs, the end takes its own line instead of cutting anything off. */
   .end {
-    flex: 1;
+    flex: 1 1 auto;
     display: flex;
     align-items: center;
     justify-content: flex-end;
     gap: var(--sp-2);
     min-width: 0;
+    padding-bottom: var(--sp-1);
+  }
+  /* Controls keep their size; only text in the end (e.g. a status) gives way. */
+  .end > :global(button) {
+    flex-shrink: 0;
   }
   .sections :global(.ui-tabs) {
     border-bottom: 0;

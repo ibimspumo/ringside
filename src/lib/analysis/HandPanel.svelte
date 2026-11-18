@@ -21,6 +21,8 @@
     onAnalyze,
     onSelect,
     onLearn,
+    caption = null,
+    main = true,
   }: {
     decisions: Decision[] | null;
     selected: number | null;
@@ -29,6 +31,10 @@
     onAnalyze: () => void;
     onSelect: (action: number) => void;
     onLearn?: (target: LearnTarget) => void;
+    /** A line above the verdict, e.g. that the table shows the moment of this decision. */
+    caption?: string | null;
+    /** Whether analysing this hand is the main action of the screen. */
+    main?: boolean;
   } = $props();
 
   const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
@@ -46,7 +52,7 @@
   <div class="cta">
     <strong>Wie gut hast du diese Hand gespielt?</strong>
     <p>Ringside prüft jede deiner Entscheidungen. Vor dem Flop ist das sofort fertig, nach dem Flop rechnet der Solver meist unter einer Minute.</p>
-    <Button variant="primary" loading={busy} disabled={busy} onclick={onAnalyze}>
+    <Button variant={main ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={onAnalyze}>
       {#snippet icon()}<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5" /></svg>{/snippet}
       {busy ? "Analysiere …" : "Diese Hand analysieren"}
     </Button>
@@ -96,6 +102,7 @@
       {/each}
     </div>
     {#if current}
+      {#if caption}<p class="caption">{caption}</p>{/if}
       <DecisionCard decision={current} {onLearn} />
     {/if}
   </div>
@@ -151,6 +158,11 @@
   }
   .row > :global(:first-child) {
     flex: 1;
+  }
+  .caption {
+    margin: 0 0 calc(-1 * var(--sp-1));
+    color: var(--text-2);
+    font-size: var(--fs-sm);
   }
   .steps {
     display: flex;

@@ -68,14 +68,19 @@
       <ul class="options">
         <li class="head" aria-hidden="true">
           <span></span>
-          <span>So spielt die Lösung deine Hand</span>
-          <span class="num">Anteil</span>
-          <abbr title={EV_LOSS_EXPLAIN}>Verlust</abbr>
+          <span>Lösung</span>
+          <span title="Wie oft die Lösung diese Aktion mit genau deiner Hand wählt">wie oft</span>
+          <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
         </li>
         {#each d.strategy as c (c.label)}
           <li class:mine={c.played}>
             <span class="dot {tone(c)}"></span>
-            <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
+            <span class="label"
+              >{c.label}{#if c.played}{@const own = / BB$/.test(c.label) && d.played !== c.label ? d.played.match(/[\d,]+ BB$/)?.[0] : undefined}<em
+                  title={own ? `Du hast ${d.played} gespielt; gerechnet wird mit der nächsten Größe, die die Lösung kennt.` : undefined}
+                  >{own ? `du: ${own}` : "du"}</em
+                >{/if}</span
+            >
             <span class="num freq">{pct(c.freq)}</span>
             <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
           </li>
@@ -178,7 +183,7 @@
   }
   .options li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 48px 76px;
+    grid-template-columns: 10px minmax(0, 1fr) 52px 76px;
     align-items: center;
     gap: var(--sp-2);
     min-height: 24px;
@@ -188,7 +193,7 @@
   }
   .options li.head {
     min-height: 20px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
   }
   .options li.head > :nth-child(n + 3) {
@@ -204,6 +209,7 @@
     border-radius: 2px;
   }
   .label em {
+    white-space: nowrap;
     margin-left: 7px;
     padding: 0 5px;
     border-radius: var(--r-xs);
@@ -218,7 +224,7 @@
     text-align: right;
   }
   .ev {
-    color: var(--text-3);
+    color: var(--text-2);
     cursor: help;
   }
   .ev.best {
@@ -234,13 +240,13 @@
   }
   summary {
     width: fit-content;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
     cursor: pointer;
     transition: color var(--dur-fast) var(--ease-standard);
   }
   summary:hover {
-    color: var(--text-2);
+    color: var(--text);
   }
   details p {
     margin: 6px 0 0;
