@@ -306,7 +306,7 @@
     z-index: 2;
   }
   .seat.out {
-    opacity: 0.45;
+    opacity: 0.6;
   }
   .hole {
     display: flex;

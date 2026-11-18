@@ -166,7 +166,7 @@
     color: var(--text);
   }
   .move.fold {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .move.fold b {
     color: var(--text-2);

@@ -84,7 +84,11 @@
   </div>
 
   {#if tab === "info"}
+    {#if past}
+      <p class="nowline">Die Strategie für diese Entscheidung erscheint nach deinem Zug · Tipp vorher: <b>H</b> (zählt dann halb)</p>
+    {/if}
     {#if lesson && (past || cells)}
+      <div class="retro" class:back={past}>
       {#if about}<p class="about"><span>{about.street}</span> <b>{about.text}</b></p>{/if}
       {#if lesson.strategy && view}
         {@const own = lesson.strategy}
@@ -99,11 +103,10 @@
           <span class="note" class:why={!!mixedWhy}>{mixedWhy ?? "Prozent: wie oft die Lösung jeden Zug wählt. Bewertet wird, was dein Zug gegenüber dem besten kostet."}</span>
         </div>
       {/if}
+      </div>
     {/if}
-    {#if past}
-      <!-- The range of the last move would read like advice for this one: it waits for your move. -->
-      <p class="nowline">Die Strategie für diese Entscheidung erscheint nach deinem Zug · Tipp vorher: <b>H</b> (zählt dann halb)</p>
-    {:else if lesson && cells}
+    <!-- While you decide, the last move's range would read like advice for this one: it waits for your move. -->
+    {#if !past && lesson && cells}
       <p class="cap">
         Range von {actor} an dieser Stelle: wie {lesson.source === "model" ? "das Modell" : lesson.source === "equilibrium" ? "das Gleichgewicht" : "die Lösung"} jede Hand spielt. Deine Hand ist umrandet.
       </p>
@@ -120,7 +123,7 @@
         {/each}
       </ul>
       <p class="faint small">Höhe einer Zelle: wie viel der Hand hier noch in der Range ist. Farben: wie oft sie welchen Zug spielt.</p>
-    {:else}
+    {:else if !past}
       <div class="empty-state">
         <p>Strategie und Range erscheinen nach deinem Zug.</p>
         <p class="faint small">Vorher hilft „Tipp anzeigen“ (Taste H) – der Zug zählt dann nur halb.</p>
@@ -208,10 +211,15 @@
     align-items: center;
     gap: 8px;
   }
-  .nowline {
-    margin: 0;
-    padding-top: 10px;
+  .retro.back {
+    opacity: 0.78;
+  }
+  .nowline + .retro {
+    padding-top: 12px;
     border-top: 1px solid var(--line);
+  }
+  .nowline {
+    margin: 0 0 12px;
     font-size: var(--fs-sm);
     color: var(--text-2);
   }

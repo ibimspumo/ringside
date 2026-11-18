@@ -68,7 +68,7 @@ export function situation(view: HandView, at: number): Situation {
     you += d.to_call > 0 ? ` – ${num(d.to_call)} BB ${pay}, Pot ${num(d.pot)} BB.` : ` – Pot ${num(d.pot)} BB, du kannst checken.`;
     if (d.to_call > 0) need = d.to_call / (d.pot + d.to_call);
   } else you += ".";
-  if (!parts.length && !foldText) return { lead: "Du bist als Erster dran", raise: null, folds: "", board, you, need };
+  if (!parts.length && !foldText) return { lead: "Vor dir hat noch niemand gehandelt", raise: null, folds: "", board, you, need };
   return { lead: parts.join(", "), raise, folds: foldText, board, you, need };
 }
 

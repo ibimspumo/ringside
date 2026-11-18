@@ -370,13 +370,13 @@
             {#if head}
               <b>{head.street}</b> · {head.players}: Du ({view.positions[view.hero]},
               <Term term={head.inPosition ? "ip" : "oop"}>{head.inPosition ? "mit Position" : "ohne Position"}</Term>) gegen {head.others}
-              · Pot <span class="num">{num(head.pot)} BB</span> · <Term term="effective">effektiv</Term>
+              · <Term term="effective">effektiv</Term>
               <span class="num">{num(head.effective, 0)} BB</span>
               {#if view.spot?.source === "live" && view.snapshots[at].street !== "preflop"}
                 · <span class="live">live gerechnet, Genauigkeit <span class="num">{num(view.spot.exploitability_pct)} %</span></span>
               {/if}
             {:else}
-              <b>Preflop</b> · Pot <span class="num">{num(view.snapshots[at].pot)} BB</span>
+              <b>Preflop</b> · {view.players === 2 ? "Heads-up" : `${view.players} Spieler`}
             {/if}
           </p>
         </div>
@@ -408,7 +408,7 @@
               <span><CardText text={sit.you} /></span>
               {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
-                <span class="odds"><Term term="potodds">Pot Odds</Term>: Ein Call braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
+                <span class="odds"><Term term="potodds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
               {/if}
             </p>
             <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>
