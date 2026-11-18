@@ -193,6 +193,15 @@ async function click(sel, text = null, opts) {
   // The scroll event comes with the next frame, before its animation callbacks. Arriving after
   // the click, it would hide the popover the click opened (ui/floating.ts).
   await s.execAsync(`const done = arguments[0]; requestAnimationFrame(() => done());`);
+  // A toast in the top corner may cover the target; a user closes it first.
+  const covered = await s.exec(
+    `const r = arguments[0].getBoundingClientRect();
+     const toast = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest(".ui-toast, .toast");
+     toast?.querySelector("button[aria-label='Schließen'], button[aria-label='Meldung schließen']")?.click();
+     return !!toast;`,
+    el,
+  );
+  if (covered) await sleep(400);
   await s.click(el);
 }
 
