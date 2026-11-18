@@ -17,7 +17,15 @@ use serde_json::{Value, json};
 use crate::canonical::canonicalize;
 use crate::client::DEFAULT_BASE_URL;
 use crate::kinds::pushfold_mw::POOL_PPM;
-use crate::kinds::{self, Kind, KindEntry, Postflop, PostflopInput, PushFoldMw, PushFoldMwInput, Verdict};
+use crate::kinds::spot::canonical_flop;
+use crate::kinds::{
+    self, Kind, KindEntry, ModelLine, Postflop, PostflopInput, PushFoldMw, PushFoldMwInput, SpotInput, SpotKind, Verdict,
+};
+use ringside_engine::preflop_table::Family;
+use ringside_engine::pushfold_table::Ante;
+use ringside_play::TableKey;
+use ringside_play::scenario::Scenario as ModelScenario;
+use ringside_play::table::{PUSH_FOLD_MAX_BB, deep};
 
 /// Largest decompressed result the verifier reads.
 const MAX_RESULT: u64 = 1 << 20;
@@ -664,7 +672,7 @@ pub struct Seed {
     pub engine_version: u32,
     /// Canonical JSON.
     pub input: String,
-    /// "catalog" or "preflop".
+    /// "catalog" (catalog spots and practice lines on the catalog's flops) or "preflop".
     pub source: &'static str,
 }
 
@@ -730,6 +738,81 @@ pub fn catalog_seeds(shipped: &[String]) -> Result<Vec<Seed>, String> {
     c.ids()
         .filter(|id| !shipped.contains(&c.scenarios[id.scenario].id))
         .map(|id| seed::<Postflop>(&PostflopInput::new(&c.scenarios[id.scenario].id, &c.flops[id.flop]), "catalog"))
+        .collect()
+}
+
+/// A line "Hände spielen" deals at a table: the model line, its heads-up flop and its share
+/// of the table's flops.
+pub struct PracticeLine {
+    pub table: TableKey,
+    pub model: ModelLine,
+    pub scenario: ModelScenario,
+    pub share: f64,
+    /// A catalog scenario: the stock looks its catalog flops up as `postflop` spots.
+    pub catalog: bool,
+}
+
+impl PracticeLine {
+    /// E.g. "CO raise 2.2, BB call".
+    pub fn label(&self) -> String {
+        let names = ringside_engine::multiway::position_names(self.table.players);
+        self.model
+            .line
+            .iter()
+            .map(|s| {
+                let action = format!("{:?}", s.action.kind).to_lowercase();
+                format!("{} {action} {}", names.get(s.seat).copied().unwrap_or("?"), s.action.to_bb)
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
+}
+
+/// The lines of a practice table (big-blind ante, as practice starts), most dealt first:
+/// the practice stock draws a heads-up flop of the plain model by how often the model
+/// plays it (`ringside_play::Pool`). Up to 20 BB practice plays push/fold and deals no
+/// flop, so those tables have no lines.
+pub fn practice_lines(players: usize, stack_bb: f64) -> Result<Vec<PracticeLine>, String> {
+    if stack_bb <= PUSH_FOLD_MAX_BB {
+        return Err(format!("{stack_bb} BB: practice plays push/fold up to {PUSH_FOLD_MAX_BB} BB and deals no flop"));
+    }
+    let table = TableKey { players, ante: Ante::BigBlind, stack_bb };
+    let deep = deep(table).ok_or(format!("no preflop model for {players} players at {stack_bb} BB"))?;
+    let total: f64 = deep.scenarios.iter().map(|s| s.reach).sum();
+    let c = ringside_solver::library::catalog();
+    let mut lines: Vec<PracticeLine> = deep
+        .scenarios
+        .iter()
+        .map(|sc| PracticeLine {
+            table,
+            model: ModelLine { family: Family::Plain, ante: table.ante, players, stack_bb, line: sc.line.clone() },
+            scenario: sc.clone(),
+            share: sc.reach / total,
+            catalog: c.scenario_of(&sc.spot(&c.flops[0])).is_some(),
+        })
+        .collect();
+    lines.sort_by(|a, b| b.share.total_cmp(&a.share));
+    Ok(lines)
+}
+
+/// `n` of the catalog's flops, spread evenly over its order (texture, then rank) so a
+/// smaller set keeps the textures' shares.
+pub fn practice_flops(n: usize) -> Vec<String> {
+    let flops = &ringside_solver::library::catalog().flops;
+    let n = n.min(flops.len());
+    (0..n).map(|i| flops[(2 * i + 1) * flops.len() / (2 * n)].clone()).collect()
+}
+
+/// The `spot` work of a line on `flops`: the input the practice stock looks each flop up
+/// with. A catalog line has none; its spots are catalog seeds.
+pub fn practice_seeds(line: &PracticeLine, flops: &[String]) -> Result<Vec<Seed>, String> {
+    if line.catalog || flops.is_empty() {
+        return Ok(Vec::new());
+    }
+    let base = SpotInput::from_model(&line.model, &line.scenario.spot(&flops[0]))?;
+    flops
+        .iter()
+        .map(|f| seed::<SpotKind>(&SpotInput { board: canonical_flop(f)?, ..base.clone() }, "catalog"))
         .collect()
 }
 
@@ -1054,6 +1137,46 @@ mod tests {
             assert_eq!(input.payouts_ppm.iter().sum::<u32>(), POOL_PPM);
             assert!(input.payouts_ppm.len() < input.stacks_mbb.len() || input.payouts_ppm.len() == input.stacks_mbb.len());
         }
+    }
+
+    #[test]
+    fn practice_seeds_cover_the_most_dealt_lines_and_spare_queued_and_served_spots() {
+        assert!(practice_lines(6, 20.0).is_err(), "practice plays push/fold at 20 BB");
+        let lines = practice_lines(6, 40.0).unwrap();
+        assert!(lines.windows(2).all(|w| w[0].share >= w[1].share));
+        assert!((lines.iter().map(|l| l.share).sum::<f64>() - 1.0).abs() < 1e-9);
+        let c = ringside_solver::library::catalog();
+        assert_eq!(practice_flops(c.flops.len()), c.flops);
+        let flops = practice_flops(3);
+        assert!(flops.iter().all(|f| c.flop(f).is_some()));
+        let seeds: Vec<Seed> = lines.iter().take(2).flat_map(|l| practice_seeds(l, &flops).unwrap()).collect();
+        let mut keys: Vec<&str> = seeds.iter().map(|s| s.key.as_str()).collect();
+        keys.sort();
+        keys.dedup();
+        assert_eq!((seeds.len(), keys.len()), (6, 6));
+        assert!(seeds.iter().all(|s| s.kind == SpotKind::NAME));
+        let catalog_line = practice_lines(9, 40.0).unwrap().into_iter().find(|l| l.catalog).expect("a 9-max catalog line");
+        assert!(practice_seeds(&catalog_line, &flops).unwrap().is_empty(), "catalog lines are catalog seeds");
+
+        let db = Memory::new();
+        db.0.execute(
+            "INSERT INTO work (key, kind, engine_version, input, source, priority, created_at) VALUES (?, 'spot', 1, ?, 'request', 3, 0)",
+            [&seeds[0].key, &seeds[0].input],
+        )
+        .unwrap();
+        db.0.execute(
+            "INSERT INTO solutions (key, kind, engine_version, input, result, result_size, status, submitter, submitted_at) \
+             VALUES (?, 'spot', 1, ?, x'00', 1, 'accepted', 'x', 0)",
+            [&seeds[1].key, &seeds[1].input],
+        )
+        .unwrap();
+        assert_eq!(seed_work(&db, &seeds).unwrap(), 4);
+        assert_eq!(seed_work(&db, &seeds).unwrap(), 0, "queued once");
+        let request: (String, i64) =
+            db.0.query_row("SELECT source, priority FROM work WHERE key = ?", [&seeds[0].key], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!(request, ("request".into(), 3), "a requested spot keeps its row");
+        let served: i64 = db.0.query_row("SELECT COUNT(*) FROM work WHERE key = ?", [&seeds[1].key], |r| r.get(0)).unwrap();
+        assert_eq!(served, 0, "a served spot is not queued");
     }
 
     #[test]

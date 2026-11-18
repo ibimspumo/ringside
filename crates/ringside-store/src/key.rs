@@ -57,23 +57,11 @@ fn compact(board: &str) -> String {
     board.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
-/// The catalog scenario with exactly the ranges, pot, stack and sizes of `spot`.
-pub fn catalog_scenario(spot: &Spot) -> Option<usize> {
-    catalog().scenarios.iter().position(|s| {
-        s.oop_range == spot.oop_range
-            && s.ip_range == spot.ip_range
-            && (s.pot - spot.pot).abs() < 0.011
-            && (s.stack - spot.stack).abs() < 0.011
-            && s.sizes == spot.sizes
-            && s.allin_threshold == spot.allin_threshold
-    })
-}
-
 /// The catalog spot that `spot` is, up to a suit renaming of its flop: a catalog
 /// scenario on a flop whose canonical flop is one of the catalog's.
 pub fn catalog_id(spot: &Spot) -> Option<SpotId> {
     let flop = catalog().flop(&canonical_flop(&spot.board).ok()?)?;
-    Some(SpotId { scenario: catalog_scenario(spot)?, flop })
+    Some(SpotId { scenario: catalog().scenario_of(spot)?, flop })
 }
 
 /// The cloud input of the catalog spot `id`.
@@ -150,7 +138,7 @@ pub fn canonical_flops() -> &'static [String] {
 /// on the catalog's flops; a model line has the key of the model flop everywhere else.
 pub fn line_flops(spot: &Spot, model: Option<&ModelLine>) -> Vec<(String, String)> {
     let c = catalog();
-    let scenario = catalog_scenario(spot);
+    let scenario = c.scenario_of(spot);
     let base = model.and_then(|m| SpotInput::from_model(m, spot).ok());
     canonical_flops()
         .iter()
