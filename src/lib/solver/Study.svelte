@@ -1,22 +1,25 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { untrack } from "svelte";
   import type { Anchor } from "../app/format";
   import { signed } from "../app/format";
   import PlayingCard from "../PlayingCard.svelte";
   import ActionBar from "./ActionBar.svelte";
   import { actionColors, bb, bytes, duration } from "./actions";
   import DeckPopover from "./DeckPopover.svelte";
-  import { GLOSSARY, headline, precision, why } from "./explain";
-  import HandDetail from "./HandDetail.svelte";
+  import { cap, GLOSSARY, handAdvice, headline, precision, why } from "./explain";
   import { loadNode } from "./nodes";
   import { STREET_INDEX, STREET_NAME, actionText, isAggressive, matchStep, nearestSize, targetAmount, withSize, type Crumb, type SizeMatch } from "./play";
-  import { sameCombo } from "./practice";
+  import { cardText } from "../play/labels";
+  import { handNumbers } from "./practice";
+  import { classLabel } from "./range";
   import StrategyGrid, { type GridMode } from "./StrategyGrid.svelte";
-  import { solvedTable, solver, startSolve } from "./store.svelte";
+  import { solveNotice, streetAt } from "./handoff.svelte";
+  import MeChooser from "./MeChooser.svelte";
+  import { meSide, solvedTable, solver, startSolve } from "./store.svelte";
   import type { SeatView } from "./SolverTable.svelte";
   import SolverTable from "./SolverTable.svelte";
   import Term from "./Term.svelte";
-  import type { SolverNode, SolverPlayer } from "./types";
+  import type { SolverNode, SolverPlayer, SolverStep } from "./types";
 
   let { onEdit, onNew, onPractice }: { onEdit: () => void; onNew: () => void; onPractice: () => void } = $props();
 
@@ -48,17 +51,27 @@
     return () => (live = false);
   });
 
-  onMount(() => {
+  // A handed-over line can arrive after the page is up, once a saved solution has opened.
+  $effect(() => {
     const r = solver.replay;
-    if (!r) return;
-    solver.replay = null;
-    replay(r);
+    if (!r || solver.status !== "solved") return;
+    untrack(() => {
+      solver.replay = null;
+      replay(r);
+    });
   });
 
-  /** Walks the old line in the new tree; actions map to the closest size of the same kind. */
+  /**
+   * Walks the old line in the new tree; actions map to the closest size of the same kind. An
+   * exact `path` past what a saved solution holds solves the spot in full and walks on.
+   */
   async function replay(r: NonNullable<typeof solver.replay>) {
     const out: Crumb[] = [];
     try {
+      for (const step of r.path ?? []) {
+        const n = await loadNode(out.map((x) => x.step));
+        out.push("card" in step ? cardCrumb(n, step.card) : crumbFor(n, step.action));
+      }
       for (const c of r.line) {
         const n = await loadNode(out.map((x) => x.step));
         const step = matchStep(n, c);
@@ -74,15 +87,25 @@
         if (m) out.push(crumbFor(n, m.index));
       }
     } catch (e) {
+      if (r.path && solver.partial) return deeper(r.path);
       note = String(e);
     }
     line = out;
   }
 
-  /** Solves the saved spot again in full and walks back to where the user was. */
-  function deeper() {
-    solver.replay = { line: $state.snapshot(line), then: null };
+  /** Solves the saved spot again in full and walks back to `path` or where the user was. */
+  async function deeper(path?: SolverStep[]) {
+    const to = path ?? $state.snapshot(line).map((c) => c.step);
+    const notice = await solveNotice(
+      `Für den ${streetAt(to)} rechnet Ringside kurz nach`,
+      "Gespeichert sind nur der Flop und die erste Entscheidung am Turn; danach geht es an derselben Stelle weiter.",
+    );
+    solver.replay = { line: [], then: null, path: to, notice };
     startSolve(true);
+  }
+
+  function cardCrumb(n: SolverNode, card: string): Crumb {
+    return { step: { card }, player: null, label: card, street: n.board.length === 3 ? "turn" : "river" };
   }
 
   function crumbFor(n: SolverNode, k: number): Crumb {
@@ -104,7 +127,7 @@
 
   function deal(card: string) {
     if (!node || node.kind !== "chance") return;
-    line = [...line, { step: { card }, player: null, label: card, street: node.board.length === 3 ? "turn" : "river" }];
+    line = [...line, cardCrumb(node, card)];
     picker = null;
   }
 
@@ -163,10 +186,11 @@
 
   // Grid and hand detail.
   let mode = $state<GridMode>("strategy");
-  let hover = $state<number | null>(null);
   let pinned = $state<number | null>(null);
-  const heroClass = $derived(hero && node ? (node.hands.find((h) => sameCombo(h.combo, hero))?.class ?? null) : null);
-  const focus = $derived(pinned ?? hover ?? heroClass);
+  // Your exact cards, as the practice grades them; the grid cell mixes the whole class.
+  const heroNumbers = $derived(hero && node ? handNumbers(node, hero) : null);
+  const heroClass = $derived(heroNumbers?.hand?.class ?? null);
+  const heroAdvice = $derived(heroNumbers?.hand && node ? handAdvice(node, heroNumbers.hand.strategy, [heroNumbers.hand]) : null);
 
   function key(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
@@ -254,7 +278,7 @@
     <p class="err">
       {error}
       {#if solver.partial && line.length}
-        <button class="btn sm deeper" onclick={deeper}>Jetzt tiefer rechnen</button>
+        <button class="btn sm deeper" onclick={() => deeper()}>Jetzt tiefer rechnen</button>
       {/if}
     </p>
   {/if}
@@ -290,6 +314,7 @@
         <SolverTable
           players={table.players}
           positions={table.positions}
+          anchor={table.positions[meSide()]}
           board={node.board}
           nextSlot={node.kind === "chance" ? node.board.length : -1}
           onSlot={node.kind === "chance" ? openSlot : undefined}
@@ -300,6 +325,7 @@
           {views}
           street={STREET_NAME[node.street]}
         />
+        <MeChooser positions={table.positions} />
 
         {#if node.kind === "action" && node.player}
           <div class="actor">
@@ -391,8 +417,8 @@
               {mode}
               {hero}
               selected={pinned ?? -1}
-              onHover={(i) => (hover = i)}
               onSelect={(i) => (pinned = pinned === i ? null : i)}
+              onClose={() => (pinned = null)}
             />
             <div class="legend">
               {#if mode === "strategy"}
@@ -405,6 +431,15 @@
                 <span class="faint">Equity gegen die Range des Gegners an diesem Punkt, in %.</span>
               {/if}
             </div>
+            {#if heroClass !== null && heroAdvice}
+              <p class="mine">
+                Deine Hand <b class="num">{hero?.map(cardText).join("")}</b>: {cap(heroAdvice.line)}.
+                <span class="faint">Die Zelle {classLabel(heroClass)} im Raster mischt alle Farben dieser Klasse.</span>
+                <button class="more" onclick={() => (pinned = heroClass)}>Details</button>
+              </p>
+            {:else}
+              <p class="mine faint">Fahre über eine Hand für ihre Werte, Klick hält sie fest.</p>
+            {/if}
           </div>
         {:else}
           <div class="idle">
@@ -427,16 +462,6 @@
           </div>
         {/if}
       </div>
-
-      {#if node.kind === "action" && node.player}
-        <div class="det panel">
-          {#if focus !== null}
-            <HandDetail {node} index={focus} {colors} {labels} {hero} pinned={pinned !== null} onUnpin={() => (pinned = null)} />
-          {:else}
-            <p class="faint small">Fahre über eine Hand im Raster: hier stehen dann ihre Farbkombinationen mit Strategie, Equity und EV. Klick hält sie fest.</p>
-          {/if}
-        </div>
-      {/if}
     </div>
   {:else if !error}
     <p class="faint">Lädt …</p>
@@ -572,10 +597,7 @@
   .body {
     display: grid;
     grid-template-columns: minmax(0, 1.15fr) minmax(340px, 1fr);
-    grid-template-areas:
-      "left right"
-      "det right";
-    grid-template-rows: auto 1fr;
+    grid-template-areas: "left right";
     gap: 12px 16px;
     align-items: start;
   }
@@ -658,14 +680,6 @@
     border: 1px solid var(--line);
     font-size: 13px;
   }
-  kbd {
-    font-family: var(--font-num);
-    font-size: 10.5px;
-    padding: 0 4px;
-    border: 1px solid var(--line-2);
-    border-radius: 3px;
-    color: var(--text-2);
-  }
   .right {
     grid-area: right;
     padding: 12px 14px;
@@ -703,10 +717,25 @@
     margin-right: 5px;
     border-radius: 2px;
   }
-  .det {
-    grid-area: det;
-    padding: 12px 14px;
-    min-width: 0;
+  .mine {
+    margin: 8px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid var(--line);
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .more {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    cursor: pointer;
+  }
+  .more:hover {
+    color: var(--text);
   }
   .idle p {
     margin: 0 0 10px;
@@ -743,10 +772,10 @@
   }
   @container solverpage (max-width: 900px) {
     .body {
-      grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+      grid-template-columns: minmax(0, 1fr);
       grid-template-areas:
-        "left left"
-        "right det";
+        "left"
+        "right";
     }
     .buttons {
       margin-left: 0;

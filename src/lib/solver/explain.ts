@@ -15,6 +15,8 @@ export const GLOSSARY = {
     "Genauigkeit der Lösung: So viel (in % des Pots) könnte ein perfekter Gegner gegen sie im Schnitt mehr gewinnen. Je kleiner, desto genauer; unter 1 % ist zum Lernen mehr als genug.",
   evloss: "EV-Verlust: wie viel deine Wahl im Schnitt weniger einbringt als die beste Aktion mit genau deiner Hand.",
   potodds: "Pot Odds: wie viel Equity ein Call mindestens braucht – der Call geteilt durch den Pot nach dem Call.",
+  threebet:
+    "3-Bet: die zweite Erhöhung vor dem Flop – jemand erhöht gegen einen Raise. Darauf folgt die 4-Bet. Wer 3-bettet, hat meist eine starke Hand oder blufft gezielt mit Händen, die gut blocken.",
   mixed:
     "Gemischt: Die Lösung spielt dieselbe Hand mal so, mal so. Beide Aktionen sind dann etwa gleich viel wert; das Mischen macht dich für den Gegner schwer lesbar.",
 } as const;

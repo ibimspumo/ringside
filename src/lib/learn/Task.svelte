@@ -5,6 +5,9 @@
   import { GRADING, SKILLS, errorText, firstTerm, fmtPct } from "./catalog";
   import FeedbackView from "./FeedbackView.svelte";
   import Stage from "./Stage.svelte";
+  import Button from "../ui/Button.svelte";
+  import Kbd from "../ui/Kbd.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import { preview, previewAnswer } from "./preview";
   import { onMount } from "svelte";
 
@@ -141,7 +144,7 @@
     <p class="term-hint"><b>{t?.term}:</b> {t?.tip}</p>
   {/if}
   {#if !feedback && exercise.model_note && (prompt.type === "push_fold" || prompt.type === "push_fold_table")}
-    <p class="model-note"><span class="badge modell">Modell</span> {exercise.model_note}</p>
+    <div class="model-note"><SourceNote kind="model" variant="block">{exercise.model_note}</SourceNote></div>
   {/if}
 
   {#if showStage}
@@ -219,7 +222,7 @@
               onclick={() => choose(o.id)}
             >
               {o.label}
-              <kbd>{keyOf(o.id, i)}</kbd>
+              <Kbd keys={keyOf(o.id, i)} />
             </button>
           {/if}
         {/each}
@@ -235,7 +238,7 @@
 
   {#if !feedback && (spec.type === "cards" || spec.type === "number")}
     <div class="actions">
-      <button class="btn primary" disabled={!ready || busy} onclick={submitDraft}>Prüfen <kbd>Enter</kbd></button>
+      <Button variant="primary" size="lg" kbd="Enter" disabled={!ready || busy} onclick={submitDraft}>Prüfen</Button>
     </div>
   {/if}
 
@@ -319,16 +322,8 @@
     font-weight: 600;
   }
   .model-note {
-    margin: -6px 0 0;
+    margin-top: -6px;
     max-width: 80ch;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--text-2);
-  }
-  .model-note .badge {
-    margin-right: 4px;
-    font-size: 10.5px;
-    color: var(--text-2);
   }
   .input {
     min-width: 0;
@@ -495,15 +490,6 @@
   .choice:disabled:not(.on, .right, .wrong) {
     opacity: 0.45;
   }
-  kbd {
-    padding: 0 5px;
-    border-radius: 4px;
-    border: 1px solid currentColor;
-    font-family: var(--font-num);
-    font-size: 11px;
-    font-weight: 500;
-    opacity: 0.5;
-  }
   .hint {
     margin: 0;
     text-align: center;
@@ -512,10 +498,6 @@
   .actions {
     display: flex;
     gap: 8px;
-  }
-  .actions .btn {
-    height: 38px;
-    padding: 0 18px;
   }
   .error {
     margin: 0;

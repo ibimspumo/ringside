@@ -18,6 +18,7 @@ pub mod grade;
 pub mod postflop;
 mod preflop;
 mod pushfold;
+pub mod ranges;
 mod seats;
 
 use rayon::prelude::*;

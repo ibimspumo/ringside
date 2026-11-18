@@ -143,7 +143,7 @@ pub struct Settings {
     pub presets: Vec<Preset>,
     /// Changed only through the cloud commands, see `cloud.rs`.
     pub cloud: CloudSettings,
-    /// Changed only through `library_set_mode`, see `library.rs`.
+    /// Changed only through `library_set_mode` and `library_set_power`, see `library.rs`.
     pub library: LibrarySettings,
 }
 
@@ -159,10 +159,21 @@ pub enum LibraryMode {
     Always,
 }
 
+/// How many cores the library's solves take.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LibraryPower {
+    Gentle,
+    #[default]
+    Normal,
+    Full,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LibrarySettings {
     pub background: LibraryMode,
+    pub power: LibraryPower,
 }
 
 /// Ringside Cloud: shared push/fold solutions. On by default; the first start shows what

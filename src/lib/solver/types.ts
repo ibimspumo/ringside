@@ -137,4 +137,11 @@ export interface SolverPrefill {
   /** Seats at the table the hand was played on, to draw it. */
   players?: number;
   source: string;
+  /** Sizes and all-in threshold the spot was solved with; otherwise the page's defaults. */
+  sizes?: [StreetSizes, StreetSizes, StreetSizes];
+  allin_threshold?: number;
+  /** From the hand analysis: the line to the decision, opened at once instead of the setup. */
+  path?: SolverStep[];
+  /** The saved solution of this spot in "Meine Lösungen", if there is one. */
+  saved?: number | null;
 }

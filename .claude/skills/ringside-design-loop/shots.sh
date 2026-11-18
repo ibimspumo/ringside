@@ -5,6 +5,7 @@
 #
 # Each view is shot at 980x700 (the app's minimum), 1440x900 and 2400x1300, at 2x scale:
 #   shots.sh /tmp/ringside-shots/hud/r1 editor='?tab=hud' overlay='?view=overlay'
+# Reduced motion keeps entry animations from freezing half-way under the virtual time budget.
 # Writes <out-dir>/<name>-<width>.png. Starts its own Vite on a free port and stops it again.
 set -euo pipefail
 
@@ -28,7 +29,7 @@ for view in "$@"; do
   name=${view%%=*}
   query=${view#*=}
   for size in 980,700 1440,900 2400,1300; do
-    "$chrome" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 \
+    "$chrome" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --force-prefers-reduced-motion \
       --window-size="$size" --virtual-time-budget=8000 \
       --screenshot="$out/$name-${size%%,*}.png" "http://localhost:$port/$query" >/dev/null 2>&1
     echo "$out/$name-${size%%,*}.png"

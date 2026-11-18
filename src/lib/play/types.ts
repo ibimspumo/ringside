@@ -16,7 +16,7 @@ export interface PlayConfig {
 
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type ChoiceKind = "fold" | "check" | "call" | "limp" | "bet" | "raise" | "all_in";
-export type Grade = "best" | "good" | "inaccurate" | "mistake" | "blunder";
+export type Grade = "best" | "mix" | "good" | "inaccurate" | "mistake" | "blunder";
 export type Source = "model" | "equilibrium" | "solver" | "library" | "saved";
 export type EndReason = "folded" | "showdown" | "left_line" | "flop_unsolved" | "not_stored";
 
@@ -50,7 +50,10 @@ export interface Grid {
 
 export interface Judgement {
   grade: Grade;
+  /** Highest EV (most frequent without EVs). */
   best: number;
+  /** The move the solution plays most often with the hand. */
+  main: number;
   frequency: number;
   loss_bb: number | null;
   loss_pct: number | null;

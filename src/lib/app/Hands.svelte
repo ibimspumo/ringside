@@ -10,6 +10,7 @@
   import PlayingCard from "../PlayingCard.svelte";
   import { moneyShort } from "../stats";
   import type { Filter, Hand, HandQuery, HandSummary, SpotFilter, Street } from "../types";
+  import type { RangeFilter } from "../ranges/types";
   import { date, dateTime, sign, signed, time } from "./format";
   import type { LearnTarget } from "./Leaks.svelte";
   import Replayer from "./Replayer.svelte";
@@ -32,8 +33,8 @@
     /** Names known from table windows, by tournament id. */
     tournamentNames: Map<number, string>;
     openId: number | null;
-    /** Hands of a leak-finder spot, with a label for the chip. */
-    spot?: { filter: SpotFilter; label: string } | null;
+    /** Hands of a leak-finder spot or a range-chart cell, with a label for the chip. */
+    spot?: { filter?: SpotFilter | null; range?: RangeFilter | null; label: string } | null;
     onClearPlayer: () => void;
     onClearTournament: () => void;
     onClearSpot?: () => void;
@@ -119,6 +120,7 @@
     result,
     min_pot_bb: minPot && minPot > 0 ? minPot : null,
     spot: spot?.filter ?? null,
+    range: spot?.range ?? null,
     decisions: decisionFilter,
     sort_by_loss: view === "mistakes",
     limit: PAGE,
@@ -323,7 +325,7 @@
     {#if spot}
       <span class="chip">
         <span class="chip-name">{spot.label}</span>
-        <button onclick={onClearSpot} aria-label="Leak-Filter entfernen" title="Leak-Filter entfernen">
+        <button onclick={onClearSpot} aria-label="Filter entfernen" title="Filter entfernen">
           <svg viewBox="0 0 24 24" width="12" height="12"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" /></svg>
         </button>
       </span>

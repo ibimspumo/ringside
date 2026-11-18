@@ -569,15 +569,36 @@ impl Hand {
         }
         let Phase::Deep(walk) = &mut self.phase else { unreachable!() };
         let before = walk.contrib[node.seat];
-        walk.play(&t.solution, a);
+        let passed = walk.play(&t.solution, a);
         self.put = walk.contrib.clone();
         self.street_put = walk.contrib.clone();
         self.folded = walk.folded.clone();
         let action = node.actions[a];
         let pot = self.ante.iter().sum::<f64>() + self.put.iter().sum::<f64>() - (action.to_bb - before);
         let choice = model_choice(action.kind, action.to_bb, before, pot, &self.street_put);
+        self.push_action(node.seat, choice, verdict, &passed);
+    }
+
+    /// The event of `seat`'s action, then a fold of each seat in `passed` (already marked
+    /// folded), one snapshot each, so the page can show them one after another.
+    fn push_action(&mut self, seat: usize, choice: Choice, verdict: Option<usize>, passed: &[usize]) {
+        for &s in passed {
+            self.folded[s] = false;
+        }
         let snapshot = self.snapshot();
-        self.events.push(Event::Action { street: Street::Preflop, seat: node.seat, choice, verdict, snapshot });
+        if let Some(&first) = passed.first() {
+            self.snapshots[snapshot].to_act = Some(first);
+        }
+        self.events.push(Event::Action { street: self.street, seat, choice, verdict, snapshot });
+        for (i, &s) in passed.iter().enumerate() {
+            self.folded[s] = true;
+            let snapshot = self.snapshot();
+            if let Some(&next) = passed.get(i + 1) {
+                self.snapshots[snapshot].to_act = Some(next);
+            }
+            let choice = Choice { kind: "fold", to_bb: self.street_put[s], add_bb: 0.0, pct_pot: None };
+            self.events.push(Event::Action { street: self.street, seat: s, choice, verdict: None, snapshot });
+        }
     }
 
     fn deep_end(&mut self) -> Result<(), String> {
@@ -613,6 +634,7 @@ impl Hand {
         let (seat, _) = walk.node.expect("short node");
         let before = walk.contrib[seat];
         let pot_before = self.ante.iter().sum::<f64>() + walk.contrib.iter().sum::<f64>();
+        let was_folded = walk.folded.clone();
         let kind = walk.play(&t, a);
         self.put = walk.contrib.clone();
         self.street_put = walk.contrib.clone();
@@ -621,8 +643,10 @@ impl Hand {
         if seat == self.deal.hero {
             self.hero_steps.push((seat, a));
         }
-        let snapshot = self.snapshot();
-        self.events.push(Event::Action { street: Street::Preflop, seat, choice, verdict, snapshot });
+        // Once the pot is full the equilibrium folds everyone left without a node.
+        let passed: Vec<usize> =
+            (1..self.n).map(|k| (seat + k) % self.n).filter(|&s| self.folded[s] && !was_folded[s]).collect();
+        self.push_action(seat, choice, verdict, &passed);
     }
 
     fn short_end(&mut self) {

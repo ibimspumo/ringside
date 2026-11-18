@@ -42,10 +42,6 @@
 
 <div class="path">
   <header class="head">
-    <div>
-      <h1>Lernpfad</h1>
-      <p class="dim">Elf Einheiten, aufeinander aufgebaut. Spring ruhig dorthin, wo du stehst – nichts ist gesperrt.</p>
-    </div>
     <div class="sum" title="Selbstständig: {LEVEL_HINT[3]}">
       <div class="sum-line">
         <b class="num">{solid}</b><span class="faint num">/ {total.length}</span>
@@ -151,15 +147,6 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 12px 20px;
-  }
-  h1 {
-    margin: 0;
-    font-family: var(--font-num);
-    font-size: 26px;
-    font-weight: 600;
-  }
-  .head p {
-    margin: 3px 0 0;
   }
   .sum {
     display: grid;

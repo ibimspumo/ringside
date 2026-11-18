@@ -43,7 +43,7 @@
       <span>{LEVELS[article.level]}</span>
       {#if article.heuristic}<span class="badge">Faustregel</span>{/if}
     </div>
-    <h1>{article.title}</h1>
+    <h2 class="lead-title">{article.title}</h2>
     <p class="one">{article.oneLiner}</p>
   </header>
 
@@ -165,10 +165,10 @@
     border: 1px solid var(--line-2);
     color: var(--text-2);
   }
-  h1 {
+  .lead-title {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 28px;
+    font-size: var(--fs-3xl);
     font-weight: 600;
     line-height: 1.15;
   }

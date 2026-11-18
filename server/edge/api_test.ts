@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { memorySql } from "../lib/sqlite_memory.ts";
-import { createHandler } from "./api.ts";
+import { createHandler, MAX_STATUS_KEYS } from "./api.ts";
 import { canonicalize, solutionKey } from "./canonical.ts";
 import { nodeCount } from "./kinds.ts";
 import { RULES } from "./ratelimit.ts";
@@ -83,6 +83,53 @@ Deno.test("a pending solution is kept, a rejected one is replaced", async () => 
   assertEquals(stored(), { status: "submitted", result_size: JSON.stringify(other).length });
   const log = sql.db.prepare("SELECT outcome FROM submissions ORDER BY id").all().map((r) => r.outcome);
   assertEquals(log, ["new", "pending", "replaced"]);
+});
+
+Deno.test("status tells many keys at once, answers verified ones without the database", async () => {
+  const { sql, handle } = setup();
+  const { key } = await (await handle(post("/v1/solutions", submission()))).json();
+  const other = await solutionKey("pushfold-hu", 1, canonicalize({ ...INPUT, stack_mbb: 20000 }));
+  await handle(post("/v1/solutions", submission({ input: { ...INPUT, stack_mbb: 20000 } })));
+  const unknown = "f".repeat(64);
+  const ask = async (keys: unknown) => {
+    const res = await handle(post("/v1/solutions/status", { keys }));
+    assertEquals(res.status, 200);
+    assertEquals(res.headers.get("cache-control"), "no-store");
+    return (await res.json()).statuses;
+  };
+  assertEquals(await ask([key, unknown]), { [key]: { status: "submitted" }, [unknown]: { status: "unknown" } });
+
+  sql.db.prepare("UPDATE solutions SET status = 'verified', checked_at = 5 WHERE key = ?").run(key);
+  sql.db.prepare("UPDATE solutions SET status = 'rejected', check_note = 'exploitability too high' WHERE key = ?")
+    .run(other);
+  assertEquals(await ask([key, other, key]), {
+    [key]: { status: "verified" },
+    [other]: { status: "rejected", note: "exploitability too high" },
+  });
+  sql.db.prepare("DELETE FROM solutions WHERE key = ?").run(key);
+  assertEquals(await ask([key]), { [key]: { status: "verified" } }, "a verified key stays verified");
+
+  for (const keys of [[], ["ABC"], Array(MAX_STATUS_KEYS + 1).fill(unknown), "nope"]) {
+    const res = await handle(post("/v1/solutions/status", { keys }));
+    assertEquals(res.status, 400, JSON.stringify(keys).slice(0, 80));
+    await res.body?.cancel();
+  }
+  assertEquals((await handle(get("/v1/solutions/status"))).status, 405);
+});
+
+Deno.test("status requests have their own rate limit", async () => {
+  const { handle } = setup();
+  const body = { keys: ["a".repeat(64)] };
+  for (let i = 0; i < RULES.status[0].max; i++) {
+    const res = await handle(post("/v1/solutions/status", body));
+    assertEquals(res.status, 200);
+    await res.body?.cancel();
+  }
+  const res = await handle(post("/v1/solutions/status", body));
+  assertEquals(res.status, 429);
+  assert(Number(res.headers.get("retry-after")) > 0);
+  await res.body?.cancel();
+  assertEquals((await handle(get(`/v1/solutions/pushfold-hu/${"a".repeat(64)}`))).status, 404, "reads stay open");
 });
 
 Deno.test("malformed submissions are rejected", async () => {

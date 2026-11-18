@@ -2,21 +2,26 @@
   import { onMount } from "svelte";
   import { api } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
-  import { handoff } from "./handoff.svelte";
+  import { handoff, takePrefill } from "./handoff.svelte";
   import Practice from "./Practice.svelte";
   import Saved from "./Saved.svelte";
   import Setup from "./Setup.svelte";
-  import { applyPrefill, listen, solver } from "./store.svelte";
+  import { listen, solver } from "./store.svelte";
   import Study from "./Study.svelte";
+  import { usePageHead } from "../ui/page.svelte";
 
-  onMount(listen);
+  onMount(() => {
+    listen();
+    api.solverPage(true);
+    return () => api.solverPage(false);
+  });
 
-  // A spot sent from the replayer replaces the current inputs.
+  // A spot sent from the replayer or the hand analysis replaces the current inputs.
   $effect(() => {
     const p = handoff.prefill;
     if (!p) return;
-    applyPrefill(p);
     handoff.prefill = null;
+    takePrefill(p);
   });
 
   function discard() {
@@ -35,29 +40,24 @@
     { id: "practice", label: "Üben" },
     { id: "saved", label: "Meine Lösungen" },
   ] as const;
+
+  usePageHead(() => ({
+    sub: "Heads-up ab Flop, Turn oder River: Spot aufbauen, lösen, durchspielen und üben. Gerechnet wird nur auf diesem Rechner.",
+    label: "Ansicht",
+    value: view,
+    tabs: TABS.map((t) => {
+      const locked = t.id !== "setup" && t.id !== "saved" && !solved;
+      return { id: t.id, label: t.label, disabled: locked, hint: locked ? "Erst lösen" : undefined };
+    }),
+    onchange: (id) => (solver.view = id as typeof solver.view),
+  }));
 </script>
 
 <ClientLock feature="Der Solver">
   <div class="page solver">
-    <div class="page-head">
-      <div>
-        <h1>Spot-Werkstatt</h1>
-        <p>Heads-up ab Flop, Turn oder River: Spot am Tisch aufbauen, lösen, Zug um Zug durchspielen und üben.</p>
-      </div>
-      <div class="seg tabs" role="tablist" aria-label="Ansicht">
-        {#each TABS as t (t.id)}
-          <button
-            role="tab"
-            aria-selected={view === t.id}
-            class:on={view === t.id}
-            disabled={t.id !== "setup" && t.id !== "saved" && !solved}
-            title={t.id !== "setup" && t.id !== "saved" && !solved ? "Erst lösen" : undefined}
-            onclick={() => (solver.view = t.id)}>{t.label}</button
-          >
-        {/each}
-      </div>
-    </div>
-    {#if solver.source && view === "setup"}
+    {#if solver.status === "running" && solver.replay?.notice}
+      <p class="source" role="status">{solver.replay.notice}</p>
+    {:else if solver.source && view === "setup"}
       <p class="source">Vorbelegt aus <b>{solver.source}</b>: Board, Pot und effektiver Stack stammen aus der Hand.</p>
     {/if}
 
@@ -76,12 +76,6 @@
 <style>
   .solver {
     container: solverpage / inline-size;
-  }
-  .tabs {
-    align-self: center;
-  }
-  .tabs button {
-    white-space: nowrap;
   }
   .source {
     margin: -8px 0 16px;

@@ -2,6 +2,7 @@
   import { onDestroy } from "svelte";
   import { signed } from "../app/format";
   import PlayingCard from "../PlayingCard.svelte";
+  import Button from "../ui/Button.svelte";
   import ActionBar from "./ActionBar.svelte";
   import { actionColors, bb } from "./actions";
   import { cap, lesson, verb } from "./explain";
@@ -250,7 +251,7 @@
         <div class="start">
           {#if phase === "over"}<p>{result}</p>{/if}
           {#if problem}<p class="neg">{problem}</p>{/if}
-          <button class="btn primary" onclick={deal}>{phase === "idle" ? "Hand austeilen" : "Nächste Hand"} <kbd>N</kbd></button>
+          <Button variant="primary" kbd="N" onclick={deal}>{phase === "idle" ? "Hand austeilen" : "Nächste Hand"}</Button>
           {#if phase === "idle"}<span class="faint small">Klick auf einen der beiden Plätze wählt deine Seite.</span>{/if}
         </div>
       {/if}
@@ -407,14 +408,6 @@
     flex-basis: 100%;
     margin: 0;
     font-size: 13px;
-  }
-  kbd {
-    font-family: var(--font-num);
-    font-size: 10.5px;
-    padding: 0 4px;
-    border: 1px solid currentColor;
-    border-radius: 3px;
-    opacity: 0.7;
   }
   .right {
     display: flex;

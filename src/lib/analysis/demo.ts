@@ -16,6 +16,13 @@ const MODEL_NOTE =
 const SOLVER_NOTE =
   "Postflop-Solver heads-up, Ranges aus dem Preflop-Modell (6 Spieler, 100 BB). Einsatzgrößen Flop 33 %, Raise 60 %, Turn 75 %, River 75 %, All-in ab 150 % Pot; Bet von 45 % Pot als 50 % gerechnet. Gelöst bis 0,9 % des Pots Ausbeutbarkeit (210 Iterationen).";
 
+/** The line to each street's decision, checked down in the demo tree. */
+const DEMO_PATH = {
+  flop: [],
+  turn: [{ action: 0 }, { action: 0 }, { card: "Kd" }],
+  river: [{ action: 0 }, { action: 0 }, { card: "Kd" }, { action: 0 }, { action: 0 }, { card: "5c" }],
+};
+
 function choice(label: string, freq: number, ev: number, played = false): Choice {
   return { label, freq, ev_bb: ev, played };
 }
@@ -60,7 +67,7 @@ function rated(
             hero: { player: "oop", cards: ["9s", "9d"] },
             players: 6,
             source: "Hand #250000000002, Analyse",
-            path: [],
+            path: DEMO_PATH[street as keyof typeof DEMO_PATH] ?? [],
           })
         : null,
     engine: "demo",

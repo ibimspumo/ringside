@@ -13,7 +13,7 @@ use ringside_cloud::kinds::{
     PushFoldMwInput, PushFoldMwSolution, Verdict,
 };
 use ringside_cloud::operator::{Db, SqlValue, VerifyOptions, check_here, load_env, need, now, verify_pending};
-use ringside_cloud::{Client, Error, Report, SubmitStatus};
+use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
 use ringside_engine::range::HandClass;
 use ringside_engine::solve_push_fold;
 use ringside_solver::library::format::encode;
@@ -148,6 +148,10 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
     step("rejected stays hidden", r.is_none(), "404")?;
     let r = client.submit_solution::<PushFoldHu>(&good_input, &good).map_err(|e| e.to_string())?;
     step("resubmit verified", r == SubmitStatus::AlreadyVerified, format!("{r:?}"))?;
+    let unknown = "0".repeat(64);
+    let r = client.statuses(&[good_key.clone(), bad_key.clone(), unknown.clone()]).map_err(|e| e.to_string())?;
+    let ok = r[0].1 == KeyStatus::Verified && matches!(r[1].1, KeyStatus::Rejected(Some(_))) && r[2].1 == KeyStatus::Unknown;
+    step("status of many keys at once", ok, format!("{r:?}"))?;
 
     multiway(&client, db, keys, stack_mbb)?;
     postflop(&client, db, keys)?;

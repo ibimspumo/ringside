@@ -2,16 +2,32 @@
 import type { SolverSpot, SolverSummary } from "../solver/types";
 
 export type LibraryMode = "off" | "idle" | "always";
+export type LibraryPower = "gentle" | "normal" | "full";
+export type WaitReason = "client" | "halted" | "off" | "idle" | "idle_unknown" | "in_use";
+export type ShareState = "submitted" | "verified" | "rejected" | "failed";
+
+/** What became of a spot solved here and offered to the cloud. */
+export interface Shared {
+  state: ShareState;
+  /** Unix seconds of the upload or of the failed try. */
+  at: number;
+  /** The verifier's reason for a rejection, or the error of a failed upload. */
+  note?: string;
+}
 export type SpotSource = "local" | "cloud";
 export type WorkerState = "off" | "waiting" | "packs" | "cloud" | "solving" | "done";
 
 export interface WorkerStatus {
   state: WorkerState | "";
-  reason: string | null;
+  reason: WaitReason | null;
+  /** Started by the user on the page. */
+  manual: boolean;
   scenario: string | null;
   flop: string | null;
   iteration: number;
   exploitability_pct: number;
+  /** Of the current spot, 0–1, once measured. */
+  progress: number | null;
   elapsed_ms: number;
   threads: number;
   solved: number;
@@ -30,6 +46,8 @@ export interface LibraryScenario {
   stack: number;
   /** Per catalog flop. */
   status: (SpotSource | null)[];
+  /** Per catalog flop, for spots solved here: what became of sharing it, if known. */
+  shared: (Shared | null)[];
 }
 
 export interface LibraryOverview {
@@ -40,6 +58,10 @@ export interface LibraryOverview {
   scenarios: LibraryScenario[];
   disk_bytes: number;
   mode: LibraryMode;
+  power: LibraryPower;
+  cores: number;
+  /** The user shares own solutions. */
+  share: boolean;
   worker: WorkerStatus;
 }
 
