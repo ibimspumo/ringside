@@ -12,6 +12,7 @@ mod memory;
 mod overlay;
 mod play;
 mod ranges;
+mod report;
 mod settings;
 mod solutions;
 mod solver;
@@ -724,6 +725,7 @@ pub fn run() {
             analysis::analysis_chart_target,
             analysis::analysis_summary,
             analysis::analysis_set_auto,
+            report::tournament_report,
             solver::solver_estimate,
             solver::solver_start,
             solver::solver_cancel,
@@ -753,6 +755,8 @@ pub fn run() {
             coach::coach_report,
             coach::coach_delete_report,
             coach::coach_concepts,
+            coach::coach_ask_prepare,
+            coach::coach_ask,
             cloud::cloud_settings,
             cloud::cloud_save_settings,
             cloud::cloud_ack_notice,

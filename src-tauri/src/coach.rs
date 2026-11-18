@@ -9,10 +9,12 @@ use std::time::{Duration, Instant};
 
 use ringside_coach::openrouter::{BASE_URL, DEFAULT_MODEL};
 use ringside_coach::session::MAX_HANDS;
+use ringside_coach::facts::{hand_facts, report_facts};
 use ringside_coach::{
-    ApiError, Client, CoachError, ConceptCount, Effort, Estimate, KeyInfo, ModelInfo, Prepared, Report, ReportInfo,
-    concept_counts, prepare, run,
+    Answer, ApiError, AskEstimate, Client, CoachError, ConceptCount, Effort, Estimate, KeyInfo, ModelInfo, Prepared,
+    PreparedAsk, Report, ReportInfo, ask, concept_counts, prepare, prepare_ask, run,
 };
+use ringside_analysis::ENGINE;
 use ringside_core::db::Filter;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
@@ -29,6 +31,9 @@ const MODELS_FRESH: Duration = Duration::from_secs(600);
 pub struct CoachState {
     /// The last estimate shown; a run needs its token.
     pending: Mutex<Option<Prepared>>,
+    /// The last question estimated; sending needs its token.
+    question: Mutex<Option<PreparedAsk>>,
+    asking: AtomicBool,
     cancel: Arc<AtomicBool>,
     running: AtomicBool,
     models: Mutex<Option<(Instant, Vec<ModelInfo>)>>,
@@ -301,4 +306,73 @@ pub async fn coach_delete_report(tournament_id: u64, app: AppHandle) -> CmdResul
 #[tauri::command]
 pub async fn coach_concepts(app: AppHandle) -> CmdResult<Vec<ConceptCount>> {
     blocking(app, |state| Ok(concept_counts(&stored_reports(state)?))).await
+}
+
+/// What a question is about: a tournament's report, or a hand with the decision asked about.
+#[derive(Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum AskAbout {
+    Tournament { tournament_id: u64 },
+    Hand { hand_id: u64, action_index: Option<usize> },
+}
+
+/// Builds the anonymous facts of the question and estimates its cost. Nothing is sent yet.
+#[tauri::command]
+pub async fn coach_ask_prepare(about: AskAbout, question: String, app: AppHandle) -> CmdResult<AskEstimate> {
+    let handle = app.clone();
+    blocking(app, move |state| {
+        required_key()?;
+        let facts = {
+            let db = state.db.lock().unwrap();
+            match about {
+                AskAbout::Tournament { tournament_id } => {
+                    let row = db.tournaments(&Filter::default()).map_err(err)?.into_iter().find(|t| t.id == tournament_id);
+                    let row = row.ok_or("Turnier nicht gefunden.")?;
+                    let report = db.tournament_report(tournament_id, &row.started_at, ENGINE).map_err(err)?;
+                    report_facts(&row, &report)
+                }
+                AskAbout::Hand { hand_id, action_index } => {
+                    let hand = db.hand(hand_id).map_err(err)?.ok_or("Hand nicht gefunden.")?;
+                    let decisions = db.hand_decisions(hand_id).map_err(err)?;
+                    if decisions.is_empty() {
+                        return Err("Diese Hand ist noch nicht bewertet. Lass sie zuerst analysieren.".into());
+                    }
+                    hand_facts(&hand, &decisions, action_index).ok_or("Diese Hand kann der Coach nicht lesen.")?
+                }
+            }
+        };
+        let CoachSettings { model, .. } = settings(state);
+        let list = models(&handle).unwrap_or_default();
+        let prepared = prepare_ask(&facts, &question, &model, list.iter().find(|m| m.id == model)).map_err(err)?;
+        let estimate = prepared.estimate().clone();
+        *handle.state::<CoachState>().question.lock().unwrap() = Some(prepared);
+        Ok(estimate)
+    })
+    .await
+}
+
+/// Sends the question whose estimate carried `token`.
+#[tauri::command]
+pub async fn coach_ask(token: String, app: AppHandle) -> CmdResult<Answer> {
+    let handle = app.clone();
+    blocking(app, move |state| {
+        let coach = handle.state::<CoachState>();
+        if coach.asking.swap(true, Ordering::SeqCst) {
+            return Err("Der Coach beantwortet gerade eine Frage.".into());
+        }
+        let result = (|| {
+            let prepared = coach.question.lock().unwrap().take().ok_or(CoachError::NotConfirmed).map_err(err)?;
+            let confirmed = prepared.confirm(&token).map_err(err)?;
+            let client = Client::new(BASE_URL, Some(required_key()?));
+            let stop = || state.client_running.load(Ordering::Relaxed);
+            match ask(confirmed, &client, &stop) {
+                Ok(answer) => Ok(answer),
+                Err(CoachError::Api(ApiError::Cancelled)) => Err("Abgebrochen, weil PokerStars gestartet wurde.".to_string()),
+                Err(e) => Err(e.to_string()),
+            }
+        })();
+        coach.asking.store(false, Ordering::SeqCst);
+        result
+    })
+    .await
 }

@@ -115,6 +115,8 @@ pub struct AutoDone {
     pub mistakes: i64,
     /// The run's entry in the task center, whose own note this one replaces.
     pub job: Option<u64>,
+    /// The newest tournament among the new hands that has a result: its report is ready.
+    pub tournament: Option<u64>,
 }
 
 /// Which hands a step may work on.
@@ -426,15 +428,19 @@ fn auto_finish(app: &AppHandle, after: u64) {
     if !analysis.auto.lock().unwrap().finish() {
         return;
     }
-    let since = app.state::<AppState>().db.lock().unwrap().analysis_since(ENGINE, after);
+    let main = app.state::<AppState>();
+    let since = {
+        let db = main.db.lock().unwrap();
+        db.analysis_since(ENGINE, after).map(|s| (s, db.finished_tournament_after(after).ok().flatten()))
+    };
     match since {
-        Ok(since) => {
+        Ok((since, tournament)) => {
             if let Some(last) = since.last_hand {
                 store(app, AFTER_KEY, &last.to_string());
             }
             if since.hands > 0 {
                 let job = analysis.job.lock().unwrap().as_ref().map(jobs::Job::id);
-                let _ = app.emit("analysis-auto-done", AutoDone { hands: since.hands, mistakes: since.mistakes, job });
+                let _ = app.emit("analysis-auto-done", AutoDone { hands: since.hands, mistakes: since.mistakes, job, tournament });
             }
             publish(app, true, |s| s.auto_run = false);
         }
