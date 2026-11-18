@@ -441,7 +441,7 @@
                 {#if score !== null}
                   <div class="ring" style:--p={score} style:--c={score >= 85 ? "var(--grade-best)" : score >= 50 ? "var(--grade-inaccurate)" : "var(--grade-blunder)"} role="img" aria-label="Punkte dieser Hand: {Math.round(score)} von 100">
                     <b class="num">{Math.round(score)}</b><small>Punkte</small>
-                    <span class="for">deine Züge</span>
+                    <span class="for">Ø deiner Züge</span>
                   </div>
                 {/if}
                 <div class="endtext">
@@ -601,13 +601,13 @@
     align-items: start;
   }
   .body.left {
-    grid-template-columns: 236px minmax(0, 1fr) 44px;
+    grid-template-columns: 252px minmax(0, 1fr) 44px;
   }
   .body.right {
     grid-template-columns: 44px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .body.left.right {
-    grid-template-columns: 236px minmax(0, 1fr) clamp(280px, 22vw, 440px);
+    grid-template-columns: 252px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .side {
     position: sticky;
@@ -980,7 +980,7 @@
   /* Room for two lines of history from the start, so the table does not jump when it wraps. */
   .history {
     container: history / inline-size;
-    min-height: 68px;
+    min-height: 76px;
   }
   @media (min-height: 820px) {
     .history {

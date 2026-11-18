@@ -102,17 +102,14 @@
     {/if}
     {#if past}
       <!-- The range of the last move would read like advice for this one: it waits for your move. -->
-      <div class="nowbox">
-        <b>Jetzt bist du dran.</b>
-        <span>Strategie und Range dieser Entscheidung erscheinen nach deinem Zug. Vorher hilft <b>Tipp anzeigen</b> (Taste H) – der Zug zählt dann nur halb.</span>
-      </div>
+      <p class="nowline">Die Strategie für diese Entscheidung erscheint nach deinem Zug · Tipp vorher: <b>H</b> (zählt dann halb)</p>
     {:else if lesson && cells}
       <p class="cap">
         Range von {actor} an dieser Stelle: wie {lesson.source === "model" ? "das Modell" : lesson.source === "equilibrium" ? "das Gleichgewicht" : "die Lösung"} jede Hand spielt. Deine Hand ist umrandet.
       </p>
       <PlayGrid strategy={cells.strategy} reach={cells.reach} {colors} {hero} />
       <ul class="legend" aria-label="Wie oft die Range welchen Zug spielt">
-        <li class="lh" aria-hidden="true"><span></span><span>Zug</span><span>Anteil der Range</span></li>
+        <li class="lh" aria-hidden="true"><span></span><span>Zug</span><span>Anteil aller Hände</span></li>
         {#each lesson.choices as c, k (k)}
           {@const l = choiceLabel(c, lesson.street !== "preflop")}
           <li>
@@ -211,21 +208,15 @@
     align-items: center;
     gap: 8px;
   }
-  .nowbox {
-    display: grid;
-    gap: 4px;
-    padding: 12px 14px;
-    border-radius: var(--r-sm);
-    border: 1px solid var(--focus);
-    background: color-mix(in srgb, var(--focus) 8%, var(--surface));
+  .nowline {
+    margin: 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
     font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .nowbox b {
+  .nowline b {
     color: var(--text);
-  }
-  .nowbox > b {
-    font-size: var(--fs-base);
   }
   .key {
     display: flex;
