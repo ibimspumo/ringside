@@ -31,7 +31,7 @@
     onSelect: (action: number) => void;
     onLearn?: (target: LearnTarget) => void;
     /** A line above the verdict, e.g. that the table shows the moment of this decision. */
-    caption?: string | null;
+    caption?: { text: string; ahead: boolean } | null;
     /** Whether analysing this hand is the main action of the screen. */
     main?: boolean;
   } = $props();
@@ -101,7 +101,7 @@
       {/each}
     </div>
     {#if current}
-      {#if caption}<p class="caption" class:ahead={caption.startsWith("Deine nächste")}>{caption}</p>{/if}
+      {#if caption}<p class="caption" class:ahead={caption.ahead}>{caption.text}</p>{/if}
       <DecisionCard decision={current} {onLearn} />
     {/if}
   </div>

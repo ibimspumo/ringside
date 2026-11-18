@@ -95,7 +95,7 @@
             <span class="label"
               ><span class="name">{c.label.replace(" auf ", " ")}</span>{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
             >
-            <span class="num freq">{pct(c.freq)}</span>
+            <span class="num freq">{c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
             <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
           </li>
         {/each}

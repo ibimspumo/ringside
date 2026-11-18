@@ -258,15 +258,14 @@
   /** Playing on shows the verdict of the decision the replay stands before. */
   let standing = $state<number | null | undefined>(undefined);
   /** Says whether the table shows the moment of the decision on the right, or a later one. */
-  const caption = $derived(
-    current && standing !== undefined
-      ? standing === current.action_index
-        ? `Am Tisch bist du jetzt dran – bewertet wird dein ${current.played.split(" ")[0]}:`
-        : standing === null || standing > current.action_index
-          ? `Bewertet wird dein ${current.played.split(" ")[0]} am ${({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}:`
-          : `Deine nächste Entscheidung: ${current.played.split(" ")[0]} – so wird sie bewertet:`
-      : null,
-  );
+  const caption = $derived.by(() => {
+    if (!current || standing === undefined) return null;
+    const move = current.played.split(" ")[0];
+    if (standing === current.action_index) return { text: `Am Tisch bist du jetzt dran – bewertet wird dein ${move}:`, ahead: false };
+    if (standing === null || standing > current.action_index)
+      return { text: `Bewertet wird dein ${move} am ${({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}:`, ahead: false };
+    return { text: `Deine nächste Entscheidung – so wird dein ${move} bewertet:`, ahead: true };
+  });
   function follow(next: number | null) {
     standing = next;
     if (!decisions?.length) return;
@@ -551,7 +550,7 @@
       {#if list.length}
         <div class="list-head">
           <span class="num">{list.length}{more ? "+" : ""} Hände</span>
-          {#if rail}<span class="rail-what">{view === "mistakes" && !locked ? "nach Kosten" : "Ergebnis"}</span>{/if}
+          {#if rail}<span class="rail-what">{locked ? "pausiert" : view === "mistakes" ? "nach Kosten" : "Ergebnis"}</span>{/if}
           <span title={view === "mistakes" ? "Rechts: was dein teuerster Fehler der Hand im Schnitt kostet" : "Rechts: was du in der Hand gewonnen oder verloren hast"}
             >{locked ? "Bewertungen pausiert" : view === "mistakes" ? "Kosten des Fehlers · teuerste zuerst" : "Ergebnis · neueste zuerst"}</span
           >
