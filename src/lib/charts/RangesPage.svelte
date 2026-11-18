@@ -394,7 +394,7 @@
     if (pfNode)
       return [
         { name: shove ? "All-in" : "Call", pct: pfNode.act_pct, color: shove ? SHOVE : CALL, fold: false },
-        { name: "Fold", pct: 100 - pfNode.act_pct, color: "var(--surface-3)", fold: true },
+        { name: "Fold", pct: 100 - pfNode.act_pct, color: actionColor("fold"), fold: true },
       ];
     if (spot) return spot.actions.map((a) => ({ name: actionName(a, spot.line), pct: a.pct, color: actionColor(a.kind), fold: a.kind === "fold" }));
     return [];
@@ -691,7 +691,7 @@
                 <dt>Antes</dt>
                 <dd>{anteInfo ? anteText(anteInfo) : ""}</dd>
                 <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
-                <dd class="num">in {pct(pfNode.reach * 100)} % der Hände</dd>
+                <dd>in <span class="num">{pct(pfNode.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
                 <dd>{#if pf.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
               </dl>
@@ -721,11 +721,11 @@
                 <dt>Antes</dt>
                 <dd>{anteText(spots)}</dd>
                 <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
-                <dd class="num">in {pct(spot.reach * 100, 2)} % der Hände</dd>
+                <dd>in <span class="num">{pct(spot.reach * 100, 2)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
                 <dd>{#if spots.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
                 <dt><Tooltip text={TERM.exploit}><span class="term">Ausnutzbar</span></Tooltip></dt>
-                <dd class="num">{pct(spots.exploitability_bb, 4)} BB je Hand (alle Spieler zusammen, im Modell)</dd>
+                <dd>{spots.exploitability_bb < 0.005 ? "Sehr nah am Gleichgewicht des Modells" : "Noch nicht ganz fertig gerechnet"} <span class="faint">(<span class="num">{pct(spots.exploitability_bb, 4)}</span> BB je Hand)</span></dd>
               </dl>
             </section>
             <section class="panel facts">
