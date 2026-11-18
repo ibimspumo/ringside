@@ -147,7 +147,7 @@
               <span class="board">{#each view.board as c (c)}<PlayingCard card={c} size={20} />{/each}</span>
             {/if}
             <span class="facing">{view.facing}</span>
-            <span>Pot <b class="num">{view.pot}</b>{#if view.betIn}<span class="incl"> – seine Bet ist schon drin</span>{/if}</span>
+            <span>Pot <b class="num">{view.pot}</b>{#if view.betIn}<span class="incl">{", seine Bet ist schon drin"}</span>{/if}</span>
           </p>
         {/if}
       </div>
