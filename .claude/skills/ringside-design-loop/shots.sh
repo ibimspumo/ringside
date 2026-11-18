@@ -6,6 +6,7 @@
 # Each view is shot at 980x700 (the app's minimum), 1440x900 and 2400x1300, at 2x scale:
 #   shots.sh /tmp/ringside-shots/hud/r1 editor='?tab=hud' overlay='?view=overlay'
 # Other sizes: SIZES="980,700 1920,1080" shots.sh …
+# Whole page instead of the window: FULL=1 shots.sh …
 # shot.mjs drives Chrome over DevTools and waits for fonts and painted frames; reduced motion
 # keeps entry animations from being caught half-way.
 # Writes <out-dir>/<name>-<width>.png. Starts its own Vite on a free port and stops it again.
@@ -32,7 +33,7 @@ for view in "$@"; do
   name=${view%%=*}
   query=${view#*=}
   for size in ${SIZES:-980,700 1440,900 2400,1300}; do
-    node "$here/shot.mjs" "$chrome" "http://localhost:$port/$query" "${size%%,*}" "${size##*,}" "$out/$name-${size%%,*}.png"
+    node "$here/shot.mjs" "$chrome" "http://localhost:$port/$query" "${size%%,*}" "${size##*,}" "$out/$name-${size%%,*}.png" ${FULL:+full}
     echo "$out/$name-${size%%,*}.png"
   done
 done

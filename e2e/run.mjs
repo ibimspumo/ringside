@@ -935,9 +935,7 @@ step("Einstellungen: Cloud-Schalter aus", async () => {
   await nav("Einstellungen");
   const boxes = await waitFor(
     "the cloud switches",
-    `const panel = [...document.querySelectorAll("main section.panel")]
-       .find((p) => p.querySelector(".panel-title")?.textContent.trim() === "Ringside Cloud");
-     const boxes = panel ? [...panel.querySelectorAll("input[type=checkbox]")].map((b) => b.checked) : [];
+    `const boxes = [...document.querySelectorAll("main #s-cloud [role=switch]")].map((b) => b.getAttribute("aria-checked") === "true");
      return boxes.length ? boxes : null;`,
   );
   if (boxes.length !== 2) throw new Error(`expected 2 cloud switches, found ${boxes.length}`);
@@ -950,8 +948,8 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
   const shows = (on) =>
     waitFor(
       `the auto-analysis switch ${on ? "on" : "off"}`,
-      `const label = [...document.querySelectorAll("main section.panel label.check")].find((l) => l.textContent.includes(arguments[0]));
-       return label?.querySelector("input[type=checkbox]").checked === arguments[1];`,
+      `const box = document.querySelector(\`main [role=switch][aria-label="\${arguments[0]}"]\`);
+       return box?.getAttribute("aria-checked") === String(arguments[1]);`,
       [LABEL, on],
     );
   const saved = async (on) => {
@@ -969,7 +967,7 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
   await shows(true);
   await saved(true);
   for (const on of [false, true]) {
-    await click("main section.panel label.check", LABEL, { exact: false });
+    await click(`main [role=switch][aria-label="${LABEL}"]`);
     await shows(on);
     await saved(on);
     await reopen();

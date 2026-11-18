@@ -28,9 +28,11 @@
   import SectionHead from "./SectionHead.svelte";
   import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
+  import SettingRow from "./SettingRow.svelte";
   import Slider from "./Slider.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
+  import Switch from "./Switch.svelte";
   import Tabs from "./Tabs.svelte";
   import Tag from "./Tag.svelte";
   import Toast from "./Toast.svelte";
@@ -60,6 +62,7 @@
     ["knoepfe", "Knöpfe & Kürzel"],
     ["auswahl", "Auswahl"],
     ["flaechen", "Flächen & Kennzahlen"],
+    ["einstellungen", "Einstellungen"],
     ["schilder", "Schilder"],
     ["bewertung", "Bewertung"],
     ["karten", "Karten"],
@@ -69,6 +72,12 @@
     ["zustaende", "Fortschritt & Zustände"],
   ] as const;
   const show = (id: string) => !only || only === id;
+
+  // Einstellungen
+  let autoOn = $state(true);
+  let shareOn = $state(false);
+  let libMode = $state("idle");
+  let jumpTo = $state("haende");
 
   // Seitenkopf
   let demoTab = $state("setup");
@@ -111,8 +120,8 @@
   let ringValue = $state(0.35);
 
   // Knöpfe
-  const VARIANTS = ["primary", "secondary", "quiet", "danger"] as const;
-  const VNAME = { primary: "Haupt", secondary: "Neben", quiet: "Leise", danger: "Gefahr" };
+  const VARIANTS = ["primary", "secondary", "quiet", "danger", "danger-quiet"] as const;
+  const VNAME = { primary: "Haupt", secondary: "Neben", quiet: "Leise", danger: "Gefahr", "danger-quiet": "Gefahr leise" };
   const SIZES = ["sm", "md", "lg"] as const;
   const STATES = [
     ["Ruhe", {}],
@@ -390,7 +399,7 @@
           {#each VARIANTS as v (v)}
             <span class="row-head">{VNAME[v]}</span>
             {#each STATES as [name, props] (name)}
-              <span><Button variant={v} {...props}>{v === "danger" ? "Löschen" : v === "primary" ? "Nächste Hand" : v === "quiet" ? "Abbrechen" : "Wiederholen"}</Button></span>
+              <span><Button variant={v} {...props}>{v === "danger" || v === "danger-quiet" ? "Löschen" : v === "primary" ? "Nächste Hand" : v === "quiet" ? "Abbrechen" : "Wiederholen"}</Button></span>
             {/each}
           {/each}
         </div>
@@ -468,6 +477,42 @@
           <p class="muted">Inhalt mit 16 px Rand. Mit <code>flush</code> läuft er bis an die Kante, etwa für Tabellen.</p>
           {#snippet footer()}Stand: heute, 21:04{/snippet}
         </Panel>
+      </section>
+    {/if}
+
+    {#if show("einstellungen")}
+      <section id="einstellungen">
+        <SectionHead
+          title="Einstellungen"
+          sub="Eine Zeile je Einstellung: Name und ein Satz links, Bedienung rechts, lange Erklärungen unter „Mehr dazu“. Zeilen stehen in einem Panel mit flush; die Sprung-Leiste führt zu den Gruppen einer langen Seite."
+        />
+        <Tabs jump label="Gruppen" bind:value={jumpTo} tabs={[{ id: "haende", label: "Hände & Tische" }, { id: "rechnen", label: "Analyse & Rechnen" }, { id: "cloud", label: "Ringside Cloud" }]} />
+        <div class="gap"></div>
+        <Panel flush>
+          <SettingRow title="Neue Hände automatisch analysieren" sub="Sobald du PokerStars schließt, bewertet Ringside deine neuen Hände.">
+            {#snippet control()}<Switch label="Neue Hände automatisch analysieren" bind:checked={autoOn} />{/snippet}
+          </SettingRow>
+          <SettingRow title="Eigene Lösungen teilen" sub="Was dein PC gerechnet hat, hilft anderen – ohne deine Hände.">
+            {#snippet control()}<Switch label="Eigene Lösungen teilen" bind:checked={shareOn} />{/snippet}
+            {#snippet more()}<p>Die lange Erklärung bleibt vollständig erreichbar, steht aber nicht im Weg.</p>{/snippet}
+          </SettingRow>
+          <SettingRow title="Bibliothek automatisch erweitern" sub="Gerechnet wird erst, wenn fünf Minuten lang niemand den PC benutzt.">
+            {#snippet control()}<SegmentedControl label="Automatik" bind:value={libMode} options={[{ value: "off", label: "Aus" }, { value: "idle", label: "Wenn der PC frei ist" }, { value: "always", label: "Immer" }]} />{/snippet}
+          </SettingRow>
+          <SettingRow title="GPU-Test" sub="Gesperrt: Während PokerStars läuft, startet Ringside keine Rechnung." locked>
+            {#snippet control()}<Button size="sm" disabled>Test starten</Button>{/snippet}
+          </SettingRow>
+          <SettingRow title="Erkannte Tische" sub="Unter der Zeile steht, was zur Einstellung gehört: Listen, Ergebnisse, Zustände.">
+            {#snippet control()}<Button size="sm" variant="quiet">Aktualisieren</Button>{/snippet}
+            <EmptyState inline title="Kein PokerStars-Fenster offen" text="Sobald du an einem Tisch sitzt, erscheint er hier." />
+          </SettingRow>
+          <SettingRow title="Updates" sub="Fehler stehen in der Zeile, in der sie passiert sind.">
+            {#snippet control()}<Button size="sm">Nach Updates suchen</Button>{/snippet}
+            <EmptyState inline tone="error" title="Die Suche nach Updates hat nicht geklappt" text="Prüf deine Internetverbindung und versuch es gleich noch einmal." />
+          </SettingRow>
+        </Panel>
+        <div class="gap"></div>
+        <div class="row"><Switch label="An" checked /> <Switch label="Aus" /> <Switch label="Gesperrt" checked disabled /> <Switch label="Gesperrt aus" disabled /></div>
       </section>
     {/if}
 

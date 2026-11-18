@@ -83,6 +83,8 @@ export interface Settings {
   presets: Preset[];
   /** Changed only through `api.analysisSetAuto`. */
   analysis: { auto: boolean };
+  /** Changed only through `libraryApi.setMode`; missing in the browser demo. */
+  library?: { background: "off" | "idle" | "always" };
 }
 
 export interface SeatView {

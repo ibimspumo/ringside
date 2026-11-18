@@ -12,6 +12,8 @@ export type PageSections = {
   value?: string;
   /** Names the tab row for screen readers. */
   label?: string;
+  /** All sections stay on the page; the row jumps to them (see Tabs). */
+  jump?: boolean;
   onchange?: (id: string) => void;
   /** Quiet controls for the whole page at the end of the tab row, e.g. a status and a filter. */
   end?: Snippet;

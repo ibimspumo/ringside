@@ -1,11 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { EFFORTS, coachApi, errorText, usd } from "./api";
+  import { COACH_INTRO, DEFAULT_MODEL, EFFORTS, coachApi, errorText, usd } from "./api";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import IconButton from "../ui/IconButton.svelte";
+  import Panel from "../ui/Panel.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import SettingRow from "../ui/SettingRow.svelte";
+  import Switch from "../ui/Switch.svelte";
   import KeyForm from "./KeyForm.svelte";
-  import { money } from "./meaning";
+  import { modelLabel, money } from "./meaning";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
 
   let { onClose, onChange }: { onClose?: () => void; onChange?: (s: CoachStatus) => void } = $props();
@@ -105,186 +109,178 @@
     return priced.length ? priced.reduce((a, b) => (perTournament(b)! < perTournament(a)! ? b : a)).id : null;
   });
   const dearest = $derived(Math.max(0, ...(models ?? []).map((m) => perTournament(m) ?? 0)));
-  /** Bar width on a square-root scale, so cheap models still show a sliver. */
-  const priceShare = (t: number | null) => (t == null || dearest <= 0 ? 0 : Math.max(4, Math.sqrt(t / dearest) * 100));
+  /** Bar width on a linear scale, so the bars compare like the prices; the cheapest still show a sliver. */
+  const priceShare = (t: number | null) => (t == null || dearest <= 0 ? 0 : Math.max(3, (t / dearest) * 100));
   const RICHTWERT = "Richtwert für ein Turnier mit rund 30 gesendeten Händen. Vor jeder Analyse siehst du die genaue Schätzung.";
   const provider = (m: ModelInfo) => m.name.split(":")[0];
-  const modelName = (m: ModelInfo) => m.name.slice(m.name.indexOf(":") + 1).trim();
+  /** "DeepSeek: V4" → "V4" reads as nothing alone, so short names keep their maker. */
+  const modelName = (m: ModelInfo) => {
+    const name = m.name.slice(m.name.indexOf(":") + 1).trim();
+    return name.length <= 4 && m.name.includes(":") ? `${provider(m)} ${name}` : name;
+  };
 </script>
 
-<section class="panel coach" aria-labelledby="coach-settings-title">
-  <div class="head">
-    <h2 class="panel-title" id="coach-settings-title">KI-Coach</h2>
-    {#if onClose}
+{#snippet rows()}
+  <SettingRow
+    title="Zugang"
+    sub={status?.has_key
+      ? "Dein Key von OpenRouter. Er liegt im Schlüsselspeicher von Windows, nicht in Ringsides Dateien."
+      : "Den Key bekommst du auf openrouter.ai/keys. Er liegt danach im Schlüsselspeicher von Windows, nicht in Ringsides Dateien."}
+  >
+    {#snippet control()}
+      {#if status?.has_key}
+        <span class="state on"><i></i>Key hinterlegt</span>
+        {#if confirmDelete}
+          <span class="ask">Wirklich löschen?</span>
+          <Button size="sm" variant="danger" onclick={() => { confirmDelete = false; remove(); }} disabled={busy}>Ja, löschen</Button>
+          <Button size="sm" variant="quiet" onclick={() => (confirmDelete = false)}>Behalten</Button>
+        {:else}
+          <Button size="sm" onclick={test} loading={busy} disabled={busy}>Testen</Button>
+          <Button size="sm" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
+          <Button size="sm" variant="danger-quiet" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
+        {/if}
+      {:else if status}
+        <span class="state"><i></i>Noch kein Key</span>
+      {/if}
+    {/snippet}
+    {#if (status && !status.has_key) || replacing || message}
+      <div class="detail">
+        {#if status && !status.has_key}
+          <KeyForm onSaved={saved} />
+        {:else if replacing}
+          <KeyForm replace onSaved={saved} />
+        {/if}
+        {#if message}<p class="msg" class:ok={message.ok} role="status">{message.text}</p>{/if}
+      </div>
+    {/if}
+  </SettingRow>
+
+  <SettingRow
+    title="Modell"
+    sub={status?.model === DEFAULT_MODEL
+      ? "Welches Sprachmodell deine Hände bespricht. Das ist Ringsides Empfehlung für den Einstieg – im Zweifel bleib dabei."
+      : "Welches Sprachmodell deine Hände bespricht. Der Preis ist ein Richtwert für ein Turnier."}
+  >
+    {#snippet control()}
+      <div class="what">
+        {#if current}
+          {@const t = perTournament(current)}
+          <b>{modelName(current)}</b>
+          <span class="fine" title={RICHTWERT}>{provider(current)} · {t == null ? "Preis unbekannt" : `ca. ${money(t)} je Turnier`}</span>
+        {:else if status}
+          <b>{modelLabel(status.model)}</b>
+          <span class="fine">{status.has_key ? "Lädt Preise …" : "Preise lädt Ringside, sobald dein Key da ist"}</span>
+        {:else}
+          <b>…</b>
+        {/if}
+      </div>
+      {#if !open}
+        <Button size="sm" onclick={loadModels} disabled={!status?.has_key}
+          title={status?.has_key ? undefined : "Erst mit Key lädt Ringside die Modelle von OpenRouter."}>Anderes Modell</Button
+        >
+      {/if}
+    {/snippet}
+
+    {#if open}
+      <div class="picker">
+        <div class="tools-row">
+          <input class="field search" type="search" placeholder="Modell suchen" aria-label="Modell suchen" bind:value={search} />
+          <Button size="sm" onclick={() => (open = false)}>Fertig</Button>
+        </div>
+        <div class="opts">
+          <label class="opt"><Switch label="Nur Modelle, die mit Ringside funktionieren" bind:checked={toolsOnly} />Nur Modelle, die mit Ringside funktionieren</label>
+          <label class="opt"><Switch label="Technische Angaben" bind:checked={technical} />Technische Angaben</label>
+        </div>
+        {#if modelsError}
+          <p class="msg">{modelsError}</p>
+        {:else if !models}
+          <p class="fine">Lade die Modelle von OpenRouter …</p>
+        {:else}
+          <div class="list" class:technical role="group" aria-label="Modelle">
+            <div class="lhead" aria-hidden="true">
+              <span>Modell</span><span title={RICHTWERT}>Kosten je Turnier (ca.)</span>{#if technical}<span>Ein / Aus je 1 Mio.</span><span
+                  >Kontext</span
+                >{/if}
+            </div>
+            {#each filtered.slice(0, 200) as m (m.id)}
+              {@const t = perTournament(m)}
+              <Card
+                pad="sm"
+                selected={m.id === status?.model}
+                disabled={!m.tools}
+                onclick={() => choose(m)}
+                title={m.tools ? m.id : "Ohne Werkzeuge kann der Coach nicht rechnen."}
+              >
+                <span class="lgrid">
+                <span class="mname">
+                  <span class="mtitle">
+                    {modelName(m)}
+                    {#if m.id === status?.model}<em class="tag on">deine Wahl</em>{/if}
+                    {#if m.id === DEFAULT_MODEL}<em class="tag" title="Ringsides Voreinstellung. Im Zweifel bleib dabei.">Empfohlen für den Einstieg</em>{/if}
+                    {#if m.id === cheapest}<em class="tag">am günstigsten</em>{/if}
+                  </span>
+                  <small>{provider(m)}{m.tools ? "" : " · kann nicht rechnen"}</small>
+                </span>
+                <span class="cost">
+                  <span class="pbar" aria-hidden="true"><i style="width:{priceShare(t)}%"></i></span>
+                  <span class="num strong">{t == null ? "–" : money(t)}</span>
+                </span>
+                {#if technical}
+                  <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>
+                  <span class="num">{ctx(m.context_length)}</span>
+                {/if}
+                </span>
+              </Card>
+            {:else}
+              <p class="fine pad">Kein Modell gefunden.</p>
+            {/each}
+          </div>
+          <p class="fine">
+            Faustregel: Teurere Modelle besprechen meist gründlicher, günstige reichen für einen ersten Überblick. Im Zweifel bleib
+            bei der Empfehlung. „Je Turnier“ ist ein Richtwert für rund 30 gesendete Hände; vor jeder Analyse siehst du die genaue
+            Schätzung.
+          </p>
+        {/if}
+      </div>
+    {/if}
+  </SettingRow>
+
+  {#if status}
+    {@const effort = EFFORTS.find((e) => e.id === status?.effort)}
+    <SettingRow
+      title="Gründlichkeit"
+      sub={reasons
+        ? (effort?.hint ?? "Wie lange das Modell nachdenkt.")
+        : "Dieses Modell denkt nicht gesondert nach, deshalb gibt es hier nichts zu wählen."}
+    >
+      {#snippet control()}
+        {#if reasons}
+          <SegmentedControl
+            label="Gründlichkeit"
+            value={status!.effort}
+            options={[...EFFORTS].reverse().map((e) => ({ value: e.id, label: e.name, hint: e.hint }))}
+            onchange={setEffort}
+          />
+        {/if}
+      {/snippet}
+    </SettingRow>
+  {/if}
+{/snippet}
+
+{#if onClose}
+  <Panel flush title="KI-Coach einrichten" sub={COACH_INTRO}>
+    {#snippet actions()}
       <IconButton label="Einstellungen schließen" onclick={onClose}
         ><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg></IconButton
       >
-    {/if}
-  </div>
-  <p class="hint">
-    Der Coach schickt deine Hände nur, wenn du eine Analyse startest und die Kosten bestätigst – ohne Namen, über OpenRouter
-    an ein Sprachmodell deiner Wahl.
-  </p>
-
-  <div class="rows">
-    <div class="row">
-      <div class="rlabel">
-        <b>Zugang</b>
-        <span>Dein Key von OpenRouter</span>
-      </div>
-      <div class="rbody">
-        {#if status?.has_key}
-          <div class="keyline">
-            <span class="state on"><i></i>Key hinterlegt</span>
-            <Button size="sm" onclick={test} disabled={busy}>Testen</Button>
-            <Button size="sm" variant="quiet" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
-            {#if confirmDelete}
-              <span class="ask">Key wirklich löschen?</span>
-              <Button size="sm" variant="danger" onclick={() => { confirmDelete = false; remove(); }} disabled={busy}>Ja, löschen</Button>
-              <Button size="sm" variant="quiet" onclick={() => (confirmDelete = false)}>Behalten</Button>
-            {:else}
-              <Button size="sm" variant="quiet" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
-            {/if}
-          </div>
-          {#if replacing}
-            <div class="sub-block"><KeyForm replace onSaved={saved} /></div>
-          {/if}
-        {:else if status}
-          <span class="state"><i></i>Noch kein Key hinterlegt</span>
-          <div class="sub-block"><KeyForm onSaved={saved} /></div>
-        {/if}
-        {#if message}
-          <p class="msg" class:ok={message.ok} role="status">{message.text}</p>
-        {/if}
-        <p class="fine">
-          Den Key bekommst du auf openrouter.ai/keys. Er liegt im Schlüsselspeicher von Windows, nicht in Ringsides Dateien.
-        </p>
-      </div>
-    </div>
-
-    <div class="row">
-      <div class="rlabel">
-        <b>Modell</b>
-        <span>Wer die Hände bespricht</span>
-      </div>
-      <div class="rbody">
-        <div class="chosen">
-          <div class="what">
-            {#if current}
-              <b>{modelName(current)}</b>
-              <span class="fine num">{provider(current)} · {current.id}</span>
-            {:else}
-              <b class="num">{status?.model ?? "…"}</b>
-            {/if}
-          </div>
-          {#if current}
-            {@const t = perTournament(current)}
-            <div class="price" title={RICHTWERT}>
-              <b class="num">{t == null ? "–" : `ca. ${money(t)}`}</b>
-              <span class="fine">je Turnier</span>
-            </div>
-          {/if}
-          {#if !open}
-            <Button size="sm" onclick={loadModels} disabled={!status?.has_key}
-              title={status?.has_key ? undefined : "Erst mit Key lädt Ringside die Modelle von OpenRouter."}>Anderes Modell</Button
-            >
-          {/if}
-        </div>
-
-        {#if open}
-          <div class="picker">
-            <div class="tools-row">
-              <input class="field search" type="search" placeholder="Modell suchen" aria-label="Modell suchen" bind:value={search} />
-              <Button size="sm" onclick={() => (open = false)}>Fertig</Button>
-            </div>
-            <div class="opts">
-              <span class="opt"
-                ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
-                ></span
-              >
-              <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
-            </div>
-            {#if modelsError}
-              <p class="msg">{modelsError}</p>
-            {:else if !models}
-              <p class="fine">Lade die Modelle von OpenRouter …</p>
-            {:else}
-              <div class="list" class:technical role="group" aria-label="Modelle">
-                <div class="lhead" aria-hidden="true">
-                  <span>Modell</span><span title={RICHTWERT}>ca. je Turnier</span>{#if technical}<span>Ein / Aus je 1 Mio.</span><span
-                      >Kontext</span
-                    >{/if}
-                </div>
-                {#each filtered.slice(0, 200) as m (m.id)}
-                  {@const t = perTournament(m)}
-                  <Card
-                    pad="sm"
-                    selected={m.id === status?.model}
-                    disabled={!m.tools}
-                    onclick={() => choose(m)}
-                    title={m.tools ? m.id : "Ohne Werkzeuge kann der Coach nicht rechnen."}
-                  >
-                    <span class="lgrid">
-                    <span class="mname">
-                      <span class="mtitle">
-                        {modelName(m)}
-                        {#if m.id === status?.model}<em class="tag on">deine Wahl</em>{/if}
-                        {#if m.id === cheapest}<em class="tag">am günstigsten</em>{/if}
-                      </span>
-                      <small>{provider(m)}{m.tools ? "" : " · kann nicht rechnen"}</small>
-                    </span>
-                    <span class="cost">
-                      <span class="pbar" aria-hidden="true"><i style="width:{priceShare(t)}%"></i></span>
-                      <span class="num strong">{t == null ? "–" : money(t)}</span>
-                    </span>
-                    {#if technical}
-                      <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>
-                      <span class="num">{ctx(m.context_length)}</span>
-                    {/if}
-                    </span>
-                  </Card>
-                {:else}
-                  <p class="fine pad">Kein Modell gefunden.</p>
-                {/each}
-              </div>
-              <p class="fine">„Je Turnier“ ist ein Richtwert für rund 30 gesendete Hände; vor jeder Analyse siehst du die genaue Schätzung.</p>
-            {/if}
-          </div>
-        {/if}
-      </div>
-    </div>
-
-    {#if status}
-      <div class="row">
-        <div class="rlabel">
-          <b id="effort-label">Gründlichkeit</b>
-          <span>Wie lange das Modell nachdenkt</span>
-        </div>
-        <div class="rbody">
-          {#if reasons}
-            <div class="choices" role="group" aria-labelledby="effort-label">
-              {#each [...EFFORTS].reverse() as e (e.id)}
-                <Card pad="sm" selected={status.effort === e.id} onclick={() => setEffort(e.id)}>
-                  <span class="choice">
-                    <b>{e.name}</b>
-                    <span>{e.hint}</span>
-                  </span>
-                </Card>
-              {/each}
-            </div>
-          {:else}
-            <p class="fine">Dieses Modell denkt nicht gesondert nach, deshalb gibt es hier nichts zu wählen.</p>
-          {/if}
-        </div>
-      </div>
-    {/if}
-  </div>
-</section>
+    {/snippet}
+    <div class="rows">{@render rows()}</div>
+  </Panel>
+{:else}
+  {@render rows()}
+{/if}
 
 <style>
-  .coach {
-    grid-column: 1 / -1;
-  }
   svg {
     fill: none;
     stroke: currentColor;
@@ -295,66 +291,30 @@
     margin: 0;
     line-height: 1.5;
   }
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    padding: var(--sp-5) var(--sp-6) 0;
+  .rows {
+    border-top: 1px solid var(--line);
+    margin-top: var(--sp-3);
   }
   .ask {
     font-size: var(--fs-md);
     color: var(--text-2);
   }
-  .hint {
-    padding: var(--sp-1) var(--sp-6) 0;
-    max-width: 780px;
-    color: var(--text-2);
-  }
-  .rows {
-    display: flex;
-    flex-direction: column;
-    margin-top: 12px;
-  }
-  .row {
-    display: grid;
-    grid-template-columns: 190px minmax(0, 1fr);
-    gap: 16px;
-    padding: var(--sp-4) var(--sp-6);
-    border-top: 1px solid var(--line);
-  }
-  .rlabel {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-  .rlabel b {
-    font-size: var(--fs-base);
-    font-weight: var(--fw-semibold);
-  }
-  .rlabel span,
   .fine {
-    font-size: var(--fs-base);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
-  .rbody {
+  .detail {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    min-width: 0;
-  }
-  .keyline {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
+    gap: var(--sp-2);
   }
   .state {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    margin-right: 8px;
+    gap: var(--sp-2);
     color: var(--text-2);
+    font-size: var(--fs-md);
+    white-space: nowrap;
   }
   .state i {
     width: 8px;
@@ -377,48 +337,32 @@
     color: var(--pos);
   }
 
-  .chosen {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 10px 20px;
-    padding: 12px 14px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid var(--line);
-  }
   .what {
     display: flex;
     flex-direction: column;
-    gap: 1px;
-    flex: 1 1 200px;
+    align-items: flex-end;
     min-width: 0;
+    text-align: right;
   }
   .what b {
-    font-size: var(--fs-lg);
+    font-size: var(--fs-base);
     font-weight: var(--fw-semibold);
   }
-  .price {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+  .what .fine {
     cursor: help;
-  }
-  .price b {
-    font-size: var(--fs-lg);
-    font-weight: var(--fw-semibold);
+    white-space: nowrap;
   }
 
   .picker {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: var(--sp-3);
   }
   .tools-row {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 14px;
+    gap: var(--sp-2) var(--sp-3);
   }
   .search {
     flex: 1 1 220px;
@@ -426,13 +370,15 @@
   .opts {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--sp-2) var(--sp-5);
+    gap: var(--sp-2) var(--sp-6);
   }
   .opt {
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    font-size: var(--fs-md);
+    gap: var(--sp-2);
     color: var(--text-2);
+    font-size: var(--fs-md);
+    cursor: pointer;
   }
   .list {
     display: flex;
@@ -440,9 +386,6 @@
     gap: var(--sp-1);
     max-height: 380px;
     overflow: auto;
-    padding: 0 var(--sp-1) var(--sp-1);
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
   }
   .lhead,
   .lgrid {
@@ -481,7 +424,7 @@
   .mtitle {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--sp-2);
     min-width: 0;
     color: var(--text);
     white-space: nowrap;
@@ -531,37 +474,10 @@
     font-weight: var(--fw-semibold);
   }
   .pad {
-    padding: 12px;
-  }
-
-  .choices {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-  }
-  .choice {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .choice b {
-    font-size: var(--fs-base);
-    font-weight: var(--fw-semibold);
-  }
-  .choice span {
-    font-size: var(--fs-md);
-    line-height: 1.45;
-    color: var(--text-2);
+    padding: var(--sp-3);
   }
 
   @container (max-width: 760px) {
-    .row {
-      grid-template-columns: minmax(0, 1fr);
-      gap: 10px;
-    }
-    .choices {
-      grid-template-columns: minmax(0, 1fr);
-    }
     .technical .lhead,
     .technical .lgrid {
       grid-template-columns: minmax(0, 1fr) 150px 110px;

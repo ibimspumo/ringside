@@ -2,7 +2,7 @@
   import type { Snippet } from "svelte";
   import SectionHead from "./SectionHead.svelte";
 
-  /** A titled block of a page. Content runs edge to edge with `flush` (tables, lists). */
+  /** A titled block of a page. Content runs edge to edge with `flush` (tables, lists, SettingRows). */
   let {
     title,
     sub,
@@ -17,7 +17,7 @@
   {#if title}
     <div class="head"><SectionHead {title} {sub} level={3} {actions} /></div>
   {/if}
-  <div class="body" class:flush>{@render children()}</div>
+  <div class="body" class:flush class:headless={!title}>{@render children()}</div>
   {#if footer}<footer>{@render footer()}</footer>{/if}
 </section>
 
@@ -36,6 +36,9 @@
   }
   .body.flush {
     padding: var(--sp-3) 0 0;
+  }
+  .body.flush.headless {
+    padding: 0;
   }
   footer {
     padding: var(--sp-3) var(--sp-4);

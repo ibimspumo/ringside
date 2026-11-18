@@ -1,15 +1,13 @@
 {
   "rules": {
     "color-literal": {
-      "total": 190,
+      "total": 187,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
         "app/PlayerDetail.svelte": 2,
         "app/Reports.svelte": 1,
-        "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 1,
-        "cloud/MalformedReports.svelte": 1,
         "demo.ts": 3,
         "Felt.svelte": 9,
         "hud/ClassicBox.svelte": 15,
@@ -56,17 +54,14 @@
       }
     },
     "font-size": {
-      "total": 262,
+      "total": 250,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
         "app/PlayerDetail.svelte": 9,
         "app/Players.svelte": 2,
         "app/Reports.svelte": 3,
-        "app/SettingsView.svelte": 5,
         "app/TournamentPicker.svelte": 1,
-        "cloud/CloudSettings.svelte": 1,
-        "cloud/MalformedReports.svelte": 4,
         "hud/ClassicBox.svelte": 3,
         "hud/DetailPopup.svelte": 2,
         "hud/GraphicSeat.svelte": 6,
@@ -97,9 +92,7 @@
         "learn/wissen/widgets/PotOdds.svelte": 1,
         "learn/wissen/widgets/StackRuler.svelte": 3,
         "learn/wissen/Wissen.svelte": 4,
-        "library/BackgroundMode.svelte": 1,
         "library/Library.svelte": 14,
-        "library/LibrarySettings.svelte": 1,
         "library/RunControl.svelte": 5,
         "play/InfoPanel.svelte": 5,
         "play/Play.svelte": 10,
@@ -123,7 +116,7 @@
       }
     },
     "button-style": {
-      "total": 153,
+      "total": 150,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -133,9 +126,7 @@
         "app/PlayerDetail.svelte": 1,
         "app/Players.svelte": 1,
         "app/Replayer.svelte": 6,
-        "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 6,
-        "cloud/MalformedReports.svelte": 1,
         "hud/SeatAnatomy.svelte": 4,
         "jobs/JobsDock.svelte": 6,
         "jobs/JobToasts.svelte": 3,
@@ -171,7 +162,7 @@
       }
     },
     "global-class-override": {
-      "total": 112,
+      "total": 103,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
@@ -180,10 +171,6 @@
         "app/Players.svelte": 7,
         "app/Reports.svelte": 3,
         "app/ResultsChart.svelte": 1,
-        "app/SettingsView.svelte": 5,
-        "cloud/CloudSettings.svelte": 2,
-        "cloud/MalformedReports.svelte": 1,
-        "gpu/GpuTest.svelte": 1,
         "hud/GraphicSeat.svelte": 1,
         "hud/ThresholdScale.svelte": 1,
         "jobs/ChipRing.svelte": 1,

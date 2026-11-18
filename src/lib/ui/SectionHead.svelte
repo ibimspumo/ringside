@@ -44,6 +44,10 @@
     color: var(--text-2);
     font-size: var(--fs-md);
   }
+  /* A section's line is never smaller than the lines of the rows inside it. */
+  .l2 + .sub {
+    font-size: var(--fs-base);
+  }
   .actions {
     display: flex;
     align-items: center;

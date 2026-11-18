@@ -33,6 +33,17 @@ export const positionHint = (p: string | null) => (p ? (POSITIONS[p] ?? p) : "Po
 /** "openai/gpt-6.1-sol" → "gpt-6.1-sol". */
 export const shortModel = (id: string) => id.slice(id.indexOf("/") + 1);
 
+/** "openai/gpt-6.1-sol" → "GPT-6.1 Sol": a readable name while OpenRouter's list is not loaded. */
+export function modelLabel(id: string): string {
+  let out = "";
+  for (const t of shortModel(id).split("-").filter(Boolean)) {
+    const acronym = /^[a-z]{1,3}$/i.test(t) && !out;
+    const word = acronym ? t.toUpperCase() : /^\d/.test(t) ? t : t[0].toUpperCase() + t.slice(1);
+    out += !out ? word : /^\d/.test(t) && /^[A-Z]{1,3}$/.test(out) ? `-${word}` : ` ${word}`;
+  }
+  return out || id;
+}
+
 /** Why the coach cannot analyse a tournament yet, or null when it can. */
 export function notAnalyzable(r: { prize: number | null; game: string; hands: number }): string | null {
   if (r.prize === null) return "Erst wenn das Turnier für dich vorbei ist";
