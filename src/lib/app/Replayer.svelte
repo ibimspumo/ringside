@@ -491,8 +491,8 @@
       </div>
 {/snippet}
 
-<div class="replayer" class:besides bind:clientWidth={boxW} bind:clientHeight={boxH}>
-  <div class="layout" class:besides style:--side="{sideW}px" style:--table="{fit.w * fit.f}px">
+<div class="replayer" class:besides>
+  <div class="layout" class:besides style:--side="{sideW}px" style:--table="{fit.w * fit.f}px" bind:clientWidth={boxW} bind:clientHeight={boxH}>
     <div class="main">
       {#if children}<div bind:clientHeight={headH}>{@render children()}</div>{/if}
       <div class="stage" style:height={fit.f < 1 ? `${tableHeight(fit.w) * fit.f}px` : undefined}>
@@ -595,9 +595,12 @@
     min-width: 0;
     min-height: 0;
   }
-  /* Beside a side column in a low window the replayer scrolls rather than cutting off your seat. */
+  /* Beside a side column in a low window the replayer scrolls rather than cutting off your seat.
+     Its 4px rim holds the side column's focus rings, so they never widen what scrolls. */
   .replayer.besides {
     overflow-y: auto;
+    margin: -4px;
+    padding: 4px;
   }
   .layout {
     display: grid;

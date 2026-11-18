@@ -332,6 +332,47 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await click(".replayer button[aria-label^='Weiter']");
 });
 
+/** Scroll boxes in "Hände" that are wider than their room, and how far the analysis sits from the right edge. */
+const OVERFLOW = `
+  const boxes = [document.querySelector("main .content"), ...document.querySelectorAll("main .hands *")].filter((e) => {
+    if (!e || !e.getClientRects().length) return false;
+    const o = getComputedStyle(e);
+    return /auto|scroll/.test(o.overflowX + o.overflowY) && e.scrollWidth > e.clientWidth;
+  });
+  const content = document.querySelector("main .content").getBoundingClientRect();
+  const aside = document.querySelector("main .replayer .aside");
+  return {
+    width: innerWidth,
+    wide: boxes.map((e) => e.className + " +" + (e.scrollWidth - e.clientWidth) + "px"),
+    gap: aside ? Math.round(content.right - aside.getBoundingClientRect().right) : null,
+  };`;
+
+step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", async () => {
+  const check = async () => {
+    // The replayer lays out over a few frames after a resize.
+    await sleep(600);
+    const r = await s.exec(OVERFLOW);
+    log(`hands overflow at ${r.width}px: ${JSON.stringify(r)}`);
+    if (r.wide.length) throw new Error(`scrolls sideways at ${r.width}px: ${r.wide.join(", ")}`);
+    if (r.gap !== null && r.gap < 16) throw new Error(`the analysis is ${r.gap}px from the right edge at ${r.width}px`);
+    return r;
+  };
+  await check();
+  // The analysis only stands beside the table in wide windows: the bug lived there.
+  try {
+    await s.cmd("POST", "/window/rect", { width: 1920, height: 1080 });
+  } catch (e) {
+    log(`window could not be resized, only ${await s.exec("return innerWidth")}px checked: ${e.message}`);
+    return;
+  }
+  try {
+    const r = await check();
+    if (r.width >= 1700 && r.gap === null) throw new Error(`no analysis beside the table at ${r.width}px`);
+  } finally {
+    await s.cmd("POST", "/window/rect", { width: 1280, height: 820 });
+  }
+});
+
 // The demo's decisions link the solver with the line to them; the app's need a solved spot.
 // The demo hand with A♥Q♦ is heads-up after the flop, so the solver rates it.
 !TAURI &&
