@@ -4,7 +4,7 @@
   import PlayingCard from "../PlayingCard.svelte";
   import Button from "../ui/Button.svelte";
   import ActionBar from "./ActionBar.svelte";
-  import { actionColors, bb } from "./actions";
+  import { actionColors, bb, whole } from "./actions";
   import { cap, lesson, verb } from "./explain";
   import { loadNode } from "./nodes";
   import { STREET_NAME, actionText, type Crumb } from "./play";
@@ -320,7 +320,7 @@
           <p class="lesson">{last.lesson}</p>
           <p class="line">
             Die Lösung spielt mit deiner Hand
-            {#each last.strategy as s, k (k)}{#if s >= 0.005}<span class="pill"><i style="background:{last.colors[k]}"></i>{last.labels[k].replace(/ \(.*\)$/, "")} · <b class="num">{pct(s)}</b></span>{/if}{/each}
+            {#each last.strategy as s, k (k)}{#if s >= 0.005}<span class="pill"><i style="background:{last.colors[k]}"></i>{last.labels[k].replace(/ \(.*\)$/, "")} · <b class="num">{whole(last.strategy)[k]} %</b></span>{/if}{/each}
           </p>
           <div class="mix" aria-hidden="true">
             {#each last.strategy as s, k (k)}<i style="width:{s * 100}%; background:{last.colors[k]}"></i>{/each}

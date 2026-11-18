@@ -46,7 +46,11 @@
     >
       <span class="key num" aria-hidden="true">{k + 1}</span>
       <span class="what">{parts[k].label}</span>
-      <span class="chips num">{parts[k].chips}{#if mine}{parts[k].chips ? " · " : ""}<span class="mine">du {mine[k]} %</span>{/if}{#if !parts[k].chips && !mine}&nbsp;{/if}</span>
+      <span class="chips num">
+        {#if parts[k].chips}<span>{parts[k].chips}</span>{/if}
+        {#if mine}<span class="mine">du {mine[k]} %</span>{/if}
+        {#if !parts[k].chips && !mine}&nbsp;{/if}
+      </span>
       {#if !blind}
         <b class="freq num">{pct(shown[k])}</b>
         <i class="fill" style="width:{Math.max(0, Math.min(1, shown[k])) * 100}%"></i>
@@ -122,12 +126,13 @@
   }
   .chips {
     grid-area: chips;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0 var(--sp-2);
+    min-width: 0;
     font-size: var(--fs-xs);
     color: var(--text-2);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    min-width: 0;
   }
   .mine {
     color: var(--text);

@@ -50,3 +50,16 @@ export function duration(seconds: number): string {
 
 /** The estimate is for 0.5 % of the pot; a finer target takes longer, roughly with its root. */
 export const solveSeconds = (estimate: number, targetPct: number) => estimate * Math.sqrt(0.5 / Math.max(0.05, targetPct));
+
+/** Whole percents that add up to 100, so the parts on screen sum as a reader expects. */
+export function whole(shares: number[]): number[] {
+  const raw = shares.map((f) => f * 100);
+  const out = raw.map(Math.floor);
+  let left = 100 - out.reduce((a, b) => a + b, 0);
+  for (const k of raw.map((x, k) => ({ k, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r).map((x) => x.k)) {
+    if (left <= 0) break;
+    out[k] += 1;
+    left -= 1;
+  }
+  return out;
+}

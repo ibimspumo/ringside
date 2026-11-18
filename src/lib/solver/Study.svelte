@@ -4,7 +4,7 @@
   import { signed } from "../app/format";
   import PlayingCard from "../PlayingCard.svelte";
   import ActionBar from "./ActionBar.svelte";
-  import { actionColors, bb, bytes, duration } from "./actions";
+  import { actionColors, bb, bytes, duration, whole } from "./actions";
   import DeckPopover from "./DeckPopover.svelte";
   import { cap, GLOSSARY, handAdvice, headline, often, precision, verb, why } from "./explain";
   import { loadNode } from "./nodes";
@@ -223,18 +223,6 @@
   const startBoard = $derived(spot.board.replace(/[^AKQJT2-9cdhs]/gi, "").match(/.{2}/g) ?? []);
   const pct = (x: number) => `${Math.round(x * 100)} %`;
 
-  /** Whole percents that add up to 100, so the parts on screen sum as a reader expects. */
-  function whole(shares: number[]): number[] {
-    const raw = shares.map((f) => f * 100);
-    const out = raw.map(Math.floor);
-    let left = 100 - out.reduce((a, b) => a + b, 0);
-    for (const k of raw.map((x, k) => ({ k, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r).map((x) => x.k)) {
-      if (left <= 0) break;
-      out[k] += 1;
-      left -= 1;
-    }
-    return out;
-  }
   /** Short windows open the explanation on request, so table and actions stay in view. */
   const roomy = typeof matchMedia === "undefined" || matchMedia("(min-height: 860px) and (min-width: 1200px)").matches;
   const heroShares = $derived(heroNumbers?.hand ? whole(heroNumbers.hand.strategy) : []);
