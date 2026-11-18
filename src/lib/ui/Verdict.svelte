@@ -122,10 +122,12 @@
     padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-3);
     background: color-mix(in srgb, var(--c) var(--band), transparent);
   }
+  /* In a narrow card the context moves under the grade instead of being cut off. */
   .what {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--sp-2);
+    gap: 0 var(--sp-2);
     min-width: 0;
     flex: 1;
   }
@@ -135,11 +137,8 @@
     font-weight: var(--fw-bold);
   }
   .what span {
-    overflow: hidden;
     color: var(--text-2);
     font-size: var(--fs-md);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .price {
     color: var(--text);

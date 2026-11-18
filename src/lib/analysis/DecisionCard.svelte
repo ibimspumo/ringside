@@ -14,12 +14,20 @@
   let { decision: d, onLearn }: { decision: Decision; onLearn?: (target: LearnTarget) => void } = $props();
 
   const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
+  const EQUITY =
+    "Equity = deine Gewinnchance: wie oft deine Hand gegen die möglichen Hände des Gegners am Ende vorn liegt. Ist sie kleiner als der Anteil, den du zum Callen in den Pot zahlst, verliert der Call auf Dauer.";
 
   const split = $derived.by(() => {
     const at = d.why.indexOf(" Grund: ");
     return at < 0 ? { head: d.why, reason: "" } : { head: d.why.slice(0, at), reason: d.why.slice(at + 8) };
   });
   const context = $derived(SPOT[d.spot] === STREET[d.street] ? STREET[d.street] : `${STREET[d.street]} · ${SPOT[d.spot]}`);
+  /** The size you played when the solution only knows a nearby one: "8 BB" against "Raise auf 7,6 BB". */
+  const sized = $derived.by(() => {
+    const mine = d.strategy.find((c) => c.played);
+    if (!mine || !/ BB$/.test(mine.label) || mine.label === d.played) return null;
+    return { played: d.played.match(/[\d,]+ BB$/)?.[0] ?? d.played, as: mine.label.match(/[\d,]+ BB$/)?.[0] ?? mine.label };
+  });
   const bestEv = $derived(Math.max(...d.strategy.map((c) => c.ev_bb ?? -Infinity)));
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
   const prefill = $derived.by((): SolverPrefill | null => {
@@ -53,11 +61,17 @@
     played={d.played}
     better={d.best ?? undefined}
     cost={d.ev_loss_bb ?? undefined}
-    {context}
+    context={STREET[d.street]}
     source={kitSource(d.source)}
     sourceHint={d.source ? SOURCE[d.source].explain : undefined}
   >
-    {#if split.reason}<p>{split.reason}</p>{:else if !d.best}<p>{split.head}</p>{/if}
+    {#if SPOT[d.spot] !== STREET[d.street]}<p class="situation" title={SPOT_HINT[d.spot]}>Situation: {SPOT[d.spot]}</p>{/if}
+    {@const text = split.reason || (d.best ? "" : split.head)}
+    {#if text}
+      <p>
+        {#each text.split(/(Equity)/) as part, i (i)}{#if part === "Equity"}<abbr title={EQUITY}>Equity</abbr>{:else}{part}{/if}{/each}
+      </p>
+    {/if}
 
     <div class="strategy">
       <div class="mix" role="img" aria-label="Was {d.source ? SOURCE[d.source].label : 'die Berechnung'} mit deiner Hand spielt">
@@ -76,10 +90,7 @@
           <li class:mine={c.played}>
             <span class="dot {tone(c)}"></span>
             <span class="label"
-              >{c.label}{#if c.played}{@const own = / BB$/.test(c.label) && d.played !== c.label ? d.played.match(/[\d,]+ BB$/)?.[0] : undefined}<em
-                  title={own ? `Du hast ${d.played} gespielt; gerechnet wird mit der nächsten Größe, die die Lösung kennt.` : undefined}
-                  >{own ? `du: ${own}` : "du"}</em
-                >{/if}</span
+              >{c.label}{#if c.played}<em>du</em>{/if}</span
             >
             <span class="num freq">{pct(c.freq)}</span>
             <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
@@ -88,6 +99,9 @@
       </ul>
     </div>
 
+    {#if sized}
+      <p class="sized">Du hast {sized.played} gesetzt; die Lösung rechnet mit der nächsten Größe, die sie kennt: {sized.as}.</p>
+    {/if}
     {#if d.note}
       <details>
         <summary>Was angenommen wurde</summary>
@@ -141,6 +155,15 @@
 {/if}
 
 <style>
+  .situation {
+    color: var(--text);
+    font-size: var(--fs-sm);
+    cursor: help;
+  }
+  .sized {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
   .strategy {
     display: flex;
     flex-direction: column;

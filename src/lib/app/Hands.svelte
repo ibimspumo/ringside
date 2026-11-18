@@ -160,7 +160,8 @@
       list = r;
       loaded = true;
       more = r.length === PAGE;
-      const stale = !selected || (tournament !== null && selected.tournament_id !== tournament);
+      // A hand the new filters leave out makes room for the first one they keep.
+      const stale = !selected || (tournament !== null && selected.tournament_id !== tournament) || !r.some((h) => h.id === selected!.id);
       const first = r[Number(preview("pick") ?? 0)] ?? r[0];
       const at = preview("at");
       if (openId === null && first && stale) open(first.id, at === null ? (first.worst?.action_index ?? null) : Number(at), at !== null);
@@ -373,7 +374,7 @@
 <svelte:window onkeydown={key} />
 
 {#snippet headEnd()}
-  <AnalyzeStatus />
+  <AnalyzeStatus short={rail} />
   {#if view === "mistakes" && !summaryShown}
     {#if rail}
       <IconButton size="sm" label="Zusammenfassung zeigen" onclick={flipSummary}>
@@ -476,11 +477,16 @@
           ]}
           bind:value={() => minRating ?? "all", (v) => (minRating = v === "all" ? null : (v as Rating))}
         />
-        <label class="inline" title="Nur Entscheidungen, die mindestens so viel kosten">
-          kostet ab
-          <input class="field num" type="number" min="0" step="0.5" placeholder="0" bind:value={minLoss} />
-          BB
-        </label>
+        <span class="sub" title="Nur Entscheidungen, die im Schnitt mindestens so viel kosten">Kostet im Schnitt</span>
+        <SegmentedControl
+          size="sm"
+          label="Kostet im Schnitt mindestens"
+          options={[
+            { value: 0, label: "egal" },
+            ...[0.5, 1, 2, 5].map((v) => ({ value: v, label: `ab ${v.toLocaleString("de-DE")} BB` })),
+          ]}
+          bind:value={() => minLoss ?? 0, (v) => (minLoss = v || null)}
+        />
       </div>
       <div class="group">
         <span class="title">Straße und Quelle</span>
@@ -516,11 +522,13 @@
           bind:value={() => result ?? "all", (v) => (result = v === "all" ? null : (v as "won" | "lost"))}
         />
         <label class="inline"><input type="checkbox" bind:checked={showdownOnly} /> Nur Showdown</label>
-        <label class="inline">
-          Pot ab
-          <input class="field num" type="number" min="0" step="5" placeholder="0" bind:value={minPot} />
-          BB
-        </label>
+        <span class="sub">Pot mindestens</span>
+        <SegmentedControl
+          size="sm"
+          label="Pot mindestens"
+          options={[{ value: 0, label: "egal" }, ...[10, 25, 50, 100].map((v) => ({ value: v, label: `${v} BB` }))]}
+          bind:value={() => minPot ?? 0, (v) => (minPot = v || null)}
+        />
       </div>
       <div class="reset">
         {#if extra}<Button size="sm" variant="quiet" onclick={clearFilters}>Zurücksetzen</Button>{/if}
@@ -589,6 +597,9 @@
               <span class="verdict"><i></i><span>noch nicht analysiert</span></span>
             {/if}
           </span>
+          {#if rail && w?.rating}
+            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[w.street]}</span>
+          {/if}
           <span class="end">
             {#if view === "mistakes" && costly(w)}
               <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{bb(w!.ev_loss_bb!, 2)}</span>
@@ -772,7 +783,7 @@
     flex-basis: 100%;
   }
   .title {
-    color: var(--text-3);
+    color: var(--text);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
   }
@@ -787,6 +798,9 @@
     gap: var(--sp-1);
     font-size: var(--fs-sm);
   }
+  .spot-group .faint {
+    color: var(--text-2);
+  }
   .toggles {
     display: flex;
     flex-wrap: wrap;
@@ -798,11 +812,10 @@
     gap: 7px;
     cursor: pointer;
   }
-  .inline input[type="number"] {
-    width: 64px;
-    height: 28px;
-    color: var(--text);
-    text-align: right;
+  .sub {
+    margin-top: var(--sp-1);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
   }
   .inline input[type="checkbox"] {
     margin: 0;
@@ -849,7 +862,7 @@
     gap: var(--sp-2);
     padding: var(--sp-3) var(--sp-2) var(--sp-2);
     background: var(--bg);
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
   }
   .row {
@@ -968,7 +981,7 @@
     font-size: var(--fs-xs);
   }
   .end small {
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
   }
   .more {
@@ -1111,6 +1124,13 @@
     text-align: center;
   }
   .rail-what {
+    font-size: var(--fs-xs);
+  }
+  .rail-verdict {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-2);
     font-size: var(--fs-xs);
   }
   .rail .list-head span:last-child:not(.rail-what),

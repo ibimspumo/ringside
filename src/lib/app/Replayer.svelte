@@ -539,10 +539,12 @@
 </div>
 
 <style>
+  /* In a low window the replayer scrolls rather than cutting off your seat and the controls. */
   .replayer {
     flex: 1;
     min-width: 0;
     min-height: 0;
+    overflow-y: auto;
   }
   .layout {
     display: grid;
@@ -837,6 +839,9 @@
   /* Beside the table the side column takes the full height; the log scrolls within it. */
   .besides .side {
     overflow: auto;
+    /* Room for focus rings at the column's edges. */
+    margin: -4px;
+    padding: 4px;
   }
   .besides .log {
     display: block;
@@ -850,6 +855,9 @@
   .besides .street-log {
     border-left: 0;
     border-top: 1px solid var(--line);
+  }
+  .besides h4 {
+    position: static;
   }
   .besides .street-log:first-child {
     border-top: 0;

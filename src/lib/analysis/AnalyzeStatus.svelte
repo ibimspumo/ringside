@@ -7,7 +7,9 @@
   import { duration } from "./labels";
   import { analysis, watchAnalysis } from "./store.svelte";
 
-  /** The run over the whole history in one line, for pages that are about something else. */
+  /** The run over the whole history in one line, for pages that are about something else. `short`: the ring alone, its line on hover. */
+  let { short = false }: { short?: boolean } = $props();
+
   watchAnalysis();
   const s = $derived(analysis.status);
   const c = $derived(s?.counts);
@@ -51,7 +53,7 @@
         value={p.state === "done" ? 1 : preDone ? (p.share ?? null) : c.analyzed / Math.max(c.hands, 1)}
         label="Fortschritt der Analyse"
       />
-      <span class="text num" title="Vor dem Flop ist alles sofort bewertet; die Spots nach dem Flop rechnet der Solver nach und nach. {p.detail}">{line}</span>
+      <span class="text num" class:hidden={short} title="Vor dem Flop ist alles sofort bewertet; die Spots nach dem Flop rechnet der Solver nach und nach. {p.detail}">{line}</span>
       {#if p.state === "running"}
         <Button size="sm" variant="quiet" disabled={busy} onclick={() => act(api.analysisCancel)} title="Hält die Analyse an. Bewertetes bleibt gespeichert.">
           Anhalten
@@ -78,6 +80,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .hidden {
+    display: none;
   }
   .status > :global(button),
   .status > :global(.ui-ring) {
