@@ -556,6 +556,10 @@
   .tours-table th {
     color: var(--text-2);
   }
+  .tours-table th:first-child,
+  .tours-table td:first-child {
+    padding-left: var(--sp-4);
+  }
   .tours-table td {
     padding: 0 10px;
     height: 34px;

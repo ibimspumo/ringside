@@ -63,7 +63,7 @@
               <span class="step num" aria-hidden="true">{#if preDone}✓{:else}1{/if}</span>Vor dem Flop
             </span>
             <span class="track" aria-hidden="true"><i style="width:{share * 100}%"></i></span>
-            <small class="num"
+            <small
               >{preDone ? `fertig · alle ${int(c.hands)} gespeicherten Hände` : `${int(c.analyzed)} von ${int(c.hands)} Händen`}</small
             >
           </div>
@@ -72,11 +72,11 @@
             <span class="track" aria-hidden="true">
               <i class="post" class:busy={preDone && !!c.queued && p.state === "running"} style="width:{postShare * 100}%"></i>
             </span>
-            <small class="num"
+            <small
               >{!preDone
                 ? "startet danach"
                 : c.queued
-                  ? `${Math.floor(postShare * 100)}\u00a0% bewertet · die letzten ${int(c.queued)} Flop-Spots brauchen Solver-Zeit${eta ? `, ${eta}` : ""}`
+                  ? `${Math.floor(postShare * 100)}\u00a0%${eta ? ` · ${eta}` : ""} · ${int(c.queued)} Flop-Spots im Solver`
                   : "alles gerechnet"}</small
             >
           </div>
@@ -158,9 +158,7 @@
     opacity: 0.6;
   }
   .phase small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.35;
     font-size: var(--fs-sm);
     color: var(--text-2);
   }

@@ -338,7 +338,7 @@
                   <i></i><i></i><i></i>
                   {#if g !== null}<em style="left:{g * 100}%"></em>{/if}
                 </span>
-                <small class="num"
+                <small
                   >{STAT_META[id].ratio
                     ? `${int(s?.made ?? 0)} Bets/Raises zu ${int(s?.opp ?? 0)} Calls`
                     : `${int(s?.made ?? 0)} von ${int(s?.opp ?? 0)}`}</small

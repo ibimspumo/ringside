@@ -286,7 +286,7 @@
           <div class="fig">
             <span class="label">Abstand zum Richtwert</span>
             <b class="num">{gap(l)}</b>
-            <small class="num"
+            <small
               >{high ? "darüber" : "darunter"} · {ratio(l)
                 ? `${int(l.made)} Bets/Raises zu ${int(l.opp)} Calls`
                 : `${int(l.made)} von ${int(l.opp)} Gelegenheiten`}</small
@@ -295,9 +295,9 @@
           <div class="fig">
             <span class="label"><Term tip={SURE_HELP}>Sicherheit</Term></span>
             <b class="num">{pct(l.confidence)}</b>
-            <small class="num"
+            <small
               ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
-                >dein Wert wahrscheinlich {val(l, l.ci_low)}–{val(l, l.ci_high)}</Term
+                >dein Wert wahrscheinlich <span class="nowrap">{val(l, l.ci_low)}–{val(l, l.ci_high)}</span></Term
               ></small
             >
           </div>
@@ -311,7 +311,7 @@
             <div class="fig">
               <span class="label"><Term tip="{COST_HELP} Gilt für den ganzen Spot ({int(l.cost.hands)} Hände), nicht nur für diesen Wert.">Kosten grob</Term></span>
               <b class="num neg">≈ {int(Math.round(l.cost.total_bb))} BB</b>
-              <small class="num"
+              <small
                 ><span class={sign(l.cost.spot_bb100)}>{signed(l.cost.spot_bb100)}</span> statt
                 <span class={sign(l.cost.base_bb100)}>{signed(l.cost.base_bb100)}</span> BB/100</small
               >
@@ -389,7 +389,9 @@
           <h2>Noch zu wenig Hände</h2>
           <p>
             Ringside vergleicht jeden Wert getrennt nach Position und Stacktiefe – erst wenn ein solcher Spot 10 Gelegenheiten hat,
-            zählt er. Deine gespeicherten Hände reichen dafür in dieser Auswahl noch nicht. Spiel ein paar Hände{filter.since !== null ||
+            zählt er. Deine gespeicherten Hände reichen dafür in dieser Auswahl noch nicht{data.too_small
+              ? ` – ${int(data.too_small)} Spots sammeln gerade Gelegenheiten`
+              : ""}. Spiel ein paar Hände{filter.since !== null ||
             filter.game !== null
               ? " oder wähle oben „Alles“ und „Alle“"
               : "; Ringside prüft bei jedem Import neu"}.
@@ -597,6 +599,9 @@
     font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
+  }
+  .nowrap {
+    white-space: nowrap;
   }
   .chev {
     fill: none;
@@ -984,7 +989,7 @@
   /* Wide windows: a readable page width, the bar column gets the extra room. */
   @container (min-width: 1900px) {
     .leaks {
-      max-width: 1600px;
+      max-width: none;
     }
     .body {
       grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
