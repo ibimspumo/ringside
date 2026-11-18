@@ -107,7 +107,18 @@ export interface AnalysisStatus {
   threads: number;
   last_error: string | null;
   cancelled: boolean;
+  /** The automatic run over the new hands is on (it may wait for PokerStars to close). */
+  auto_run: boolean;
   progress: JobProgress;
+}
+
+/** The automatic run rated new hands, sent as `analysis-auto-done`. */
+export interface AutoDone {
+  hands: number;
+  /** Rated decisions that are mistakes or worse. */
+  mistakes: number;
+  /** The run's entry in the task center, whose own note this one replaces. */
+  job: number | null;
 }
 
 export interface SpotLoss {

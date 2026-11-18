@@ -4,14 +4,16 @@ import type { AnalysisStatus } from "./types";
 /**
  * The analysis status shared by every view, kept current by the worker's events. `solved`
  * counts finished postflop spots so lists can reload; `request` is a hand another page
- * asked to analyse, picked up by the hands page when it opens it.
+ * asked to analyse, picked up by the hands page when it opens it; `openMistakes` asks the
+ * hands page for "Meine teuersten Fehler".
  */
 export const analysis = $state<{
   status: AnalysisStatus | null;
   solved: number;
   lastSolved: number | null;
   request: number | null;
-}>({ status: null, solved: 0, lastSolved: null, request: null });
+  openMistakes: boolean;
+}>({ status: null, solved: 0, lastSolved: null, request: null, openMistakes: false });
 
 let started = false;
 

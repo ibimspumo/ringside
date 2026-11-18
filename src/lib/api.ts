@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as analysisDemo from "./analysis/demo";
-import type { AnalysisStatus, AnalysisSummary, Decision } from "./analysis/types";
+import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision } from "./analysis/types";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
 import * as chartsDemo from "./charts/demo";
@@ -183,6 +183,11 @@ export const api = {
     })(),
   analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, () => analysisDemo.demoDecisions(handId)),
   analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
+  /** "Neue Hände automatisch analysieren"; also while PokerStars runs, it only changes the setting. */
+  analysisSetAuto: (auto: boolean) =>
+    call<void>("analysis_set_auto", { on: auto }, () => {
+      demoStore.analysis = { auto };
+    }),
   hand: (id: number) => call<Hand | null>("hand", { id }, () => learnDemo.demoSpotHand(id) ?? demo.demoHandById(id)),
   learnExercise: (kind: LearnKind, level: number, seed: number | null = null) =>
     inTauri ? invoke<Exercise>("learn_exercise", { kind, level, seed }) : learnDemo.demoExercise(kind, level, seed),
@@ -246,6 +251,11 @@ export function onPreflopProgress(handler: (p: PreflopProgress) => void): Promis
 
 export function onAnalysisStatus(handler: (s: AnalysisStatus) => void): Promise<UnlistenFn> {
   return inTauri ? on("analysis-status", handler) : Promise.resolve(analysisDemo.onStatus(handler));
+}
+
+/** The automatic run rated new hands. The demo sends one with `?autodone=1`. */
+export function onAnalysisAutoDone(handler: (d: AutoDone) => void): Promise<UnlistenFn> {
+  return inTauri ? on("analysis-auto-done", handler) : Promise.resolve(analysisDemo.onAutoDone(handler));
 }
 
 /** A hand's postflop spot was solved (or failed). */

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import AutoAnalysisSettings from "../analysis/AutoAnalysisSettings.svelte";
   import CloudSettings from "../cloud/CloudSettings.svelte";
   import LibrarySettings from "../library/LibrarySettings.svelte";
   import MalformedReports from "../cloud/MalformedReports.svelte";
@@ -191,6 +192,7 @@
         </div>
       </section>
 
+      <AutoAnalysisSettings />
       <CoachSettings />
 
       <CloudSettings />

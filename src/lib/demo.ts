@@ -48,6 +48,7 @@ export function defaultLayout(n: number): SeatPos[] {
 export const demoSettings: Settings = {
   hand_history_dirs: [],
   preferred_seating: true,
+  analysis: { auto: true },
   hud: {
     mode: "graphic",
     palette: "traffic",

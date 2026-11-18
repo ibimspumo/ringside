@@ -15,6 +15,8 @@ export const jobs = $state({
 });
 
 const seen = new Map<number, Job["status"]>();
+/** Tasks whose finish another note already announces. */
+const silenced = new Set<number>();
 let started = false;
 
 function apply(v: JobsView) {
@@ -22,7 +24,7 @@ function apply(v: JobsView) {
     const before = seen.get(j.id);
     seen.set(j.id, j.status);
     const finished = before !== undefined && (before === "running" || before === "paused") && !isActive(j);
-    if (finished && (j.status === "done" || j.status === "failed") && j.target.page !== jobs.page) {
+    if (finished && (j.status === "done" || j.status === "failed") && j.target.page !== jobs.page && !silenced.has(j.id)) {
       jobs.toasts = [...jobs.toasts.filter((t) => t.id !== j.id), j].slice(-3);
       setTimeout(() => dismiss(j.id), TOAST_MS);
     }
@@ -33,6 +35,12 @@ function apply(v: JobsView) {
 
 export function dismiss(id: number) {
   jobs.toasts = jobs.toasts.filter((t) => t.id !== id);
+}
+
+/** No "Fertig" note for this task: its own announces the result. */
+export function silence(id: number) {
+  silenced.add(id);
+  dismiss(id);
 }
 
 /** Listens once for the whole app; the list comes from the backend, events only update it. */

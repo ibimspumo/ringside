@@ -1,13 +1,16 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import ChipRing from "./ChipRing.svelte";
   import { PAGE_LABEL } from "./kinds";
   import { dismiss, jobs } from "./store.svelte";
   import type { JobTarget } from "./types";
 
-  let { onView }: { onView: (target: JobTarget) => void } = $props();
+  /** `children`: further notes in the same stack, above the tasks'. */
+  let { onView, children }: { onView: (target: JobTarget) => void; children?: Snippet } = $props();
 </script>
 
 <div class="toasts" aria-live="polite">
+  {#if children}<div class="extra">{@render children()}</div>{/if}
   {#each jobs.toasts as t (t.id)}
     <div class="toast" class:failed={t.status === "failed"}>
       <ChipRing share={t.status === "done" ? 1 : 0} size={24} />
@@ -44,6 +47,10 @@
     flex-direction: column;
     gap: 8px;
     pointer-events: none;
+  }
+  .extra {
+    display: contents;
+    pointer-events: auto;
   }
   .toast {
     display: flex;

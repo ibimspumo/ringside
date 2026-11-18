@@ -688,6 +688,39 @@ step("Einstellungen: Cloud-Schalter aus", async () => {
   if (TAURI && boxes.some(Boolean)) throw new Error("cloud switches are on");
 });
 
+step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt gespeichert", async () => {
+  // Switching PokerStars on and off cannot be done here; the Rust tests of auto_analysis.rs cover the runs.
+  const LABEL = "Neue Hände automatisch analysieren";
+  const shows = (on) =>
+    waitFor(
+      `the auto-analysis switch ${on ? "on" : "off"}`,
+      `const label = [...document.querySelectorAll("main section.panel label.check")].find((l) => l.textContent.includes(arguments[0]));
+       return label?.querySelector("input[type=checkbox]").checked === arguments[1];`,
+      [LABEL, on],
+    );
+  const saved = async (on) => {
+    for (let tries = 0; TAURI; tries++) {
+      if ((await invoke("get_settings")).analysis?.auto === on) return;
+      if (tries === 20) throw new Error(`the setting is not stored as ${on}`);
+      await sleep(250);
+    }
+  };
+  const reopen = async () => {
+    await nav("Übersicht");
+    await nav("Einstellungen");
+  };
+  await waitText("Solange PokerStars läuft, rechnet Ringside nie");
+  await shows(true);
+  await saved(true);
+  for (const on of [false, true]) {
+    await click("main section.panel label.check", LABEL, { exact: false });
+    await shows(on);
+    await saved(on);
+    await reopen();
+    await shows(on);
+  }
+});
+
 // ---------------------------------------------------------------------------------
 // Run.
 

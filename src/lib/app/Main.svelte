@@ -29,6 +29,7 @@
   import { analysis } from "../analysis/store.svelte";
   import JobsDock from "../jobs/JobsDock.svelte";
   import JobToasts from "../jobs/JobToasts.svelte";
+  import AutoDoneToast from "../analysis/AutoDoneToast.svelte";
   import { jobs } from "../jobs/store.svelte";
   import type { JobTarget } from "../jobs/types";
   import { openSaved } from "../solver/solutions";
@@ -514,7 +515,14 @@
       {/if}
     </div>
   </main>
-  <JobToasts onView={viewTarget} />
+  <JobToasts onView={viewTarget}>
+    <AutoDoneToast
+      onView={() => {
+        analysis.openMistakes = true;
+        showHands(null);
+      }}
+    />
+  </JobToasts>
 </div>
 
 <style>

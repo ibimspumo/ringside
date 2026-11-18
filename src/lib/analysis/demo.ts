@@ -2,7 +2,7 @@
 import type { HandQuery, HandSummary } from "../types";
 import { DEMO_DECISIONS } from "./demo-hands";
 import { RATINGS } from "./labels";
-import type { AnalysisStatus, AnalysisSummary, Decision, DecisionBrief, JobProgress } from "./types";
+import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision, DecisionBrief, JobProgress } from "./types";
 
 const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("analysis") === "0";
 const pokerStars = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
@@ -77,6 +77,7 @@ export function demoStatus(): AnalysisStatus {
     threads: 4,
     last_error: null,
     cancelled,
+    auto_run: false,
   };
   if (solvingHand !== null && !enabled) s.state = "postflop";
   return { ...s, progress: progress(s) };
@@ -217,4 +218,10 @@ function fullSummary(): AnalysisSummary {
       { hand_id: 250000000001, played_at: "2026/11/16 22:20:10", hero_cards: "Ah 7c", position: "BTN", ...WORST[1]! },
     ],
   };
+}
+
+export function onAutoDone(handler: (d: AutoDone) => void) {
+  const shown = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("autodone") === "1";
+  const timer = shown ? setTimeout(() => handler({ hands: 42, mistakes: 3, job: null }), 600) : undefined;
+  return () => clearTimeout(timer);
 }

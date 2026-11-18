@@ -81,6 +81,8 @@ export interface Settings {
   /** One layout per table size ("8"), shared by every table window and the editor. */
   layouts: Record<string, SeatPos[]>;
   presets: Preset[];
+  /** Changed only through `api.analysisSetAuto`. */
+  analysis: { auto: boolean };
 }
 
 export interface SeatView {

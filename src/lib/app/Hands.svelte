@@ -114,6 +114,12 @@
     }
   }
 
+  // The note after the automatic analysis asks for the costliest mistakes.
+  $effect(() => {
+    if (!analysis.openMistakes) return;
+    analysis.openMistakes = false;
+    view = "mistakes";
+  });
   // Start on the costliest mistakes once there are any.
   $effect(() => {
     const s = analysis.status;
