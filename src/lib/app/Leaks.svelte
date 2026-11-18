@@ -14,6 +14,7 @@
   import { int, sign, signed } from "./format";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
+  import IconButton from "../ui/IconButton.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import Panel from "../ui/Panel.svelte";
   import Tag from "../ui/Tag.svelte";
@@ -296,7 +297,7 @@
             <b class="num">{pct(l.confidence)}</b>
             <small class="num"
               ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
-                >wahrscheinlich zwischen {val(l, l.ci_low)} und {val(l, l.ci_high)}</Term
+                >dein Wert wahrscheinlich {val(l, l.ci_low)}–{val(l, l.ci_high)}</Term
               ></small
             >
           </div>
@@ -372,8 +373,8 @@
           <h2>{sure.length === 1 ? "1 Leak gefunden" : `${int(sure.length)} Leaks gefunden`}</h2>
           <p>
             Fang oben an: Dein Wert <b>{STAT_META[first.stat].name}</b> ist {first.direction === "too_high" ? "zu hoch" : "zu niedrig"}
-            ({where(first)}, {data.bands[first.band]}{first.cost ? `, kostet grob ${int(Math.round(first.cost.total_bb))} BB` : ""}). Die
-            Karten unten sind nach Sicherheit × Abweichung sortiert.
+            ({where(first)}, {data.bands[first.band]}{first.cost ? `, kostet grob ${int(Math.round(first.cost.total_bb))} BB` : ""}). Das
+            Wichtigste steht oben.
           </p>
         {:else if unsure.length}
           <h2>Noch kein sicherer Leak</h2>
@@ -456,12 +457,15 @@
       {@const shown = fineOpen ?? data.fine.length <= 8}
       <Panel flush title="Im Richtbereich ({int(data.fine.length)})" sub="Hier passt es – diese Werte liegen im Richtbereich der Quellen.">
         {#snippet actions()}
-          <Button size="sm" variant="quiet" aria-expanded={shown} onclick={() => (fineOpen = !shown)}>
-            {#snippet icon()}<svg class="chev" class:open={shown} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"
-                ><path d="M9 6l6 6-6 6" /></svg
-              >{/snippet}
-            {shown ? "Einklappen" : "Zeigen"}
-          </Button>
+          <IconButton
+            size="sm"
+            label={shown ? "Liste einklappen" : "Liste zeigen"}
+            aria-expanded={shown}
+            onclick={() => (fineOpen = !shown)}
+            ><svg class="chev" class:open={shown} viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
+              ><path d="M9 6l6 6-6 6" /></svg
+            ></IconButton
+          >
         {/snippet}
         {#if shown}
         <ul class="fine-list" transition:slide={{ duration: 260, easing: cubicOut }}>
@@ -794,6 +798,7 @@
     top: 6px;
     height: 2px;
     background: var(--text-2);
+    opacity: 0.6;
   }
   .small .ci {
     top: 3px;
@@ -979,7 +984,7 @@
   /* Wide windows: the answer keeps a readable line and the counts take the rest in one row. */
   @container (min-width: 1900px) {
     .leaks {
-      max-width: none;
+      max-width: 1600px;
     }
     .verdict {
       grid-template-columns: minmax(0, 760px) minmax(0, 1fr);

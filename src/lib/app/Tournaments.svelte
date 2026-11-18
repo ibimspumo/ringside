@@ -212,7 +212,7 @@
             {totals.profit >= 0 ? "Du liegst im Plus" : "Du liegst im Minus"} nach {int(totals.tournaments)}
             {totals.tournaments === 1 ? "Turnier" : "Turnieren"}, Preisgeld und Bounties minus Buy-ins.
             {#if totals.tournaments < FEW}<span class="chance"
-                >Turnierergebnisse schwanken stark – nach so wenigen Turnieren ist das vor allem ein Zwischenstand.</span
+                >Turnierergebnisse schwanken stark – unter {FEW} Turnieren ist das vor allem ein Zwischenstand.</span
               >{/if}
           </p>
         </div>
@@ -552,6 +552,9 @@
   }
   .tours-table th:nth-child(n + 3) {
     padding-left: 16px;
+  }
+  .tours-table th {
+    color: var(--text-2);
   }
   .tours-table td {
     padding: 0 10px;

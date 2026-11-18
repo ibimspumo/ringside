@@ -589,10 +589,12 @@ export function bigTournaments(): Tournaments {
     tournaments: x.tournaments * 5,
     finished: x.finished * 5,
     cashes: x.cashes * 5,
-    cost: x.cost * 1000,
-    prizes: x.prizes * 1000,
-    bounties: x.bounties * 1000,
-    profit: x.profit * 1000,
+    // Five copies of every row with prizes, bounties and results a thousand times larger.
+    cost: x.cost * 5,
+    prizes: x.prizes * 5000,
+    bounties: x.bounties * 5000,
+    profit: (x.prizes + x.bounties) * 5000 - x.cost * 5,
+    roi: x.cost > 0 ? (((x.prizes + x.bounties) * 5000 - x.cost * 5) / (x.cost * 5)) * 100 : null,
   }));
   return { rows, totals };
 }
