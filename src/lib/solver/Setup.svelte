@@ -65,7 +65,7 @@
     } catch (e) {
       d = template(next);
       origin = "Vorlage";
-      deriveNote = "Preflop-Modell nicht verfügbar – die Ranges sind einfache Vorlagen.";
+      deriveNote = "Preflop-Modell nicht verfügbar – die Ranges sind einfache Vorlagen. Die Lösung gilt für diese angenommenen Ranges.";
       deriveDetail = e instanceof Error ? e.message : String(e);
     }
     if (mine !== token) return;
@@ -375,7 +375,7 @@
           <span class="num dim" title="Anteil aller Starthände">{(Math.round((share(text) / 1326) * 1000) / 10).toLocaleString("de-DE")} %</span>
         </div>
       {/each}
-      <p class="faint small share-note">Prozent: Anteil aller möglichen Starthände.</p>
+      <p class="dim small share-note">Prozent: Anteil aller möglichen Starthände.</p>
       <p class="origin" class:custom={solver.custom.oop || solver.custom.ip}>
         {#if solver.custom.oop || solver.custom.ip}
           {solver.custom.oop && solver.custom.ip ? "Beide Ranges angepasst" : `${solver.positions[solver.custom.oop ? "oop" : "ip"]} angepasst`}

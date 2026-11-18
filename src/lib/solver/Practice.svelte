@@ -66,6 +66,8 @@
     /** What the choice means, in plain words: a first line and why. */
     intro: string;
     lesson: string;
+    /** Where in the line the choice was made, so what followed can be told. */
+    at: number;
   }
 
   let cards = $state<{ me: string[]; other: string[] } | null>(null);
@@ -149,8 +151,10 @@
     const verdict = judge(h, k, node.pot);
     const labels = node.actions.map((a) => actionText(a, node!));
     const best = cap(verb(node.actions[verdict.best], node));
+    // A mixed hand: the solution also plays another action often, which the verdict should not hide.
+    const also = h.strategy.map((f, i) => ({ f, i })).filter((x) => x.i !== k && x.f >= 0.2).sort((a, b) => b.f - a.f)[0];
     const intro = {
-      best: "Stark – so spielt es auch die Lösung.",
+      best: also ? `Stark – das spielt auch die Lösung, im Wechsel mit ${verb(node.actions[also.i], node)}.` : "Stark – so spielt es auch die Lösung.",
       good: `Gut gespielt – fast so viel wert wie die beste Wahl (${best}).`,
       inaccurate: `Knapp daneben: ${best} wäre etwas besser gewesen.`,
       mistake: `Hier lohnt sich ${best} deutlich mehr.`,
@@ -158,7 +162,7 @@
     const why = lesson(node, h, verdict.grade === "best" ? k : verdict.best);
     decisions = [
       ...decisions,
-      { street: node.street, label: labels[k], verdict, pot: node.pot, strategy: h.strategy, labels, colors: actionColors(node.actions), intro, lesson: why },
+      { street: node.street, label: labels[k], verdict, pot: node.pot, strategy: h.strategy, labels, colors: actionColors(node.actions), intro, lesson: why, at: line.length },
     ];
     series.decisions += 1;
     series.points += GRADES[verdict.grade].points;
@@ -213,6 +217,14 @@
   });
 
   const last = $derived(decisions.at(-1) ?? null);
+  /** What happened since your last choice, e.g. "BTN Check · Turn 9♦". */
+  const after = $derived(
+    last
+      ? line.slice(last.at + 1).map((c) =>
+          "card" in c.step ? { text: STREET_NAME[c.street], card: c.step.card } : { text: `${pos(c.player!)} ${c.label.replace(/ \(.*\)$/, "")}`, card: null },
+        )
+      : [],
+  );
   /** What the opponent just did on this street, so your turn reads as an answer to it. */
   const lastOther = $derived.by(() => {
     const c = line.at(-1);
@@ -288,7 +300,12 @@
       {#if last}
         <p class="quick" aria-hidden="true">
           <GradeBadge grade={last.verdict.grade} size="sm" />
-          <span>Am {STREET_NAME[last.street]}: <b>{last.label.replace(/ \(.*\)$/, "")}</b> – {last.intro} <span class="why">{last.lesson}</span></span>
+          <span
+            >Am {STREET_NAME[last.street]}: <b>{last.label.replace(/ \(.*\)$/, "")}</b> – {last.intro} <span class="why">{last.lesson}</span>
+            {#if after.length}<span class="why"
+                >Danach: {#each after as a, i (i)}{i ? " · " : ""}{a.text}{#if a.card}&nbsp;<MiniCard card={a.card} />{/if}{/each}</span
+              >{/if}</span
+          >
         </p>
       {/if}
       {#if phase === "me" && node}
@@ -303,7 +320,6 @@
           <Button variant="primary" kbd="N" onclick={deal}>
             {ownHand && useOwn ? (phase === "idle" ? "Deine Hand spielen" : "Noch einmal spielen") : phase === "idle" ? "Hand austeilen" : "Nächste Hand"}
           </Button>
-          {#if phase === "idle"}<span class="dim small">Klick auf einen der beiden Plätze wählt deine Seite.</span>{/if}
         </div>
       {/if}
     </div>

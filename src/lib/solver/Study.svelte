@@ -342,7 +342,12 @@
           <span class="cards" aria-label="Deine Hand">{#each hero as c (c)}<PlayingCard card={c} size={34} />{/each}</span>
           <div>
             <p class="say">Mit deiner Hand hier {handLine(node, h.strategy)}.</p>
-            {#if heroAdvice.close}<p class="close">{heroAdvice.close}</p>{/if}
+            {#if heroAdvice.close}
+              <p class="close">
+                {heroAdvice.close}{#if !heroAdvice.close.startsWith("Beides")}
+                  Die anderen Aktionen gehören trotzdem zur Mischung – der Unterschied ist klein.{/if}
+              </p>
+            {/if}
           </div>
         </div>
         <p class="mixcap"><b>Deine Hand</b> · so oft spielt die Lösung jede Aktion mit genau diesen zwei Karten <span class="faint">(Farbe = Aktion, keine Bewertung)</span></p>
@@ -503,6 +508,7 @@
             <div class="legend">
               {#if mode === "strategy"}
                 {#each node.actions as _, k (k)}<span><i style="background:{colors[k]}"></i>{labels[k]}</span>{/each}
+                <span class="faint">Leere Felder: Hände, die hier nicht mehr in der Range sind.</span>
               {:else if mode === "range"}
                 <span class="faint">Füllhöhe: Anteil der Kombos, die diesen Punkt erreichen.</span>
               {:else if mode === "ev"}
