@@ -199,7 +199,8 @@
         {#each AREAS as area (area.id)}
           {@const single = area.pages.length === 1}
           {@const mark = badge(area)}
-          {@const shut = area.pages.every(lockedNow)}
+          <!-- The tab carries the lock when most of its pages are closed; the row and menu name each one. -->
+          {@const shut = area.pages.filter(lockedNow).length * 2 > area.pages.length}
           <NavItem
             size="top"
             label={area.label}

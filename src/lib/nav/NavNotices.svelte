@@ -39,7 +39,7 @@
       ></b
     >
     <span class="how long">{HOW}</span>
-    <span class="how short" title={HOW}>In PokerStars: Einstellungen → Spielhistorie → speichern.</span>
+    <span class="how short" title={HOW}>In PokerStars: Einstellungen → Spielhistorie → Hände speichern.</span>
     <Button size="sm" onclick={onChooseFolder}>Ordner selbst wählen</Button>
   </div>
 {/if}
@@ -72,12 +72,13 @@
   }
   /* The how-to in one line: in full where it fits, else in short; the tooltip has it in full. */
   .how {
+    overflow: hidden;
     white-space: nowrap;
   }
   .long {
     display: none;
   }
-  @container (min-width: 1150px) {
+  @container (min-width: 1340px) {
     .long {
       display: block;
     }

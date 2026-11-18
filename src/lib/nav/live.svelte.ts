@@ -101,10 +101,12 @@ class NavLive {
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;
-      // The time left reads like the page below ("noch etwa 3 Std."); a share only without it.
+      // Names what runs ("Analyse"), and the time left like the page below ("noch etwa 3 Std.").
+      const what = job.kind === "analysis" ? "Analyse" : "Rechnung";
       const eta = etaText(job.eta_secs);
-      const text = job.status === "paused" ? "pausiert" : eta ? `rechnet · ${eta}` : `rechnet${pct || " …"}`;
-      return { ...live(job.status === "paused" ? text : "rechnet", text), busy: true };
+      const short = job.status === "paused" ? `${what} pausiert` : `${what} läuft`;
+      const text = job.status === "paused" ? short : eta ? `${short} · ${eta}` : `${short}${pct ? ` · ${pct.trim()}` : ""}`;
+      return { ...live(short, text), busy: true };
     }
     return this.values[page];
   }

@@ -147,7 +147,7 @@
   }
   .value {
     flex-shrink: 0;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .lock {
     width: 12px;
@@ -239,7 +239,7 @@
   }
   .tile .text {
     margin-top: 3px;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     line-height: var(--lh-base);
     color: var(--text-2);
     display: -webkit-box;

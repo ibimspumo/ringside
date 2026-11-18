@@ -93,9 +93,12 @@ const CHECK = `
       const tops = new Set([...range.getClientRects()].map((r) => Math.round(r.top)));
       if (tops.size > 1) out.push(name + ": „" + n.textContent.trim().slice(0, 30) + "“ bricht um");
     }
+    // Cut off: "…", or one line in a box that hides what does not fit.
     for (const el of scope.querySelectorAll("*")) {
-      if (!visible(el) || getComputedStyle(el).textOverflow !== "ellipsis") continue;
-      if (el.scrollWidth > el.clientWidth + 1) out.push(name + ": „" + el.textContent.trim().slice(0, 30) + "“ ist abgeschnitten");
+      if (!visible(el)) continue;
+      const cs = getComputedStyle(el);
+      const clips = cs.textOverflow === "ellipsis" || (cs.overflowX === "hidden" && cs.whiteSpace === "nowrap");
+      if (clips && el.scrollWidth > el.clientWidth + 1) out.push(name + ": „" + el.textContent.trim().slice(0, 30) + "“ ist abgeschnitten");
     }
   };
 
@@ -112,6 +115,7 @@ const CHECK = `
     unbroken("Unterzeile", sub);
   }
   for (const note of document.querySelectorAll("main .notice .line, [role=banner] ~ .strip")) unbroken("Hinweis", note);
+  for (const note of document.querySelectorAll("main .notice, [role=banner] ~ .strip")) overlaps("Hinweis", [...note.children].filter(visible));
 
   const menu = document.querySelector("#nav-menu");
   if (menu) {
@@ -140,7 +144,7 @@ const SETTLED = `
   };
   poll();`;
 
-async function size(s, width) {
+export async function size(s, width) {
   const height = width === 980 ? 700 : Math.round(width * 0.5625);
   await s.cmd("POST", "/goog/cdp/execute", {
     cmd: "Emulation.setDeviceMetricsOverride",
@@ -149,7 +153,7 @@ async function size(s, width) {
 }
 
 /** One view: its problems, prefixed with where they happened. */
-async function view(s, base, query, width) {
+export async function view(s, base, query, width) {
   let problems = [];
   // The dev server may reload the page once while it optimizes; a page that is not there yet is
   // loaded again before anything counts.

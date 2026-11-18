@@ -30,10 +30,8 @@
     const pct = share === null ? "" : ` · ${Math.floor(share * 100)} %`;
     return `${active.length === 1 ? "1 läuft" : `${active.length} laufen`}${pct}`;
   });
-  /** Beside the ring in a narrow bar: what runs and how far ("Analyse 96 %"), or the state. */
-  const brief = $derived(
-    jobs.locked || share === null || !lead ? summary : `${active.length === 1 ? (KIND_LABEL[lead.kind] ?? "Aufgabe") : `${active.length} Aufgaben`} ${Math.floor(share * 100)} %`,
-  );
+  /** Beside the ring in a narrow bar: one line under the same name as in wide ones. */
+  const brief = $derived(`Aufgaben: ${jobs.locked || share === null ? summary : `${Math.floor(share * 100)} %`}`);
 
   let panel = $state<HTMLElement | null>(null);
   let button = $state<HTMLElement | null>(null);
