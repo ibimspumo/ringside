@@ -58,9 +58,17 @@
   const r = $derived(read(player.stats));
   const cards = (s: string) => s.split(" ").filter(Boolean);
 
+  /** Where the value sits: below, inside (lower or upper end) or above the usual range. */
   function word(id: StatId): string {
-    const t = tone(hud, stat(player.stats, id));
-    return t === "low" ? "unter üblich" : t === "high" ? "über üblich" : t === "mid" ? "üblich" : "noch kein Wert";
+    const s = stat(player.stats, id);
+    const t = tone(hud, s);
+    if (t === "low") return "unter üblich";
+    if (t === "high") return "über üblich";
+    if (t !== "mid" || s?.value == null) return "noch kein Wert";
+    const r = hud.thresholds[id];
+    if (!r) return "üblich";
+    const at = (s.value - r.low) / (r.high - r.low);
+    return at >= 2 / 3 ? "üblich, oberes Ende" : at <= 1 / 3 ? "üblich, unteres Ende" : "üblich";
   }
 
   function key(e: KeyboardEvent) {
@@ -89,7 +97,7 @@
     {#if hero}
       <p class="self">Das bist du. Wie gut deine eigenen Werte sind, zeigt dir die Seite <b>Leaks</b>.</p>
     {:else if !advice}
-      <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar.</SourceNote>
+      <SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar." />
     {:else if r?.type}
       {@const t = TYPE[r.type]}
       <section class="read" aria-label="Spielertyp">
@@ -99,7 +107,7 @@
         </div>
         <p class="type"><b>{t.name}{#if t.long !== t.name}<small>· {t.long.slice(t.name.length).replace(/[()]/g, "").trim()}</small>{/if}</b> <span>{t.sketch}</span></p>
         <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
-        <p class="why">{t.why}</p>
+        <p class="why">{r.sure === "sure" ? t.why : `Bisher: ${t.why}`}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>
           <i aria-hidden="true"></i>
           {#if r.sure === "sure"}
@@ -145,7 +153,7 @@
             {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
-                <Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="bottom">{STAT_META[id].name}</Term>
+                <Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="right">{STAT_META[id].name}</Term>
                 <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
               </dt>
               <dd>

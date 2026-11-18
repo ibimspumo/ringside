@@ -70,7 +70,7 @@
     const seat = (r: PlayerRow) => t.seats.find((s) => rowKey(t, s) === r.key);
     const cols: ExtraColumn[] = [{ key: "stack", head: "Stack", help: "Stack in Big Blinds nach der letzten Hand", at: "before", unit: "BB", text: (r) => int(seat(r)?.stack_bb ?? 0) }];
     if (tables.some((x) => x.table?.seats.some((s) => s.bounty !== null)))
-      cols.push({ key: "bounty", head: "Bounty", help: "Kopfgeld auf diesen Spieler", at: "before", text: (r) => { const b = seat(r)?.bounty ?? null; return b === null ? "–" : moneyShort(b, t.bounty_currency); } });
+      cols.push({ key: "bounty", head: "Bounty", prefix: "Bounty", help: "Kopfgeld auf diesen Spieler", at: "before", text: (r) => { const b = seat(r)?.bounty ?? null; return b === null ? "–" : moneyShort(b, t.bounty_currency); } });
     if (t.seats.some((s) => s.note?.text || s.note?.label))
       cols.push({ key: "note", head: "Deine Notiz", at: "after", wide: true, text: (r) => { const n = seat(r)?.note; return n ? [n.label?.name, n.text].filter(Boolean).join(" – ") : ""; } });
     return cols;
@@ -101,7 +101,7 @@
   {/if}
   {#if tables.some((t) => t.table)}
     <div class="tools">
-      <MeterLegend meters={columns === "core"} />
+      <div class="legend-slot"><MeterLegend meters={columns === "core"} /></div>
       <SegmentedControl
         label="Spalten"
         size="sm"
@@ -216,8 +216,9 @@
     justify-content: space-between;
     gap: var(--sp-3) var(--sp-4);
   }
-  .tools > :global(.ui-seg) {
-    margin-left: auto;
+  .legend-slot {
+    flex: 1 1 320px;
+    min-width: 0;
   }
   .more {
     margin-left: auto;

@@ -39,6 +39,8 @@
   let sortBy = $state<StatId | "name">("hands");
   let asc = $state(false);
   let picked = $state<string | null>(preview("player"));
+  /** Docked detail closed by hand; the next pick opens it again. */
+  let closed = $state(false);
   let columns = $state<"core" | "all">(preview("cols") === "all" ? "all" : "core");
   let width = $state(0);
   let more = $state(false);
@@ -92,7 +94,7 @@
     });
   });
   /** Docked, the detail always shows someone: the picked player, else the first of the list. */
-  const selected = $derived(rows.find((p) => p.name === picked) ?? (docked ? (sorted[0] ?? null) : null));
+  const selected = $derived(rows.find((p) => p.name === picked) ?? (docked && !closed ? (sorted[0] ?? null) : null));
 
   function sortOn(id: StatId | "name") {
     if (sortBy === id) asc = !asc;
@@ -104,7 +106,7 @@
 </script>
 
 <div class="page roomy" bind:clientWidth={width}>
-  <div class="split" class:docked>
+  <div class="split" class:docked={docked && !!selected}>
     <section class="list" aria-label="Spieler">
       <div class="bar">
         <SearchField bind:value={search} label="Spieler suchen" />
@@ -137,7 +139,7 @@
             {columns}
             {advice}
             selected={selected?.name ?? null}
-            onPick={(k) => (picked = k)}
+            onPick={(k) => ((picked = k), (closed = false))}
             sort={{ by: sortBy, asc, on: sortOn }}
             maxHeight="calc(100vh - 290px)"
             onMore={(m) => (more = m)}
@@ -157,7 +159,7 @@
     </section>
 
     {#if docked && selected && hud}
-      <PlayerDetail player={selected} {hud} {advice} hero={heroes.includes(selected.name)} docked onHands={(name, id) => onHands(name, id)} />
+      <PlayerDetail player={selected} {hud} {advice} hero={heroes.includes(selected.name)} docked onClose={() => ((picked = null), (closed = true))} onHands={(name, id) => onHands(name, id)} />
     {/if}
   </div>
 </div>

@@ -20,6 +20,8 @@
     wide?: boolean;
     text: (row: PlayerRow) => string;
     unit?: string;
+    /** Word before the value where the column title is out of sight (narrow list): "Bounty $1,25". */
+    prefix?: string;
   }
 
   /** The four values that tell a type apart; the rest on request. */
@@ -124,18 +126,18 @@
 
 <div class="frame" class:more>
 <div class="wrap" bind:this={scroller} onscroll={measure} style:max-height={maxHeight}>
-<table class:all={columns === "all"} aria-label={label}>
+<table class:all={columns === "all"} class:has-wide={extra.some((c) => c.wide)} aria-label={label}>
   <thead>
     <tr>
       <th class="name" aria-sort={ariaSort("name")}>{@render head("name", "Spieler")}</th>
-      {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Gestrichelt heißt: noch zu wenig Hände für ein sicheres Urteil." side="bottom"><SortHeader term>Typ</SortHeader></Tooltip></th>{/if}
-      {#each before as c (c.key)}<th class="extra narrow-off" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="bottom"><SortHeader term>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
+      {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Gestrichelt heißt: noch zu wenig Hände für ein sicheres Urteil." side="top"><SortHeader term>Typ</SortHeader></Tooltip></th>{/if}
+      {#each before as c (c.key)}<th class="extra narrow-off" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="top"><SortHeader term>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
       <th class="hands" aria-sort={ariaSort("hands")}>
-        <Tooltip text={STAT_META.hands.help} side="bottom">{@render head("hands", "Hände")}</Tooltip>
+        <Tooltip text={STAT_META.hands.help} side="top">{@render head("hands", "Hände")}</Tooltip>
       </th>
       {#each cols as id (id)}
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
-          <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="bottom">
+          <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="top">
             {@render head(id, columns === "core" ? `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}` : NARROW[id])}
           </Tooltip>
         </th>
@@ -147,7 +149,7 @@
     {#each rows as p, i (p.key)}
       {@const r = reads.get(p.key)}
       {@const hands = stat(p.stats, "hands")?.value ?? 0}
-      {@const sub = [...before.map((c) => `${c.text(p)}${c.unit ? ` ${c.unit}` : ""}`), p.note].filter(Boolean).join(" · ")}
+      {@const sub = [...before.map((c) => `${c.prefix ? `${c.prefix} ` : ""}${c.text(p)}${c.unit ? ` ${c.unit}` : ""}`), p.note].filter(Boolean).join(" · ")}
       <tr class:on={selected === p.key} onclick={() => onPick(p.key)}>
         <td class="name">
           <CellButton current={selected === p.key} onclick={(e) => (e.stopPropagation(), onPick(p.key))} onkeydown={(e) => key(e, i)}>
@@ -245,6 +247,21 @@
   }
   th.name {
     padding-left: var(--sp-4);
+  }
+  /* Beside a wide note column the values keep a fixed width; the note takes the rest. */
+  .has-wide th.core {
+    width: 150px;
+  }
+  /* Scrolling sideways, the name stays in view. */
+  th.name,
+  td.name {
+    position: sticky;
+    left: 0;
+    z-index: var(--z-raised);
+    background: var(--surface);
+  }
+  th.name {
+    z-index: calc(var(--z-raised) + 1);
   }
   .wide {
     width: 30%;
