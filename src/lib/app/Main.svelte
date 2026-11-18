@@ -344,9 +344,12 @@
       <div class="meta">
         <div class="live" class:active={tables > 0}>
           <span class="dot"></span>
-          {tables === 0 ? "Kein Tisch offen" : tables === 1 ? "1 Tisch" : `${tables} Tische`}<span class="long">&nbsp;im Blick</span>
+          <span
+            >{#if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}<span class="long">&nbsp;im Blick</span
+              >{/if}</span
+          >
         </div>
-        <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände<span class="long"> gespeichert</span></div>
+        <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände<span class="long">&nbsp;gespeichert</span></div>
       </div>
     </footer>
   </aside>
