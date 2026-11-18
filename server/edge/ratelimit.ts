@@ -15,8 +15,8 @@ export interface Rule {
 
 export const RULES = {
   submit: [
-    { name: "submit-min", scope: "client", windowS: 60, max: 10 },
-    { name: "submit-hour", scope: "client", windowS: 3600, max: 60 },
+    { name: "submit-min", scope: "client", windowS: 60, max: 30 },
+    { name: "submit-hour", scope: "client", windowS: 3600, max: 600 },
     { name: "submit-global", scope: "global", windowS: 3600, max: 3000 },
   ],
   report: [
@@ -26,11 +26,11 @@ export const RULES = {
   read: [{ name: "read-min", scope: "client", windowS: 60, max: 300 }],
   status: [{ name: "status-min", scope: "client", windowS: 60, max: 20 }],
   work: [
-    { name: "work-min", scope: "client", windowS: 60, max: 6 },
-    { name: "work-hour", scope: "client", windowS: 3600, max: 60 },
+    { name: "work-min", scope: "client", windowS: 60, max: 30 },
+    { name: "work-hour", scope: "client", windowS: 3600, max: 600 },
     { name: "work-global", scope: "global", windowS: 3600, max: 3000 },
   ],
-  release: [{ name: "release-hour", scope: "client", windowS: 3600, max: 60 }],
+  release: [{ name: "release-hour", scope: "client", windowS: 3600, max: 600 }],
   request: [
     { name: "request-hour", scope: "client", windowS: 3600, max: 30 },
     { name: "request-global", scope: "global", windowS: 3600, max: 1500 },

@@ -39,7 +39,7 @@ the end. Ctrl+C stops the solve, submits nothing and gives the lease back; a sec
 Ctrl+C quits at once. The tool does not start while a PokerStars client runs here and
 stops when one starts.
 
-The server hands out at most 60 spots and takes at most 60 solutions per hour and IP
+The server hands out at most 600 spots and takes at most 600 solutions per hour and IP
 address (the app on the same network counts too); the tool waits when it hits a limit
 and retries network errors with a growing pause.
 
