@@ -56,8 +56,7 @@
   /** A mistake that still wins: counted from now on, the played move brings a profit, just less. */
   const stillWins = $derived.by(() => {
     if (!played || played.ev_bb === null || !d.source || EV_FROM[d.source] !== "now" || !better || grade === "best" || grade === "mix") return null;
-    // Folding wins nothing; a positive number there is the estimate's shrunken gap, not a profit.
-    if (played.ev_bb < 0.005 || played.kind === "fold") return null;
+    if (played.ev_bb < 0.005) return null;
     return `Dein ${played.label} bringt auch Gewinn (${fmtBb(played.ev_bb, { digits: 2, sign: true })}), ${better} bringt noch mehr.`;
   });
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
