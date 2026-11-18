@@ -355,7 +355,7 @@
     margin: var(--sp-2) 0 0;
     padding-top: 6px;
     border-top: 1px solid var(--line);
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
   }
 </style>
