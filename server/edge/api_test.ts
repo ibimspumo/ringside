@@ -1,6 +1,6 @@
 import { assert, assertEquals } from "jsr:@std/assert@1";
 import { memorySql } from "../lib/sqlite_memory.ts";
-import { createHandler, MAX_STATUS_KEYS } from "./api.ts";
+import { ACCEPTED_MAX_AGE_S, createHandler, MAX_STATUS_KEYS } from "./api.ts";
 import { canonicalize, solutionKey } from "./canonical.ts";
 import { nodeCount } from "./kinds.ts";
 import { RULES } from "./ratelimit.ts";
@@ -51,7 +51,8 @@ Deno.test("a well-formed solution is served at once, a verified one is cached fo
   const shown = await handle(get(`/v1/solutions/pushfold-hu/${key}`));
   assertEquals(shown.status, 200);
   const cache = shown.headers.get("cache-control")!;
-  assert(cache.startsWith("public, max-age=") && !cache.includes("immutable"), cache);
+  assertEquals(cache, `public, max-age=${ACCEPTED_MAX_AGE_S}`);
+  assert(ACCEPTED_MAX_AGE_S <= 300, "a withdrawn solution leaves every edge within minutes");
   const body = await shown.json();
   assertEquals([body.input, body.result, body.status, body.verified_at], [INPUT, RESULT, "accepted", null]);
 

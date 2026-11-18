@@ -17,8 +17,12 @@ const MAX_ERROR = 2_000;
 export const MAX_STATUS_KEYS = 200;
 const MAX_NOTE = 300;
 const KEEP_VERIFIED = 100_000;
-/** How long the CDN may keep an accepted solution; it is withdrawn if its client turns out to cheat. */
-const ACCEPTED_MAX_AGE_S = 86_400;
+/**
+ * How long the CDN may keep an accepted solution; it is withdrawn if its client turns out to
+ * cheat. A purge does not always reach every edge, so this bounds how long a withdrawn one
+ * stays out there. ringside-cloud's operator.rs holds the same number.
+ */
+export const ACCEPTED_MAX_AGE_S = 300;
 /** How long a computer may work on a spot before it is handed out again, by kind. */
 export const LEASE_S: Readonly<Record<string, number>> = {
   "pushfold-hu": 600,
