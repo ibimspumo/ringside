@@ -27,8 +27,9 @@ const HALF_LIFE_DAYS: f64 = 30.0;
 const MIN_FRESH: f64 = 0.25;
 /// Agreement assumed for estimates whose reliability is unknown.
 const UNKNOWN_RELIABILITY: f64 = 0.5;
-/// A leak's cost compares results, which swing a lot: it counts half, times the confidence.
-const LEAK_TRUST: f64 = 0.5;
+/// A leak's cost compares results and does not prove the value is the cause: it weighs its
+/// 95 % lower bound, a quarter of it, times the confidence that the value is off.
+const LEAK_TRUST: f64 = 0.25;
 /// Stand-in cost of a leak without a clear cost, per unit of its score (confidence × distance).
 const LEAK_PLAIN_BB: f64 = 1.0;
 const LEAK_SCORE_CAP: f64 = 3.0;
@@ -376,7 +377,8 @@ fn leak(c: &Check) -> NextStep {
         Some(cost) => {
             let per = cost.total_bb / cost.hands.max(1) as f64;
             let line = format!("kostet dich im Schnitt etwa {} pro Hand, {} Hände in dieser Lage", bb(per), cost.hands);
-            (line, Some(per), Some(cost.hands as usize), Some(cost.total_bb), cost.total_bb)
+            let sure_gap = (cost.base_bb100 - cost.spot_bb100 - cost.margin_bb100).max(0.0);
+            (line, Some(per), Some(cost.hands as usize), Some(cost.total_bb), sure_gap * cost.hands as f64 / 100.0)
         }
         None => {
             let line = format!("{} Gelegenheiten, zu {} % sicher", c.opp, num((c.confidence * 100.0).min(99.0), 0));
@@ -613,7 +615,7 @@ mod tests {
             confidence: 0.99,
             uncertain: false,
             score: 1.4,
-            cost: cost.map(|total_bb| Cost { hands: 400, spot_bb100: -10.0, base_bb100: 15.0, margin_bb100: 5.0, total_bb }),
+            cost: cost.map(|margin_bb100| Cost { hands: 400, spot_bb100: 5.0, base_bb100: 8.0, margin_bb100, total_bb: 12.0 }),
             cites: vec![],
             note: None,
         }
@@ -682,7 +684,7 @@ mod tests {
                 estimated(group("river_vs_bet|-|3|6", 23, 14.6, "2026/11/17 22:00:00"), 0.73),
                 group("push_fold|BTN|0|9", 40, 6.0, "2026/11/10 20:00:00"),
             ]),
-            leaks: leaks(vec![leak_check(Some(20.0)), Check { positions: vec!["CO"], ..leak_check(None) }]),
+            leaks: leaks(vec![leak_check(Some(2.0)), Check { positions: vec!["CO"], ..leak_check(None) }]),
             costliest: vec![costly(7, 9.0, "2026/11/17 20:30:00"), costly(8, 0.5, "2026/11/17 20:40:00")],
             concepts: vec![Concept {
                 id: "pot_odds".into(),
@@ -730,7 +732,11 @@ mod tests {
         assert!(order.contains(&"decision:7:4") && !order.contains(&"decision:8:4"));
         // The coach concept trains pot odds, so the due review of pot odds is folded into it.
         assert!(order.contains(&"concept:pot_odds") && !order.contains(&"review:pot_odds"));
-        assert_eq!(order.last(), Some(&"review:outs"));
+        assert_eq!(order.last(), Some(&"leak:steal|tournament|CO|1"));
+        // A leak's cost weighs the sure part of its gap: (8 − 5 − 2) BB/100 over 400 hands.
+        let steal = list.iter().find(|s| s.id == "leak:steal|tournament|BTN|1").unwrap();
+        assert!((steal.score - 4.0 * 0.25 * 0.99).abs() < 1e-9, "{}", steal.score);
+        assert_eq!(steal.number, "kostet dich im Schnitt etwa 0,03 BB pro Hand, 400 Hände in dieser Lage");
 
         // Same mean loss, more times: heavier.
         let more = only(vec![group("vs_open|BB|1|9", 20, 4.0, "2026/11/17 21:00:00"), group("vs_open|SB|1|9", 40, 8.0, "2026/11/17 21:00:00")]);
