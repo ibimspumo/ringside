@@ -19,7 +19,6 @@
   import { usePageHead } from "../ui/page.svelte";
   import PlayingCard from "../ui/PlayingCard.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
-  import SourceNote from "../ui/SourceNote.svelte";
   import Tag from "../ui/Tag.svelte";
   import type { Filter, Hand, HandQuery, HandSummary, SpotFilter, Street } from "../types";
   import type { RangeFilter } from "../ranges/types";
@@ -314,7 +313,7 @@
     const played = w.played.split(" ")[0];
     if (w.status === "pending") return { lead: played, rest: "wird gerechnet" };
     if (w.status === "unrated") return { lead: "", rest: "nicht bewertet" };
-    if (!w.rating || w.rating === "best" || w.rating === "good" || !w.best) return { lead: played, rest: w.rating ? RATING[w.rating].label.toLowerCase() : SPOT[w.spot] };
+    if (!w.rating || w.rating === "best" || w.rating === "good" || !w.best) return { lead: played, rest: w.rating ? RATING[w.rating].label : SPOT[w.spot] };
     return { lead: `Besser ${w.best.split(" ")[0]}`, rest: `statt ${played}` };
   }
 
@@ -342,8 +341,7 @@
   }
   // Narrow: table and controls fill what is visible below the verdict line, the log follows below.
   let workH = $state(600);
-  let lineH = $state(48);
-  const replayH = $derived(Math.max(520, workH - lineH + 162));
+  const replayH = $derived(Math.max(480, workH + 162));
   const wide = $derived(detailW >= 900);
 
   // The detail keeps the hand's place in the list: up and down walk through it.
@@ -392,10 +390,9 @@
 {/snippet}
 
 {#snippet verdictLine()}
-  <div class="brief" bind:clientHeight={lineH}>
+  <div class="brief">
     {#if locked}
-      <SourceNote kind="locked" />
-      <p class="faint">Die Analyse pausiert – Nachspielen geht weiter.</p>
+      <p class="faint">Die Analyse pausiert, solange PokerStars läuft – Nachspielen geht weiter.</p>
     {:else if current?.rating}
       {@const g = gradeOf(current.rating)}
       <GradeIcon grade={g} size={18} />
@@ -558,9 +555,9 @@
       {#if list.length}
         <div class="list-head">
           <span class="num">{list.length}{more ? "+" : ""} Hände</span>
-          {#if rail}<span class="rail-what">{view === "mistakes" ? "Fehler kostet" : "Ergebnis"}</span>{/if}
+          {#if rail}<span class="rail-what">{view === "mistakes" && !locked ? "Fehler kostet" : "Ergebnis"}</span>{/if}
           <span title={view === "mistakes" ? "Rechts: was dein teuerster Fehler der Hand im Schnitt kostet" : "Rechts: was du in der Hand gewonnen oder verloren hast"}
-            >{view === "mistakes" ? "Kosten des Fehlers · teuerste zuerst" : "Ergebnis · neueste zuerst"}</span
+            >{view === "mistakes" && !locked ? "Kosten des Fehlers · teuerste zuerst" : view === "mistakes" ? "Ergebnis" : "Ergebnis · neueste zuerst"}</span
           >
         </div>
       {/if}
@@ -645,10 +642,10 @@
       {#if selected}
         {@const name = selected.tournament_id === null ? undefined : tournamentNames.get(selected.tournament_id)}
         {@const net = summaryOf ? netBb(summaryOf) : null}
-        <header class="hand-head">
+        <header class="hand-head" class:narrow={!wide}>
           <span class="hole">{#each selected.hero_cards as c (c)}<PlayingCard card={c} size={34} />{/each}</span>
           <div class="ident">
-            <h2 title={name ? `${name} · Tisch ${selected.table_name}` : selected.table_name}>
+            <h2 title="{name ? `${name} · Tisch ${selected.table_name}` : selected.table_name} · {stakes(selected)} · {dateTime(selected.played_at)} · #{selected.id}">
               {#if summaryOf?.hero_position}<span class="num">{summaryOf.hero_position}</span>{/if}
               <span class="table-name">{name ?? selected.table_name}</span>
             </h2>
@@ -672,6 +669,7 @@
               <svg class="stroke" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </IconButton>
           </div>
+          {#if !wide}{@render verdictLine()}{/if}
         </header>
         <div class="work" class:wide bind:clientHeight={workH}>
           {#if wide}
@@ -681,7 +679,6 @@
               </Replayer>
             </div>
           {:else}
-            {@render verdictLine()}
             <div class="replay" style:height="{replayH}px">
               <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay />
             </div>
@@ -878,10 +875,12 @@
     color: var(--text-2);
     font-size: var(--fs-sm);
   }
+  /* Two lines: board and amount on top, verdict and time below; the verdict only shares its line with the short time. */
   .row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
     align-items: center;
-    gap: 10px;
+    gap: 5px 10px;
     padding: var(--sp-2) 10px;
     border-radius: var(--r-md);
     box-shadow: inset 0 0 0 1px transparent;
@@ -914,12 +913,31 @@
     flex-shrink: 0;
     width: 48px;
   }
-  .mid {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
+  .mid,
+  .end {
+    display: contents;
+  }
+  .row .who {
+    grid-row: 1 / 3;
+  }
+  .line {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .verdict {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .row .net,
+  .row .loss {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+  }
+  .row small {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
   }
   .line {
     display: flex;
@@ -977,11 +995,7 @@
     border-right-color: transparent;
     animation: spin var(--dur-loop) var(--ease-spin) infinite;
   }
-  .end {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 5px;
+  .end > * {
     white-space: nowrap;
   }
   .net,
@@ -1102,24 +1116,25 @@
   .analysis {
     padding: var(--sp-4);
   }
-  /* Narrow: one line for the hand; its cards are on the table right below. */
-  @container detail (max-width: 860px) {
-    .hand-head {
-      padding: var(--sp-2) var(--sp-4);
-      gap: var(--sp-3);
-    }
-    .hand-head .hole,
-    .where {
-      display: none;
-    }
-    .result {
-      flex-direction: row;
-      align-items: baseline;
-      gap: var(--sp-2);
-    }
-    .result b {
-      font-size: var(--fs-lg);
-    }
+  /* Narrow: the hand in one line and the verdict right under it; cards are on the table below, stakes and date in the title's tooltip. */
+  .hand-head.narrow {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    padding: var(--sp-2) var(--sp-4);
+  }
+  .narrow .hole,
+  .narrow .where,
+  .narrow .ident p,
+  .narrow .result span {
+    display: none;
+  }
+  .narrow .result b {
+    font-size: var(--fs-lg);
+  }
+  .narrow .brief {
+    flex-basis: 100%;
+    min-height: 0;
+    padding: 0;
   }
 
   /* The list as a strip of hole cards: the hand's verdict is in its tooltip and in the detail. */
@@ -1151,6 +1166,7 @@
     display: none;
   }
   .rail .row {
+    display: flex;
     flex-direction: column;
     gap: var(--sp-1);
     padding: var(--sp-2) var(--sp-1);
@@ -1159,7 +1175,10 @@
     width: auto;
   }
   .rail .end {
+    display: flex;
+    flex-direction: column;
     align-items: center;
+    gap: var(--sp-1);
   }
   .rail .net,
   .rail .loss {

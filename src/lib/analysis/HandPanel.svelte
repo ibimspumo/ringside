@@ -5,7 +5,6 @@
   import EmptyState from "../ui/EmptyState.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
   import ProgressBar from "../ui/ProgressBar.svelte";
-  import SourceNote from "../ui/SourceNote.svelte";
   import DecisionCard from "./DecisionCard.svelte";
   import { gradeOf } from "./grade";
   import { RATING } from "./labels";
@@ -45,7 +44,7 @@
 </script>
 
 {#if locked}
-  <SourceNote kind="locked" variant="block">Die Analyse wartet, bis du PokerStars schließt. Nachspielen geht weiter.</SourceNote>
+  <p class="paused">Die Analyse pausiert, bis du PokerStars schließt. Nachspielen geht weiter.</p>
 {:else if decisions === null}
   <EmptyState compact tone="loading" title="Lädt die Bewertung …" />
 {:else if decisions.length === 0}
@@ -109,6 +108,14 @@
 {/if}
 
 <style>
+  .paused {
+    margin: 0;
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-md);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
   .cta {
     display: flex;
     flex-direction: column;

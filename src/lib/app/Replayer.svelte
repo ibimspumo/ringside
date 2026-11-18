@@ -345,20 +345,23 @@
   const LOG_MIN = 150;
   const besides = $derived(boxW >= (aside ? 860 : 1150));
   const sideW = $derived(besides ? Math.round(aside ? Math.min(420, Math.max(300, boxW * 0.28)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
-  const tableW = $derived.by(() => {
-    const room = besides ? boxW - sideW - 20 : boxW;
+  const fit = $derived.by(() => {
+    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 1100);
     const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
-    return Math.min(room, 1100, fitWidth(free, room));
+    return fitTable(free, room);
   });
+  const MIN_SCALE = 0.85;
   /**
-   * The widest table up to 1100 px whose height fits `free`; it never shrinks below the width
-   * where chips and tags overlap (the box scrolls instead), unless the room itself is narrower.
+   * The widest table whose height fits `free`. Below the width where chips and tags would
+   * overlap it takes the flattest clean shape instead, shrunk by at most 15 % to fit; whatever
+   * is still missing, the box scrolls. A room narrower than the clean width keeps its width.
    */
-  function fitWidth(free: number, room: number): number {
+  function fitTable(free: number, room: number): { w: number; f: number } {
     const floor = Math.min(room, CLEAN_FROM);
-    let w = 1100;
-    while (w > floor && tableHeight(w) > free) w -= 10;
-    return Math.max(w, floor);
+    for (let w = room; w >= floor; w -= 10) if (tableHeight(w) <= free) return { w, f: 1 };
+    let best = room;
+    for (let w = room; w >= floor; w -= 10) if (tableHeight(w) < tableHeight(best)) best = w;
+    return { w: best, f: Math.max(MIN_SCALE, Math.min(1, free / tableHeight(best))) };
   }
 
   /** Under the board at the end: who won and with what, in words. */
@@ -394,11 +397,12 @@
 
 <svelte:window onkeydown={key} />
 
-<div class="replayer" bind:clientWidth={boxW} bind:clientHeight={boxH}>
-  <div class="layout" class:besides style:--side="{sideW}px" style:--table="{tableW}px">
+<div class="replayer" class:besides bind:clientWidth={boxW} bind:clientHeight={boxH}>
+  <div class="layout" class:besides style:--side="{sideW}px" style:--table="{fit.w * fit.f}px">
     <div class="main">
       {#if children}<div bind:clientHeight={headH}>{@render children()}</div>{/if}
-      <div class="stage">
+      <div class="stage" style:height={fit.f < 1 ? `${tableHeight(fit.w) * fit.f}px` : undefined}>
+        <div class="scaler" style:width={fit.f < 1 ? `${fit.w}px` : undefined} style:transform={fit.f < 1 ? `scale(${fit.f})` : undefined}>
         <PokerTable
           {seats}
           hero={heroSeat - 1}
@@ -409,6 +413,7 @@
           {format}
           label="Tisch der Hand"
         />
+        </div>
       </div>
 
       <div class="controls" bind:clientHeight={ctrlH}>
@@ -540,11 +545,13 @@
 </div>
 
 <style>
-  /* In a low window the replayer scrolls rather than cutting off your seat and the controls. */
   .replayer {
     flex: 1;
     min-width: 0;
     min-height: 0;
+  }
+  /* Beside a side column in a low window the replayer scrolls rather than cutting off your seat. */
+  .replayer.besides {
     overflow-y: auto;
   }
   .layout {
@@ -564,6 +571,9 @@
     width: var(--table);
     max-width: 100%;
     align-self: center;
+  }
+  .scaler {
+    transform-origin: 0 0;
   }
   /* Beside the side column, controls line up with the table; stacked, they take the full width. */
   .besides .main {

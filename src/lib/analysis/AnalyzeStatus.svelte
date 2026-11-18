@@ -53,6 +53,7 @@
         value={p.state === "done" ? 1 : preDone ? (p.share ?? null) : c.analyzed / Math.max(c.hands, 1)}
         label="Fortschritt der Analyse"
       />
+      {#if short}<span class="text num">{preDone ? (c.queued ? `${int(c.queued)} offen` : "fertig") : `${Math.round((c.analyzed / Math.max(c.hands, 1)) * 100)} %`}</span>{/if}
       <span class="text num" class:hidden={short} title="Vor dem Flop ist alles sofort bewertet; die Spots nach dem Flop rechnet der Solver nach und nach. {p.detail}">{line}</span>
       {#if p.state === "running"}
         <Button size="sm" variant="quiet" disabled={busy} onclick={() => act(api.analysisCancel)} title="Hält die Analyse an. Bewertetes bleibt gespeichert.">

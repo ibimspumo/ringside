@@ -84,7 +84,7 @@
       <ul class="options">
         <li class="head" aria-hidden="true">
           <span></span>
-          <span>Die Lösung wählt</span>
+          <span>Lösung</span>
           <span title="Wie oft die Lösung diese Aktion mit genau deiner Hand wählt – keine Gewinnchance">so oft</span>
           <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
         </li>
@@ -208,7 +208,7 @@
   }
   .options li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 52px 76px;
+    grid-template-columns: 10px minmax(0, 1fr) 44px 66px;
     align-items: center;
     gap: var(--sp-2);
     min-height: 24px;
@@ -232,6 +232,11 @@
     width: 8px;
     height: 8px;
     border-radius: 2px;
+  }
+  .label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .best-mark {
     display: inline-flex;
