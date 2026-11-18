@@ -342,7 +342,15 @@ async function sameFirstStep(where, sel) {
 
 step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
   await nav("Übersicht");
-  firstStep = await stepAt("main .first[data-step]");
+  // The app ranks only after its background analysis; until then the list is empty or provisional.
+  // The demo shows a running analysis for good, so there any first step counts.
+  firstStep = await waitFor(
+    "a settled first step on the overview",
+    `const el = document.querySelector("main .first[data-step]");
+     return el && (!arguments[0] || !el.textContent.includes("vorläufig")) ? el.dataset.step : null`,
+    [TAURI],
+    90_000,
+  );
   if (!TAURI && firstStep !== "spot:river_vs_bet|-|3|6") throw new Error(`the demo's first step is „${firstStep}“`);
   if (firstStep) await sameFirstStep("„Fang hier an“", "main .focus [data-step]");
 });
