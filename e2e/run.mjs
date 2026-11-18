@@ -990,7 +990,8 @@ step("Hände spielen: eine Hand startet", async () => {
   await click("nav button", "Hände spielen");
   await find("main h1", "Hände spielen");
   await click("main .tiles button.tile");
-  await waitText("Tipp anzeigen");
+  // The tip only exists in rated spots; a dealt hand may start off the model.
+  await find("main .actions button.act");
 });
 
 step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async () => {
