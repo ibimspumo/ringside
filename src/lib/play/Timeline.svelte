@@ -10,6 +10,15 @@
    */
   let { view, at, upto, onLook }: { view: HandView; at: number; upto: number; onLook: (snapshot: number) => void } = $props();
 
+  // On a narrow table the history is one line that you can slide; it keeps the newest step in sight.
+  let nav = $state<HTMLElement>();
+  /** Steps hidden off the left edge: the edge fades, so you see there is more. */
+  let cut = $state(false);
+  $effect(() => {
+    void upto;
+    if (nav && nav.scrollWidth > nav.clientWidth) nav.scrollTo({ left: nav.scrollWidth, behavior: "smooth" });
+  });
+
   const STREET: Record<Street, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
 
   type Move = { seat: number; text: string; snapshot: number; hero: boolean; fold: boolean; grade: string | null; mark: string; label: string | null };
@@ -41,7 +50,7 @@
   });
 </script>
 
-<nav class="timeline" aria-label="Verlauf der Hand">
+<nav class="timeline" class:cut aria-label="Verlauf der Hand" bind:this={nav} onscroll={() => (cut = !!nav && nav.scrollLeft > 2)}>
   {#each groups as g (g.snapshot)}
     <section class="street" class:now={g.snapshot <= at && !groups.some((x) => x.snapshot > g.snapshot && x.snapshot <= at)}>
       <button class="head" class:on={at === g.snapshot} onclick={() => onLook(g.snapshot)} aria-label="{STREET[g.street]} ansehen">
@@ -80,6 +89,23 @@
     gap: 6px 14px;
     align-items: flex-start;
   }
+  @container history (width < 820px) {
+    .timeline,
+    .street {
+      flex-wrap: nowrap;
+    }
+    .timeline {
+      overflow-x: auto;
+      scrollbar-width: thin;
+      padding-bottom: 4px;
+    }
+    .street {
+      flex: none;
+    }
+    .timeline.cut {
+      mask-image: linear-gradient(to right, transparent, var(--bg) 40px);
+    }
+  }
   .street {
     display: flex;
     flex-wrap: wrap;
@@ -116,7 +142,7 @@
     border-radius: var(--r-sm);
     background: var(--surface);
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     cursor: pointer;
     white-space: nowrap;
   }

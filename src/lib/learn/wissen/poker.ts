@@ -126,6 +126,34 @@ export function outsTo(hole: string[], board: string[], target: number): string[
   return deckWithout([...hole, ...board]).filter((c) => categoryOf([...hole, ...board, c]) >= target);
 }
 
+const SINGLE = ["Zwei", "Drei", "Vier", "Fünf", "Sechs", "Sieben", "Acht", "Neun", "Zehn", "Bube", "Dame", "König", "Ass"];
+const PLURAL = ["Zweien", "Dreien", "Vieren", "Fünfen", "Sechsen", "Siebenen", "Achten", "Neunen", "Zehnen", "Buben", "Damen", "Könige", "Asse"];
+
+/** The best hand in words: "Paar Könige", "Zwei Paare, Könige und Achten", "Ass-hoch"; otherwise its category. */
+export function madeHand(cards: string[]): string {
+  const cat = categoryOf(cards);
+  const five = bestFive(cards);
+  const count = new Map<number, number>();
+  for (const c of five) count.set(rankOf(c), (count.get(rankOf(c)) ?? 0) + 1);
+  const ranks = (n: number) => [...count].filter(([, k]) => k === n).map(([r]) => r).sort((a, b) => b - a);
+  switch (cat) {
+    case 0:
+      return `${SINGLE[rankOf(five[0])]}-hoch`;
+    case 1:
+      return `Paar ${PLURAL[ranks(2)[0]]}`;
+    case 2:
+      return `Zwei Paare, ${PLURAL[ranks(2)[0]]} und ${PLURAL[ranks(2)[1]]}`;
+    case 3:
+      return `Drilling ${PLURAL[ranks(3)[0]]}`;
+    case 6:
+      return `Full House, ${PLURAL[ranks(3)[0]]} und ${PLURAL[ranks(2)[0]]}`;
+    case 7:
+      return `Vierling ${PLURAL[ranks(4)[0]]}`;
+    default:
+      return CATEGORY[cat];
+  }
+}
+
 /* Hand classes and combos ------------------------------------------------------------------------ */
 
 /** "AA", "AKs", "AKo" → every concrete two-card combo of that class. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from "../ui/Button.svelte";
   import { etaText } from "./labels";
   import type { PoolStatus } from "./types";
 
@@ -34,9 +35,9 @@
     </span>
     <span class="txt">{text}</span>
     {#if pool.status === "running" || pool.status === "paused_client"}
-      <button class="link" onclick={onCancel}>Abbrechen</button>
+      <Button variant="quiet" size="sm" onclick={onCancel}>Anhalten</Button>
     {:else if pool.status === "cancelled" || pool.status === "error"}
-      <button class="link" onclick={onResume}>Weiter vorbereiten</button>
+      <Button variant="quiet" size="sm" onclick={onResume}>Weiter vorbereiten</Button>
     {/if}
   </div>
 {/if}
@@ -46,9 +47,10 @@
     display: inline-flex;
     align-items: center;
     gap: 9px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
-    padding: 5px 10px;
+    padding: 2px 4px 2px 12px;
+    min-height: 32px;
     border-radius: 999px;
     background: var(--surface);
     border: 1px solid var(--line);
@@ -77,20 +79,10 @@
     inset: 0;
     width: calc(var(--f) * 100%);
     background: color-mix(in srgb, var(--pos) 70%, transparent);
-    transition: width 0.4s;
+    transition: width var(--dur-slow) var(--ease-standard);
   }
   .error .txt {
     color: var(--neg);
-  }
-  .link {
-    border: 0;
-    background: none;
-    color: var(--text);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    font-size: 12px;
-    cursor: pointer;
-    padding: 0;
   }
   @media (prefers-reduced-motion: reduce) {
     .meter i.fill::after {

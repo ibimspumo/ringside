@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { bestFive, CATEGORY, categoryOf } from "../learn/wissen/poker";
+  import { bestFive, madeHand } from "../learn/wissen/poker";
   import { cardFace } from "./cards";
   import MiniCard from "./MiniCard.svelte";
   import PlayingCard from "./PlayingCard.svelte";
@@ -25,7 +25,7 @@
   const all = $derived([...hole, ...board]);
   const best = $derived(bestFive(all));
   const lit = $derived(new Set(best.map((c) => cardFace(c)?.key)));
-  const name = $derived(CATEGORY[categoryOf(all)]);
+  const name = $derived(madeHand(all));
   const on = (c: string) => lit.has(cardFace(c)?.key);
 </script>
 

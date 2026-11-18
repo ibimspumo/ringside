@@ -1,5 +1,7 @@
 <script lang="ts">
   import PlayingCard from "../PlayingCard.svelte";
+  import MiniCard from "../ui/MiniCard.svelte";
+  import MixBar from "../ui/MixBar.svelte";
   import { classCombos, comboClass } from "../solver/range";
   import PlayGrid from "./PlayGrid.svelte";
   import { GRADE, choiceColors, choiceLabel, num, signedBB } from "./labels";
@@ -44,6 +46,17 @@
   });
   const hero = $derived(view ? comboClass(view.hero_cards[0], view.hero_cards[1]) : -1);
   const actor = $derived(view ? view.positions[view.hero] : "");
+  const STREET: Record<string, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
+  /** Which decision the range belongs to: your move, or the one in front of you when you asked for a tip. */
+  const about = $derived.by(() => {
+    if (!lesson) return null;
+    const street = STREET[lesson.street] ?? "";
+    if ("chosen" in lesson && typeof lesson.chosen === "number") {
+      const l = choiceLabel(lesson.choices[lesson.chosen]);
+      return { street, text: `Dein letzter Zug: ${l.label}${l.size ? ` ${l.size}` : ""}` };
+    }
+    return { street, text: "Tipp für deine Entscheidung" };
+  });
 </script>
 
 <section class="info">
@@ -56,11 +69,21 @@
 
   {#if tab === "info"}
     {#if lesson && cells}
+      {#if about}<p class="about"><span>{about.street}</span> <b>{about.text}</b></p>{/if}
+      {#if lesson.strategy && view}
+        {@const own = lesson.strategy}
+        <div class="mine">
+          <p>Deine Hand {#each view.hero_cards as c (c)}<MiniCard card={c} />{/each} spielt die Lösung so:</p>
+          <MixBar label="So oft spielt die Lösung deine Hand" parts={lesson.choices.map((c, k) => ({ label: choiceLabel(c).label, share: Math.round((own[k] ?? 0) * 100), color: colors[k] }))} />
+          <p class="faint small">Die Prozente sagen, wie oft die Lösung jeden Zug wählt. Bewertet wird, was dein Zug im Schnitt gegenüber dem besten kostet – auch ein Zug mit Anteil kann Punkte kosten.</p>
+        </div>
+      {/if}
       <p class="cap">
         Range von {actor} an dieser Stelle: wie {lesson.source === "model" ? "das Modell" : lesson.source === "equilibrium" ? "das Gleichgewicht" : "die Lösung"} jede Hand spielt. Deine Hand ist umrandet.
       </p>
       <PlayGrid strategy={cells.strategy} reach={cells.reach} {colors} {hero} />
-      <ul class="legend">
+      <ul class="legend" aria-label="Wie oft die Range welchen Zug spielt">
+        <li class="lh" aria-hidden="true"><span></span><span>Zug</span><span>Anteil der Range</span></li>
         {#each lesson.choices as c, k (k)}
           {@const l = choiceLabel(c)}
           <li>
@@ -99,6 +122,21 @@
 </section>
 
 <style>
+  .about {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 8px;
+    margin: 0 0 6px;
+    font-size: var(--fs-md);
+  }
+  .about span {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
   .info {
     display: grid;
     gap: 12px;
@@ -143,6 +181,26 @@
     grid-template-columns: 12px 1fr auto;
     align-items: center;
     gap: 8px;
+  }
+  .mine {
+    display: grid;
+    gap: 6px;
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .mine p {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .legend .lh {
+    font-size: var(--fs-xs);
+    color: var(--text-3);
   }
   .legend small {
     margin-left: 4px;

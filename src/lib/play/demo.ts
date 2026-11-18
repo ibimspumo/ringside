@@ -3,6 +3,7 @@
 // the page can be seen without Tauri. Calling the 3-bet leaves the prepared line: the flop is
 // "solved live" for a few seconds, and cancelling plays the hand on without grades.
 import { CLASSES, classCombos, classLabel, comboClass } from "../solver/range";
+import { positionsFor } from "../solver/scenario";
 import type { SolverNode } from "../solver/types";
 import type {
   Choice,
@@ -310,6 +311,32 @@ function handHeadsUp(): Script {
   return { seat: 0, stack: 40, ante: [0, 1], cards: [["Kh", "9h"], ["Qd", "7c"]], positions: ["SB", "BB"], script: [{ kind: "decide", d: pre }], auto: 2 };
 }
 
+/**
+ * The 6-max hand at a fuller table: `extra` early seats in front, who fold before the LJ.
+ * Every seat of the script moves up by `extra`.
+ */
+function wider(hand: Script, extra: number): Script {
+  if (extra <= 0) return hand;
+  const seat = (s: number) => s + extra;
+  const steps = (list: Step[]): Step[] =>
+    list.map((st) => {
+      if (st.kind === "act") return { ...st, seat: seat(st.seat) };
+      if (st.kind === "decide") return { ...st, d: { ...st.d, after: (k: number) => steps(st.d.after(k)) } };
+      if (st.kind === "end") return { ...st, winners: st.winners.map(seat), shown: st.shown.map(seat), made: st.made.length ? [...new Array(extra).fill(null), ...st.made] : [] };
+      return st;
+    });
+  const folds: Step[] = Array.from({ length: extra }, (_, s) => ({ kind: "act", seat: s, choice: c("fold", 0, 0) }));
+  const deck = ["Qh", "4s", "7c", "5d", "6c", "2h"];
+  return {
+    ...hand,
+    seat: seat(hand.seat),
+    ante: [...new Array(extra).fill(0), ...hand.ante],
+    cards: [...Array.from({ length: extra }, (_, s) => [deck[2 * s], deck[2 * s + 1]]), ...hand.cards],
+    positions: positionsFor(hand.cards.length + extra),
+    script: [...folds, ...steps(hand.script)],
+  };
+}
+
 // --- A tiny engine that plays a script into hand views ---------------------------------------
 
 type State = {
@@ -525,7 +552,8 @@ export function liveCancel(): HandView | null {
 
 function start(config: PlayConfig, seed: number): HandView {
   stopSolve();
-  const hand = config.players === 2 ? handHeadsUp() : config.mode === "push_fold" ? handB() : handA(config.mode === "full");
+  const six = config.mode === "push_fold" ? handB() : handA(config.mode === "full");
+  const hand = config.players === 2 ? handHeadsUp() : wider(six, Math.min(3, config.players - 6));
   const n = hand.cards.length;
   const put = new Array(n).fill(0);
   put[n - 2] = 0.5;
