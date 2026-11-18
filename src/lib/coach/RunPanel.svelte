@@ -96,7 +96,10 @@
       <ol class="stepper" aria-label="Ablauf">
         {#each STEPS as s, i (s)}
           <li class:done={i < stepOf(st.kind)} class:now={i === stepOf(st.kind)} aria-current={i === stepOf(st.kind) ? "step" : undefined}>
-            <span class="dot" aria-hidden="true"></span>{s}
+            <span class="dot" aria-hidden="true"
+              >{#if i < stepOf(st.kind)}<svg viewBox="0 0 24 24" width="9" height="9"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
+                >{/if}</span
+            >{s}
           </li>
         {/each}
       </ol>
@@ -335,17 +338,23 @@
     white-space: nowrap;
   }
   .stepper .dot {
-    width: 8px;
-    height: 8px;
+    display: grid;
+    place-items: center;
+    width: 14px;
+    height: 14px;
     border-radius: 50%;
     border: 1.5px solid var(--text-3);
+  }
+  .stepper .dot svg {
+    stroke: var(--bg);
+    stroke-width: 3.5;
   }
   .stepper .done {
     color: var(--text-2);
   }
   .stepper .done .dot {
-    background: var(--text-2);
-    border-color: var(--text-2);
+    background: var(--pos);
+    border-color: var(--pos);
   }
   .stepper .now {
     color: var(--text);

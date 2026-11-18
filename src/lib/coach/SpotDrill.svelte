@@ -468,16 +468,20 @@
     .detail {
       grid-template-columns: minmax(0, 1fr);
     }
-    .stage {
-      grid-template-columns: minmax(0, 1fr);
-    }
+    .stage,
     .side {
       display: contents;
     }
+    .top {
+      order: -4;
+    }
     .ask {
-      order: -2;
+      order: -3;
     }
     .act {
+      order: -2;
+    }
+    .detail {
       order: -1;
     }
     .table {

@@ -493,6 +493,8 @@
     max-height: min(52vh, 560px);
     overflow-y: auto;
     overscroll-behavior: contain;
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 36px), transparent);
+    padding-bottom: 24px;
   }
   .item {
     display: flex;
