@@ -113,11 +113,11 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .text b {
-    font-size: 14px;
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
@@ -139,7 +139,7 @@
     display: flex;
     align-items: center;
     gap: 7px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
   }
@@ -150,7 +150,7 @@
     height: 18px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .done .step {
     background: color-mix(in srgb, var(--pos) 25%, transparent);
@@ -163,7 +163,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .track.running {
@@ -182,7 +182,7 @@
     inset: 0 auto 0 0;
     background: var(--pos);
     border-radius: 2px;
-    transition: width var(--dur-slow) var(--ease-out);
+    transition: width var(--dur-slow) var(--ease-enter);
   }
   .track i.post {
     background: var(--pos);
@@ -196,7 +196,7 @@
       transparent 6px 12px
     );
     background-size: 17px 100%;
-    animation: stripes 1.2s var(--ease-in-out) infinite;
+    animation: stripes var(--dur-loop) var(--ease-standard) infinite;
   }
   @keyframes stripes {
     to {

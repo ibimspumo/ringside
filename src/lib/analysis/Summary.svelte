@@ -1,10 +1,15 @@
 <script lang="ts">
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import type { Filter } from "../types";
   import { int } from "../app/format";
-  import Term from "../app/Term.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import GradeBars from "../ui/GradeBars.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
+  import type { Grade } from "../ui/poker";
+  import Term from "../ui/Term.svelte";
   import { EV_LOSS_EXPLAIN, LEARN, RATING, RATING_RULE, RATINGS, SOURCE, SPOT, SPOT_HINT, bb } from "./labels";
   import { analysis } from "./store.svelte";
   import type { AnalysisSummary, Rating, SpotType } from "./types";
@@ -48,23 +53,10 @@
   const focus = $derived((data?.by_spot ?? []).filter((s) => s.spot && s.loss_bb > 0.5).slice(0, 3));
   const flawed = $derived(data ? data.ratings.slice(2).reduce((a, b) => a + b, 0) : 0);
   const cards = (s: string) => s.split(" ").filter(Boolean);
+  /** The analysis says "inaccuracy" where the kit's grade scale says "inaccurate". */
+  const grade = (r: Rating): Grade => (r === "inaccuracy" ? "inaccurate" : r);
 </script>
 
-{#snippet mark(r: Rating)}
-  <svg class="mark" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true">
-    {#if r === "best"}
-      <path d="M2 12.5l4.5 4.5L15 8.5M11.5 16l1 1L22 7.5" />
-    {:else if r === "good"}
-      <path d="M5 12.5l4.5 4.5L19 7.5" />
-    {:else if r === "inaccuracy"}
-      <circle cx="12" cy="12" r="8.5" /><path d="M12 11v5.5M12 7.8v.2" />
-    {:else if r === "mistake"}
-      <circle cx="12" cy="12" r="8.5" /><path d="M12 7v6M12 16.2v.2" />
-    {:else}
-      <path d="M12 3.5l9.5 16.5h-19z" /><path d="M12 10v4.5M12 17.2v.2" />
-    {/if}
-  </svg>
-{/snippet}
 
 {#if data && data.rated > 0 && strip}
   <section class="band">
@@ -86,6 +78,7 @@
   </section>
 {:else if data && data.rated > 0}
   {@const top = focus[0]?.loss_bb ?? 1}
+  {@const ratings = data.ratings}
   <section class="summary">
     <div class="totals">
       <span class="label"><Term tip={EV_LOSS_EXPLAIN}>Verlust durch Fehler</Term></span>
@@ -96,16 +89,11 @@
       <h4 class="levels-head">
         <Term tip={RATING_RULE}>So wurden deine {int(data.rated)} Entscheidungen bewertet</Term>
       </h4>
-      <ul class="levels">
-        {#each RATINGS as r, i (r)}
-          {@const share = data.ratings[i] / Math.max(data.rated, 1)}
-          <li style="--c:{RATING[r].color}">
-            <span class="lvl">{@render mark(r)}{RATING[r].label}</span>
-            <span class="lvl-bar" aria-hidden="true"><i style="width:{data.ratings[i] ? Math.max(1.5, share * 100) : 0}%"></i></span>
-            <b class="num">{int(data.ratings[i])}</b>
-          </li>
-        {/each}
-      </ul>
+      <GradeBars
+        label="Bewertungen deiner Entscheidungen"
+        grades={RATINGS.map(grade)}
+        counts={Object.fromEntries(RATINGS.map((r, i) => [grade(r), ratings[i]]))}
+      />
       <p class="flawed num">{int(flawed)} davon ungenau oder schlechter</p>
       <p class="sources">
         <span class="faint">Bewertet mit</span>
@@ -135,11 +123,11 @@
                 <span class="links">
                   {#if onLearn}
                     {#each LEARN[spot] as l, j (l.label)}
-                      <button class="btn {j === 0 ? 'go' : 'ghost'}" onclick={() => onLearn(l.target)}>{l.label}</button>
+                      <Button size="sm" variant={j === 0 ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
                     {/each}
                   {/if}
                   {#if onSpot}
-                    <button class="btn ghost" onclick={() => onSpot(spot)}>Hände ansehen</button>
+                    <Button size="sm" variant="quiet" onclick={() => onSpot(spot)}>Hände ansehen</Button>
                   {/if}
                 </span>
               </div>
@@ -153,17 +141,19 @@
       <div class="costly">
         <h3>Teuerste Entscheidungen</h3>
         {#each data.costliest.slice(0, 3) as c (c.hand_id + ":" + c.action_index)}
-          <button class="hand" onclick={() => onOpen(c.hand_id, c.action_index)}>
+          <Card pad="sm" onclick={() => onOpen(c.hand_id, c.action_index)}>
+            <span class="hand">
             <span class="hole">{#each cards(c.hero_cards) as card (card)}<PlayingCard {card} size={20} />{/each}</span>
             <span class="what">
               <span>{c.played} statt {c.best}</span>
               <small>{c.position ? `${c.position} · ` : ""}Hand ansehen</small>
             </span>
-            <span class="loss" style="--c:{c.rating ? RATING[c.rating].color : 'var(--text)'}">
+            <span class="loss" style="--c:{c.rating ? `var(--grade-${grade(c.rating)})` : 'var(--text)'}">
               <b class="num">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
-              {#if c.rating}<small>{@render mark(c.rating)}{RATING[c.rating].label}</small>{/if}
+              {#if c.rating}<small><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
             </span>
-          </button>
+            </span>
+          </Card>
         {/each}
       </div>
     {/if}
@@ -179,11 +169,11 @@
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
     background: var(--surface);
-    font-size: 13.5px;
+    font-size: var(--fs-base);
   }
   h3 {
     margin: 0 0 10px;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
@@ -194,7 +184,7 @@
   }
   .label {
     color: var(--text-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   abbr {
     text-decoration: underline dotted;
@@ -203,7 +193,7 @@
   }
   .big {
     font-family: var(--font-num);
-    font-size: 32px;
+    font-size: var(--fs-4xl);
     font-weight: 600;
     line-height: 1.1;
     color: var(--neg);
@@ -214,61 +204,14 @@
     line-height: 1.5;
   }
   .levels-head {
-    margin: 4px 0 2px;
-    font-size: 13px;
+    margin: 4px 0 4px;
+    font-size: var(--fs-md);
     font-weight: 400;
     color: var(--text-2);
   }
-  .levels {
-    display: grid;
-    gap: 5px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    font-size: 13px;
-  }
-  .levels li {
-    display: grid;
-    grid-template-columns: 118px minmax(0, 1fr) 46px;
-    align-items: center;
-    gap: 10px;
-  }
-  .lvl {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--c);
-    white-space: nowrap;
-  }
-  .mark {
-    flex: none;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  .lvl-bar {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--surface-2);
-    overflow: hidden;
-  }
-  .lvl-bar i {
-    transform-origin: left;
-    animation: grow-x var(--dur-slow) var(--ease-out) both;
-    display: block;
-    height: 100%;
-    border-radius: 3px;
-    background: var(--c);
-  }
-  .levels b {
-    font-weight: 500;
-    text-align: right;
-  }
   .flawed {
     margin: 2px 0 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .loss {
@@ -281,7 +224,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     white-space: nowrap;
   }
   .sources b {
@@ -293,7 +236,7 @@
     flex-wrap: wrap;
     gap: 2px 12px;
     margin: 6px 0 0;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   ol {
@@ -316,7 +259,7 @@
     border-radius: 50%;
     background: var(--surface-3);
     color: var(--text);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
   .body {
@@ -332,13 +275,13 @@
     gap: 12px;
   }
   .spot {
-    font-size: 14.5px;
+    font-size: var(--fs-base);
     font-weight: 600;
   }
   .cost {
     flex-shrink: 0;
     color: var(--neg);
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     font-weight: 600;
   }
   .meter {
@@ -349,7 +292,7 @@
   }
   .meter i {
     transform-origin: left;
-    animation: grow-x var(--dur-slow) var(--ease-out) both;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
     display: block;
     height: 100%;
     border-radius: 2px;
@@ -357,7 +300,7 @@
   }
   .hint {
     color: var(--text-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.5;
   }
   .links {
@@ -366,41 +309,16 @@
     gap: 6px;
     margin-top: 1px;
   }
-  .links .btn:not(.ghost) {
-    border-color: color-mix(in srgb, var(--text) 30%, transparent);
-    background: var(--surface-3);
-    font-weight: 600;
-  }
-  .links .btn {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 13px;
-  }
   .costly {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--sp-2);
   }
   .hand {
-    transition: background var(--dur-fast) var(--ease-out);
     display: grid;
     grid-template-columns: 46px minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
-    padding: 7px 8px;
-    margin: 0 -8px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    text-align: left;
-    color: var(--text);
-    cursor: pointer;
-  }
-  .hand:hover {
-    background: var(--surface-2);
-  }
-  .hand:hover .what small {
-    color: var(--text-2);
   }
   .hole {
     display: flex;
@@ -418,20 +336,20 @@
   }
   .what small {
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
   }
   .band {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .lead b {
     margin-left: 4px;
     font-family: var(--font-num);
-    font-size: 16px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--neg);
   }
@@ -450,7 +368,7 @@
     border: 0;
     background: transparent;
     color: var(--text);
-    font-size: 13px;
+    font-size: var(--fs-md);
     cursor: pointer;
   }
   .pair button:hover {

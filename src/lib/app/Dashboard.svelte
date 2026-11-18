@@ -10,7 +10,10 @@
   import type { Dashboard, Filter, GroupView, HudConfig, ResultPoint, StatId } from "../types";
   import { int, sign, signed } from "./format";
   import ResultsChart, { type Series } from "./ResultsChart.svelte";
-  import Term from "./Term.svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import Panel from "../ui/Panel.svelte";
+  import Term from "../ui/Term.svelte";
   import Wheel from "./Wheel.svelte";
 
   const SERIES: Series<ResultPoint>[] = [
@@ -156,29 +159,34 @@
 
 <div class="page dash">
   {#if failed}
-    <div class="panel state">
-      <b>Die Übersicht konnte nicht geladen werden.</b>
-      <span>Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu.</span>
-      <button class="btn primary" onclick={() => retry++}>Erneut laden</button>
-    </div>
+    <Panel>
+      <EmptyState
+        tone="error"
+        title="Die Übersicht konnte nicht geladen werden."
+        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+      >
+        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+      </EmptyState>
+    </Panel>
   {:else if data && r && r.hands === 0}
-    <div class="panel state">
-      <b>Noch keine Hände in dieser Auswahl</b>
-      <span>
-        Spiel ein paar Hände bei PokerStars – Ringside liest sie von selbst ein.{#if filter.since !== null || filter.game !== null}
-          Hast du schon gespielt, wähle oben „Alles“ und „Alle“.{/if}
-      </span>
-    </div>
+    <Panel>
+      <EmptyState
+        title="Noch keine Hände in dieser Auswahl"
+        text="Spiel ein paar Hände bei PokerStars – Ringside liest sie von selbst ein.{filter.since !== null || filter.game !== null
+          ? ' Hast du schon gespielt, wähle oben „Alles“ und „Alle“.'
+          : ''}"
+      />
+    </Panel>
   {:else if data && r}
     <section class="panel hero">
       <div class="answer">
         <span class="eyebrow">Dein Ergebnis</span>
-        <strong class="big num {sign(r.net_bb)}">{signed(r.net_bb)}<span class="unit"><Term tip={BB_HELP}>BB</Term></span></strong>
+        <strong class="big num {sign(r.net_bb)}">{signed(r.net_bb)}<span class="big-unit"><Term tip={BB_HELP}>BB</Term></span></strong>
         <p class="say">
           {r.net_bb >= 0 ? "Du liegst im Plus" : "Du liegst im Minus"} – nach {int(r.hands)} Händen{data.heroes.length
             ? ` als ${data.heroes.join(", ")}`
             : ""}.
-          {#if r.hands < FEW_HANDS}<span class="faint">Bei so wenigen Händen spielt der Zufall noch stark mit.</span>{/if}
+          {#if r.hands < FEW_HANDS}<span class="chance">Bei so wenigen Händen spielt der Zufall noch stark mit.</span>{/if}
         </p>
 
         <dl class="facts">
@@ -222,7 +230,7 @@
 
       <div class="curve">
         <div class="curve-head">
-          <h2 class="panel-title">So kam es dazu</h2>
+          <h2 class="curve-title">So kam es dazu</h2>
           <div class="legend">
             <span><i class="sw total"></i>Gesamt <b class="num {sign(r.net_bb)}">{signed(r.net_bb)}</b></span>
             <span><i class="sw ev"></i><Term tip={EV_HELP}>All-in-EV</Term> <b class="num {sign(r.ev_bb)}">{signed(r.ev_bb)}</b></span>
@@ -245,7 +253,7 @@
         <span class="next-label">Dein nächster Schritt</span>
         <p><b>{SPOT[spot]}</b> kostet dich bisher am meisten: {bb(next.loss_bb)}. {SPOT_HINT[spot]}</p>
         {#if onLearn}
-          <button class="btn primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</button>
+          <Button variant="primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</Button>
         {/if}
       </div>
     {/if}
@@ -268,16 +276,11 @@
     </section>
 
     {#if byPosition.length}
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">Wo du gewinnst – nach Position</h2>
-            <p class="lede">
-              <Term tip={WINRATE_HELP}>BB je 100 Hände</Term> auf jedem Platz am Tisch. In den Blinds verlieren fast alle, weil dort Pflichteinsätze
-              liegen; auf Button und Cutoff solltest du am meisten gewinnen.
-            </p>
-          </div>
-        </div>
+      <Panel
+        flush
+        title="Wo du gewinnst – nach Position"
+        sub="Big Blinds je 100 Hände auf jedem Platz am Tisch. In den Blinds verlieren fast alle, weil dort Pflichteinsätze liegen; auf Button und Cutoff solltest du am meisten gewinnen."
+      >
         <ul class="positions">
           <li class="pos-head" aria-hidden="true">
             <span>Platz</span><span class="r">Hände</span><span></span><span class="r">je 100 Hände</span><span class="r">gesamt</span>
@@ -291,30 +294,25 @@
                 <i class={p.rate >= 0 ? "up" : "down"} style="{p.rate >= 0 ? 'left' : 'right'}:50%; width:{w}%"></i>
               </span>
               <b class="num {sign(p.rate)}">{signed(p.rate, 1)}<span class="unit">BB/100</span></b>
-              <span class="pos-net num {sign(p.net)}">{signed(p.net)} BB</span>
+              <span class="pos-net num">{signed(p.net)} BB</span>
             </li>
           {/each}
         </ul>
-      </section>
+      </Panel>
     {/if}
 
-    <section class="panel">
-      <div class="panel-head">
-        <div>
-          <h2 class="panel-title">Dein Spielstil</h2>
-          <p class="lede">
-            Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ ist kein Fehler – ob ein Wert dich Geld kostet,
-            prüft die Seite Leaks.
-          </p>
-        </div>
-      </div>
+    <Panel
+      flush
+      title="Dein Spielstil"
+      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ ist kein Fehler – ob ein Wert dich Geld kostet, prüft die Seite Leaks."
+    >
       {#if hero && hud}
         <div class="style">
           <div class="who">
             <Wheel stats={hero.stats} {hud} size={64} hands={compact(heroHands)} />
             <div>
               <strong title={hero.name}>{hero.name}</strong>
-              <span class="num dim">{int(heroHands)} Hände</span>
+              <span class="num who-hands">{int(heroHands)} Hände</span>
             </div>
           </div>
           <div class="stats">
@@ -347,11 +345,9 @@
           </div>
         </div>
       {:else}
-        <div class="empty-state">
-          Noch keine eigenen Hände in dieser Auswahl. Ringside erkennt deinen Namen automatisch aus den Hand-Historys.
-        </div>
+        <EmptyState compact title="Noch keine eigenen Hände in dieser Auswahl" text="Ringside erkennt deinen Namen automatisch aus den Hand-Historys." />
       {/if}
-    </section>
+    </Panel>
   {/if}
 </div>
 
@@ -363,26 +359,6 @@
     gap: 18px;
     padding-top: 20px;
   }
-  .state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 48px 24px;
-    text-align: center;
-    color: var(--text-2);
-  }
-  .state b {
-    color: var(--text);
-    font-size: 15px;
-  }
-  .state span {
-    max-width: 520px;
-  }
-  .state .btn {
-    margin-top: 8px;
-  }
-
   /* The answer and the curve that explains it. */
   .hero {
     display: grid;
@@ -396,29 +372,32 @@
     border-right: 1px solid var(--line);
   }
   .eyebrow {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .big {
-    font-size: 44px;
+    font-size: var(--fs-hero);
     font-weight: 600;
     line-height: 1.05;
     letter-spacing: -0.01em;
     white-space: nowrap;
   }
-  .big .unit {
+  .big-unit {
+    margin-left: 3px;
+    color: var(--text-3);
     font-size: 0.5em;
+    font-weight: var(--fw-medium);
   }
   .say {
     margin: 2px 0 0;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     line-height: 1.5;
     color: var(--text);
   }
-  .say .faint {
+  .say .chance {
     display: block;
     margin-top: 2px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .next {
@@ -433,14 +412,14 @@
     background: var(--surface);
   }
   .next-label {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text-2);
     white-space: nowrap;
   }
   .next p {
     margin: 0;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     line-height: 1.45;
     color: var(--text-2);
   }
@@ -479,19 +458,19 @@
     padding-bottom: 0;
   }
   .facts dt {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .facts dd {
     margin: 0;
-    font-size: 19px;
+    font-size: var(--fs-xl);
     font-weight: 600;
     white-space: nowrap;
   }
   .facts small {
     grid-column: 1 / -1;
     margin-top: 2px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.45;
     color: var(--text-2);
   }
@@ -511,6 +490,11 @@
     position: absolute;
     inset: 0;
   }
+  .curve-title {
+    margin: 0;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
   .curve-head {
     display: flex;
     flex-wrap: wrap;
@@ -523,7 +507,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px 16px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .sw {
@@ -563,12 +547,12 @@
     gap: 12px;
     height: 32px;
     border-bottom: 1px solid var(--line);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .positions li.pos-head {
     height: 24px;
     border-bottom-color: var(--line-2);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-3);
   }
   .pos-head .r {
@@ -580,13 +564,9 @@
   .pos-hands,
   .pos-net {
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     text-align: right;
     white-space: nowrap;
-  }
-  .pos-net.pos,
-  .pos-net.neg {
-    opacity: 0.85;
   }
   .pos-bar {
     position: relative;
@@ -607,7 +587,7 @@
     position: absolute;
     top: 0;
     bottom: 0;
-    animation: grow-x var(--dur-slow) var(--ease-out) both;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
   }
   .pos-bar i.up {
     transform-origin: left;
@@ -620,7 +600,7 @@
     background: color-mix(in srgb, var(--neg) 80%, transparent);
   }
   .positions b {
-    font-size: 15px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     text-align: right;
     white-space: nowrap;
@@ -638,23 +618,16 @@
     margin-top: 6px;
   }
   .snapshot {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .section-title {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 17px;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
 
-  .panel-head .lede {
-    margin: 3px 0 0;
-    max-width: 760px;
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--text-2);
-  }
   .style {
     display: grid;
     grid-template-columns: 196px minmax(0, 1fr);
@@ -675,14 +648,15 @@
   }
   .who strong {
     display: block;
-    font-size: 15px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .who .dim {
-    font-size: 13px;
+  .who-hands {
+    color: var(--text-2);
+    font-size: var(--fs-md);
   }
   .stats {
     display: grid;
@@ -700,7 +674,7 @@
   }
   .stat .name {
     min-height: 2.7em;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     line-height: 1.35;
     color: var(--text-2);
   }
@@ -710,7 +684,7 @@
     gap: 8px;
   }
   .stat b {
-    font-size: 22px;
+    font-size: var(--fs-2xl);
     font-weight: 600;
     line-height: 1.2;
     color: var(--text);
@@ -720,7 +694,7 @@
   }
   .value em {
     font-style: normal;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .stat .leak-hint {
@@ -760,7 +734,7 @@
     box-shadow: 0 0 0 1px var(--surface);
   }
   .stat small {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;

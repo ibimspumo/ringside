@@ -198,13 +198,13 @@
   text {
     fill: var(--text-2);
     font-family: var(--font-num);
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     font-variant-numeric: tabular-nums;
   }
   .axis {
     fill: var(--text-2);
     font-family: var(--font-ui);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
   }
   .cross {

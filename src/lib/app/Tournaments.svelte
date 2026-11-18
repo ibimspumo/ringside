@@ -4,7 +4,10 @@
   import type { Filter, TournamentRow, Tournaments } from "../types";
   import { dateTime, int, sign, signed } from "./format";
   import ResultsChart, { type Series } from "./ResultsChart.svelte";
-  import Term from "./Term.svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import Panel from "../ui/Panel.svelte";
+  import Term from "../ui/Term.svelte";
 
   let {
     filter,
@@ -169,19 +172,25 @@
 
 <div class="page tours">
   {#if failed}
-    <div class="panel state">
-      <b>Die Turniere konnten nicht geladen werden.</b>
-      <span>Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu.</span>
-      <button class="btn primary" onclick={() => retry++}>Erneut laden</button>
-    </div>
+    <Panel>
+      <EmptyState
+        tone="error"
+        title="Die Turniere konnten nicht geladen werden."
+        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+      >
+        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+      </EmptyState>
+    </Panel>
   {:else if data && data.rows.length === 0}
-    <div class="panel state">
-      <b>Noch keine Turniere in diesem Zeitraum</b>
-      <span>
-        Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem Ordner „TournSummary“ neben „HandHistory“. Hast du
-        schon gespielt{filter.since !== null ? ", wähle oben „Alles“" : ", prüfe in den Einstellungen den Ordner der Hand-Historys"}.
-      </span>
-    </div>
+    <Panel>
+      <EmptyState
+        title="Noch keine Turniere in diesem Zeitraum"
+        text="Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem Ordner „TournSummary“ neben „HandHistory“. Hast du schon gespielt{filter.since !==
+        null
+          ? ', wähle oben „Alles“'
+          : ', prüfe in den Einstellungen den Ordner der Hand-Historys'}."
+      />
+    </Panel>
   {:else if data}
     {#if totals}
       {@const back = totals.prizes + totals.bounties}
@@ -202,7 +211,7 @@
           <p class="say">
             {totals.profit >= 0 ? "Du liegst im Plus" : "Du liegst im Minus"} nach {int(totals.tournaments)}
             {totals.tournaments === 1 ? "Turnier" : "Turnieren"}, Preisgeld und Bounties minus Buy-ins.
-            {#if totals.tournaments < FEW}<span class="faint"
+            {#if totals.tournaments < FEW}<span class="chance"
                 >Turnierergebnisse schwanken stark – nach so wenigen Turnieren ist das vor allem ein Zwischenstand.</span
               >{/if}
           </p>
@@ -260,18 +269,18 @@
         </dl>
       </section>
 
-      <section class="panel">
-        <div class="panel-head">
-          <div>
-            <h2 class="panel-title">Gewinn-Verlauf <span class="faint">· {NAMES[totals.currency] ?? totals.currency}</span></h2>
-            <p class="lede">Jeder Schritt ist ein Turnier: nach oben mit Preisgeld oder Bounties, nach unten, wenn der Buy-in weg ist.</p>
-          </div>
+      <Panel
+        flush
+        title="Gewinn-Verlauf · {NAMES[totals.currency] ?? totals.currency}"
+        sub="Jeder Schritt ist ein Turnier: nach oben mit Preisgeld oder Bounties, nach unten, wenn der Buy-in weg ist."
+      >
+        {#snippet actions()}
           {#if series.length > 1}
             <div class="legend">
               {#each series as s (s.key)}<span><i class="sw" style="background:{s.color}"></i>{s.label}</span>{/each}
             </div>
           {/if}
-        </div>
+        {/snippet}
         <div class="chart">
           <ResultsChart
             {points}
@@ -285,15 +294,11 @@
             empty="Noch kein Turnier mit Ergebnis in dieser Währung. Ergebnisse kommen aus den Turnier-Zusammenfassungen."
           />
         </div>
-      </section>
+      </Panel>
     {/if}
 
-    <section class="panel list">
-      <div class="panel-head">
-        <h2 class="panel-title">Deine Turniere</h2>
-        <span class="hint">Beträge in der Währung des Turniers · Zeile anklicken: Hände ansehen</span>
-      </div>
-      <table class="table">
+    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · Zeile anklicken: Hände ansehen">
+      <table class="table tours-table">
           <thead>
             <tr>
               {#each COLS as [col, label] (col)}
@@ -324,7 +329,7 @@
                 <td class="game">
                   <span class="gcell">
                     <span class="gname" title={r.name ? `${r.name} · ${r.game}` : r.game}>{r.name || r.game || "Turnier"}</span>
-                    <span class="faint">#{r.id}</span>
+                    <span class="gid">#{r.id}</span>
                   </span>
                 </td>
                 <td title={buyInTitle(r)}>{buyInText(r)}</td>
@@ -350,18 +355,23 @@
                 <td>{int(r.hands)}</td>
                 <td class="coach">
                   {#if notAnalyzable(r) === null}
-                    <button
-                      class="btn analyze"
+                    <Button
+                      size="sm"
+                      variant="quiet"
                       aria-label="Analysieren"
                       title="Vom KI-Coach analysieren lassen. Vorher siehst du, was gesendet wird und was es kostet."
-                      onclick={(e) => {
+                      onclick={(e: MouseEvent) => {
                         e.stopPropagation();
                         onAnalyze(r.id);
                       }}
-                      ><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
-                        ><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z" /></svg
-                      ><span>Analyse</span></button
                     >
+                      {#snippet icon()}<svg class="spark" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
+                          ><path
+                            d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z"
+                          /></svg
+                        >{/snippet}
+                      Analyse
+                    </Button>
                   {:else}
                     <span class="na" title={notAnalyzable(r)}>–</span>
                   {/if}
@@ -370,7 +380,7 @@
             {/each}
           </tbody>
       </table>
-    </section>
+    </Panel>
   {/if}
 </div>
 
@@ -381,25 +391,6 @@
     flex-direction: column;
     gap: 18px;
     padding-top: 20px;
-  }
-  .state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 48px 24px;
-    text-align: center;
-    color: var(--text-2);
-  }
-  .state b {
-    color: var(--text);
-    font-size: 15px;
-  }
-  .state span {
-    max-width: 560px;
-  }
-  .state .btn {
-    margin-top: 8px;
   }
 
   /* The answer, where the money went, and what it means. */
@@ -425,27 +416,27 @@
     justify-content: space-between;
     gap: 10px;
     min-height: 26px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .cur {
     flex-shrink: 0;
   }
   .big {
-    font-size: 40px;
+    font-size: var(--fs-hero);
     font-weight: 600;
     line-height: 1.05;
     white-space: nowrap;
   }
   .say {
     margin: 2px 0 0;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     line-height: 1.5;
   }
-  .say .faint {
+  .say .chance {
     display: block;
     margin-top: 4px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .flow {
@@ -461,12 +452,12 @@
     gap: 12px;
   }
   .flow-label {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .flow-row b {
     min-width: 76px;
-    font-size: 17px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     text-align: right;
   }
@@ -480,7 +471,7 @@
   }
   .flow-bar i {
     transform-origin: left;
-    animation: grow-x var(--dur-slow) var(--ease-out) both;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
     display: block;
     height: 100%;
   }
@@ -498,7 +489,7 @@
     flex-wrap: wrap;
     gap: 4px 18px;
     padding-left: 116px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .flow-key i {
@@ -525,40 +516,28 @@
     column-gap: 10px;
   }
   .facts dt {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .facts dd {
     margin: 0;
-    font-size: 19px;
+    font-size: var(--fs-xl);
     font-weight: 600;
     white-space: nowrap;
   }
   .facts small {
     grid-column: 1 / -1;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     line-height: 1.4;
     color: var(--text-2);
   }
 
-  .panel-title .faint {
-    font-weight: 400;
-  }
-  .lede {
-    margin: 3px 0 0;
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .hint {
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
   .legend {
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 4px 16px;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .sw {
@@ -571,19 +550,13 @@
   .chart {
     padding: 10px 14px 10px 4px;
   }
-  .list {
-    overflow: clip;
-  }
-  .list .panel-head {
-    padding-bottom: 6px;
-  }
-  .table th:nth-child(n + 3) {
+  .tours-table th:nth-child(n + 3) {
     padding-left: 16px;
   }
-  .table td {
+  .tours-table td {
     padding: 0 10px;
     height: 34px;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     white-space: nowrap;
   }
   tbody tr {
@@ -604,7 +577,7 @@
   td.game {
     text-align: left;
     font-family: var(--font-ui);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .gcell {
     display: flex;
@@ -620,10 +593,11 @@
   th:nth-child(2) {
     text-align: left;
   }
-  .game .faint {
+  .gid {
     flex-shrink: 0;
+    color: var(--text-3);
     font-family: var(--font-num);
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   td.place {
     min-width: 96px;
@@ -640,7 +614,7 @@
   }
   .depth i {
     transform-origin: left;
-    animation: grow-x var(--dur-slow) var(--ease-out) both;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
     display: block;
     height: 100%;
     background: var(--text-3);
@@ -655,28 +629,7 @@
     width: 1%;
     padding-right: 12px;
   }
-  .analyze svg {
-    flex: none;
-  }
 
-  .analyze {
-    border-color: transparent;
-    gap: 6px;
-    transition:
-      background var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out);
-    height: 26px;
-    padding: 0 10px;
-    font-size: 12.5px;
-    background: transparent;
-    color: var(--text-2);
-  }
-  tbody tr:hover .analyze,
-  .analyze:focus-visible {
-    border-color: var(--line-2);
-    background: var(--surface-3);
-    color: var(--text);
-  }
   .na {
     color: var(--text-3);
     cursor: help;
@@ -684,7 +637,7 @@
   .unknown {
     font-family: var(--font-ui);
     font-weight: 400;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-3);
   }
 
@@ -716,20 +669,20 @@
       gap: 0;
       line-height: 1.25;
     }
-    .game .faint {
-      font-size: 11px;
+    .gid {
+      font-size: var(--fs-xs);
     }
     .gname {
       max-width: 100%;
     }
-    .table th:nth-child(4),
-    .table td:nth-child(4),
+    .tours-table th:nth-child(4),
+    .tours-table td:nth-child(4),
     .depth {
       display: none;
     }
     .of {
       display: block;
-      font-size: 11px;
+      font-size: var(--fs-xs);
       line-height: 1.1;
     }
     td.place {
@@ -737,9 +690,6 @@
     }
     .gcell {
       max-width: 132px;
-    }
-    .analyze {
-      padding: 0 8px;
     }
 
     td.date span {
@@ -750,11 +700,11 @@
       content: none;
     }
     .clock {
-      font-size: 12px;
+      font-size: var(--fs-sm);
       color: var(--text-3);
     }
-    .table td,
-    .table th {
+    .tours-table td,
+    .tours-table th {
       padding-left: 6px;
       padding-right: 6px;
     }

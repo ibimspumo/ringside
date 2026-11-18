@@ -12,7 +12,12 @@
   import { STAT_META } from "../stats";
   import type { Filter, LeakCheck, LeakReport, SpotFilter } from "../types";
   import { int, sign, signed } from "./format";
-  import Term from "./Term.svelte";
+  import Badge from "../ui/Badge.svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import Panel from "../ui/Panel.svelte";
+  import Tag from "../ui/Tag.svelte";
+  import Term from "../ui/Term.svelte";
   import { slide } from "svelte/transition";
   import { cubicOut } from "svelte/easing";
 
@@ -259,14 +264,16 @@
       <div class="name">
         {#if rank !== null}<span class="rank num">{rank}</span>{/if}
         <h3>{STAT_META[l.stat].name}</h3>
-        <span class="dir" class:hi={high}>{high ? "zu hoch" : "zu niedrig"}</span>
+        <Badge tone={high ? "warn" : "info"}>{high ? "zu hoch" : "zu niedrig"}</Badge>
       </div>
       <div class="tags">
-        <span>{where(l)}</span>
-        <span><Term tip={BAND_HELP}>{data?.bands[l.band]}</Term></span>
-        <span>{game(l)}</span>
+        <Tag>{where(l)}</Tag>
+        <Tag><Term tip={BAND_HELP}>{data?.bands[l.band]}</Term></Tag>
+        <Tag>{game(l)}</Tag>
         {#if l.uncertain}
-          <span class="warn"><Term tip="Unter 30 Gelegenheiten oder weniger als 90 % sicher. Spiel mehr Hände, bevor du daran arbeitest.">noch unsicher</Term></span>
+          <Badge tone="warn"
+            ><Term tip="Unter 30 Gelegenheiten oder weniger als 90 % sicher. Spiel mehr Hände, bevor du daran arbeitest.">noch unsicher</Term></Badge
+          >
         {/if}
       </div>
     </header>
@@ -333,12 +340,14 @@
         {#if ex}<p class="why">{ex.why}</p>{/if}
         <div class="links">
           {#if ex}
-            <button class="btn" class:ghost={l.uncertain} onclick={() => onLearn(ex)}>Übung: {SKILLS[ex.kind].short}</button>
+            <Button size="sm" variant={l.uncertain ? "quiet" : "secondary"} onclick={() => onLearn(ex)}>Übung: {SKILLS[ex.kind].short}</Button>
           {/if}
           {#if article}
-            <button class="btn" class:ghost={!!ex || l.uncertain} onclick={() => onLearn({ article })}>Wissen: {title ?? STAT_META[l.stat].name}</button>
+            <Button size="sm" variant={ex || l.uncertain ? "quiet" : "secondary"} onclick={() => onLearn({ article })}
+              >Wissen: {title ?? STAT_META[l.stat].name}</Button
+            >
           {/if}
-          <button class="btn" class:ghost={!l.uncertain && (!!ex || !!article)} onclick={() => hands(l)}>Hände ansehen</button>
+          <Button size="sm" variant={!l.uncertain && (ex || article) ? "quiet" : "secondary"} onclick={() => hands(l)}>Hände ansehen</Button>
         </div>
       </div>
     </div>
@@ -347,11 +356,15 @@
 
 <div class="page leaks">
   {#if failed}
-    <div class="panel state">
-      <b>Die Leaks konnten nicht geladen werden.</b>
-      <span>Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu.</span>
-      <button class="btn primary" onclick={() => retry++}>Erneut laden</button>
-    </div>
+    <Panel>
+      <EmptyState
+        tone="error"
+        title="Die Leaks konnten nicht geladen werden."
+        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+      >
+        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+      </EmptyState>
+    </Panel>
   {:else if data}
     <section class="panel verdict" class:bare={!data.leaks.length && !data.fine.length}>
       <div class="answer">
@@ -406,10 +419,12 @@
         </li>
       </ul>
       <div class="how">
-        <button class="toggle" aria-expanded={howOpen} onclick={() => (howOpen = !howOpen)}>
-          <svg class:open={howOpen} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+        <Button size="sm" variant="quiet" aria-expanded={howOpen} onclick={() => (howOpen = !howOpen)}>
+          {#snippet icon()}<svg class="chev" class:open={howOpen} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"
+              ><path d="M9 6l6 6-6 6" /></svg
+            >{/snippet}
           So liest du die Balken
-        </button>
+        </Button>
         {#if howOpen}
         <dl class="legend" transition:slide={{ duration: 220, easing: cubicOut }}>
           <div><dt><span class="key ref"></span>Grüner Bereich</dt><dd>der Richtwert aus den Quellen</dd></div>
@@ -439,13 +454,17 @@
 
     {#if data.fine.length}
       {@const shown = fineOpen ?? data.fine.length <= 8}
-      <section class="panel fine">
-        <button class="toggle head" aria-expanded={shown} onclick={() => (fineOpen = !shown)}>
-          <svg class:open={shown} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-          Im Richtbereich <span class="faint">({int(data.fine.length)}) – hier passt es</span>
-        </button>
+      <Panel flush title="Im Richtbereich ({int(data.fine.length)})" sub="Hier passt es – diese Werte liegen im Richtbereich der Quellen.">
+        {#snippet actions()}
+          <Button size="sm" variant="quiet" aria-expanded={shown} onclick={() => (fineOpen = !shown)}>
+            {#snippet icon()}<svg class="chev" class:open={shown} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"
+                ><path d="M9 6l6 6-6 6" /></svg
+              >{/snippet}
+            {shown ? "Einklappen" : "Zeigen"}
+          </Button>
+        {/snippet}
         {#if shown}
-        <ul transition:slide={{ duration: 260, easing: cubicOut }}>
+        <ul class="fine-list" transition:slide={{ duration: 260, easing: cubicOut }}>
           {#each data.fine as l (key(l))}
             <li>
               <div class="fine-head">
@@ -453,19 +472,19 @@
                   <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
                   <Term tip="{STAT_META[l.stat].name}: {STAT_META[l.stat].help}">{STAT_META[l.stat].name}</Term>
                 </b>
-                <span class="faint">{where(l)} · {game(l)} · {data.bands[l.band]}</span>
+                <span class="fine-where">{where(l)} · {game(l)} · {data.bands[l.band]}</span>
               </div>
               {@render bar(l, true)}
               <div class="fine-nums num">
                 <span>Du <b>{val(l, l.value)}</b></span>
                 <span>Richtwert {range(l)}</span>
-                <span class="faint">{int(l.opp)} Gelegenheiten</span>
+                <span class="fine-opp">{int(l.opp)} Gelegenheiten</span>
               </div>
             </li>
           {/each}
         </ul>
         {/if}
-      </section>
+      </Panel>
     {/if}
 
     {#if !data.leaks.length && !data.fine.length}
@@ -473,9 +492,8 @@
         Richtwerte aus: {#each data.sources as s, i (s.id)}{#if i}{", "}{/if}<Term tip="{s.title} – {s.scope}">{s.publisher}</Term>{/each}
       </p>
     {:else}
-    <section class="panel sources">
-      <h2 class="panel-title">Quellen der Richtwerte</h2>
-      <ul>
+    <Panel title="Quellen der Richtwerte">
+      <ul class="sources">
         {#each data.sources as s (s.id)}
           <li>
             {#if s.url}
@@ -483,11 +501,11 @@
             {:else}
               <span>{s.publisher}: {s.title}</span>
             {/if}
-            <small class="faint">{s.scope}</small>
+            <small>{s.scope}</small>
           </li>
         {/each}
       </ul>
-    </section>
+    </Panel>
     {/if}
   {/if}
 </div>
@@ -499,25 +517,6 @@
     flex-direction: column;
     gap: 14px;
     padding-top: 20px;
-  }
-  .state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 48px 24px;
-    text-align: center;
-    color: var(--text-2);
-  }
-  .state b {
-    color: var(--text);
-    font-size: 15px;
-  }
-  .state span {
-    max-width: 520px;
-  }
-  .state .btn {
-    margin-top: 8px;
   }
 
   /* The answer: how many leaks, where to start. */
@@ -536,20 +535,20 @@
   .answer h2 {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 26px;
+    font-size: var(--fs-3xl);
     font-weight: 600;
     line-height: 1.15;
   }
   .answer p {
     margin: 6px 0 0;
     max-width: 720px;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     line-height: 1.55;
     color: var(--text);
   }
   .answer .honest {
     margin-top: 8px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .counts {
@@ -570,7 +569,7 @@
     background: var(--surface-2);
   }
   .counts b {
-    font-size: 28px;
+    font-size: var(--fs-3xl);
     font-weight: 600;
     line-height: 1;
     color: var(--text);
@@ -587,45 +586,31 @@
   .counts span {
     display: flex;
     flex-direction: column;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     line-height: 1.35;
     color: var(--text-2);
   }
   .counts strong {
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
-  .how {
-    grid-column: 1 / -1;
-    margin: -4px 0 0;
-    font-size: 13px;
-    color: var(--text-2);
-  }
-  .toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 2px 0;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font: inherit;
-    cursor: pointer;
-  }
-  .toggle svg.open {
-    transform: rotate(90deg);
-  }
-  .toggle:hover {
-    color: var(--text);
-  }
-  .toggle svg {
-    transition: transform var(--dur) var(--ease-out);
+  .chev {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
+    transition: transform var(--dur) var(--ease-standard);
+  }
+  .chev.open {
+    transform: rotate(90deg);
+  }
+  .how {
+    grid-column: 1 / -1;
+    margin: -4px 0 0;
+    font-size: var(--fs-md);
+    color: var(--text-2);
   }
   .legend {
     display: flex;
@@ -680,12 +665,12 @@
   .group {
     margin: 10px 0 0;
     font-family: var(--font-num);
-    font-size: 16px;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
   .group span {
     font-family: var(--font-ui);
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     font-weight: 400;
     color: var(--text-2);
   }
@@ -720,41 +705,18 @@
     height: 24px;
     border-radius: 50%;
     background: var(--surface-3);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
   h3 {
     margin: 0;
-    font-size: 16px;
+    font-size: var(--fs-lg);
     font-weight: 600;
-  }
-  .dir {
-    padding: 2px 8px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--sd) 16%, transparent);
-    color: var(--sd);
-    font-size: 12.5px;
-    font-weight: 600;
-  }
-  .dir.hi {
-    background: color-mix(in srgb, var(--amber) 16%, transparent);
-    color: var(--amber);
   }
   .tags {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-  }
-  .tags > span {
-    padding: 2px 9px;
-    border-radius: 999px;
-    background: var(--surface-2);
-    color: var(--text-2);
-    font-size: 12.5px;
-  }
-  .tags .warn {
-    background: color-mix(in srgb, var(--amber) 14%, transparent);
-    color: var(--amber);
   }
   .body {
     display: grid;
@@ -779,15 +741,15 @@
     min-width: 0;
   }
   .label {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .fig b {
-    font-size: 20px;
+    font-size: var(--fs-xl);
     font-weight: 600;
   }
   .fig small {
-    font-size: 13px;
+    font-size: var(--fs-md);
     line-height: 1.4;
     color: var(--text-2);
   }
@@ -805,7 +767,7 @@
     padding: 0;
   }
   .end {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .track-wrap {
@@ -858,7 +820,7 @@
   }
   .lab {
     position: absolute;
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
     white-space: nowrap;
     transform: translateX(-50%);
@@ -890,7 +852,7 @@
     padding: 14px 16px;
     border-radius: var(--r-sm);
     background: var(--surface-2);
-    font-size: 13.5px;
+    font-size: var(--fs-base);
     line-height: 1.5;
     color: var(--text-2);
   }
@@ -907,7 +869,7 @@
     color: var(--text);
   }
   .advice .why {
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .advice .todo.wait {
@@ -920,14 +882,6 @@
     margin-top: auto;
     padding-top: 6px;
   }
-  .links .btn {
-    color: var(--text);
-  }
-  .links .btn:not(.ghost) {
-    border-color: color-mix(in srgb, var(--text) 30%, transparent);
-    background: var(--surface-3);
-    font-weight: 600;
-  }
   .cites {
     display: flex;
     flex-direction: column;
@@ -935,23 +889,11 @@
     margin-top: auto;
     padding-top: 10px;
     border-top: 1px solid var(--line);
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
 
-  .fine .head {
-    width: 100%;
-    padding: 14px 20px;
-    color: var(--text);
-    font-size: 13.5px;
-    font-weight: 600;
-    text-align: left;
-  }
-  .fine .head .faint {
-    font-weight: 400;
-    color: var(--text-2);
-  }
-  .fine ul {
+  .fine-list {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 10px;
@@ -959,7 +901,7 @@
     padding: 0 20px 18px;
     list-style: none;
   }
-  .fine li {
+  .fine-list li {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -970,7 +912,7 @@
   .fine-head {
     display: flex;
     flex-direction: column;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
   }
   .ok-name {
     display: flex;
@@ -984,18 +926,21 @@
     stroke-linecap: round;
     stroke-linejoin: round;
   }
-  .fine-head .faint {
-    font-size: 12.5px;
+  .fine-list .small .track {
+    background: var(--surface-3);
+  }
+  .fine-where {
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .fine .small .track {
-    background: var(--surface-3);
+  .fine-opp {
+    color: var(--text-3);
   }
   .fine-nums {
     display: flex;
     flex-wrap: wrap;
     gap: 2px 14px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .fine-nums b {
@@ -1003,23 +948,20 @@
     font-weight: 600;
   }
 
-  .sources {
-    padding: 14px 20px 14px;
-  }
   .sources-line {
     margin: 0;
     padding: 0 4px;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
-  .sources ul {
+  .sources {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
     gap: 10px 28px;
     margin: 10px 0 0;
     padding: 0;
     list-style: none;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
   }
   .sources li {
     display: flex;
@@ -1030,7 +972,7 @@
     color: var(--text);
   }
   .sources small {
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
 
@@ -1055,7 +997,7 @@
       padding: 8px 12px;
     }
     .counts b {
-      font-size: 22px;
+      font-size: var(--fs-2xl);
     }
   }
   @container (max-width: 900px) {
