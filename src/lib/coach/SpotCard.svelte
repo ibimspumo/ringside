@@ -31,7 +31,7 @@
   );
 </script>
 
-<article class="spot v-{spot.verdict}" id="spot-{index}" aria-labelledby="spot-{index}-title">
+<article class="spot v-{spot.verdict}" id="spot-{index}" tabindex="-1" aria-labelledby="spot-{index}-title">
   <div class="visual" aria-label="Deine Karten {street}">
     <Felt>
       <span class="chip pos" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
@@ -120,6 +120,13 @@
     background: var(--surface);
     box-shadow: inset 3px 0 0 var(--accent);
     scroll-margin-top: 16px;
+  }
+  .spot:focus {
+    outline: none;
+  }
+  .spot:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .v-stark {
     --accent: var(--pos);

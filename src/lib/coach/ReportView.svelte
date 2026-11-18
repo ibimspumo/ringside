@@ -6,6 +6,7 @@
 </script>
 
 <script lang="ts">
+  import PlayingCard from "../PlayingCard.svelte";
   import { cost, duration, tokens } from "./api";
   import { conceptName } from "./concepts";
   import { VERDICTS, shortModel, toPractise } from "./meaning";
@@ -46,11 +47,34 @@
   /** The concept of the first spot to practise: the report's main lesson. */
   const lesson = $derived(weak[0] ? { concept: weak[0].spot.concept, ...practice(weak[0].spot.concept) } : null);
 
-  function jump(n: number) {
-    show = "all";
-    requestAnimationFrame(() => document.getElementById(`spot-${n}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  /** The spot last jumped to, for stepping with the arrow keys. */
+  let current = $state<number | null>(null);
+
+  function jump(n: number, keepFilter = false) {
+    if (!keepFilter) show = "all";
+    current = n;
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`spot-${n}`);
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+      el?.focus({ preventScroll: true });
+    });
+  }
+
+  /** ← and → step through the shown decisions, like a hand replayer. */
+  function onKey(e: KeyboardEvent) {
+    if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    const t = e.target as HTMLElement | null;
+    if (t?.closest("input, textarea, select, [role=radiogroup], [contenteditable]")) return;
+    if (!shown.length) return;
+    e.preventDefault();
+    const at = shown.findIndex((s) => s.n === current);
+    const next = at < 0 ? 0 : Math.max(0, Math.min(shown.length - 1, at + (e.key === "ArrowRight" ? 1 : -1)));
+    jump(shown[next].n, true);
   }
 </script>
+
+<svelte:window onkeydown={onKey} />
 
 <div class="report">
   <section class="panel hero" aria-labelledby="report-title">
@@ -119,13 +143,28 @@
         </div>
         <ul class="legend">
           {#each counts as c (c.id)}
-            <li class:zero={c.n === 0}>
-              <i class="v-{c.id}" aria-hidden="true"></i>
-              <b class="num">{c.n}</b>
-              <span><span class="vname">{c.name}</span> · {c.meaning}</span>
+            <li class:zero={c.n === 0} title="{c.name}: {c.meaning}">
+              <i class="v-{c.id}" aria-hidden="true"></i><b class="num">{c.n}</b> {c.name}
             </li>
           {/each}
         </ul>
+        {#if weak.length}
+          <ol class="worst" aria-label="Entscheidungen zum Üben">
+            {#each weak as s (s.n)}
+              <li>
+                <button class="v-{s.spot.verdict}" onclick={() => jump(s.n)}>
+                  <i aria-hidden="true"></i>
+                  <span class="mini-cards">
+                    {#each s.spot.hero_cards as c (c)}<PlayingCard card={c} size={18} />{/each}
+                  </span>
+                  <span class="pos">{s.spot.position ?? "–"}</span>
+                  <span class="txt">{s.spot.better ? `Besser: ${s.spot.better}` : s.spot.action}</span>
+                  <span class="go num" aria-hidden="true">{s.n} →</span>
+                </button>
+              </li>
+            {/each}
+          </ol>
+        {/if}
       </div>
     </div>
   </section>
@@ -146,6 +185,7 @@
 
   <div class="list-head">
     <h3>Deine Entscheidungen</h3>
+    <span class="keys"><kbd>←</kbd><kbd>→</kbd> springen</span>
     <div class="seg" role="radiogroup" aria-label="Entscheidungen filtern">
       {#each [["all", "Alle", spots.length], ["practise", "Zum Üben", weak.length], ["good", "Gut gespielt", spots.length - weak.length]] as [id, label, n] (id)}
         <button role="radio" aria-checked={show === id} class:on={show === id} onclick={() => (show = id as Show)}>
@@ -339,15 +379,16 @@
     margin: 0;
     padding: 0;
     display: flex;
-    flex-direction: column;
-    gap: 5px;
-    font-size: 13px;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    font-size: 12.5px;
     color: var(--text-2);
   }
   .legend li {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: 5px;
+    cursor: help;
   }
   .legend i {
     width: 8px;
@@ -358,11 +399,66 @@
     transform: translateY(-1px);
   }
   .legend b {
-    min-width: 12px;
     color: var(--text);
     font-weight: 600;
   }
-  .vname {
+  .worst {
+    list-style: none;
+    margin: 2px 0 0;
+    padding: 8px 0 0;
+    border-top: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .worst button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 5px 6px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    text-align: left;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .worst button:hover {
+    background: var(--surface-2);
+  }
+  .worst i {
+    width: 3px;
+    align-self: stretch;
+    border-radius: 2px;
+    background: var(--c);
+    flex-shrink: 0;
+  }
+  .mini-cards {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .pos {
+    width: 28px;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .txt {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .go {
+    flex-shrink: 0;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  .worst button:hover .go {
     color: var(--text);
   }
   .legend li.zero {
@@ -427,6 +523,30 @@
   }
   .list-head h3 {
     font-size: 15px;
+  }
+  .keys {
+    margin-right: auto;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  kbd {
+    display: inline-grid;
+    place-items: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 4px;
+    border: 1px solid var(--line-2);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    color: var(--text-2);
+  }
+  .keys kbd:last-of-type {
+    margin-right: 4px;
   }
   .spots {
     display: flex;
