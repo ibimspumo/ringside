@@ -42,6 +42,14 @@
     onChooseFolder: () => void;
   } = $props();
 
+  // Browser demo: &navfocus=<n> puts the keyboard focus on the n-th menu entry, for pictures.
+  const focusAt = Number(new URLSearchParams(window.location.search).get("navfocus"));
+  $effect(() => {
+    if (!Number.isInteger(focusAt) || focusAt < 1) return;
+    const t = window.setTimeout(() => document.querySelectorAll<HTMLElement>("[data-nav]")[focusAt - 1]?.focus(), 400);
+    return () => clearTimeout(t);
+  });
+
   $effect(() => {
     void refresh;
     navLive.load(filter, tournaments, tables, status?.total_hands ?? 0, hud);
@@ -75,5 +83,12 @@
   .dock {
     display: flex;
     width: 190px;
+    overflow: hidden;
+  }
+  /* Narrow windows: only the ring of the task center; a click still opens the list. */
+  @media (max-width: 1279px) {
+    .dock {
+      width: 46px;
+    }
   }
 </style>

@@ -11,12 +11,15 @@
     kind,
     variant = "inline",
     hint,
+    label,
     children,
   }: {
     kind: Source;
     variant?: "inline" | "block";
     /** Hover text of the inline mark when the caller knows more than the general line. */
     hint?: string;
+    /** A shorter inline name where the full one does not fit, e.g. in a side bar; the hover text says the rest. */
+    label?: string;
     children?: Snippet;
   } = $props();
 
@@ -25,7 +28,7 @@
 
 {#if variant === "inline"}
   <span class="ui-source inline" class:locked={kind === "locked"} class:fact={kind === "computed"} title={hint ?? s.text}>
-    {@render mark()}{s.label}
+    {@render mark()}{label ?? s.label}
   </span>
 {:else}
   <div class="ui-source block" class:locked={kind === "locked"} class:fact={kind === "computed"} role="note">

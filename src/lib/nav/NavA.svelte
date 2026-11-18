@@ -101,7 +101,11 @@
 
   <footer>
     {#if locked}
-      <div class="lock"><SourceNote kind="locked" hint="Lernen, Hände spielen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt. HUD und Statistik laufen weiter." /></div>
+      <div class="lock"><SourceNote
+          kind="locked"
+          label="PokerStars läuft: Üben gesperrt"
+          hint="Gesperrt, solange PokerStars läuft. Lernen, Hände spielen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt; HUD und Statistik laufen weiter."
+        /></div>
     {/if}
     {@render foot()}
     <div use:arrowNav>
@@ -136,7 +140,7 @@
   nav {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 10px;
     min-height: 0;
     overflow-y: auto;
   }

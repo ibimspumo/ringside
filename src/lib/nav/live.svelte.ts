@@ -44,7 +44,7 @@ class NavLive {
     const last = [...tournaments].sort((a, b) => b.started_at.localeCompare(a.started_at))[0];
     if (last?.place && last.entrants) v.dashboard = live(`Platz ${int(last.place)}`, `Zuletzt Platz ${int(last.place)} von ${int(last.entrants)}`);
     if (tournaments.length) v.tournaments = live(int(tournaments.length), `${int(tournaments.length)} gespielt`);
-    v.live = tables > 0 ? live(String(tables), tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`, "good") : live("", "keiner offen");
+    v.live = tables > 0 ? live(String(tables), tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`, "good", tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`) : live("", "keiner offen");
 
     const [leaks, summary, progress, library, players] = await Promise.allSettled([
       api.leaks(filter),

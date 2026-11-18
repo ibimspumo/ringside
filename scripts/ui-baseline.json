@@ -133,7 +133,7 @@
       }
     },
     "global-class-override": {
-      "total": 63,
+      "total": 61,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/Main.svelte": 3,
@@ -142,7 +142,7 @@
         "hud/GraphicSeat.svelte": 1,
         "hud/ThresholdScale.svelte": 1,
         "jobs/ChipRing.svelte": 1,
-        "jobs/JobsDock.svelte": 3,
+        "jobs/JobsDock.svelte": 1,
         "jobs/JobToasts.svelte": 1,
         "learn/FeedbackView.svelte": 1,
         "learn/OwnHands.svelte": 4,

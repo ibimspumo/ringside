@@ -22,7 +22,13 @@
     color: var(--text-2);
   }
   .side {
+    flex-direction: row;
+    justify-content: space-between;
+    gap: var(--sp-2);
     padding: 0 10px;
+  }
+  .side .long {
+    display: none;
   }
   .bar {
     flex-direction: row;
@@ -53,18 +59,9 @@
     font-weight: var(--fw-regular);
     color: var(--text);
   }
-  @media (max-height: 760px) {
-    .side {
-      flex-direction: row;
-      justify-content: space-between;
-      gap: var(--sp-2);
-    }
-    .side .long {
-      display: none;
-    }
-  }
   @media (max-width: 1279px) {
-    .bar .long {
+    .bar .long,
+    .bar .stored {
       display: none;
     }
   }

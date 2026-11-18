@@ -189,13 +189,13 @@
 
   /* Highlighted: icon on a plate, status line below the name. */
   .lg {
-    min-height: 50px;
+    min-height: 46px;
     padding: var(--sp-2) 10px var(--sp-2) 6px;
     gap: 10px;
   }
   .lg .ico {
-    width: 34px;
-    height: 34px;
+    width: 32px;
+    height: 32px;
     border-radius: var(--r-md);
     background: var(--surface-2);
     color: var(--text);
@@ -249,6 +249,7 @@
 
   /* Tab of a top bar: the open menu keeps the hover surface. */
   .top {
+    flex-shrink: 0;
     width: auto;
     height: 36px;
     padding: 0 10px 0 var(--sp-3);

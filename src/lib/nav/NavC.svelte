@@ -150,10 +150,9 @@
           <span class="plate"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={menu.icon} /></svg></span>
           <b>{menu.label}</b>
           <p>{menu.text}</p>
-          {#if line.tone !== "neutral" || line.text !== menu.short}<span class="line {line.tone}">{line.text}</span>{/if}
           {#if locked && menu.pages.some(lockedNow)}
             <SourceNote kind="locked" />
-          {/if}
+          {:else if line.tone !== "neutral" || line.text !== menu.short}<span class="line {line.tone}">{line.text}</span>{/if}
         </div>
         <div class="tiles" class:three={menu.pages.length === 3}>
           {#each menu.pages as p (p)}
@@ -212,6 +211,7 @@
     letter-spacing: 0.02em;
   }
   .intents {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 2px;
@@ -348,6 +348,9 @@
     }
   }
   @media (max-width: 1279px) {
+    .bar {
+      gap: var(--sp-3);
+    }
     .brand strong {
       display: none;
     }
