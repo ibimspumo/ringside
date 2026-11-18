@@ -24,6 +24,9 @@
   let columns = $state<"core" | "all">(preview("cols") === "all" ? "all" : "core");
   /** Tables whose columns do not fit, by key. */
   let more = $state<Record<string, boolean>>({});
+  let width = $state(0);
+  /** From this width the detail stands next to the tables instead of sliding over them. */
+  const docked = $derived(width >= 1500);
   let selected = $state<{ key: string; player: PlayerView; table: TableView; hero: boolean } | null>(null);
 
   function load() {
@@ -83,7 +86,7 @@
   }
 </script>
 
-<div class="page roomy">
+<div class="page roomy" bind:clientWidth={width}>
   {#if pokerClient.running}
     <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du erst wieder, wenn du PokerStars schließt. Die Werte aus dem HUD bleiben sichtbar.</SourceNote>
   {/if}
@@ -103,6 +106,8 @@
     </div>
   {/if}
 
+  <div class="split" class:docked={docked && !!selected}>
+  <div class="tables">
   {#each tables as t (t.table_key)}
     {@const [name, detail] = titleParts(t.title)}
     <section class="table-card" aria-label={t.title}>
@@ -127,6 +132,7 @@
             rows={rowsOf(table)}
             hud={table.hud}
             {columns}
+            advice={pokerClient.running === false}
             extra={extraOf(table)}
             selected={selected?.key ?? null}
             onPick={(k) => pick(table, k)}
@@ -145,9 +151,22 @@
       <EmptyState tone="loading" title="Suche offene Tische" />
     {/if}
   {/each}
+  </div>
+  {#if docked && selected}
+    <PlayerDetail
+      player={selected.player}
+      hud={selected.table.hud}
+      advice={pokerClient.running === false}
+      hero={selected.hero}
+      docked
+      onClose={() => (selected = null)}
+      onHands={(name, id) => onHands(name, id)}
+    />
+  {/if}
+  </div>
 </div>
 
-{#if selected}
+{#if selected && !docked}
   <PlayerDetail
     player={selected.player}
     hud={selected.table.hud}
@@ -165,6 +184,21 @@
     flex-direction: column;
     gap: var(--sp-4);
     max-width: 1640px;
+  }
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--sp-5);
+    align-items: start;
+  }
+  .split.docked {
+    grid-template-columns: minmax(0, 1fr) clamp(380px, 30%, 500px);
+  }
+  .tables {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    min-width: 0;
   }
   .tools {
     display: flex;

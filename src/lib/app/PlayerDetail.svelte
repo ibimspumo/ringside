@@ -80,7 +80,7 @@
         <span class="num">{int(hands)}</span> gemeinsame {hands === 1 ? "Hand" : "Hände"}
       </span>
     </div>
-    {#if onClose && !docked}
+    {#if onClose}
       <IconButton label="Schließen (Esc)" onclick={onClose}><svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6 6 18" /></svg></IconButton>
     {/if}
   </header>
@@ -98,12 +98,12 @@
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
         </div>
         <p class="type"><b>{t.name}</b> <span>{t.sketch}</span></p>
-        <p class="counter"><span class="kicker">Gegenzug</span>{t.counter}</p>
+        <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
         <p class="why">{t.why}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>
           <i aria-hidden="true"></i>
           {#if r.sure === "sure"}
-            Stabil nach {int(r.hands)} Händen: Mehr Hände ändern den Typ sehr wahrscheinlich nicht mehr.
+            Klares Muster nach {int(r.hands)} Händen: Der Typ passt gut, ganz fest steht er aber nie.
           {:else if r.sure === "maybe"}
             Knapp nach {int(r.hands)} Händen: Er liegt nah an der Grenze zu einem anderen Typ.
           {:else}

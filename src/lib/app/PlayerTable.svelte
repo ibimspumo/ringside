@@ -68,6 +68,22 @@
   } = $props();
 
   const SHORT: Partial<Record<StatId, string>> = { pfr: "PFR", three_bet: "3-Bet", af: "AF" };
+  /** All twelve side by side: German words, two lines where needed. */
+  const NARROW: Record<StatId, string> = {
+    hands: "Hände",
+    vpip: "VPIP",
+    pfr: "PFR",
+    three_bet: "3-Bet",
+    af: "AF",
+    fold_to_three_bet: "Fold auf\n3-Bet",
+    steal: "Steal",
+    fold_to_steal: "Fold auf\nSteal",
+    cbet: "C-Bet",
+    fold_to_cbet: "Fold auf\nC-Bet",
+    wtsd: "Show-\ndown",
+    wsd: "Showdown\ngewonnen",
+    afq: "Aggr.\nnach Flop",
+  };
   const cols = $derived(columns === "all" ? [...CORE, ...MORE] : CORE);
   const before = $derived(extra.filter((c) => c.at === "before"));
   const after = $derived(extra.filter((c) => c.at === "after"));
@@ -118,7 +134,7 @@
       {#each cols as id (id)}
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
           <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="bottom">
-            {@render head(id, columns === "core" ? `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}` : STAT_META[id].short)}
+            {@render head(id, columns === "core" ? `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}` : NARROW[id])}
           </Tooltip>
         </th>
       {/each}
@@ -191,7 +207,8 @@
     top: 0;
     z-index: var(--z-raised);
     height: 36px;
-    padding: 0 var(--sp-2);
+    vertical-align: bottom;
+    padding: var(--sp-2) var(--sp-2) 10px;
     background: var(--surface);
     border-bottom: 1px solid var(--line-2);
     text-align: right;

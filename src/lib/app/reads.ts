@@ -20,7 +20,7 @@ export const TYPE: Record<PlayerType, { name: string; long: string; sketch: stri
     long: "TAG (eng und aggressiv)",
     sketch: "Spielt wenige Hände, die aber mit Raise.",
     counter: "Solide spielen, ohne große Anpassung.",
-    why: "Er macht wenig falsch. Große Anpassungen kosten hier eher.",
+    why: "Er spielt eng und meist mit Raise. Große Anpassungen gegen ihn lohnen selten.",
     band: [15, 27],
   },
   lag: {
@@ -87,7 +87,7 @@ export function read(stats: StatValue[]): Read | null {
   const type = classify(vpip.value, pfr.value);
   const ok = type ? trusted(type, vpip.value, hands) : false;
   const sure: Sureness = ok === true ? "sure" : ok === null ? "maybe" : "unsure";
-  const word = sure === "sure" ? "stabil" : sure === "maybe" ? "knapp" : "noch unsicher";
+  const word = sure === "sure" ? "klares Muster" : sure === "maybe" ? "knapp" : "noch unsicher";
   return { type, hands, sure, note: `nach ${hands.toLocaleString("de-DE")} ${hands === 1 ? "Hand" : "Händen"} ${word}` };
 }
 

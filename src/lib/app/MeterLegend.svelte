@@ -8,10 +8,10 @@
 <p class="legend" class:meters>
   {#if meters}
     <span class="item scale"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>
-    <span class="item"><i class="dot" aria-hidden="true"></i>Farbe: niedrig, mittel oder hoch wie im HUD – keine Note</span>
   {:else}
     <span class="item">Alle Werte in %, Aggression (AF) als Faktor ×. Fahr über einen Spaltenkopf für die Erklärung.</span>
   {/if}
+  <span class="item"><i class="dot" aria-hidden="true"></i>Farbe: niedrig, mittel oder hoch wie im HUD – keine Note</span>
   <span class="item"><i class="dot hollow" aria-hidden="true"></i>hohl: unter {SMALL_SAMPLE} Gelegenheiten, noch unsicher</span>
   {#if types}<span class="item"><i class="dashed" aria-hidden="true"></i>gestrichelter Typ: noch zu wenig Hände für ein sicheres Urteil</span>{/if}
 </p>

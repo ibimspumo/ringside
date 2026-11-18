@@ -146,7 +146,7 @@
       {:else if loaded}
         <EmptyState
           title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in dieser Auswahl"}
-          text={search ? "Prüf die Schreibweise. Gesucht wird in der Auswahl oben rechts." : "Spiel ein paar Hände oder wähle oben rechts einen längeren Zeitraum."}
+          text={search ? "Prüf die Schreibweise. Gesucht wird nur in Spiel und Zeitraum, die oben rechts gewählt sind." : "Spiel ein paar Hände oder wähle oben rechts einen längeren Zeitraum."}
         >
           {#snippet action()}{#if search}<Button size="sm" onclick={() => (search = "")}>Suche löschen</Button>{/if}{/snippet}
         </EmptyState>

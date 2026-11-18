@@ -43,7 +43,10 @@
     font-weight: var(--fw-semibold);
     letter-spacing: 0.06em;
     text-transform: uppercase;
-    white-space: nowrap;
+    /* Titles break only where they say so ("Fold\n3-Bet"). */
+    white-space: pre;
+    text-align: inherit;
+    line-height: var(--lh-tight);
     transition: color var(--dur-fast) var(--ease-standard);
   }
   button {
