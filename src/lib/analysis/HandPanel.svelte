@@ -101,7 +101,7 @@
       {/each}
     </div>
     {#if current}
-      {#if caption}<p class="caption">{caption}</p>{/if}
+      {#if caption}<p class="caption" class:ahead={caption.startsWith("Deine nächste")}>{caption}</p>{/if}
       <DecisionCard decision={current} {onLearn} />
     {/if}
   </div>
@@ -168,8 +168,18 @@
   }
   .caption {
     margin: 0 0 calc(-1 * var(--sp-1));
+    color: var(--text);
+    font-size: var(--fs-md);
+  }
+  /* Not played yet at this point of the replay: marked as coming, so it never reads as the move just made. */
+  .caption.ahead::before {
+    content: "Kommt noch";
+    margin-right: var(--sp-2);
+    padding: 1px 7px;
+    border-radius: var(--r-pill);
+    border: 1px dashed var(--line-2);
     color: var(--text-2);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-xs);
   }
   .steps {
     display: flex;

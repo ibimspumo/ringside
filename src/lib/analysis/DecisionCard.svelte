@@ -167,7 +167,8 @@
   }
   .legend {
     color: var(--text-2);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
   }
   .sized {
     color: var(--text-2);
@@ -215,7 +216,7 @@
   .options li.head {
     min-height: 20px;
     color: var(--text-2);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
   }
   .options li.head > :nth-child(n + 3) {
     text-align: right;

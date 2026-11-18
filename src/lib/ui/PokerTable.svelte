@@ -236,7 +236,7 @@
     visibility: hidden;
   }
   .note {
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
     font-weight: var(--fw-semibold);
     white-space: nowrap;

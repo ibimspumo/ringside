@@ -399,7 +399,7 @@
           – {current.played.split(" ")[0]} passt
         {/if}
       </p>
-      <Button size="sm" variant="quiet" onclick={() => analysisEl?.scrollIntoView({ block: "start", behavior: "smooth" })}>Warum?</Button>
+      <Button size="sm" onclick={() => analysisEl?.scrollIntoView({ block: "start", behavior: "smooth" })}>Warum? Bewertung ansehen</Button>
     {:else if decisions && !decisions.length && !locked}
       <p>Diese Hand ist noch nicht bewertet.</p>
       <Button size="sm" variant={started ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={() => analyze()}>Diese Hand analysieren</Button>
@@ -551,7 +551,7 @@
       {#if list.length}
         <div class="list-head">
           <span class="num">{list.length}{more ? "+" : ""} Hände</span>
-          {#if rail}<span class="rail-what">{view === "mistakes" && !locked ? "Fehler kostet" : "Ergebnis"}</span>{/if}
+          {#if rail}<span class="rail-what">{view === "mistakes" && !locked ? "nach Kosten" : "Ergebnis"}</span>{/if}
           <span title={view === "mistakes" ? "Rechts: was dein teuerster Fehler der Hand im Schnitt kostet" : "Rechts: was du in der Hand gewonnen oder verloren hast"}
             >{view === "mistakes" && !locked ? "Kosten des Fehlers · teuerste zuerst" : view === "mistakes" ? "Ergebnis" : "Ergebnis · neueste zuerst"}</span
           >
@@ -565,7 +565,7 @@
           class="row"
           data-id={h.id}
           title={rail
-            ? `${h.hero_position ?? ""} ${h.hero_cards}${w && v ? ` · ${w.rating ? RATING[w.rating].label + ": " : ""}${v.lead} ${v.rest}` : ""}`
+            ? `${h.hero_position ?? ""} ${h.hero_cards} · ${time(h.played_at)} Uhr${w && v ? ` · ${w.rating ? RATING[w.rating].label + ": " : ""}${v.lead} ${v.rest}` : ""}`
             : `${date(h.played_at)}, ${time(h.played_at)} Uhr`}
           class:on={selected?.id === h.id}
           role="option"
@@ -606,9 +606,10 @@
             {/if}
           </span>
           {#if rail && w?.rating && !locked}
-            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
+            <span class="rail-verdict">{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
           {/if}
           <span class="end">
+            {#if rail && w?.rating && !locked}<GradeIcon grade={gradeOf(w.rating)} size={13} />{/if}
             {#if view === "mistakes" && costly(w) && !locked}
               <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{fmtBb(w!.ev_loss_bb!, { digits: 2 })}</span>
             {:else}
@@ -616,7 +617,7 @@
                 >{net === null ? "–" : signed(net, Math.abs(net) >= 10 ? 0 : 1)}<span class="bb-unit">BB</span></span
               >
             {/if}
-            {#if rail}<small class="num">{time(h.played_at)}</small>{/if}
+
           </span>
         </div>
       {:else}
@@ -650,7 +651,7 @@
             </h2>
             <p class="num">
               {#if name}Tisch {selected.table_name.split(" ").at(-1)} · {/if}{stakes(selected)} · {dateTime(selected.played_at)}
-              <span class="quiet" title="Nummer der Hand bei PokerStars">#{selected.id}</span>
+              <span title="Nummer der Hand bei PokerStars">#{selected.id}</span>
             </p>
           </div>
           {#if net !== null}
@@ -943,11 +944,6 @@
     grid-row: 1;
     justify-self: end;
   }
-  .row small {
-    grid-column: 3;
-    grid-row: 2;
-    justify-self: end;
-  }
   .line {
     display: flex;
     align-items: center;
@@ -1018,10 +1014,6 @@
   }
   .bb-unit {
     margin-left: 2px;
-    font-size: var(--fs-xs);
-  }
-  .end small {
-    color: var(--text-2);
     font-size: var(--fs-xs);
   }
   .more {
@@ -1195,9 +1187,8 @@
   }
   .rail .end {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: var(--sp-1);
+    gap: 4px;
   }
   .rail .net,
   .rail .loss {
