@@ -5,6 +5,7 @@
   import { openSaved, solutionsApi, type SavedSolution, type SolutionsView } from "./solutions";
   import { solver } from "./store.svelte";
   import Term from "./Term.svelte";
+  import { cap, precision } from "./explain";
 
   let data = $state<SolutionsView | null>(null);
   let error = $state<string | null>(null);
@@ -150,7 +151,7 @@
             <div><dt>Pot</dt><dd class="num">{num(s.pot_bb)} BB</dd></div>
             <div>
               <dt><Term term="exploit">Genauigkeit</Term></dt>
-              <dd class="num">{num(s.exploitability_pct, 2)} %</dd>
+              <dd class="num" title="Abweichung vom perfekten Spiel: {num(s.exploitability_pct, 2)} % des Pots">{cap(precision(s.exploitability_pct))}</dd>
             </div>
           </dl>
           <p class="line"><span>Größen</span>{s.sizes}</p>

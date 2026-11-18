@@ -129,7 +129,7 @@ export function handAdvice(node: SolverNode, strategy: number[], hands: SolverHa
   const close =
     Math.abs(diff) <= node.pot * 0.01
       ? "Beides ist etwa gleich viel wert – deshalb mischt die Lösung."
-      : `${cap(verb(node.actions[diff > 0 ? a.k : b.k], node))} bringt im Schnitt ${fmt(Math.abs(diff))} BB mehr.`;
+      : `${cap(verb(node.actions[diff > 0 ? a.k : b.k], node))} bringt im Schnitt ${fmt(Math.abs(diff))} BB mehr als ${verb(node.actions[diff > 0 ? b.k : a.k], node)}.`;
   return { line, close };
 }
 

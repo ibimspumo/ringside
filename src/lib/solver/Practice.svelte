@@ -8,7 +8,7 @@
   import { cap, lesson, verb } from "./explain";
   import { loadNode } from "./nodes";
   import { STREET_NAME, actionText, type Crumb } from "./play";
-  import { cardText } from "../play/labels";
+  import MiniCard from "../ui/MiniCard.svelte";
   import {
     BEST_MIN_FREQUENCY,
     GRADES,
@@ -239,7 +239,7 @@
         size="sm"
         label="Welche Hand du spielst"
         options={[
-          { value: "own", label: `Deine Hand ${ownHand.map(cardText).join("")}` },
+          { value: "own", label: "Deine Hand" },
           { value: "range", label: "Zufällig aus der Range" },
         ]}
         value={useOwn ? "own" : "range"}
@@ -253,6 +253,18 @@
 
   <div class="body">
     <div class="left">
+      {#if cards}
+        <ol class="story" aria-label="Was bisher passiert ist">
+          <li class="street"><span class="faint">{["Flop", "Turn", "River"][Math.max(0, board.length - 3)]}</span>{#each board as c (c)}<MiniCard card={c} />{/each}</li>
+          {#each line as c, i (i)}
+            {#if "card" in c.step}
+              <li class="street"><span class="faint">{STREET_NAME[c.street]}</span><MiniCard card={c.step.card} /></li>
+            {:else}
+              <li class:mine={c.player === me}>{c.player === me ? "Du" : pos(c.player!)} {c.label.replace(/ \(.*\)$/, "")}</li>
+            {/if}
+          {/each}
+        </ol>
+      {/if}
       <SolverTable
         players={table.players}
         positions={table.positions}
@@ -268,7 +280,7 @@
         street={node ? STREET_NAME[node.street] : ""}
       />
       {#if phase === "me" && node}
-        <div class="actor"><span><b>Du bist dran</b> mit {cards?.me.join(" ")}</span><span class="faint">Ziffern 1–{Math.min(9, node.actions.length)}</span></div>
+        <div class="actor"><span><b>Du bist dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Ziffern 1–{Math.min(9, node.actions.length)}</span></div>
         <ActionBar {node} {colors} onAct={choose} blind />
       {:else if phase === "wait"}
         <div class="actor"><span class="dim">{node?.kind === "chance" ? "Die nächste Karte kommt …" : `${pos(other)} überlegt …`}</span></div>
@@ -279,14 +291,14 @@
           <Button variant="primary" kbd="N" onclick={deal}>
             {ownHand && useOwn ? (phase === "idle" ? "Deine Hand spielen" : "Noch einmal spielen") : phase === "idle" ? "Hand austeilen" : "Nächste Hand"}
           </Button>
-          {#if phase === "idle"}<span class="faint small">Klick auf einen der beiden Plätze wählt deine Seite.</span>{/if}
+          {#if phase === "idle"}<span class="dim small">Klick auf einen der beiden Plätze wählt deine Seite.</span>{/if}
         </div>
       {/if}
     </div>
 
     <aside class="right">
       <section class="panel box" aria-live="polite">
-        <h3>Rückmeldung</h3>
+        <h3>{last ? `Deine Entscheidung am ${STREET_NAME[last.street]}` : "Rückmeldung"}</h3>
         {#if last}
           <div class="verdict {last.verdict.grade}">
             <span class="badge">{GRADES[last.verdict.grade].label}</span>
@@ -296,7 +308,7 @@
           <p class="lesson">{last.lesson}</p>
           <p class="line">
             Die Lösung spielt mit deiner Hand
-            {#each last.strategy as s, k (k)}{#if s >= 0.005}<span class="pill"><i style="background:{last.colors[k]}"></i>{last.labels[k].replace(/ \(.*\)$/, "")} {pct(s)}</span>{/if}{/each}
+            {#each last.strategy as s, k (k)}{#if s >= 0.005}<span class="pill"><i style="background:{last.colors[k]}"></i>{last.labels[k].replace(/ \(.*\)$/, "")} · <b class="num">{pct(s)}</b></span>{/if}{/each}
           </p>
           <div class="mix" aria-hidden="true">
             {#each last.strategy as s, k (k)}<i style="width:{s * 100}%; background:{last.colors[k]}"></i>{/each}
@@ -313,7 +325,7 @@
             <p class="faint small">Ohne EV je Aktion bewertet nach Häufigkeit.</p>
           {/if}
         {:else}
-          <p class="faint small">Nach jeder Entscheidung steht hier, was die Lösung mit deiner Hand macht, warum – und was deine Wahl gekostet hätte.</p>
+          <p class="dim small">Nach jeder Entscheidung steht hier, was die Lösung mit deiner Hand macht, warum – und was deine Wahl gekostet hätte.</p>
         {/if}
       </section>
 
@@ -418,6 +430,39 @@
     font-size: 12.5px;
     color: var(--text-2);
   }
+  .inline {
+    display: inline-flex;
+    gap: 2px;
+    vertical-align: middle;
+  }
+  .story {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+  .story li {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    border: 1px solid var(--line);
+  }
+  .story li.street {
+    background: var(--surface-2);
+  }
+  .story li.mine {
+    color: var(--text);
+    border-color: var(--line-2);
+  }
+
   .actor b {
     color: var(--text);
   }

@@ -242,7 +242,7 @@
   .stage {
     position: relative;
     /* Short windows keep the actions below the table in view. */
-    width: min(100%, calc(52vh * var(--ar)));
+    width: min(100%, calc(var(--stage-vh, 52vh) * var(--ar)));
     margin: 0 auto;
     aspect-ratio: var(--ar);
     border-radius: var(--r-lg);

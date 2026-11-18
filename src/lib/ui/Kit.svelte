@@ -30,6 +30,7 @@
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
   import Tabs from "./Tabs.svelte";
+  import CardSlot from "./CardSlot.svelte";
   import Tag from "./Tag.svelte";
   import Toast from "./Toast.svelte";
   import Term from "./Term.svelte";
@@ -369,7 +370,7 @@
             <h4>Fortschritt</h4>
             <div class="row"><ProgressRing value={ringValue} label="Fortschritt" size={48}>{Math.round(ringValue * 100)}</ProgressRing><div class="grow"><ProgressBar value={ringValue} label="Fortschritt" size="md" /></div></div>
           </Card>
-          <Card pad="md"><h4>Reiter & Segmente</h4><Tabs label="Beispiel" bind:value={tab} tabs={[{ id: "hands", label: "Hände" }, { id: "stats", label: "Statistik" }, { id: "leaks", label: "Leaks" }]} /><div class="gap"></div><SegmentedControl label="Zeitraum" bind:value={period} options={[{ value: "today", label: "Heute" }, { value: "7d", label: "7 Tage" }, { value: "all", label: "Alles" }]} /></Card>
+          <Card pad="md"><h4>Reiter & Segmente</h4><Tabs label="Beispiel" bind:value={tab} tabs={[{ id: "hands", label: "Hände" }, { id: "stats", label: "Statistik" }, { id: "leaks", label: "Leaks", note: "nach dem Lösen" }]} /><div class="gap"></div><SegmentedControl label="Zeitraum" bind:value={period} options={[{ value: "today", label: "Heute" }, { value: "7d", label: "7 Tage" }, { value: "all", label: "Alles" }]} /></Card>
           <Card pad="md"><h4>Dialog</h4><p class="muted">Öffnet mit Eintrittskurve, Hintergrund blendet ab.</p><Button onclick={() => (dialogOpen = true)}>Dialog öffnen</Button></Card>
         </div>
       </section>
@@ -539,6 +540,14 @@
         <div class="row cards-row">
           {#each [22, 30, 40, 52] as s (s)}<PlayingCard card="Qs" size={s} />{/each}
           <PlayingCard card="Th" size={40} /><PlayingCard card="9d" size={40} /><PlayingCard card="8c" size={40} /><PlayingCard hidden size={40} />
+        </div>
+        <div class="row cards-row">
+          <CardSlot label="Flop" tone="next" onpick={() => {}} ariaLabel="Flop-Karte wählen" />
+          <CardSlot card="Kd" onpick={() => {}} ariaLabel="Turn ändern" />
+          <CardSlot label="River" tone="optional" onpick={() => {}} ariaLabel="River-Karte wählen" />
+          <CardSlot tone="idle" />
+          <CardSlot size={30} label="?" onpick={() => {}} ariaLabel="Deine Hand wählen" /><CardSlot size={30} card="Ah" onpick={() => {}} ariaLabel="Deine Hand ändern" />
+          <span class="muted">Kartenplatz: zum Wählen gestrichelt, „next“ wartet auf die nächste Karte, „optional“ darf leer bleiben.</span>
         </div>
         <p class="card-text"><CardText text="Zwei Paare (Th Tc 9h 9c Js) gegen Straße (Jh Tc 9c 8c 7c)." /></p>
         <p class="card-text small">Handklassen mit <code>hands</code>: <CardText hands text="Mit 8 bb schiebst du K6o immer, 99 und T9s auch; K8+ callt." /></p>

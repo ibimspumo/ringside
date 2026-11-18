@@ -6,10 +6,10 @@
   import ActionBar from "./ActionBar.svelte";
   import { actionColors, bb, bytes, duration } from "./actions";
   import DeckPopover from "./DeckPopover.svelte";
-  import { cap, GLOSSARY, handAdvice, headline, precision, why } from "./explain";
+  import { cap, GLOSSARY, handAdvice, headline, often, precision, verb, why } from "./explain";
   import { loadNode } from "./nodes";
   import { STREET_INDEX, STREET_NAME, actionText, isAggressive, matchStep, nearestSize, targetAmount, withSize, type Crumb, type SizeMatch } from "./play";
-  import { cardText } from "../play/labels";
+  import MiniCard from "../ui/MiniCard.svelte";
   import { handNumbers } from "./practice";
   import { classLabel } from "./range";
   import StrategyGrid, { type GridMode } from "./StrategyGrid.svelte";
@@ -221,6 +221,17 @@
   const players = $derived(node?.player ? node.players[side(node.player)] : null);
   const startBoard = $derived(spot.board.replace(/[^AKQJT2-9cdhs]/gi, "").match(/.{2}/g) ?? []);
   const pct = (x: number) => `${Math.round(x * 100)} %`;
+
+  /** Every action the solution takes with your hand, most often first. */
+  function handLine(n: SolverNode, strategy: number[]): string {
+    const parts = strategy
+      .map((f, k) => ({ f, k }))
+      .filter((x) => x.f >= 0.03)
+      .sort((x, y) => y.f - x.f)
+      .slice(0, 3)
+      .map((x) => `${often(x.f)} ${verb(n.actions[x.k], n)}`);
+    return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} und ${parts.at(-1)}` : (parts[0] ?? "");
+  }
 </script>
 
 <svelte:window onkeydown={key} />
@@ -297,19 +308,26 @@
         {@const h = heroNumbers.hand}
         <span class="who"><b>Du</b> bist am Zug · {pos(node.player)}</span>
         <div class="mineanswer">
-          <span class="cards" aria-label="Deine Hand">{#each hero as c (c)}<PlayingCard card={c} size={30} />{/each}</span>
+          <span class="cards" aria-label="Deine Hand">{#each hero as c (c)}<PlayingCard card={c} size={34} />{/each}</span>
           <div>
-            <p class="say">Mit {hero.map(cardText).join("")} hier {heroAdvice.line}.</p>
+            <p class="say">Mit deiner Hand hier {handLine(node, h.strategy)}.</p>
             {#if heroAdvice.close}<p class="close">{heroAdvice.close}</p>{/if}
           </div>
         </div>
+        <p class="mixcap">So oft spielt die Lösung jede Aktion mit genau deiner Hand:</p>
         <div class="handmix" role="img" aria-label="So spielt die Lösung deine Hand">
           {#each h.strategy as f, k (k)}
-            {#if f >= 0.005}<i style="flex-grow:{f}; --c:{colors[k]}"><span>{labels[k].replace(/ \(.*\)$/, "")} {pct(f)}</span></i>{/if}
+            {#if f >= 0.005}
+              <i style="flex-grow:{f}; --c:{colors[k]}" title="{labels[k]}: in {pct(f)} der Fälle">
+                <span>{cap(verb(node.actions[k], node))}</span><b class="num">{pct(f)}</b>
+              </i>
+            {/if}
           {/each}
         </div>
-        <p class="because">
-          <b>Warum?</b> Die Lösung spielt die ganze Range zusammen: {headline(node).replace(/^Hier /, "").replace(/\.$/, "")}. {why(node)}
+        <p class="whyrange">
+          <b>Warum?</b> Deine Hand ist ein Teil der Range von {pos(node.player)}, und die Lösung spielt alle Hände zusammen: {headline(node)
+            .replace(/^Hier /, "")
+            .replace(/\.$/, "")}. {why(node)}
         </p>
       {:else if node.kind === "action" && node.player}
         <span class="who">
@@ -317,7 +335,7 @@
           {#if node.player === "oop"}<Term term="oop">OOP</Term>{:else}<Term term="ip">IP</Term>{/if}
         </span>
         {#if hero && heroNumbers && !heroNumbers.hand}
-          <p class="say">{hero.map(cardText).join("")} kommt hier nicht vor.</p>
+          <p class="say">Deine Hand <span class="inline">{#each hero as c (c)}<MiniCard card={c} />{/each}</span> kommt hier nicht vor.</p>
           <p class="because">
             {pos(node.player)} spielt diese Hand bis hierher laut Range nie, darum gibt es für sie keine Strategie. So spielt die Range: {headline(node).replace(/^Hier /, "")}
           </p>
@@ -333,6 +351,55 @@
         <p class="because">Geh im Verlauf oben zurück, um eine andere Linie auszuprobieren.</p>
       {/if}
     </section>
+
+    {#if node.kind === "action" && node.player}
+      <section class="acts" class:busy={loading}>
+        <div class="actor">
+          <span><b>Weiterspielen:</b> Klick auf eine Aktion. Die Breite zeigt, wie oft die ganze Range sie wählt.</span>
+          <span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span>
+        </div>
+        <ActionBar {node} {colors} onAct={act} />
+        {#if canBet}
+          <div class="own">
+            {#if !sizeOpen}
+              <button class="link" onclick={() => (sizeOpen = true)}>Eigene Größe eingeben …</button>
+            {:else}
+              <form class="ownform" onsubmit={tryOwn}>
+                <label for="own-size">Eigene Größe</label>
+                <input id="own-size" class="field num" type="number" min="0.01" step="any" bind:value={sizeValue} />
+                <div class="seg" role="group" aria-label="Einheit">
+                  <button type="button" class:on={sizeUnit === "pct"} onclick={() => (sizeUnit = "pct")}>% Pot</button>
+                  <button type="button" class:on={sizeUnit === "bb"} onclick={() => (sizeUnit = "bb")}>BB</button>
+                </div>
+                <button class="btn" type="submit">Spielen</button>
+                <button class="link" type="button" onclick={() => ((sizeOpen = false), (match = null), (sizeError = null))}>abbrechen</button>
+              </form>
+              {#if sizeUnit === "pct" && node.street_bets.some((b) => b > 0)}
+                <p class="faint small">Bei einem Raise: Prozent des Pots nach dem Call.</p>
+              {/if}
+            {/if}
+            {#if sizeError}<p class="neg small">{sizeError}</p>{/if}
+            {#if match}
+              {@const near = node.actions[match.index]}
+              <div class="mapped" role="status">
+                <p>
+                  <b>{bb(match.wanted, 2)} BB</b> ({Math.round(match.pct)} %) ist nicht im gelösten Baum. Der Solver nimmt die nächstliegende Größe:
+                  <b>{actionText(near, node)}</b>, {bb(Math.abs(match.off), 2)} BB {match.off > 0 ? "mehr" : "weniger"}.
+                </p>
+                <div class="mapbtns">
+                  <button class="btn" onclick={() => act(match!.index)}>Mit {actionText(near, node).replace(/ \(.*\)$/, "")} weiterspielen</button>
+                  <button class="btn primary" onclick={resolveWith}>Mit {Math.round(match.pct)} % neu lösen</button>
+                </div>
+                <p class="faint small">
+                  Neu lösen nimmt {Math.round(match.pct)} % zu den {match.kind === "bet" ? "Bet" : "Raise"}-Größen am {["Flop", "Turn", "River"][match.street]}
+                  hinzu{spot.sizes[match.street][match.kind].length >= MAX_SIZES ? " und ersetzt die nächstliegende" : ""} und spielt die Linie danach wieder bis hierher.
+                </p>
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </section>
+    {/if}
 
     <div class="body" class:busy={loading}>
       <div class="left">
@@ -352,52 +419,7 @@
         />
         <MeChooser positions={table.positions} />
 
-        {#if node.kind === "action" && node.player}
-          <div class="actor">
-            <span>Alle Aktionen, breiter = häufiger. Klick spielt sie.</span>
-            <span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span>
-          </div>
-          <ActionBar {node} {colors} onAct={act} />
-          {#if canBet}
-            <div class="own">
-              {#if !sizeOpen}
-                <button class="link" onclick={() => (sizeOpen = true)}>Eigene Größe eingeben …</button>
-              {:else}
-                <form class="ownform" onsubmit={tryOwn}>
-                  <label for="own-size">Eigene Größe</label>
-                  <input id="own-size" class="field num" type="number" min="0.01" step="any" bind:value={sizeValue} />
-                  <div class="seg" role="group" aria-label="Einheit">
-                    <button type="button" class:on={sizeUnit === "pct"} onclick={() => (sizeUnit = "pct")}>% Pot</button>
-                    <button type="button" class:on={sizeUnit === "bb"} onclick={() => (sizeUnit = "bb")}>BB</button>
-                  </div>
-                  <button class="btn" type="submit">Spielen</button>
-                  <button class="link" type="button" onclick={() => ((sizeOpen = false), (match = null), (sizeError = null))}>abbrechen</button>
-                </form>
-                {#if sizeUnit === "pct" && node.street_bets.some((b) => b > 0)}
-                  <p class="faint small">Bei einem Raise: Prozent des Pots nach dem Call.</p>
-                {/if}
-              {/if}
-              {#if sizeError}<p class="neg small">{sizeError}</p>{/if}
-              {#if match}
-                {@const near = node.actions[match.index]}
-                <div class="mapped" role="status">
-                  <p>
-                    <b>{bb(match.wanted, 2)} BB</b> ({Math.round(match.pct)} %) ist nicht im gelösten Baum. Der Solver nimmt die nächstliegende Größe:
-                    <b>{actionText(near, node)}</b>, {bb(Math.abs(match.off), 2)} BB {match.off > 0 ? "mehr" : "weniger"}.
-                  </p>
-                  <div class="mapbtns">
-                    <button class="btn" onclick={() => act(match!.index)}>Mit {actionText(near, node).replace(/ \(.*\)$/, "")} weiterspielen</button>
-                    <button class="btn primary" onclick={resolveWith}>Mit {Math.round(match.pct)} % neu lösen</button>
-                  </div>
-                  <p class="faint small">
-                    Neu lösen nimmt {Math.round(match.pct)} % zu den {match.kind === "bet" ? "Bet" : "Raise"}-Größen am {["Flop", "Turn", "River"][match.street]}
-                    hinzu{spot.sizes[match.street][match.kind].length >= MAX_SIZES ? " und ersetzt die nächstliegende" : ""} und spielt die Linie danach wieder bis hierher.
-                  </p>
-                </div>
-              {/if}
-            </div>
-          {/if}
-        {:else if node.kind === "chance"}
+        {#if node.kind === "chance"}
           <div class="chance">
             <span><b>{node.board.length === 3 ? "Turn" : "River"}</b>: Karte am Tisch wählen</span>
             <button class="btn" onclick={dealRandom}>Zufällige Karte <kbd>Z</kbd></button>
@@ -458,7 +480,7 @@
             </div>
             {#if heroClass !== null && heroAdvice}
               <p class="mine">
-                Deine Hand <b class="num">{hero?.map(cardText).join("")}</b> ist im Raster umrandet.
+                Deine Hand <span class="inline">{#each hero ?? [] as c (c)}<MiniCard card={c} />{/each}</span> ist im Raster umrandet.
                 <span class="faint">Die Zelle {classLabel(heroClass)} mischt alle Farbvarianten dieser Hand.</span>
                 <button class="more" onclick={() => (pinned = heroClass)}>Details</button>
               </p>
@@ -596,14 +618,16 @@
   .handmix {
     display: flex;
     gap: 2px;
-    height: 26px;
-    margin-top: var(--sp-3);
+    height: 28px;
+    margin-top: var(--sp-1);
     border-radius: var(--r-xs);
     overflow: hidden;
   }
   .handmix i {
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
     min-width: 0;
     padding: 0 var(--sp-2);
     background: color-mix(in srgb, var(--c) 24%, var(--surface-2));
@@ -618,11 +642,37 @@
   .handmix span {
     overflow: hidden;
     text-overflow: ellipsis;
+    font-weight: var(--fw-medium);
   }
-  .because b {
+  .handmix b {
+    font-weight: var(--fw-bold);
+  }
+  .mixcap {
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+  .whyrange {
+    margin: var(--sp-3) 0 0;
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
+    font-size: var(--fs-md);
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .whyrange b {
     color: var(--text);
     font-weight: var(--fw-semibold);
   }
+  .inline {
+    display: inline-flex;
+    gap: 2px;
+  }
+  .actor b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
+
   .because {
     margin: 4px 0 0;
     font-size: 13px;
@@ -678,11 +728,21 @@
     opacity: 0.75;
   }
   .left {
+    /* The actions under the table stay in view in short windows. */
+    --stage-vh: 40vh;
     grid-area: left;
     display: flex;
     flex-direction: column;
     gap: 8px;
     min-width: 0;
+  }
+  .acts {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .acts.busy {
+    opacity: 0.75;
   }
   .actor {
     display: flex;

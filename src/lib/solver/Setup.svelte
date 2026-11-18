@@ -421,7 +421,11 @@
     <SolveProgress />
   {:else}
     <div class="est">
-      <span class="spot num"><b>{solver.positions.oop}</b> gegen <b>{solver.positions.ip}</b> · {board.join(" ") || "kein Board"}</span>
+      <span class="spot num"
+        ><b>{solver.positions.oop}</b> gegen <b>{solver.positions.ip}</b>
+        {#if board.length}<span class="cards">{#each board as c (c)}<MiniCard card={c} />{/each}</span>{:else}· kein Board{/if}
+        {#if solver.hero}· Du <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>{/if}</span
+      >
       {#if estimate}
         <span>Rechnet <b class="num">ca. {duration(seconds)}</b></span>
         <span title={estimate.compressed ? "Passt nur mit platzsparendem 16-Bit-Speicher" : undefined}
@@ -461,6 +465,7 @@
 {#if handPicker}
   <DeckPopover
     anchor={handPicker.anchor}
+    side="top"
     title={`Deine Hand, Karte ${handPicker.slot + 1}`}
     available={DECK.filter((c) => !board.includes(c) && (!shownHand.includes(c) || c === shownHand[handPicker!.slot]))}
     current={shownHand[handPicker.slot] ?? null}
@@ -711,9 +716,6 @@
     }
     .lower {
       grid-template-columns: minmax(0, 1fr);
-    }
-    .under .faint {
-      display: none;
     }
   }
   @container solverpage (max-width: 680px) {

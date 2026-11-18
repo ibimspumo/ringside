@@ -14,8 +14,11 @@
     onRandom,
     onClear,
     onClose,
+    side = "bottom",
   }: {
     anchor: Anchor;
+    /** Where it opens; "top" keeps a seat at the bottom of the table in view. */
+    side?: "top" | "bottom";
     title: string;
     /** Cards that can be picked; the rest is shown dimmed. */
     available: string[];
@@ -49,7 +52,7 @@
 <svelte:window onpointerdown={outside} />
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="popover deck-pop" bind:this={el} use:floating={{ anchor, side: "bottom" }} role="dialog" aria-label={title} tabindex="-1" onkeydown={key}>
+<div class="popover deck-pop" bind:this={el} use:floating={{ anchor, side }} role="dialog" aria-label={title} tabindex="-1" onkeydown={key}>
   <header>
     <b>{title}</b>
     <span class="tools">

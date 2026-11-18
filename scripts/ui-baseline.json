@@ -168,7 +168,7 @@
       }
     },
     "global-class-override": {
-      "total": 110,
+      "total": 109,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
@@ -208,7 +208,7 @@
         "solver/HandDetail.svelte": 1,
         "solver/Practice.svelte": 1,
         "solver/RangeEditor.svelte": 1,
-        "solver/Setup.svelte": 8,
+        "solver/Setup.svelte": 7,
         "solver/SizeChooser.svelte": 4,
         "solver/Study.svelte": 1,
         "ui/ChoiceMenu.svelte": 1
