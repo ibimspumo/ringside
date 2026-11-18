@@ -3485,10 +3485,13 @@ dependencies = [
 name = "ringside-analysis"
 version = "0.7.0"
 dependencies = [
+ "rand",
+ "rand_chacha",
  "rayon",
  "ringside-core",
  "ringside-engine",
  "ringside-learn",
+ "ringside-play",
  "ringside-solver",
  "serde",
  "serde_json",

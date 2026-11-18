@@ -53,7 +53,7 @@ fn push_fold_mistake_is_found() {
     assert_eq!(d.best.as_deref(), Some("All-in"));
     assert!(d.rating >= Some(Rating::Inaccuracy), "{d:?}");
     assert!(d.ev_loss_bb.unwrap() > 0.2, "{d:?}");
-    assert!(d.why.contains("All-in"), "{}", d.why);
+    assert!(d.why.contains("Shove-Range"), "{}", d.why);
     assert!(a.job.is_none());
 }
 

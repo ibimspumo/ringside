@@ -14,7 +14,7 @@ use ringside_engine::range::NUM_CLASSES;
 
 use crate::fmt::bb;
 use crate::seats::{Table, ante_name, nearest, table};
-use crate::{hero_actions, pushfold, rated, unrated};
+use crate::{hero_actions, pot_before, pushfold, rated, unrated};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 24;
@@ -80,6 +80,17 @@ pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
 /// the missing early positions count as folded.
 fn model_seat(t: &Table, players: usize, i: usize) -> usize {
     players - t.players() + i
+}
+
+pub(crate) fn kind_key(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Fold => "fold",
+        Kind::Check => "check",
+        Kind::Call => "call",
+        Kind::Limp => "limp",
+        Kind::Raise => "raise",
+        Kind::AllIn => "all_in",
+    }
 }
 
 fn kind_name(kind: Kind, to_bb: f64) -> String {
@@ -238,6 +249,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                         freq: node.freq[k][class] / reach,
                         ev_bb: Some(node.ev[k][class]),
                         played: k == ai,
+                        kind: kind_key(x.kind).into(),
                     })
                     .collect();
                 let mut note = config.clone();
@@ -247,18 +259,9 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                 }
                 note.push('.');
                 let pos = position(&a.player);
-                let hand_class = t.class();
-                decisions.push(rated(hand, index, spot, Source::Model, strategy, note, |d| {
-                    let best = d.strategy.iter().max_by(|x, y| x.freq.total_cmp(&y.freq));
-                    match best {
-                        Some(b) => format!(
-                            "Mit {hand_class} auf {pos} spielt das Modell bei {} Tiefe hier zu {} % {}.",
-                            bb(stack),
-                            (b.freq * 100.0).round(),
-                            b.label
-                        ),
-                        None => String::new(),
-                    }
+                let pot = pot_before(hand, index);
+                decisions.push(rated(hand, index, spot, Source::Model, strategy, pot, note, |_| {
+                    format!("Gerechnet für {pos} mit {} Tiefe.", bb(stack))
                 }));
             }
         }

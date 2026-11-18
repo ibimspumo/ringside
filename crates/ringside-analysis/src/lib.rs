@@ -13,6 +13,7 @@
 //!   a queue ([`postflop`]). Source [`Source::Solver`].
 //! - Everything else is stored as not rated, with the reason.
 
+pub mod coverage;
 mod fmt;
 pub mod grade;
 pub mod postflop;
@@ -26,7 +27,6 @@ pub use ringside_core::db::{Choice, Decision, HandAnalysis, Rating, Source, Spot
 use ringside_core::model::{ActionKind, Hand, Street};
 use ringside_core::parse_hand;
 
-pub use grade::rate;
 pub use postflop::{PostflopJob, solve_job};
 
 /// Stored with every decision; a hand analysed with another version is analysed again.
@@ -48,6 +48,19 @@ pub fn analyze_hand(hand: &Hand) -> HandAnalysis {
     }
     decisions.sort_by_key(|d| d.action_index);
     HandAnalysis { hand_id: hand.id, engine: ENGINE.into(), decisions, job }
+}
+
+/// Solves a hand's postflop job and rates its decisions.
+pub fn settle_job(hand: &Hand, job: &PostflopJob, threads: usize, memory_limit: u64) -> Vec<Decision> {
+    match solve_job(job, threads, memory_limit, |_| {}, || false) {
+        Ok(ds) => ds,
+        Err(_) => analyze_hand(hand).decisions.into_iter().filter(|d| d.status == Status::Pending).map(|mut d| {
+            d.status = Status::Unrated;
+            d.source = None;
+            d.reason = Some("Der Solver konnte diesen Spot nicht rechnen.".into());
+            d
+        }).collect(),
+    }
 }
 
 /// Analyses raw hands in parallel; unparsable hands get an empty analysis, so they are
@@ -86,6 +99,8 @@ pub(crate) fn base(hand_id: u64, index: usize, street: Street, spot: SpotType, p
         reason: None,
         solver: None,
         engine: ENGINE.into(),
+        pot_bb: None,
+        reliability: None,
     }
 }
 
@@ -104,77 +119,50 @@ pub(crate) fn rated(
     spot: SpotType,
     source: Source,
     strategy: Vec<Choice>,
+    pot_bb: f64,
     note: String,
     reason: impl FnOnce(&Decision) -> String,
 ) -> Decision {
     let a = &hand.actions[index];
-    score(base(hand.id, index, a.street, spot, fmt::real_action(hand, a)), source, strategy, note, reason)
+    score(base(hand.id, index, a.street, spot, fmt::real_action(hand, a)), source, strategy, pot_bb, note, reason)
 }
 
-/// Fills in the verdict: the most frequent action is the recommendation, the loss is
-/// the best EV minus the EV of what was played.
+/// Chips in the middle before action `index` (antes, blinds and every bet so far), BB.
+pub(crate) fn pot_before(hand: &Hand, index: usize) -> f64 {
+    hand.actions[..index].iter().map(|a| a.amount as f64).sum::<f64>() / hand.big_blind.max(1) as f64
+}
+
+/// Fills in the verdict with the practice's grades ([`grade::verdict`]) at a pot of
+/// `pot_bb`. `why` is the reason in plain words; the headline is written where it is
+/// shown, with the practice's sentences.
 pub(crate) fn score(
     mut d: Decision,
     source: Source,
     strategy: Vec<Choice>,
+    pot_bb: f64,
     note: String,
     reason: impl FnOnce(&Decision) -> String,
 ) -> Decision {
-    let played = strategy.iter().find(|c| c.played);
-    let best_ev = strategy.iter().filter_map(|c| c.ev_bb).fold(f64::NEG_INFINITY, f64::max);
-    let best = strategy
-        .iter()
-        .max_by(|a, b| a.freq.total_cmp(&b.freq).then(a.ev_bb.unwrap_or(0.0).total_cmp(&b.ev_bb.unwrap_or(0.0))));
-    d.best = best.map(|c| c.label.clone());
-    d.played_freq = played.map(|c| c.freq);
-    d.ev_loss_bb = played.and_then(|c| c.ev_bb).filter(|_| best_ev.is_finite()).map(|ev| (best_ev - ev).max(0.0));
-    d.rating = played.map(|c| rate(d.ev_loss_bb, c.freq));
-    // Actions of a mixed strategy have equal EV in an equilibrium; what is left is noise.
-    if played.is_some_and(|c| c.freq >= grade::MIXED_FREQ) {
-        d.ev_loss_bb = d.ev_loss_bb.map(|_| 0.0);
-    }
-    d.status = if d.rating.is_some() { Status::Rated } else { Status::Unrated };
-    d.reason = d.rating.is_none().then(|| "Die gespielte Aktion kommt in der Berechnung nicht vor.".to_string());
     d.source = Some(source);
-    d.strategy = strategy;
     d.note = note;
-    if d.rating.is_some() {
-        d.why = format!("{} Grund: {}", headline(&d), reason(&d));
-    }
-    d
-}
-
-/// The verdict as a sentence with what to do next.
-fn headline(d: &Decision) -> String {
-    let who = match d.source {
-        Some(Source::Equilibrium) => "das Gleichgewicht",
-        Some(Source::Model) => "das Modell",
-        _ => "der Solver",
+    d.pot_bb = Some(pot_bb);
+    let Some(v) = grade::verdict(&strategy, pot_bb) else {
+        d.strategy = strategy;
+        d.status = Status::Unrated;
+        d.reason = Some("Die gespielte Aktion kommt in der Berechnung nicht vor.".into());
+        return d;
     };
-    let freq = d.played_freq.unwrap_or(0.0);
-    let best = d.best.as_deref().unwrap_or("?");
-    match d.rating {
-        Some(Rating::Best) => format!("Gut gespielt: {} ist hier die beste Wahl.", action_name(&d.played)),
-        Some(Rating::Good) if freq >= grade::MIXED_FREQ => format!(
-            "Passt: {who} spielt {} mit deiner Hand zu {} %, meist aber {best}.",
-            action_name(&d.played),
-            (freq * 100.0).round()
-        ),
-        _ => match d.ev_loss_bb {
-            Some(loss) if loss >= 0.05 => format!(
-                "Hier wäre {best} besser gewesen – {} kostet dich etwa {}.",
-                action_name(&d.played),
-                fmt::bb(loss)
-            ),
-            _ => format!("Hier wäre {best} besser gewesen: {who} spielt {} mit deiner Hand nur zu {} %.", action_name(&d.played), (freq * 100.0).round()),
-        },
-    }
-}
-
-/// "Call 3 BB" → "dein Call"; sizes are in the action list anyway.
-fn action_name(played: &str) -> String {
-    let word = played.split_whitespace().next().unwrap_or(played);
-    format!("dein {word}")
+    // Best and mix point at the main move; below that, at the one worth most.
+    let best = if v.rating <= Rating::Mix { v.main } else { v.best };
+    d.best = strategy.get(best).map(|c| c.label.clone());
+    d.played_freq = Some(v.freq);
+    d.ev_loss_bb = v.loss_bb;
+    d.rating = Some(v.rating);
+    d.status = Status::Rated;
+    d.reason = None;
+    d.strategy = strategy;
+    d.why = reason(&d);
+    d
 }
 
 pub(crate) fn is_raise(kind: ActionKind) -> bool {

@@ -4,9 +4,13 @@
 //! (`src/lib/solver/practice.ts`); the blunder line is new.
 //!
 //! A mixed strategy is no mistake: "best" is the main move (the one the solution plays
-//! most often with the hand, or at least half the time), a rarer move worth the same
-//! that the solution still plays at least [`MIX_MIN_FREQUENCY`] of the time is "mixed",
-//! with full points.
+//! most often with the hand, or at least half the time), a rarer move the solution still
+//! plays at least [`MIX_MIN_FREQUENCY`] of the time is "mixed", with full points. In an
+//! equilibrium every action of a mix is worth the same, so what a solve to 0.5–1 % of the
+//! pot leaves between them is noise and counts as no loss.
+//!
+//! The hand analysis grades with these functions too, so a decision reads the same in
+//! the practice, on the solver page and in the analysis of a real hand.
 
 use serde::{Deserialize, Serialize};
 
@@ -64,6 +68,19 @@ pub struct Judgement {
     pub loss_pct: Option<f64>,
 }
 
+/// The grade a loss of `pct` percent of the pot earns when the action is not part of a mix.
+pub fn grade_of_loss(pct: f64) -> Grade {
+    if pct <= GOOD_PCT {
+        Grade::Good
+    } else if pct <= INACCURATE_PCT {
+        Grade::Inaccurate
+    } else if pct <= MISTAKE_PCT {
+        Grade::Mistake
+    } else {
+        Grade::Blunder
+    }
+}
+
 /// Grades action `chosen` of a hand with `strategy` and, if known, the EV of every action.
 pub fn judge(strategy: &[f64], evs: Option<&[f64]>, chosen: usize, pot: f64) -> Judgement {
     let frequency = strategy.get(chosen).copied().unwrap_or(0.0);
@@ -73,20 +90,15 @@ pub fn judge(strategy: &[f64], evs: Option<&[f64]>, chosen: usize, pot: f64) -> 
     match evs.filter(|e| e.len() == strategy.len() && !e.is_empty()) {
         Some(evs) => {
             let best = argmax(evs);
-            let loss = (evs[best] - evs[chosen]).max(0.0);
+            let mixed = frequency >= MIX_MIN_FREQUENCY;
+            let loss = if mixed { 0.0 } else { (evs[best] - evs[chosen]).max(0.0) };
             let pct = loss / pot.max(1e-9) * 100.0;
-            let grade = if pct <= BEST_PCT && is_main && frequency > 0.0 {
+            let grade = if (pct <= BEST_PCT || mixed) && is_main && frequency > 0.0 {
                 Grade::Best
-            } else if pct <= BEST_PCT && frequency >= MIX_MIN_FREQUENCY {
+            } else if mixed {
                 Grade::Mix
-            } else if pct <= GOOD_PCT {
-                Grade::Good
-            } else if pct <= INACCURATE_PCT {
-                Grade::Inaccurate
-            } else if pct <= MISTAKE_PCT {
-                Grade::Mistake
             } else {
-                Grade::Blunder
+                grade_of_loss(pct)
             };
             Judgement { grade, best, main, frequency, loss_bb: Some(loss), loss_pct: Some(pct) }
         }
@@ -112,9 +124,10 @@ mod tests {
 
     #[test]
     fn thresholds_in_percent_of_the_pot() {
-        let s = [0.5, 0.5];
+        let s = [0.95, 0.05];
         let g = |loss: f64| judge(&s, Some(&[1.0, 1.0 - loss]), 1, 10.0).grade;
-        assert_eq!(g(0.04), Grade::Best);
+        assert_eq!(judge(&s, Some(&[1.0, 0.96]), 0, 10.0).grade, Grade::Best);
+        assert_eq!(g(0.04), Grade::Good);
         assert_eq!(g(0.15), Grade::Good);
         assert_eq!(g(0.5), Grade::Inaccurate);
         assert_eq!(g(1.2), Grade::Mistake);
@@ -137,6 +150,9 @@ mod tests {
         // The main move is best even when rounding gives the rarer one the higher EV.
         assert_eq!(judge(&[0.3, 0.7], Some(&[1.001, 1.0]), 1, 10.0).grade, Grade::Best);
         assert_eq!(judge(&[0.3, 0.7], Some(&[1.001, 1.0]), 0, 10.0).grade, Grade::Mix);
+        // Part of the mix: what the solve leaves between the actions is no loss.
+        let noisy = judge(&[0.2, 0.8], Some(&[0.7, 1.0]), 0, 10.0);
+        assert_eq!((noisy.grade, noisy.loss_bb), (Grade::Mix, Some(0.0)));
         // Rarer than the mix threshold: graded by the loss alone.
         assert_eq!(judge(&[0.05, 0.95], Some(&[1.0, 1.0]), 0, 10.0).grade, Grade::Good);
         assert_eq!(judge(&[0.8, 0.2], None, 1, 10.0).grade, Grade::Mix);

@@ -10,9 +10,12 @@ rayon = "1"
 ringside-core = { path = "../ringside-core" }
 ringside-engine = { path = "../ringside-engine" }
 ringside-learn = { path = "../ringside-learn" }
+ringside-play = { path = "../ringside-play" }
 ringside-solver = { path = "../ringside-solver" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
+rand = { version = "0.9", default-features = false }
+rand_chacha = "0.9"
 tempfile = "3"
