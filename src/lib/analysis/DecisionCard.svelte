@@ -115,7 +115,7 @@
       {better}
       cost={d.ev_loss_bb ?? undefined}
       {potShare}
-      context={d.source === "estimate" ? `${context} · laut Einschätzung` : context}
+      context={d.source === "estimate" ? `${context} · geschätzt` : context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       source={quiet && kit ? kit : undefined}
     >
@@ -231,6 +231,7 @@
     line-height: 1.45;
   }
   .still {
+    margin-bottom: var(--sp-2);
     color: var(--text);
   }
   .mix-box {
