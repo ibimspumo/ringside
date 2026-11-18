@@ -25,6 +25,7 @@
   import { date, dateTime, sign, signed, time } from "./format";
   import type { LearnTarget } from "./Leaks.svelte";
   import Replayer from "./Replayer.svelte";
+  import { adviceLocked, watchPokerClient } from "./client.svelte";
 
   let {
     filter,
@@ -71,7 +72,7 @@
 
   // Coming from another page with a hand, a player or a leak, the newest hands fit better.
   // A hand opened from elsewhere shows in "Alle Hände"; coming back to a decision keeps the usual view.
-  let view = $state<View | null>(
+  let picked = $state<View | null>(
     untrack(() => (preview("hands") as View | null) ?? ((openId !== null && openAt === null) || spot || player ? "all" : null)),
   );
   let showdownOnly = $state(false);
@@ -121,20 +122,29 @@
   $effect(() => {
     if (!analysis.openMistakes) return;
     analysis.openMistakes = false;
-    view = "mistakes";
+    picked = "mistakes";
   });
   // Start on the costliest mistakes once there are any.
   $effect(() => {
     const s = analysis.status;
-    if (view === null && s) view = s.counts.rated > 0 ? "mistakes" : "all";
+    if (picked === null && s) picked = s.counts.rated > 0 ? "mistakes" : "all";
   });
 
-  const locked = $derived(analysis.status?.state === "locked");
+  watchPokerClient();
+  /** While PokerStars runs the list keeps results and cards, without any rating. */
+  const locked = $derived(adviceLocked() || analysis.status?.state === "locked");
+  const view = $derived(locked && picked !== null ? "all" : picked);
   /** Before the first run over all hands, starting that run is the page's main action. */
   const started = $derived(!!analysis.status && (analysis.status.enabled || analysis.status.counts.analyzed > 0));
   const tournament = $derived(filter.tournament_id);
-  const extra = $derived(spots.length + (minRating ? 1 : 0) + (minLoss ? 1 : 0) + (street ? 1 : 0) + (source ? 1 : 0) + (showdownOnly ? 1 : 0) + (result ? 1 : 0) + (minPot ? 1 : 0));
+  const extra = $derived(
+    (locked ? 0 : spots.length + (minRating ? 1 : 0) + (minLoss ? 1 : 0) + (street ? 1 : 0) + (source ? 1 : 0)) +
+      (showdownOnly ? 1 : 0) +
+      (result ? 1 : 0) +
+      (minPot ? 1 : 0),
+  );
   const decisionFilter = $derived.by((): DecisionFilter | null => {
+    if (locked) return null;
     const f: DecisionFilter = {
       min_rating: minRating ?? (view === "mistakes" ? "inaccuracy" : null),
       min_loss_bb: minLoss && minLoss > 0 ? minLoss : null,
@@ -185,6 +195,14 @@
     if (openId !== null) untrack(() => open(openId, openAt, true));
   });
 
+  // Closing PokerStars brings the ratings of the hand on screen back.
+  $effect(() => {
+    if (locked) return;
+    untrack(() => {
+      if (selected && decisions === null) loadDecisions(selected.id, chosen);
+    });
+  });
+
   // A finished solve of the hand on screen shows at once.
   $effect(() => {
     const id = analysis.lastSolved;
@@ -218,6 +236,11 @@
   }
 
   async function loadDecisions(id: number, at: number | null) {
+    if (locked) {
+      decisions = null;
+      chosen = null;
+      return;
+    }
     try {
       const d = await api.analysisDecisions(id);
       if (selected?.id !== id) return;
@@ -353,10 +376,10 @@
   }
 
   usePageHead(() => ({
-    tabs: VIEWS.map(([id, label, hint]) => ({ id, label, hint })),
+    tabs: VIEWS.filter(([id]) => !locked || id === "all").map(([id, label, hint]) => ({ id, label, hint })),
     value: view ?? "",
     label: "Welche Hände",
-    onchange: (id) => (view = id as View),
+    onchange: (id) => (picked = id as View),
     end: headEnd,
   }));
 
@@ -479,6 +502,7 @@
         {#if extra}<Button size="sm" variant="quiet" onclick={clearFilters}>Zurücksetzen</Button>{/if}
         <Button size="sm" kbd="Esc" onclick={() => (filtersOpen = false)}>Fertig</Button>
       </div>
+      {#if !locked}
       <div class="group wide">
         <span class="title">Situation</span>
         <div class="spot-groups">
@@ -539,6 +563,7 @@
         />
         <p class="note">Woher die Bewertung kommt. Zeig auf eine Quelle, um zu lesen, wie sie rechnet.</p>
       </div>
+      {/if}
       <div class="group">
         <span class="title">Hand</span>
         <SegmentedControl

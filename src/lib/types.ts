@@ -158,6 +158,8 @@ export interface Filter {
   /** "YYYY/MM/DD" */
   since: string | null;
   tournament_id: number | null;
+  /** Last hand included, "YYYY/MM/DD HH:MM:SS": the end of a session. */
+  until?: string | null;
 }
 
 export interface ResultPoint {

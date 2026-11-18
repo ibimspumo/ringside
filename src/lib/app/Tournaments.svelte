@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { adviceLocked, watchPokerClient } from "./client.svelte";
   import { api } from "../api";
   import { buyInText, cash, tournamentName } from "../stats";
   import type { Filter, TournamentRow, Tournaments } from "../types";
@@ -159,6 +160,7 @@
     const chips = r.hands ? ` Chips über ${int(r.hands)} Hände: ${signed(r.chips / 100, 0)}.` : "";
     return `Noch kein Ausscheiden in deinen Händen: Das Turnier läuft noch, oder die letzte Hand ist nicht importiert.${chips}`;
   }
+  watchPokerClient();
 </script>
 
 <div class="page tours">
@@ -288,7 +290,7 @@
       </Panel>
     {/if}
 
-    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · Zeile anklicken: Bericht mit Fehlern, Glück und dem nächsten Übungsschritt">
+    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · {adviceLocked() ? 'Den Bericht gibt es, sobald du PokerStars schließt' : 'Zeile anklicken: Bericht mit Fehlern, Glück und dem nächsten Übungsschritt'}">
       <table class="table tours-table">
           <thead>
             <tr>

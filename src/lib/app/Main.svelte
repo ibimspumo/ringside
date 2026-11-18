@@ -5,7 +5,9 @@
   import Coach from "../coach/Coach.svelte";
   import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
+  import AtTable from "./AtTable.svelte";
   import ClientLock from "./ClientLock.svelte";
+  import { adviceLocked, pokerClient, watchPokerClient } from "./client.svelte";
   import Dashboard from "./Dashboard.svelte";
   import { PERIODS, int, since, type Period } from "./format";
   import Hands from "./Hands.svelte";
@@ -25,6 +27,9 @@
   import RangesPage from "../charts/RangesPage.svelte";
   import { chartsHandoff } from "../charts/handoff.svelte";
   import Ranges from "../ranges/Ranges.svelte";
+  import SessionReview from "../session/SessionReview.svelte";
+  import type { RangePreset, SessionScope } from "../session/types";
+  import Tag from "../ui/Tag.svelte";
   import type { RangeFilter } from "../ranges/types";
   import Solver from "../solver/Solver.svelte";
   import Library from "../library/Library.svelte";
@@ -46,6 +51,7 @@
 
   type Tab =
     | "dashboard"
+    | "overview"
     | "reports"
     | "leaks"
     | "ranges"
@@ -66,7 +72,8 @@
     {
       label: "Analyse",
       items: [
-        { id: "dashboard", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
+        { id: "dashboard", label: "Rückblick", icon: "M4.5 12a7.5 7.5 0 1 0 2.2-5.3M4.5 4.5v3.2h3.2M12 8v4.2l2.8 1.8" },
+        { id: "overview", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
         { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
         { id: "reports", label: "Statistik", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
         { id: "leaks", label: "Schwachstellen", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
@@ -102,8 +109,9 @@
   ];
   const NAV = GROUPS.flatMap((g) => g.items);
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
-  const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
+  const DATA_TABS: Tab[] = ["overview", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
+    overview: "Alle Hände im gewählten Zeitraum: Ergebnis, Spielstil und wo du Chips verlierst.",
     tournaments: "Klick auf ein Turnier öffnet seinen Bericht: Ergebnis, Glück, deine Fehler und was du als Nächstes übst.",
     reports: "Starthände, Positionen und Sessions über den gewählten Zeitraum.",
     players: "Ein Klick auf einen Gegner zeigt Typ, Gegenzug und Bedeutung.",
@@ -119,9 +127,16 @@
     solver: "Gerechnet wird nur auf diesem Rechner.",
     library: "Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
+  /** While the client runs: the lines of pages whose usual line promises a rating. */
+  const LOCKED_NOTES: Partial<Record<Tab, string>> = {
+    tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du PokerStars schließt.",
+    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
+    leaks: "Deine Werte gegen Richtwerte – sobald du PokerStars schließt.",
+  };
   /** Pages PokerStars' rules lock while the client runs; the PageHeader keeps saying so. */
-  const LOCKED: Tab[] = ["training", "play", "charts", "solver", "library"];
-  let clientRunning = $state(false);
+  const LOCKED: Tab[] = ["leaks", "training", "play", "charts", "solver", "library"];
+  watchPokerClient();
+  const clientRunning = $derived(pokerClient.running === true);
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
     ["cash", "Cash"],
@@ -153,11 +168,17 @@
   let period = $state<Period>("all");
   /** One tournament for every data view; game and period do not apply while it is set. */
   let tournament = $state<number | null>(null);
+  /** One session, chosen from the review; like a tournament, game and period do not apply meanwhile. */
+  let session = $state<SessionScope | null>(null);
   const filter = $derived<Filter>(
-    tournament === null
-      ? { game, since: since(period), tournament_id: null }
-      : { game: null, since: null, tournament_id: tournament },
+    session !== null
+      ? { game: null, since: session.since, until: session.until, tournament_id: null }
+      : tournament === null
+        ? { game, since: since(period), tournament_id: null }
+        : { game: null, since: null, tournament_id: tournament },
   );
+  /** "Deine Ranges" opens on this situation once. */
+  let rangesPreset = $state<RangePreset | null>(null);
   const tournamentFilter = $derived<Filter>({
     game: "tournament",
     since: tournament === null ? since(period) : null,
@@ -291,11 +312,13 @@
   function setGame(g: GameKind | null) {
     game = g;
     tournament = null;
+    session = null;
   }
 
   function setPeriod(p: Period) {
     period = p;
     tournament = null;
+    session = null;
   }
 
   /** Current state from the backend; events only report changes. */
@@ -326,13 +349,9 @@
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
       on("tournament-named", () => refresh++),
-      on<boolean>("poker-client", (r) => (clientRunning = r)),
     ];
     // Listen first, then read the state, so nothing sent at startup is missed.
-    Promise.all(subs).then(() => {
-      sync();
-      api.pokerClientRunning().then((r) => (clientRunning = r));
-    });
+    Promise.all(subs).then(sync);
     const poll = setInterval(sync, 5000);
     return () => {
       clearInterval(poll);
@@ -416,13 +435,21 @@
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
+    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={(clientRunning && LOCKED_NOTES[tab]) || NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab) && !showingReport}
-        {@const off = tournament !== null}
-        {@const offTitle = off ? "Gilt nicht, solange ein Turnier gewählt ist. Klick hebt die Turnierauswahl auf." : undefined}
+        {@const off = tournament !== null || session !== null}
+        {@const offTitle = off ? `Gilt nicht, solange ${session ? "eine Session" : "ein Turnier"} gewählt ist. Klick hebt die Auswahl auf.` : undefined}
         <div class="filters">
-          <TournamentPicker tournaments={tournamentList} selected={tournament} onSelect={(id) => (tournament = id)} />
+          {#if session}<Tag onremove={() => (session = null)} removeLabel="Nur diese Session: aufheben">{session.label}</Tag>{/if}
+          <TournamentPicker
+            tournaments={tournamentList}
+            selected={tournament}
+            onSelect={(id) => {
+              tournament = id;
+              session = null;
+            }}
+          />
           {#if tab !== "tournaments"}
             <span class="wide-game" class:dim={off} title={offTitle}>
               <SegmentedControl
@@ -454,6 +481,35 @@
 
     <div class="content" class:fill={tab === "hands"} use:followPage>
       {#if tab === "dashboard"}
+        <SessionReview
+          {refresh}
+          {filter}
+          onStepHands={stepHands}
+          onReport={openReport}
+          onHand={(scope, hand, at) => {
+            session = scope;
+            tournament = null;
+            showHands(null, hand);
+            handOpenAt = at;
+          }}
+          onRanges={(scope, preset) => {
+            session = scope;
+            tournament = null;
+            rangesPreset = preset;
+            tab = "ranges";
+          }}
+          onHands={(scope, range, label) => {
+            session = scope;
+            tournament = null;
+            showHands(null);
+            handsSpot = { range, label };
+          }}
+          onLearn={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
+        />
+      {:else if tab === "overview"}
         <Dashboard
           {filter}
           {hud}
@@ -467,6 +523,8 @@
         />
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
+      {:else if tab === "leaks" && adviceLocked()}
+        <AtTable hands={status?.total_hands} />
       {:else if tab === "leaks"}
         <Leaks
           {filter}
@@ -485,6 +543,8 @@
         <Ranges
           {filter}
           {refresh}
+          preset={rangesPreset}
+          onPresetUsed={() => (rangesPreset = null)}
           onHands={(range, label) => {
             showHands(null);
             handsSpot = { range, label };
@@ -582,13 +642,7 @@
     </div>
   </main>
   <JobToasts onView={viewTarget}>
-    <AutoDoneToast
-      onView={(finished) => {
-        if (finished !== null) return openReport(finished);
-        analysis.openMistakes = true;
-        showHands(null);
-      }}
-    />
+    <AutoDoneToast onView={() => (tab = "dashboard")} />
   </JobToasts>
 </div>
 

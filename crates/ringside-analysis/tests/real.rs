@@ -166,3 +166,66 @@ fn real_full() {
             d.strategy.iter().map(|c| format!("{} {:.0}% EV {:.2}", c.label, c.freq * 100.0, c.ev_bb.unwrap_or(f64::NAN))).collect::<Vec<_>>(), d.note);
     }
 }
+
+/// The session review of the user's own hands, as the start page shows it:
+/// `RINGSIDE_REAL_HH=… cargo test --release -p ringside-analysis --test real real_session -- --ignored --nocapture`.
+#[test]
+#[ignore = "needs RINGSIDE_REAL_HH"]
+fn real_session() {
+    let dir = std::env::var("RINGSIDE_REAL_HH").expect("RINGSIDE_REAL_HH");
+    let mut db = ringside_core::db::Db::open_in_memory().unwrap();
+    for entry in std::fs::read_dir(&dir).unwrap() {
+        let bytes = std::fs::read(entry.unwrap().path()).unwrap();
+        let text = String::from_utf8_lossy(&bytes);
+        let parsed: Vec<_> = split_hands(&text).into_iter().filter_map(|raw| parse_hand(raw).ok().map(|h| (h, raw.to_string()))).collect();
+        db.insert_hands(&parsed).unwrap();
+        let analysed: Vec<_> = parsed.iter().map(|(h, _)| analyze_hand(h)).collect();
+        db.save_analysis(&analysed).unwrap();
+    }
+    for span in db.session_spans(10).unwrap() {
+        let r = db.session_review(&span, ringside_analysis::ENGINE).unwrap();
+        let p = &r.preflop;
+        println!(
+            "\nSession {} – {}: {} Hände, {} Turniere, {} Cash-Hände",
+            span.start,
+            span.end,
+            span.hands,
+            span.tournaments.len(),
+            span.cash_hands
+        );
+        println!(
+            "  Preflop: {} von {} Händen verglichen ({} Gleichgewicht), gespielt {:.1} %, Modell {:.1} %, Stichprobe {:?}",
+            p.compared,
+            p.hands,
+            p.equilibrium,
+            p.you_pct.unwrap_or(0.0),
+            p.model_pct.unwrap_or(0.0),
+            p.sample
+        );
+        println!("  Entscheidungen vor dem Flop: {} verglichen, {} gut, Verlust {:.1} BB", p.decisions, p.good, p.loss_bb);
+        if let Some(v) = &p.verdict {
+            println!("  Urteil: {} (Stufe {}) – {}", v.title, v.level, v.line);
+        }
+        let names = |ids: &[u8]| ids.iter().filter_map(|i| p.classes.iter().find(|c| c.class == *i)).map(|c| c.name.clone()).collect::<Vec<_>>();
+        println!("  Hättest du auch spielen sollen: {:?}", names(&p.tight));
+        println!("  Hättest du folden sollen: {:?}", names(&p.wide));
+        for pat in &p.patterns {
+            println!("  Muster: {}", pat.text);
+        }
+        println!(
+            "  Glück {:.1} BB in {} All-ins; Pech gehabt {}, Glück gehabt {}; offen: {} Hände, {} Flop-Spots",
+            r.report.luck.luck_bb,
+            r.report.luck.all_ins,
+            r.bad_luck.len(),
+            r.good_luck.len(),
+            r.report.unanalyzed,
+            r.report.pending
+        );
+        if let Some(s) = r.bad_luck.first() {
+            println!("  Pech-Beispiel: {} {} ({:?}), Equity {:?}, Ergebnis {:.1} BB", s.hero_cards, s.played, s.rating, s.equity_pct, s.net_bb);
+        }
+        if let Some(s) = r.good_luck.first() {
+            println!("  Glück-Beispiel: {} {} ({:?}), kostet {:.1} BB, Ergebnis {:.1} BB", s.hero_cards, s.played, s.rating, s.loss_bb, s.net_bb);
+        }
+    }
+}

@@ -78,7 +78,7 @@ const label = rgba("var(--grid-label)");
 const labelOut = rgba("var(--grid-label-out)");
 const dim = Number(resolve("var(--grid-dim)"));
 
-const FILL_TOKENS = [...vars.keys()].filter((k) => /^--act-/.test(k)).concat(["--pos", "--neg", "--sd", "--amber"]);
+const FILL_TOKENS = [...vars.keys()].filter((k) => /^--act-/.test(k)).concat(["--pos", "--neg", "--sd", "--amber", "--range-wide", "--range-tight"]);
 const HEIGHTS = [0, 0.25, 0.5, 0.75, 1];
 
 /** What can lie under the label at the top of a cell filled `h` from the bottom. Small cells

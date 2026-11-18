@@ -240,7 +240,7 @@ pub struct Report {
     /// Loss per kind of spot in this tournament, costliest first.
     pub kinds: Vec<Practice>,
     /// „Was als Nächstes?“ for this tournament: the one list of the whole history, filtered to
-    /// this tournament ([`crate::next::for_tournament`]). Filled by the caller, which knows the
+    /// this tournament ([`crate::next::within`]). Filled by the caller, which knows the
     /// whole history.
     pub next: Vec<crate::next::NextStep>,
     /// The latest earlier tournaments, newest first.
@@ -374,7 +374,7 @@ fn band(d: &ReportDecision) -> (String, String) {
 }
 
 /// What the played action gained over the best other action, by the strategy's EVs.
-fn margin(d: &ReportDecision) -> Option<(f64, String)> {
+pub(crate) fn margin(d: &ReportDecision) -> Option<(f64, String)> {
     let played = d.strategy.iter().find(|c| c.played)?.ev_bb?;
     let other = d
         .strategy

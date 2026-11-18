@@ -2,12 +2,10 @@
 // every click (hand, practice, coach) leads somewhere. `?report=<id>&data=pending` shows a
 // preliminary report, `?data=empty` one without rated decisions.
 import { demoTournaments } from "../demo";
-import { bbText } from "../learn/profile";
-import { demoNextSteps } from "../next/demo";
-import type { NextStep } from "../next/types";
+import { demoWithin } from "../next/demo";
 import type { AskAbout, AskAnswer, AskEstimate, KindLoss, Moment, StackPoint, TournamentReport } from "./types";
 
-/** The demo tournament with a stored coach review; the automatic analysis note leads to it too. */
+/** The demo tournament with a stored coach review. */
 export const DEMO_REVIEWED = 4046787838;
 
 const preview = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
@@ -262,7 +260,7 @@ export function demoReport(id: number): TournamentReport {
         ],
     timeline: timeline(hands, tournament.prize === 0),
     kinds: empty ? [] : KINDS,
-    next: empty ? [] : forTournament(demoNextSteps(), KINDS),
+    next: empty ? [] : demoWithin(KINDS, "in diesem Turnier"),
     history: empty
       ? []
       : all
@@ -316,27 +314,3 @@ const KINDS: KindLoss[] = [
   { key: "push_fold|BTN|1|6", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler", lage: "push_fold", decisions: 31, flawed: 3, loss_bb: 3.2 },
   { key: "vs_open|BB|2|6", title: "Gegen Open im Big Blind", detail: "20–40 BB · 6 Spieler", lage: "vs_open", decisions: 7, flawed: 2, loss_bb: 2.6 },
 ];
-
-/** As `for_tournament` in crates/ringside-core/src/next.rs: the whole list, kept where it touched the tournament. */
-function forTournament(list: NextStep[], kinds: KindLoss[]): NextStep[] {
-  const keys = new Set(kinds.map((k) => k.key));
-  const kept = list.filter((s) => s.spot_key !== null && keys.has(s.spot_key));
-  const rare = kinds
-    .filter((k) => !kept.some((s) => s.spot_key === k.key))
-    .map(
-      (k): NextStep => ({
-        ...kept[0],
-        id: `spot:${k.key}`,
-        title: k.title,
-        why: `${k.flawed} von ${k.decisions} deiner Entscheidungen hier waren ungenau oder schlechter (${k.detail}).`,
-        number: `kostet dich im Schnitt etwa ${bbText(k.loss_bb / k.decisions)} pro Mal, ${k.decisions}-mal in diesem Turnier`,
-        estimate: false,
-        score: k.loss_bb,
-        spot_key: k.key,
-        practice: { spot: k.key },
-        hands: { by: "spot", key: k.key, label: `${k.title}, ${k.detail.split(" · ")[0]}` },
-        read: "range",
-      }),
-    );
-  return [...kept, ...rare];
-}

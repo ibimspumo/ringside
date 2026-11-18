@@ -1,7 +1,7 @@
 //! „Was als Nächstes?“: one ranked list of what to work on, built from every source that
 //! knows something about the hero's game – kinds of spot of the playing profile, leaks of the
 //! stats, the costliest single decisions, concepts from coach reports and due reviews. Every
-//! page reads this list; a page with its own focus filters it ([`for_tournament`]) instead of
+//! page reads this list; a page with its own focus filters it ([`within`]) instead of
 //! ranking again, so all pages name the same first step.
 //!
 //! An entry weighs what it costs in big blinds over all the times it came up (cost per time ×
@@ -181,11 +181,12 @@ pub fn rank(input: &Inputs) -> Vec<NextStep> {
     out
 }
 
-/// The list as a tournament's report shows it: the same entries in the same order, kept when
-/// they happened in the tournament, then kinds of spot of the tournament that are too rare in
-/// the whole history to be ranked there. `kinds` is the tournament's loss per kind of spot,
-/// costliest first; `hands` its hand ids.
-pub fn for_tournament(list: &[NextStep], kinds: &[KindLoss], hands: &HashSet<u64>) -> Vec<NextStep> {
+/// The list as a page about one part of the history shows it (a tournament's report, a
+/// session's review): the same entries in the same order, kept when they happened in that part,
+/// then its kinds of spot that are too rare in the whole list to be ranked there. `kinds` is the
+/// part's loss per kind of spot, costliest first; `hands` its hand ids; `part` names it in the
+/// number, e.g. „in diesem Turnier“.
+pub fn within(list: &[NextStep], kinds: &[KindLoss], hands: &HashSet<u64>, part: &str) -> Vec<NextStep> {
     let lost: Vec<&KindLoss> = kinds.iter().filter(|k| k.loss_bb > 0.0).collect();
     let keys: HashSet<&str> = lost.iter().map(|k| k.key.as_str()).collect();
     let mut out: Vec<NextStep> = list
@@ -198,8 +199,28 @@ pub fn for_tournament(list: &[NextStep], kinds: &[KindLoss], hands: &HashSet<u64
         .cloned()
         .collect();
     let listed: HashSet<String> = out.iter().filter_map(|s| s.spot_key.clone()).collect();
-    out.extend(lost.into_iter().filter(|k| !listed.contains(&k.key)).filter_map(rare_kind));
+    out.extend(lost.into_iter().filter(|k| !listed.contains(&k.key)).filter_map(|k| rare_kind(k, part)));
     out
+}
+
+/// A part of the history's loss per kind of spot, costliest first, from its playing profile.
+pub fn kind_losses(profile: &Profile) -> Vec<KindLoss> {
+    let mut kinds: Vec<KindLoss> = profile
+        .groups
+        .iter()
+        .filter(|g| g.loss_bb > 0.0)
+        .map(|g| KindLoss {
+            key: g.key.clone(),
+            title: g.title.clone(),
+            detail: g.detail.clone(),
+            lage: g.lage,
+            decisions: g.decisions,
+            flawed: g.flawed,
+            loss_bb: g.loss_bb,
+        })
+        .collect();
+    kinds.sort_by(|a, b| b.loss_bb.total_cmp(&a.loss_bb).then(a.key.cmp(&b.key)));
+    kinds
 }
 
 fn sort(list: &mut [NextStep]) {
@@ -536,7 +557,7 @@ fn review(r: &Review) -> NextStep {
 }
 
 /// A kind of spot of one tournament that the whole history does not rank.
-fn rare_kind(k: &KindLoss) -> Option<NextStep> {
+fn rare_kind(k: &KindLoss, part: &str) -> Option<NextStep> {
     let kind = SpotKind::parse(&k.key)?;
     let mean = k.loss_bb / k.decisions.max(1) as f64;
     let band = k.detail.split(" · ").next().unwrap_or(&k.detail);
@@ -545,7 +566,7 @@ fn rare_kind(k: &KindLoss) -> Option<NextStep> {
         kind: StepKind::Spot,
         title: k.title.clone(),
         why: format!("{} von {} deiner Entscheidungen hier waren ungenau oder schlechter ({}).", k.flawed, k.decisions, k.detail),
-        number: cost_line(mean, k.decisions, "in diesem Turnier"),
+        number: cost_line(mean, k.decisions, part),
         term: lage_term(kind.lage),
         per_time_bb: Some(mean),
         times: Some(k.decisions),
@@ -785,12 +806,28 @@ mod tests {
         // The tournament lost most in the river spot, but the whole history ranks vs_open first.
         let kinds = vec![kind("river_vs_bet|-|3|6", 5.0), kind("vs_open|BB|1|9", 1.0), kind("vs_limp|SB|3|6", 0.8), kind("c_bet|-|2|6", 0.0)];
         let hands: HashSet<u64> = [7].into();
-        let t = for_tournament(&list, &kinds, &hands);
+        let t = within(&list, &kinds, &hands, "in diesem Turnier");
         let ids: Vec<&str> = t.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(ids, ["spot:vs_open|BB|1|9", "spot:river_vs_bet|-|3|6", "decision:7:4", "spot:vs_limp|SB|3|6"]);
         assert_eq!(t[0], list[0], "the same first entry as every other page");
         assert_eq!(t[3].number, "kostet dich im Schnitt etwa 0,3 BB pro Mal, 3-mal in diesem Turnier");
-        assert!(for_tournament(&list, &[], &HashSet::new()).is_empty());
+        assert!(within(&list, &[], &HashSet::new(), "in diesem Turnier").is_empty());
+    }
+
+    #[test]
+    fn a_session_keeps_the_first_entry_when_it_played_that_spot() {
+        let list = sample().rank();
+        // The session's own profile: few decisions per kind, so none of them is ranked there.
+        let part = profile(vec![
+            Group { rank: None, few: true, ..group("river_vs_bet|-|3|6", 4, 3.0, "2026/11/17 22:00:00") },
+            Group { rank: None, few: true, ..group("vs_open|BB|1|9", 2, 0.4, "2026/11/17 21:00:00") },
+            Group { rank: None, few: true, ..group("c_bet|-|2|6", 3, 0.0, "2026/11/17 21:00:00") },
+        ]);
+        let kinds = kind_losses(&part);
+        assert_eq!(kinds.iter().map(|k| k.key.as_str()).collect::<Vec<_>>(), ["river_vs_bet|-|3|6", "vs_open|BB|1|9"]);
+        let s = within(&list, &kinds, &HashSet::new(), "in dieser Session");
+        assert_eq!(s[0], list[0], "the overview's first step");
+        assert_eq!(s.iter().map(|x| x.id.as_str()).collect::<Vec<_>>(), ["spot:vs_open|BB|1|9", "spot:river_vs_bet|-|3|6"]);
     }
 
     /// Every article an entry links to exists in „Wissen“.

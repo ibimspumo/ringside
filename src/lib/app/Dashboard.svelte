@@ -16,6 +16,8 @@
   import NextSteps from "../next/NextSteps.svelte";
   import type { NextStep, StepHands } from "../next/types";
   import { WORDS, explain } from "../ui/words";
+  import AtTable from "./AtTable.svelte";
+  import { adviceLocked, watchPokerClient } from "./client.svelte";
 
   const SERIES: Series<ResultPoint>[] = [
     { key: "net_bb", label: "Gesamt", color: "var(--text)", width: 2 },
@@ -66,6 +68,9 @@
   /** The curve fills whatever height the answer column gives the row. */
   let plotH = $state(0);
 
+  watchPokerClient();
+  const locked = $derived(adviceLocked());
+
   $effect(() => {
     void refresh;
     void retry;
@@ -79,7 +84,25 @@
         failed = false;
       })
       .catch(() => live && (failed = true));
+    api.reports(f).then(
+      (rep) => live && (positions = rep.positions),
+      () => live && (positions = []),
+    );
+    return () => (live = false);
+  });
+
+  // Ratings and the leak finder's verdicts are advice: none while PokerStars runs.
+  $effect(() => {
+    void refresh;
+    void retry;
     void analysis.status?.counts.analyzed;
+    const f = { ...filter };
+    if (locked) {
+      steps = [];
+      flagged = new Map();
+      return;
+    }
+    let live = true;
     api.nextSteps(f).then(
       (s) => live && (steps = s),
       () => live && (steps = []),
@@ -96,10 +119,6 @@
         flagged = m;
       },
       () => live && (flagged = new Map()),
-    );
-    api.reports(f).then(
-      (rep) => live && (positions = rep.positions),
-      () => live && (positions = []),
     );
     return () => (live = false);
   });
@@ -193,7 +212,7 @@
             : ""}.
           {#if r.hands < FEW_HANDS}<span class="chance">Bei so wenigen Händen spielt der Zufall noch stark mit.</span>{/if}
         </p>
-        {#if steps.length}<div class="next-narrow">{@render nextStep()}</div>{/if}
+        {#if steps.length && !locked}<div class="next-narrow">{@render nextStep()}</div>{/if}
 
         <dl class="facts">
           <div>
@@ -253,12 +272,12 @@
       </div>
     </section>
 
-    {#if steps.length}<div class="next-wide">{@render nextStep()}</div>{/if}
+    {#if steps.length && !locked}<div class="next-wide">{@render nextStep()}</div>{/if}
 
     <section class="loss">
       <div class="section-head">
           <h2 class="section-title">Wo du Chips verlierst</h2>
-          {#if running}
+          {#if running && !locked}
             <span class="snapshot"
               >{preflopDone
                 ? "Zwischenstand – nach dem Flop kommen noch Entscheidungen dazu."
@@ -266,8 +285,12 @@
             >
           {/if}
       </div>
-      <AnalyzeBar compact title="Analyse starten" />
-      <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpots={() => onHand(-1, null)} {onLearn} {onStepHands} />
+      {#if locked}
+        <AtTable compact hands={r.hands} />
+      {:else}
+        <AnalyzeBar compact title="Analyse starten" />
+        <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpots={() => onHand(-1, null)} {onLearn} {onStepHands} />
+      {/if}
     </section>
 
     {#if byPosition.length}
@@ -299,7 +322,7 @@
     <Panel
       flush
       title="Dein Spielstil"
-      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ ist kein Fehler – ob ein Wert dich Geld kostet, prüft die Seite Schwachstellen."
+      sub="Wie oft du was tust (gemacht von Gelegenheiten), gemessen an deinen HUD-Schwellen. „Hoch“ oder „niedrig“ heißt noch nicht schlecht – ob ein Wert dich Geld kostet, prüft die Seite Schwachstellen."
     >
       {#if hero && hud}
         <div class="style">

@@ -128,6 +128,16 @@ export function initial(groups: RangeGroup[]): Selection {
   return settle(groups, { ...blank, history });
 }
 
+/** A named situation at every depth and table size; seat and opponent stay when they have hands. */
+export function fromPreset(groups: RangeGroup[], p: { history: History | null; position: string | null; vs: string | null }): Selection {
+  const base = initial(groups);
+  const wide: Selection = { ...base, history: p.history ?? base.history, depth: { kind: "all" }, size: "all", behind: "all" };
+  const next = settle(groups, { ...wide, position: p.position ?? wide.position }, true);
+  if (p.position && total(groups, { ...next, position: p.position, vs: null })) next.position = p.position;
+  if (p.vs && hasOpponent(next.history) && total(groups, { ...next, vs: p.vs })) next.vs = p.vs;
+  return next;
+}
+
 export function toFilter(s: Selection): RangeFilter {
   const d = depthRange(s.depth);
   const size = SIZES[s.size];

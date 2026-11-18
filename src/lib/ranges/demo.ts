@@ -154,7 +154,7 @@ export function demoChart(filter: Filter, range: RangeFilter): RangeChart {
     line: [range.vs_position ? `${range.vs_position}:r` : "", total],
   };
   if (!model) {
-    const why = locked ? "Der Vergleich mit dem Modell ist gesperrt, solange PokerStars läuft." : "Wähle eine Position, dann steht das Modell daneben.";
+    const why = locked ? "Der Vergleich ist gesperrt, solange PokerStars läuft." : "Wähle eine Position, dann steht das Modell daneben.";
     return { counts, model: null, comparison: null, model_missing: why, locked };
   }
   let w = 0;

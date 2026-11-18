@@ -19,6 +19,7 @@ pub use rusqlite::Error;
 mod analysis;
 mod report;
 mod ranges;
+mod session;
 mod solutions;
 mod store;
 pub use ranges::{RangeCounts, RangeFilter, RangeGroup};
@@ -36,12 +37,15 @@ pub struct Db {
     conn: Connection,
 }
 
-/// Restricts reports to a kind of game, a start date ("YYYY/MM/DD") and one tournament.
+/// Restricts reports to a kind of game, a start ("YYYY/MM/DD", or with the time), one
+/// tournament and an end ("YYYY/MM/DD HH:MM:SS", inclusive; a session ends there).
 #[derive(Debug, Clone, Default, Deserialize)]
 pub struct Filter {
     pub game: Option<GameKind>,
     pub since: Option<String>,
     pub tournament_id: Option<u64>,
+    #[serde(default)]
+    pub until: Option<String>,
 }
 
 impl Filter {
@@ -227,9 +231,13 @@ fn counters_at(row: &rusqlite::Row, first: usize) -> rusqlite::Result<Counters> 
 }
 
 /// Joined `hands h` / `player_hands ph` restriction shared by reports; binds ?1 game, ?2 since,
-/// ?3 tournament id. Queries number their own parameters from ?4 on.
-const FILTER_SQL: &str =
-    "(?1 IS NULL OR h.game = ?1) AND (?2 IS NULL OR h.played_at >= ?2) AND (?3 IS NULL OR h.tournament_id = ?3)";
+/// ?3 tournament id, ?4 until. Queries number their own parameters from ?5 on.
+const FILTER_SQL: &str = "(?1 IS NULL OR h.game = ?1) AND (?2 IS NULL OR h.played_at >= ?2) AND (?3 IS NULL OR h.tournament_id = ?3)
+     AND (?4 IS NULL OR h.played_at <= ?4)";
+
+/// Minutes since a fixed point of `h.played_at` ("YYYY/MM/DD HH:MM:SS"), for splitting sessions.
+pub(crate) const MINUTES_SQL: &str =
+    "julianday(replace(substr(h.played_at, 1, 10), '/', '-') || ' ' || substr(h.played_at, 12)) * 1440.0";
 
 /// Lets a date or tournament filter range-scan `player_hands` by hand id instead of reading
 /// every row. The bounds only narrow the scan, however ids relate to time; `FILTER_SQL` still
@@ -517,7 +525,7 @@ impl Db {
     /// Players ordered by hands played, optionally filtered by a name substring. Without a date
     /// or tournament filter this reads the running totals, so it stays fast with millions of hands.
     pub fn players(&self, filter: &Filter, search: &str, limit: usize) -> Result<Vec<PlayerRow>, Error> {
-        if filter.since.is_some() || filter.tournament_id.is_some() {
+        if filter.since.is_some() || filter.tournament_id.is_some() || filter.until.is_some() {
             return self.player_rows(None, filter, limit, search);
         }
         let sql = format!(
@@ -543,13 +551,13 @@ impl Db {
         let sql = format!(
             "SELECT ph.player, SUM(ph.net), {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
              WHERE {FILTER_SQL} AND {HAND_RANGE_SQL}
-               AND (?4 IS NULL OR ph.player = ?4) AND ph.player LIKE ?5 ESCAPE '\\'
-             GROUP BY ph.player ORDER BY SUM(ph.hands) DESC, ph.player LIMIT ?6",
+               AND (?5 IS NULL OR ph.player = ?5) AND ph.player LIKE ?6 ESCAPE '\\'
+             GROUP BY ph.player ORDER BY SUM(ph.hands) DESC, ph.player LIMIT ?7",
             sums()
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = stmt.query_map(
-            params![filter.game(), filter.since, filter.tournament(), player, like_pattern(search), limit as i64],
+            params![filter.game(), filter.since, filter.tournament(), filter.until, player, like_pattern(search), limit as i64],
             |row| Ok(PlayerRow { name: row.get(0)?, net: row.get(1)?, counters: counters_at(row, 2)? }),
         )?;
         rows.collect()
@@ -566,7 +574,7 @@ impl Db {
             sums()
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |row| {
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |row| {
             Ok(GroupRow { key: row.get(0)?, net: row.get(1)?, net_bb: row.get(2)?, counters: counters_at(row, 3)? })
         })?;
         rows.collect()
@@ -584,7 +592,7 @@ impl Db {
             band = leaks::band_sql("h.hero_stack_bb"),
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |r| {
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             Ok(Cell {
                 game: GameKind::parse(&r.get::<_, String>(0)?),
                 position: r.get(1)?,
@@ -601,7 +609,7 @@ impl Db {
     pub fn hero_results(&self, filter: &Filter, max_points: usize) -> Result<Results, Error> {
         let count: i64 = self.conn.query_row(
             &format!("SELECT COUNT(*) FROM hands h WHERE h.hero_net IS NOT NULL AND {FILTER_SQL}"),
-            params![filter.game(), filter.since, filter.tournament()],
+            params![filter.game(), filter.since, filter.tournament(), filter.until],
             |r| r.get(0),
         )?;
         let every = (count as usize).div_ceil(max_points.max(1)).max(1) as i64;
@@ -611,7 +619,7 @@ impl Db {
              WHERE h.hero_net IS NOT NULL AND {FILTER_SQL} ORDER BY h.played_at, h.id"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament()])?;
+        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament(), filter.until])?;
         let mut out = Results::default();
         while let Some(r) = rows.next()? {
             let net: i64 = r.get(1)?;
@@ -649,28 +657,37 @@ impl Db {
         Ok(out)
     }
 
-    /// Hero sessions: hands split wherever more than `gap_minutes` pass without a hand.
-    pub fn sessions(&self, filter: &Filter, gap_minutes: f64) -> Result<Vec<Session>, Error> {
+    /// Hero sessions, newest first, split by [`crate::session::split`].
+    pub fn sessions(&self, filter: &Filter) -> Result<Vec<Session>, Error> {
         let sql = format!(
-            "SELECT h.played_at,
-                    julianday(replace(substr(h.played_at, 1, 10), '/', '-') || ' ' || substr(h.played_at, 12)),
-                    h.hero_net, CAST(h.hero_net AS REAL) / h.big_blind, h.hero_bounty, h.table_key, h.bounty_currency
+            "SELECT h.played_at, {MINUTES_SQL}, h.hero_net, CAST(h.hero_net AS REAL) / h.big_blind, h.hero_bounty,
+                    h.table_key, h.bounty_currency, h.tournament_id
              FROM hands h WHERE h.hero_net IS NOT NULL AND {FILTER_SQL} ORDER BY h.played_at, h.id"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament()])?;
+        type Row = (String, f64, i64, f64, i64, String, Option<String>, Option<i64>);
+        let rows: Vec<Row> = stmt
+            .query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
+                Ok((
+                    r.get(0)?,
+                    r.get::<_, Option<f64>>(1)?.unwrap_or(0.0),
+                    r.get(2)?,
+                    r.get(3)?,
+                    r.get(4)?,
+                    r.get(5)?,
+                    r.get(6)?,
+                    r.get(7)?,
+                ))
+            })?
+            .collect::<Result<_, _>>()?;
+        let index = crate::session::split(&rows.iter().map(|r| (r.1, r.7.map(|t| t as u64))).collect::<Vec<_>>());
         let mut sessions: Vec<Session> = Vec::new();
         let mut tables: Vec<std::collections::BTreeSet<String>> = Vec::new();
-        let mut last_day: Option<f64> = None;
-        while let Some(r) = rows.next()? {
-            let at: String = r.get(0)?;
-            let day: f64 = r.get::<_, Option<f64>>(1)?.unwrap_or(0.0);
-            let new_session = last_day.is_none_or(|prev| (day - prev) * 24.0 * 60.0 > gap_minutes);
-            last_day = Some(day);
-            if new_session {
+        for (r, i) in rows.into_iter().zip(index) {
+            if i == sessions.len() {
                 sessions.push(Session {
-                    start: at.clone(),
-                    end: at.clone(),
+                    start: r.0.clone(),
+                    end: r.0.clone(),
                     hands: 0,
                     net: 0,
                     net_bb: 0.0,
@@ -679,15 +696,14 @@ impl Db {
                 });
                 tables.push(Default::default());
             }
-            let s = sessions.last_mut().expect("pushed above");
-            s.end = at;
+            let s = &mut sessions[i];
+            s.end = r.0;
             s.hands += 1;
-            s.net += r.get::<_, i64>(2)?;
-            s.net_bb += r.get::<_, f64>(3)?;
-            add_bounty(&mut s.bounties, r.get(4)?, r.get(6)?);
-            let t = tables.last_mut().expect("pushed above");
-            t.insert(r.get(5)?);
-            s.tables = t.len() as i64;
+            s.net += r.2;
+            s.net_bb += r.3;
+            add_bounty(&mut s.bounties, r.4, r.6);
+            tables[i].insert(r.5);
+            s.tables = tables[i].len() as i64;
         }
         sessions.reverse();
         Ok(sessions)
@@ -739,8 +755,8 @@ impl Db {
             Some(f) => match f.predicate() {
                 Some(pred) => format!(
                     "AND EXISTS (SELECT 1 FROM player_hands ph WHERE ph.hand_id = h.id AND ph.player = h.hero AND {pred}
-                         AND (?10 = '' OR instr(?10, ',' || ph.position || ',') > 0)
-                         AND (?11 IS NULL OR {} = ?11) AND (?12 IS NULL OR h.game = ?12))",
+                         AND (?11 = '' OR instr(?11, ',' || ph.position || ',') > 0)
+                         AND (?12 IS NULL OR {} = ?12) AND (?13 IS NULL OR h.game = ?13))",
                     leaks::band_sql("h.hero_stack_bb")
                 ),
                 None => String::new(),
@@ -782,15 +798,15 @@ impl Db {
                     h.hero_position, h.hero_net, h.hero_showdown, h.pot, h.board
              FROM hands h
              WHERE {FILTER_SQL}
-               AND (?4 IS NULL OR h.id IN (SELECT hand_id FROM player_hands WHERE player = ?4))
-               AND (?5 = 0 OR h.hero_showdown = 1)
-               AND (?6 IS NULL OR (?6 = 'won' AND h.hero_net > 0) OR (?6 = 'lost' AND h.hero_net < 0))
-               AND (?7 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?7)
+               AND (?5 IS NULL OR h.id IN (SELECT hand_id FROM player_hands WHERE player = ?5))
+               AND (?6 = 0 OR h.hero_showdown = 1)
+               AND (?7 IS NULL OR (?7 = 'won' AND h.hero_net > 0) OR (?7 = 'lost' AND h.hero_net < 0))
+               AND (?8 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?8)
                {spot}
                {decision_sql}
                {range_sql}
                {profile_sql}
-             ORDER BY {order} LIMIT ?8 OFFSET ?9"
+             ORDER BY {order} LIMIT ?9 OFFSET ?10"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let positions = positions.unwrap_or_default();
@@ -798,9 +814,9 @@ impl Db {
         let game = q.spot.as_ref().and_then(|f| f.game).map(GameKind::as_str);
         let (kind, tournament) = (q.filter.game(), q.filter.tournament());
         let (showdown, limit, offset) = (q.showdown_only as i64, q.limit as i64, q.offset as i64);
-        // ?10–?12 only appear in the SQL with a spot filter, and SQLite rejects unused bindings.
+        // ?11–?13 only appear in the SQL with a spot filter, and SQLite rejects unused bindings.
         let mut values: Vec<&dyn rusqlite::ToSql> =
-            vec![&kind, &q.filter.since, &tournament, &q.player, &showdown, &q.result, &q.min_pot_bb, &limit, &offset];
+            vec![&kind, &q.filter.since, &tournament, &q.filter.until, &q.player, &showdown, &q.result, &q.min_pot_bb, &limit, &offset];
         if !spot.is_empty() {
             values.extend([&positions as &dyn rusqlite::ToSql, &band, &game]);
         }
@@ -894,9 +910,10 @@ impl Db {
                         GROUP BY tournament_id) h ON h.tournament_id = t.id
              WHERE (t.game != '' OR t.summary = 1)
                AND (?1 IS NULL OR COALESCE(t.started_at, h.first, '') >= ?1)
+               AND (?2 IS NULL OR COALESCE(t.started_at, h.first, '') <= ?2)
              ORDER BY 15 DESC, t.id DESC",
         )?;
-        let rows = stmt.query_map(params![filter.since], |r| {
+        let rows = stmt.query_map(params![filter.since, filter.until], |r| {
             let buy_in = match (r.get::<_, Option<i64>>(3)?, r.get::<_, Option<i64>>(4)?, r.get::<_, Option<i64>>(5)?) {
                 (Some(prize), bounty, fee) => Some(BuyIn {
                     prize,
@@ -1006,11 +1023,11 @@ impl Db {
                AND (h.game = 'tournament'
                     OR EXISTS (SELECT 1 FROM player_hands ph
                                WHERE ph.hand_id = h.id AND ph.player = h.hero AND ph.shown != ''))
-             ORDER BY h.played_at DESC, h.id DESC LIMIT ?4 OFFSET ?5"
+             ORDER BY h.played_at DESC, h.id DESC LIMIT ?5 OFFSET ?6"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = stmt.query_map(
-            params![filter.game(), filter.since, filter.tournament(), limit as i64, offset as i64],
+            params![filter.game(), filter.since, filter.tournament(), filter.until, limit as i64, offset as i64],
             |r| r.get(0),
         )?;
         rows.collect()

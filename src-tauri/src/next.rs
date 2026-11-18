@@ -7,7 +7,7 @@ use ringside_analysis::ENGINE;
 use ringside_coach::session::concept_counts;
 use ringside_core::db::Filter;
 use ringside_core::leaks;
-use ringside_core::next::{Concept, Inputs, NextStep, Review, for_tournament, rank};
+use ringside_core::next::{Concept, Inputs, NextStep, Review, kind_losses, rank, within};
 use ringside_core::profile::profile;
 use ringside_core::report::Report;
 use ringside_learn::Kind;
@@ -74,11 +74,20 @@ pub fn steps(state: &AppState, filter: &Filter) -> CmdResult<Vec<NextStep>> {
 pub fn fill_report(state: &AppState, report: &mut Report) -> CmdResult<()> {
     let list = steps(state, &Filter::default())?;
     let hands: HashSet<u64> = report.timeline.iter().map(|p| p.hand_id).collect();
-    report.next = for_tournament(&list, &report.kinds, &hands);
+    report.next = within(&list, &report.kinds, &hands, "in diesem Turnier");
     Ok(())
 }
 
+/// The list for `filter`; with `part` (a session: `since` and `until`) only what happened in it,
+/// in the same order, as the session's review shows it.
 #[tauri::command]
-pub async fn next_steps(filter: Filter, app: AppHandle) -> CmdResult<Vec<NextStep>> {
-    blocking(app, move |state| steps(state, &filter)).await
+pub async fn next_steps(filter: Filter, part: Option<Filter>, app: AppHandle) -> CmdResult<Vec<NextStep>> {
+    blocking(app, move |state| {
+        let list = steps(state, &filter)?;
+        let Some(part) = part else { return Ok(list) };
+        let rows = state.db.lock().unwrap().profile_rows(&part).map_err(err)?;
+        let hands: HashSet<u64> = rows.iter().map(|r| r.hand_id).collect();
+        Ok(within(&list, &kind_losses(&profile(&rows, &[])), &hands, "in dieser Session"))
+    })
+    .await
 }

@@ -4,13 +4,15 @@ import * as analysisDemo from "./analysis/demo";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision } from "./analysis/types";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
-import { demoNextSteps } from "./next/demo";
+import { demoNextSteps, demoWithin } from "./next/demo";
 import type { NextStep } from "./next/types";
 import type { DrillResult, DrillSpot, PlayProfile } from "./learn/profile";
 import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
 import * as reportDemo from "./report/demo";
+import * as sessionDemo from "./session/demo";
+import type { SessionPage } from "./session/types";
 import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./charts/preflop-types";
@@ -61,7 +63,8 @@ import type {
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export function call<T>(cmd: string, args: Record<string, unknown>, fallback: () => T): Promise<T> {
-  return inTauri ? invoke<T>(cmd, args) : Promise.resolve(fallback());
+  // A fallback that throws rejects, as the command would.
+  return inTauri ? invoke<T>(cmd, args) : new Promise<T>((resolve) => resolve(fallback()));
 }
 
 /**
@@ -73,6 +76,17 @@ const previewData = typeof window === "undefined" ? null : new URLSearchParams(w
 function sample<T>(cmd: string, args: Record<string, unknown>, full: () => T, none: () => T, big: () => T): Promise<T> {
   if (!inTauri && previewData === "error") return Promise.reject(new Error("Vorschau: Laden fehlgeschlagen"));
   return call<T>(cmd, args, previewData === "empty" ? none : previewData === "big" ? big : full);
+}
+
+/** Browser preview: `?locked=1` plays a running PokerStars client. */
+const demoLocked = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
+
+/** In the preview, commands that rate or recommend refuse like the backend while the client runs. */
+function advice<T>(fallback: () => T): () => T {
+  return () => {
+    if (demoLocked) throw new Error("gesperrt");
+    return fallback();
+  };
 }
 
 /** Browser-only stand-in for saved settings, so the demo reacts to edits. */
@@ -129,15 +143,17 @@ export const api = {
     })),
   clientWindows: () => call<ClientWindow[]>("client_windows", {}, demoWindows),
   liveTables: () => call<LiveTable[]>("live_tables", {}, demo.demoLiveTables),
-  pokerClientRunning: () =>
-    call<boolean>("poker_client_running", {}, () => new URLSearchParams(window.location.search).get("locked") === "1"),
+  pokerClientRunning: () => call<boolean>("poker_client_running", {}, () => demoLocked),
   tournaments: (filter: Filter) =>
     sample<Tournaments>("tournaments", { filter }, demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
   /** The report of one tournament from Ringside's own numbers; locked while PokerStars runs. */
   tournamentReport: (tournamentId: number) => {
-    const made = () => reportDemo.demoReport(tournamentId);
+    const made = advice(() => reportDemo.demoReport(tournamentId));
     return sample<TournamentReport>("tournament_report", { tournamentId }, made, made, made);
   },
+  /** The latest session (or the one starting at `start`); advice is left out while PokerStars runs. */
+  sessionReview: (start: string | null) =>
+    sample<SessionPage>("session_review", { start }, () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start)),
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () =>
@@ -149,7 +165,7 @@ export const api = {
     ),
   reports: (filter: Filter) => call<Reports>("reports", { filter }, () => demo.demoReports(filter)),
   leaks: (filter: Filter) =>
-    sample<LeakReport>("leaks", { filter }, () => demo.demoLeaks(filter), () => ({
+    sample<LeakReport>("leaks", { filter }, advice(() => demo.demoLeaks(filter)), () => ({
       ...demo.demoLeaks({ game: "cash", since: null, tournament_id: null }),
       too_small: 0,
     }), () => demo.bigLeaks(filter)),
@@ -161,20 +177,23 @@ export const api = {
       demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
     ),
   shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
-  hands: (query: HandQuery) => call<HandSummary[]>("hands", { query }, () => analysisDemo.withWorst(demo.demoHands(query), query)),
+  hands: (query: HandQuery) =>
+    call<HandSummary[]>("hands", { query }, () =>
+      demoLocked ? demo.demoHands(query).map((h) => ({ ...h, worst: null })) : analysisDemo.withWorst(demo.demoHands(query), query),
+    ),
   analysisStatus: () => call<AnalysisStatus>("analysis_status", {}, analysisDemo.demoStatus),
   /** Starts (`true`) or pauses the analysis of the whole history. */
   analysisRun: (on: boolean) => call<void>("analysis_run", { on }, () => analysisDemo.demoRun(on)),
   /** Analyses hands now; their postflop spots go to the front of the queue. Returns the first hand's decisions. */
   analysisHands: (handIds: number[]) =>
-    call<Decision[]>("analysis_hands", { handIds }, () => handIds.flatMap((id, i) => (i === 0 ? analysisDemo.demoAnalyze(id) : []))),
+    call<Decision[]>("analysis_hands", { handIds }, advice(() => handIds.flatMap((id, i) => (i === 0 ? analysisDemo.demoAnalyze(id) : [])))),
   /** Stops the whole analysis; rated decisions stay. */
   analysisCancel: () => call<void>("analysis_cancel", {}, analysisDemo.demoCancel),
   /** Stops one hand: its postflop spot goes back in line. */
   analysisCancelHand: (handId: number) => call<void>("analysis_cancel_hand", { handId }, () => analysisDemo.demoCancelHand(handId)),
   /** Where a rated preflop decision sits in the charts; null when no bundled table fits. */
   analysisChartTarget: (handId: number, actionIndex: number) =>
-    inTauri ? invoke<ChartTarget | null>("analysis_chart_target", { handId, actionIndex }) : (async (): Promise<ChartTarget | null> => {
+    inTauri ? invoke<ChartTarget | null>("analysis_chart_target", { handId, actionIndex }) : demoLocked ? Promise.reject(new Error("gesperrt")) : (async (): Promise<ChartTarget | null> => {
       // Browser preview: the sample hands' spots in the sample charts (99 first in from the small blind, 86s on the button).
       const d = analysisDemo.demoDecisions(handId).find((x) => x.action_index === actionIndex);
       if (!d || d.street !== "preflop" || d.status !== "rated" || d.source === "solver") return null;
@@ -187,10 +206,18 @@ export const api = {
       const open = spots.nodes.find((n) => n.seat === 4 && !n.line.length);
       return { ...base, kind: "preflop" as const, stack_bb: 100, seat: 4, shover: null, node: open?.id ?? 0, hand: "99" };
     })(),
-  analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, () => analysisDemo.demoDecisions(handId)),
-  analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, analysisDemo.demoSummary),
-  /** „Was als Nächstes?“: the one ranked list every page reads, heaviest first. */
-  nextSteps: (filter: Filter) => sample<NextStep[]>("next_steps", { filter }, demoNextSteps, () => [], demoNextSteps),
+  analysisDecisions: (handId: number) => call<Decision[]>("analysis_decisions", { handId }, advice(() => analysisDemo.demoDecisions(handId))),
+  analysisSummary: (filter: Filter) => call<AnalysisSummary>("analysis_summary", { filter }, advice(analysisDemo.demoSummary)),
+  /**
+   * „Was als Nächstes?“: the one ranked list every page reads, heaviest first. With `part` (a
+   * session: `since` and `until`) only its entries that happened there, in the same order.
+   * Locked while PokerStars runs.
+   */
+  nextSteps: (filter: Filter, part: Filter | null = null) => {
+    const made = advice(() => (part ? demoWithin(sessionDemo.SESSION_KINDS, "in dieser Session") : demoNextSteps()));
+    return sample<NextStep[]>("next_steps", { filter, part }, made, advice(() => []), made);
+  },
+
   /** "Neue Hände automatisch analysieren"; also while PokerStars runs, it only changes the setting. */
   analysisSetAuto: (auto: boolean) =>
     call<void>("analysis_set_auto", { on: auto }, () => {

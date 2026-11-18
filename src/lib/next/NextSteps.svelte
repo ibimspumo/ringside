@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import { adviceLocked, watchPokerClient } from "../app/client.svelte";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import Term from "../ui/Term.svelte";
@@ -10,7 +11,7 @@
   /**
    * „Was als Nächstes?“ from the one ranked list of the backend. `first` shows the top entry as
    * the page's next step, `list` the entries in their order. Pages with their own focus pass a
-   * filtered list, never a list of their own.
+   * filtered list, never a list of their own. Shows nothing while PokerStars runs.
    */
   let {
     steps,
@@ -38,7 +39,9 @@
     note?: Snippet<[NextStep]>;
   } = $props();
 
-  const shown = $derived(mode === "first" ? steps.slice(0, 1) : steps.slice(0, limit));
+  watchPokerClient();
+  // Advice: nothing of it while PokerStars runs, whatever list a page hands in.
+  const shown = $derived(adviceLocked() ? [] : mode === "first" ? steps.slice(0, 1) : steps.slice(0, limit));
   const top = $derived(Math.max(...shown.map((s) => s.score), 0.01));
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 

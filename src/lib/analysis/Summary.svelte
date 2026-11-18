@@ -15,6 +15,8 @@
   import NextSteps from "../next/NextSteps.svelte";
   import type { NextStep, StepHands } from "../next/types";
   import { analysis } from "./store.svelte";
+  import AtTable from "../app/AtTable.svelte";
+  import { adviceLocked, watchPokerClient } from "../app/client.svelte";
   import type { AnalysisSummary, Rating, SpotType } from "./types";
 
   /**
@@ -43,8 +45,15 @@
 
   let data = $state<AnalysisSummary | null>(null);
   let steps = $state<NextStep[]>([]);
+  watchPokerClient();
+  const locked = $derived(adviceLocked());
 
   $effect(() => {
+    if (locked) {
+      data = null;
+      steps = [];
+      return;
+    }
     void refresh;
     void analysis.solved;
     void analysis.status?.counts.analyzed;
@@ -69,7 +78,9 @@
 </script>
 
 
-{#if data && data.rated > 0 && strip}
+{#if locked}
+  {#if !strip}<AtTable compact />{/if}
+{:else if data && data.rated > 0 && strip}
   <section class="band">
     <span class="lead"><abbr title={EV_LOSS_EXPLAIN}>Kostet dich zusammen</abbr> <b class="num">{bb(data.loss_bb)}</b></span>
     {#if focus.length}

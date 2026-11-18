@@ -3,6 +3,7 @@
 // `?profile=0` show it empty.
 import type { SpotType } from "../analysis/types";
 import { bbText } from "../learn/profile";
+import type { KindLoss } from "../report/types";
 import type { NextStep } from "./types";
 
 const base = {
@@ -104,4 +105,17 @@ export function demoNextSteps(): NextStep[] {
   const p = params();
   if (p?.get("data") === "empty" || p?.get("profile") === "0") return [];
   return structuredClone(STEPS);
+}
+
+/**
+ * As `within` in crates/ringside-core/src/next.rs: the demo list, kept where it touched a part of
+ * the history (`kinds`: its loss per kind of spot), then that part's rarer kinds.
+ */
+export function demoWithin(kinds: KindLoss[], part: string): NextStep[] {
+  const keys = new Set(kinds.filter((k) => k.loss_bb > 0).map((k) => k.key));
+  const kept = demoNextSteps().filter((s) => s.spot_key !== null && keys.has(s.spot_key));
+  const rare = kinds
+    .filter((k) => k.loss_bb > 0 && !kept.some((s) => s.spot_key === k.key))
+    .map((k): NextStep => ({ ...spot(k.key, [], k.title, k.detail, k.decisions, k.flawed, k.loss_bb, 1, "range"), number: `kostet dich im Schnitt etwa ${bbText(k.loss_bb / k.decisions)} pro Mal, ${k.decisions}-mal ${part}` }));
+  return [...kept, ...rare];
 }
