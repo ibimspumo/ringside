@@ -8,6 +8,7 @@ pub mod db;
 pub mod import;
 pub mod leaks;
 pub mod model;
+pub mod next;
 pub mod notes;
 pub mod parser;
 pub mod profile;

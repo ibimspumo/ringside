@@ -253,7 +253,7 @@ pub fn coach_cancel(app: AppHandle) {
     app.state::<CoachState>().cancel.store(true, Ordering::SeqCst);
 }
 
-fn stored_reports(state: &AppState) -> CmdResult<Vec<Report>> {
+pub(crate) fn stored_reports(state: &AppState) -> CmdResult<Vec<Report>> {
     let rows = state.db.lock().unwrap().coach_reports().map_err(err)?;
     Ok(rows.iter().filter_map(|j| serde_json::from_str(j).ok()).collect())
 }
@@ -322,23 +322,26 @@ pub async fn coach_ask_prepare(about: AskAbout, question: String, app: AppHandle
     let handle = app.clone();
     blocking(app, move |state| {
         required_key()?;
-        let facts = {
-            let db = state.db.lock().unwrap();
-            match about {
-                AskAbout::Tournament { tournament_id } => {
+        let facts = match about {
+            AskAbout::Tournament { tournament_id } => {
+                let (row, mut report) = {
+                    let db = state.db.lock().unwrap();
                     let row = db.tournaments(&Filter::default()).map_err(err)?.into_iter().find(|t| t.id == tournament_id);
                     let row = row.ok_or("Turnier nicht gefunden.")?;
                     let report = db.tournament_report(tournament_id, &row.started_at, ENGINE).map_err(err)?;
-                    report_facts(&row, &report)
+                    (row, report)
+                };
+                crate::next::fill_report(state, &mut report)?;
+                report_facts(&row, &report)
+            }
+            AskAbout::Hand { hand_id, action_index } => {
+                let db = state.db.lock().unwrap();
+                let hand = db.hand(hand_id).map_err(err)?.ok_or("Hand nicht gefunden.")?;
+                let decisions = db.hand_decisions(hand_id).map_err(err)?;
+                if decisions.is_empty() {
+                    return Err("Diese Hand ist noch nicht bewertet. Lass sie zuerst analysieren.".into());
                 }
-                AskAbout::Hand { hand_id, action_index } => {
-                    let hand = db.hand(hand_id).map_err(err)?.ok_or("Hand nicht gefunden.")?;
-                    let decisions = db.hand_decisions(hand_id).map_err(err)?;
-                    if decisions.is_empty() {
-                        return Err("Diese Hand ist noch nicht bewertet. Lass sie zuerst analysieren.".into());
-                    }
-                    hand_facts(&hand, &decisions, action_index).ok_or("Diese Hand kann der Coach nicht lesen.")?
-                }
+                hand_facts(&hand, &decisions, action_index).ok_or("Diese Hand kann der Coach nicht lesen.")?
             }
         };
         let CoachSettings { model, .. } = settings(state);
