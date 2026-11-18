@@ -333,6 +333,7 @@ step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async 
     await find("main .gname[title*='#3500000001']");
     return;
   }
+  await find("main .moment.bad .ui-reason", "Warum?", { exact: false });
   await click("main .moment.bad button", "Abspielen");
   await find("main h1", "Hände");
   await find(".replayer");
@@ -363,6 +364,8 @@ step("Hände: die Analyse zeigt eine Entscheidung erst, wenn das Abspielen dort 
   if (await verdict()) throw new Error("the first decision's verdict shows before the replay reaches it");
   await click(".replayer button[aria-label^='Weiter']");
   await find("main .decision");
+  // Every rated decision says why the best move is best.
+  await find("main .decision .ui-reason", "Warum?", { exact: false });
 });
 
 step("Hände: auch die beste Aktion zeigt, was sie bringt", async () => {
@@ -610,6 +613,7 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await find("main .drill .origin", "Echte Hand", { exact: false });
   await click("main .drill .choices button");
   await find("main .drill .verdict");
+  await find("main .drill .verdict .ui-reason", "Warum?", { exact: false });
   await waitText("Damals hast du");
   await click("main .drill button", "Weiter", { exact: false });
   // The round goes on with the next spot of the same kind: real or dealt anew, it says which.

@@ -567,7 +567,16 @@
           <Verdict grade="good" played="Bet 4,8 BB" better="Bet 2,4 BB" cost={0.04} context="Turn · 6♣">
             <p>Die kleine Größe bringt minimal mehr, weil schwächere Hände öfter mitgehen.</p>
           </Verdict>
-          <Verdict grade="inaccurate" played="Call" better="Raise auf 14 BB" cost={0.18} potShare={0.02} context="Turn · 6♣" source="solver">
+          <Verdict
+            grade="inaccurate"
+            played="Call"
+            better="Raise auf 14 BB"
+            cost={0.18}
+            potShare={0.02}
+            context="Turn · 6♣"
+            source="solver"
+            reason="Deine Hand gehört zum schwächsten Drittel deiner Range und hat gegen die Range des Gegners 31 % Equity. Auf Raise auf 14 BB gibt der Gegner in 47 % der Fälle auf. Raise auf 14 BB bringt 0,18 BB mehr als Call."
+          >
             <p>Mit deinem Flush-Draw kannst du selbst Druck machen.</p>
           </Verdict>
           <Verdict grade="mistake" played="Bet" better="Check" cost={1.15} potShare={0.12} context="River · Q♠8♠" source="solver">

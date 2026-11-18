@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 use ringside_core::db::Attempt;
 use ringside_learn::Kind as LearnKind;
 use ringside_engine::preflop_table::{Family, ModelLine};
+use ringside_analysis::assess::Estimator;
 use ringside_play::hand::Source;
 use ringside_play::pool::{Line, Lookup, TARGET_PCT};
 use ringside_play::tree::Tree;
@@ -66,6 +67,8 @@ const AWAY: Duration = Duration::from_secs(120);
 const GB: u64 = 1 << 30;
 
 static POOL: LazyLock<Mutex<Option<Arc<Pool>>>> = LazyLock::new(|| Mutex::new(None));
+/// Grades the moves no solver covers, as the hand analysis does.
+static ESTIMATE: LazyLock<Arc<Estimator>> = LazyLock::new(|| Arc::new(Estimator::new()));
 
 fn pool(app: &AppHandle) -> Arc<Pool> {
     let mut slot = POOL.lock().unwrap();
@@ -488,6 +491,7 @@ pub async fn play_next(config: Config, seed: Option<u64>, app: AppHandle) -> Cmd
         ensure_worker(&app);
         p.forget_live();
         let mut hand = Hand::start(&config, seed.unwrap_or_else(new_seed), Some(&p))?;
+        hand.set_assess(ESTIMATE.clone());
         drive(&app, &mut hand);
         let mut current = Current { hand, repeat: seed.is_some(), recorded: false };
         finish_if_over(state, &mut current)?;
@@ -507,6 +511,7 @@ pub async fn play_repeat(app: AppHandle) -> CmdResult<HandView> {
         let old = slot.as_ref().ok_or("Noch keine Hand gespielt.")?;
         pool(&app).forget_live();
         let mut hand = Hand::play(old.hand.deal.clone())?;
+        hand.set_assess(ESTIMATE.clone());
         drive(&app, &mut hand);
         let view = hand.view();
         *slot = Some(Current { hand, repeat: true, recorded: false });

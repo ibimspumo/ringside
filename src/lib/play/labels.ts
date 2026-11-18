@@ -3,7 +3,7 @@
 import { actionColors } from "../solver/actions";
 import { lesson as postflopLesson } from "../solver/explain";
 import type { SolverAction } from "../solver/types";
-import { betterLine, mixText, playsLine, sameEv, type Who } from "./words";
+import { betterLine, infinitive, mixText, playsLine, sameEv, type Who } from "./words";
 import type { Choice, FreeInfo, Grade, HandView, Lesson, PlayAnte, PlayConfig, PlayMode, SolveWhy, Source, Unrated, Verdict } from "./types";
 
 export const num = (x: number, d = 1) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
@@ -95,7 +95,7 @@ const SOURCE_NAME: Record<Source, string> = {
 /** Why a move has no grade, in one sentence. */
 export const UNRATED_TEXT: Record<Unrated, string> = {
   not_reached: "Diese Hand kommt in der Lösung hier gar nicht an – sie wäre vorher anders gespielt worden. Deshalb gibt es für diesen Zug keine Bewertung.",
-  multiway: "Nicht bewertet: Mehrweg-Pot. Für drei Spieler nach dem Flop gibt es keinen Solver – die Einschätzung dafür folgt.",
+  multiway: "Nicht bewertet: Mehrweg-Pot, und du hattest hier nur eine Möglichkeit.",
   off_model: "Nicht bewertet: Diese Linie kennt das Preflop-Modell nicht. Es lässt hier nur zwei Spieler weiterspielen; du entscheidest trotzdem selbst.",
   no_solve: "Nicht bewertet: Der Spot wurde nicht fertig gerechnet.",
 };
@@ -157,10 +157,10 @@ export function solvingLine(why: SolveWhy): string {
 export function freeLine(f: FreeInfo): string {
   const why =
     f.why === "multiway"
-      ? "Mehrweg-Pot: Für drei Spieler nach dem Flop gibt es keinen Solver. Deine Züge werden nicht bewertet – die Einschätzung folgt."
+      ? "Mehrweg-Pot: Für drei Spieler nach dem Flop gibt es keinen Solver. Deine Züge bewertet hier die Einschätzung – eine Richtung, nicht exakt."
       : f.why === "off_model"
-        ? "Diese Linie kennt das Preflop-Modell nicht. Deine Züge ab hier werden nicht bewertet."
-        : `Ohne fertige Lösung${f.note ? ` (${f.note})` : ""}: Deine Züge ab hier werden nicht bewertet.`;
+        ? "Diese Linie kennt das Preflop-Modell nicht. Vor dem Flop werden deine Züge nicht bewertet, danach bewertet sie die Einschätzung."
+        : `Ohne fertige Lösung${f.note ? ` (${f.note})` : ""}: Deine Züge ab hier bewertet die Einschätzung – eine Richtung, nicht exakt.`;
   return `${why} ${f.rule}`;
 }
 
@@ -189,6 +189,11 @@ function handName(v: Verdict | Lesson, cards: string[]): string {
 export function reason(v: Verdict | Lesson, chosen: number | null, cards: string[]): string {
   if (!v.strategy || !v.source) return UNRATED_TEXT[v.unrated ?? "not_reached"];
   const strategy = v.strategy;
+  if (v.source === "estimate") {
+    // The estimate rates the kind of move, not its size; its reason stands in "Warum?".
+    const kinds = [...new Set(v.choices.filter((_, k) => strategy[k] > 0).map((c) => cap(infinitive(c.kind))))];
+    return `Nach der Einschätzung ist hier ${kinds.join(" oder ")} am besten; die Größe bewertet sie nicht.`;
+  }
   const best = v.evs ? v.evs.indexOf(Math.max(...v.evs)) : strategy.indexOf(Math.max(...strategy));
   if (v.node) {
     const hand = v.node.hands.find((h) => sameCards(h.combo, cards));

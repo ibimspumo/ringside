@@ -450,6 +450,8 @@ pub struct Estimate {
     pub evs: Vec<f64>,
     pub equity: f64,
     pub pot_odds: Option<f64>,
+    /// For each bet or raise: how often everyone folds to the best one of its kind.
+    pub folds: Vec<Option<f64>>,
 }
 
 /// The free numbers of the estimate, fitted by `analysis-calibrate` against the solver
@@ -532,20 +534,20 @@ pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &[
     let spr_now = behind_after_call / (spot.pot + call).max(0.01);
     let r = realization(spot, spr_now, eq, t);
     let pot_odds = (call > 0.0).then(|| call / (spot.pot + call));
-    let ev_of = |opt: Opt, rng: &mut ChaCha8Rng| -> f64 {
+    let ev_of = |opt: Opt, rng: &mut ChaCha8Rng| -> (f64, Option<f64>) {
         match opt {
-            Opt::Fold => 0.0,
-            Opt::Check => r * eq * spot.pot,
+            Opt::Fold => (0.0, None),
+            Opt::Check => (r * eq * spot.pot, None),
             Opt::Call => {
                 let rr = if call >= spot.hero_behind - 1e-9 { 1.0 } else { r };
-                rr * eq * (spot.pot + call) - call
+                (rr * eq * (spot.pot + call) - call, None)
             }
             Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), strength, board_dead, dead, rng, t),
             Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, strength, board_dead, dead, rng, t),
         }
     };
-    let evs: Vec<f64> = options.iter().map(|&o| ev_of(o, &mut rng)).collect();
-    Prepared { options: options.to_vec(), evs, equity: eq, pot_odds, pot: spot.pot }
+    let (evs, folds): (Vec<f64>, Vec<Option<f64>>) = options.iter().map(|&o| ev_of(o, &mut rng)).unzip();
+    Prepared { options: options.to_vec(), evs, folds, equity: eq, pot_odds, pot: spot.pot }
 }
 
 /// The part of an estimate that the free numbers after [`Tuning::defend`] and
@@ -555,6 +557,7 @@ pub struct Prepared {
     options: Vec<Opt>,
     /// Unshrunk EV of each option, BB.
     evs: Vec<f64>,
+    folds: Vec<Option<f64>>,
     equity: f64,
     pot_odds: Option<f64>,
     pot: f64,
@@ -568,11 +571,12 @@ pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
         Opt::Bet(_) | Opt::Raise(_) => 2,
         Opt::AllIn => 3,
     };
-    let by_kind: Vec<f64> = p
+    let best_of_kind: Vec<usize> = p
         .options
         .iter()
-        .map(|&o| p.options.iter().zip(&p.evs).filter(|(x, _)| kind(**x) == kind(o)).map(|(_, &e)| e).fold(f64::NEG_INFINITY, f64::max))
+        .map(|&o| (0..p.options.len()).filter(|&k| kind(p.options[k]) == kind(o)).max_by(|&a, &b| p.evs[a].total_cmp(&p.evs[b])).unwrap_or(0))
         .collect();
+    let by_kind: Vec<f64> = best_of_kind.iter().map(|&k| p.evs[k]).collect();
     let top = by_kind.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let goes_on = p.equity >= p.pot_odds.unwrap_or(0.0) - t.line_margin && p.equity < t.line_top;
     let line_cap = t.line_pct / 100.0 * p.pot;
@@ -585,7 +589,8 @@ pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
             top - if goes_on && o != Opt::Fold { loss.min(line_cap) } else { loss }
         })
         .collect();
-    Estimate { evs, equity: p.equity, pot_odds: p.pot_odds }
+    let folds = best_of_kind.iter().map(|&k| p.folds[k]).collect();
+    Estimate { evs, equity: p.equity, pot_odds: p.pot_odds, folds }
 }
 
 /// How often the estimate plays each option: it has no mixed strategy, so the options
@@ -603,8 +608,8 @@ pub fn grades(est: &Estimate, options: &[Opt], pot: f64, t: &Tuning) -> Vec<Grad
     (0..options.len()).map(|k| judge(&freq, Some(&est.evs), k, pot).grade).collect()
 }
 
-/// EV of betting or raising to `to` on the street.
-fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead: CardSet, rng: &mut ChaCha8Rng, t: &Tuning) -> f64 {
+/// EV of betting or raising to `to` on the street, and how often everyone folds to it.
+fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead: CardSet, rng: &mut ChaCha8Rng, t: &Tuning) -> (f64, Option<f64>) {
     let add = (to - spot.hero_in).max(0.0);
     let all_in = add >= spot.hero_behind - 1e-9;
     let facing = spot.to_call() > 0.0;
@@ -634,7 +639,7 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
     }
     if shares.is_empty() {
         let eq = equity(spot.hero, &spot.opponents.iter().map(|o| &o.range).collect::<Vec<_>>(), &spot.board, rng);
-        return realization(spot, 0.0, eq, t) * eq * spot.pot;
+        return (realization(spot, 0.0, eq, t) * eq * spot.pot, None);
     }
     let all_fold: f64 = shares.iter().map(|s| 1.0 - s).product();
     let callers: f64 = shares.iter().sum::<f64>() / (1.0 - all_fold).max(1e-9);
@@ -649,5 +654,5 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
     let called_pot = spot.pot + add + callers * add;
     let behind = spot.hero_behind - add;
     let rr = if all_in { 1.0 } else { realization(&Spot { aggressor: true, ..spot.clone() }, behind / called_pot.max(0.01), eq_called, t) };
-    all_fold * spot.pot + (1.0 - all_fold) * (rr * eq_called * called_pot - add)
+    (all_fold * spot.pot + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
 }

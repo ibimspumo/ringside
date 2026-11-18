@@ -81,6 +81,10 @@ export interface Lesson {
   grid: Grid | null;
   path: SolverStep[] | null;
   exploitability_pct: number | null;
+  /** For the estimate: how often its grade was within one step of the solver's. */
+  reliability: number | null;
+  /** Why the best move is best, where the source says it. */
+  why: string | null;
 }
 
 export interface Verdict extends Lesson {
