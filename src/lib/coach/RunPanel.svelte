@@ -117,9 +117,9 @@
         {/each}
       </ol>
     {/if}
-    {#if st.kind !== "running"}
-      <span class="close"><IconButton label="Analyse schließen" onclick={onClose}>{@render closeIcon()}</IconButton></span>
-    {/if}
+    <span class="close" class:hidden={st.kind === "running"}
+      ><IconButton label="Analyse schließen" onclick={onClose} disabled={st.kind === "running"}>{@render closeIcon()}</IconButton></span
+    >
   </header>
 
   <div class="body" aria-live="polite">
@@ -181,11 +181,13 @@
           <li><s>Chips</s><span aria-hidden="true">→</span><b>Big Blinds</b></li>
           <li class="plain">dazu Buy-in und Platz</li>
         </ul>
-        <p class="never">
-          Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
-          <b class="num nowrap">{shortModel(e.model)}</b>.
+        <div class="never-row">
+          <p class="never">
+            Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
+            <b class="num nowrap">{shortModel(e.model)}</b>.
+          </p>
           <Button size="sm" variant="quiet" onclick={onSettings}>Modell ändern</Button>
-        </p>
+        </div>
       </div>
 
       <div class="row">
@@ -213,8 +215,8 @@
           <span>{p?.message ?? "Verbindung zu OpenRouter …"}</span>
         </div>
         <div class="track" aria-label="Schritt {p?.step ?? 1} von höchstens {p?.max_steps ?? 12}">
-          {#each Array.from({ length: Math.max(1, p?.step ?? 1) }, (_, k) => k) as k (k)}
-            <i class:now={k === Math.max(1, p?.step ?? 1) - 1}></i>
+          {#each Array.from({ length: p?.max_steps ?? 12 }, (_, k) => k) as k (k)}
+            <i class:done={k < Math.max(1, p?.step ?? 1) - 1} class:now={k === Math.max(1, p?.step ?? 1) - 1}></i>
           {/each}
           <span>Schritt <b class="num">{p?.step ?? 1}</b> von höchstens {p?.max_steps ?? 12}</span>
         </div>
@@ -406,6 +408,18 @@
   .nowrap {
     white-space: nowrap;
   }
+  .never-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-3);
+  }
+  .never-row .never {
+    flex: 1 1 360px;
+  }
+  .hidden {
+    visibility: hidden;
+  }
 
   .cards {
     display: grid;
@@ -526,9 +540,12 @@
     color: var(--text-2);
   }
   .track i {
-    width: 18px;
+    width: 10px;
     height: 6px;
     border-radius: var(--r-pill);
+    background: var(--surface-3);
+  }
+  .track i.done {
     background: var(--text-2);
   }
   .track i.now {

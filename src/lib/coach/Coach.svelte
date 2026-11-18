@@ -595,7 +595,7 @@
     margin: 20px 0 0;
     padding: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;
   }
   .steps li {
