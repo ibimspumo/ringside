@@ -330,9 +330,7 @@
     min-width: 0;
   }
   .what > span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: 1.3;
   }
   .what small {
     color: var(--text-2);

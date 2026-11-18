@@ -261,7 +261,7 @@
             <dt>Turniere</dt>
             <dd class="num">{int(totals.tournaments)}</dd>
             <small
-              >{totals.finished === totals.tournaments ? "alle mit Ergebnis" : `${int(totals.finished)} mit Ergebnis`}{unknown
+              >{totals.finished === totals.tournaments ? "alle mit Ergebnis" : `${int(totals.finished)} mit Ergebnis, ${int(totals.tournaments - totals.finished)} noch offen`}{unknown
                 ? ` · ${int(unknown)} ohne Währung`
                 : ""} · Ø Buy-in {totals.finished ? cash(Math.round(totals.cost / totals.finished), cur) : "–"}</small
             >

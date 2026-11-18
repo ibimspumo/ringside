@@ -340,6 +340,9 @@
         {/if}
         {#if ex}<p class="why">{ex.why}</p>{/if}
         <div class="links">
+          {#if l.uncertain}
+            <Button size="sm" onclick={() => hands(l)}>Hände ansehen</Button>
+          {/if}
           {#if ex}
             <Button size="sm" variant={l.uncertain ? "quiet" : rank === 1 ? "primary" : "secondary"} onclick={() => onLearn(ex)}
               >Übung: {SKILLS[ex.kind].short}</Button
@@ -350,7 +353,9 @@
               >Wissen: {title ?? STAT_META[l.stat].name}</Button
             >
           {/if}
-          <Button size="sm" variant={!l.uncertain && (ex || article) ? "quiet" : "secondary"} onclick={() => hands(l)}>Hände ansehen</Button>
+          {#if !l.uncertain}
+            <Button size="sm" variant={ex || article ? "quiet" : "secondary"} onclick={() => hands(l)}>Hände ansehen</Button>
+          {/if}
         </div>
       </div>
     </div>
@@ -613,7 +618,7 @@
     transform: rotate(90deg);
   }
   .how {
-    grid-column: 1 / -1;
+    grid-column: 1;
     margin: -4px 0 0;
     font-size: var(--fs-md);
     color: var(--text-2);

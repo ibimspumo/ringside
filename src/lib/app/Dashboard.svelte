@@ -266,12 +266,8 @@
     <section class="loss">
       <div class="section-head">
           <h2 class="section-title">Wo du Chips verlierst</h2>
-          {#if running}
-            <span class="snapshot"
-              >{preflopDone
-                ? "Vor dem Flop ist alles bewertet; Entscheidungen nach dem Flop kommen noch dazu."
-                : "Zwischenstand – die Zahlen wachsen, solange die Analyse läuft."}</span
-            >
+          {#if running && !preflopDone}
+            <span class="snapshot">Zwischenstand – die Zahlen wachsen, solange die Analyse läuft.</span>
           {/if}
       </div>
       <AnalyzeBar compact title="Analyse starten" />
