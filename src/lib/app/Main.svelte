@@ -110,7 +110,8 @@
     library: "Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
   /** Pages PokerStars' rules lock while the client runs; the PageHeader keeps saying so. */
-  const LOCKED: Tab[] = ["training", "play", "solver", "library"];
+  const LOCKED: Tab[] = ["training", "play", "charts", "solver", "library"];
+  let clientRunning = $state(false);
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
     ["cash", "Cash"],
@@ -278,9 +279,13 @@
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
       on("tournament-named", () => refresh++),
+      on<boolean>("poker-client", (r) => (clientRunning = r)),
     ];
     // Listen first, then read the state, so nothing sent at startup is missed.
-    Promise.all(subs).then(sync);
+    Promise.all(subs).then(() => {
+      sync();
+      api.pokerClientRunning().then((r) => (clientRunning = r));
+    });
     const poll = setInterval(sync, 5000);
     return () => {
       clearInterval(poll);
@@ -346,7 +351,7 @@
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={LOCKED.includes(tab)}>
+    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab)}
         {@const off = tournament !== null}
