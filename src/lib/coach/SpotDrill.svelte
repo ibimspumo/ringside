@@ -178,13 +178,13 @@
             </div>
             <p class="gist"><CardText hands text={say(gist)} /></p>
             <dl class="compare">
-              <div class="mine"><dt>Jetzt</dt><dd>{CHOICE_NAME[answer]}</dd></div>
+              <div class="mine"><dt>Deine Antwort</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
                 <dt>Im Turnier</dt>
                 <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <span title="Urteil des Coaches: {verdict.name}"><GradeBadge grade={verdict.grade} size="sm" variant="icon" /></span></dd>
               </div>
               {#if spot.better}
-                <div><dt>Coach</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
+                <div><dt>Empfehlung</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
               {/if}
             </dl>
             <div class="next">
