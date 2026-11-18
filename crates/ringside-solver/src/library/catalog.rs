@@ -117,6 +117,18 @@ impl Catalog {
     pub fn spot(&self, id: SpotId) -> Spot {
         self.scenarios[id.scenario].spot(&self.flops[id.flop])
     }
+
+    /// The scenario with exactly the ranges, pot, stack and sizes of `spot`, on any board.
+    pub fn scenario_of(&self, spot: &Spot) -> Option<usize> {
+        self.scenarios.iter().position(|s| {
+            s.oop_range == spot.oop_range
+                && s.ip_range == spot.ip_range
+                && (s.pot - spot.pot).abs() < 0.011
+                && (s.stack - spot.stack).abs() < 0.011
+                && s.sizes == spot.sizes
+                && s.allin_threshold == spot.allin_threshold
+        })
+    }
 }
 
 /// The flops of a catalog with `n` flops per scenario, as stored in it.
