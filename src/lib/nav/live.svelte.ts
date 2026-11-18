@@ -101,7 +101,7 @@ class NavLive {
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;
-      const text = `rechnet${pct || " …"}`;
+      const text = job.status === "paused" ? "pausiert" : `rechnet${pct || " …"}`;
       return { ...live(text, text), busy: true };
     }
     return this.values[page];

@@ -242,8 +242,8 @@
     color: var(--text-2);
     display: -webkit-box;
     overflow: hidden;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
     -webkit-box-orient: vertical;
   }
   .tile .status {

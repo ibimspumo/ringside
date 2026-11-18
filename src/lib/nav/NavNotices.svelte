@@ -34,7 +34,8 @@
 {:else if status && status.dirs.length === 0 && !settingsOpen}
   <div class="strip warn">
     <b><Term tip={HOW}>PokerStars speichert noch keine Hände</Term></b>
-    <span class="how" title={HOW}>{HOW}</span>
+    <span class="how long">{HOW}</span>
+    <span class="how short" title={HOW}>In PokerStars: Einstellungen → Spielhistorie → speichern.</span>
     <Button size="sm" onclick={onChooseFolder}>Ordner selbst wählen</Button>
   </div>
 {/if}
@@ -62,14 +63,19 @@
     font-family: var(--font-num);
     white-space: nowrap;
   }
-  /* The how-to only where it fits on the line; the title's tooltip always has it. */
+  /* The how-to in one line: in full where it fits, else in short; the tooltip has it in full. */
   .how {
-    display: none;
     white-space: nowrap;
   }
+  .long {
+    display: none;
+  }
   @container (min-width: 1150px) {
-    .how {
+    .long {
       display: block;
+    }
+    .short {
+      display: none;
     }
   }
   .warn {
