@@ -981,16 +981,10 @@
     color: var(--text-2);
   }
 
-  /* Wide windows: the answer keeps a readable line and the counts take the rest in one row. */
+  /* Wide windows: a readable page width, the bar column gets the extra room. */
   @container (min-width: 1900px) {
     .leaks {
       max-width: 1600px;
-    }
-    .verdict {
-      grid-template-columns: minmax(0, 760px) minmax(0, 1fr);
-    }
-    .counts {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
     }
     .body {
       grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
