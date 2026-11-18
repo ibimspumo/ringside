@@ -156,7 +156,7 @@ function report(tournament: number, created: number): CoachReport {
 /** `?coach=many`: a report for every finished tournament, the newest with a very long name. */
 const MANY = param("coach") === "many";
 const LONG_NAME = "Sunday Million – Day 2 · $109 Bounty Builder Special Edition [Progressive KO, 8-Max, Turbo]";
-const FINISHED = [...ROWS.values()].filter((t) => t.prize !== null && t.hands > 0).map((t) => t.id);
+const FINISHED = [...ROWS.values()].filter((t) => t.prize !== null && t.hands > 0 && t.game.includes("Hold")).map((t) => t.id);
 
 const reports = new Map<number, CoachReport>(
   param("coach") === "empty"

@@ -221,7 +221,7 @@
                   <li>
                     <Card
                       pad="sm"
-                      selected={r.tournament_id === selected && runFor === null}
+                      selected={r.tournament_id === selected && runFor === null && !setupOpen}
                       aria-current={r.tournament_id === selected ? "true" : undefined}
                       onclick={() => {
                         selected = r.tournament_id;
