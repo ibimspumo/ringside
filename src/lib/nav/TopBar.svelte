@@ -135,12 +135,12 @@
 
   /*
    * Folding of the bar when room runs short, one step at a time. What also shows elsewhere goes
-   * first; marks and open tables keep words as long as they can:
+   * first; marks keep words as long as they can, the lock note keeps its words longest:
    *   1 status without "im Blick" / "gespeichert"   2 hand count off
    *   3 lock note short ("PokerStars läuft")         4 name "Ringside" off
-   *   5 tasks as their ring only                     6 lock note as its icon (tabs and page keep theirs)
+   *   5 tasks as ring and state only                 6 open tables as dot and number
    *   7 tab icons off                                8 marks shorter ("4 gefunden")
-   *   9 marks as a number ("4")                     10 open tables as dot and number
+   *   9 marks as a number ("4")                     10 lock note as its icon (tabs and page keep theirs)
    *  11 marks off (the menus keep them)
    */
   let step = $state(0);
@@ -224,10 +224,10 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 3 ? "PokerStars läuft: Teile gesperrt" : step < 6 ? "PokerStars läuft" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 3 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "PokerStars läuft" : ""} />
           </span>
         {/if}
-        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 10} /></span>
+        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 6} /></span>
         <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 5} /></span>
         <span class="item gear" class:on={tab === "settings"} data-bar-item>
           <IconButton label="Einstellungen" aria-current={tab === "settings" ? "page" : undefined} onclick={() => go("settings")}>
