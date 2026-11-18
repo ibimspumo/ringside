@@ -2,18 +2,25 @@
   import { untrack } from "svelte";
   import Replayer from "../app/Replayer.svelte";
   import DecisionCard from "../analysis/DecisionCard.svelte";
-  import { KIT_SOURCE, RATING, SOURCE } from "../analysis/labels";
-  import { behind, bb, scene } from "../coach/drill";
+  import { GRADE_OF, KIT_SOURCE, SOURCE } from "../analysis/labels";
+  import { chain, heroPosition, scene } from "../coach/drill";
   import { positionHint } from "../coach/meaning";
   import { appear, rise } from "../coach/motion";
+  import ActionChain from "../ui/ActionChain.svelte";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
-  import PlayingCard from "../ui/PlayingCard.svelte";
+  import { bb, num, pct } from "../ui/format";
+  import GradeBadge from "../ui/GradeBadge.svelte";
+  import { actionColor, type ActionKind } from "../ui/poker";
+  import { tableHeight } from "../ui/PokerTable.svelte";
+  import PotOdds from "../ui/PotOdds.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
+  import Stat from "../ui/Stat.svelte";
+  import Term from "../ui/Term.svelte";
   import { errorText } from "./catalog";
   import { preview } from "./preview";
-  import { bbText, dayOf, type DrillResult, type DrillSpot } from "./profile";
+  import { dayOf, type DrillResult, type DrillSpot } from "./profile";
 
   /** One decision of the playing profile to make again: a real one or a variation with another hand. */
   let {
@@ -36,7 +43,9 @@
 
   const real = $derived(spot.seed === null);
   const view = $derived(scene(spot.hand, spot.action_index));
-  const stack = $derived(bb(behind(spot.hand, spot.action_index)));
+  const moves = $derived(chain(spot.hand, spot.action_index));
+  /** The seat as the table names it, so question, chain and table agree. */
+  const seat = $derived(heroPosition(spot.hand) ?? spot.position);
   const kit = $derived(spot.source ? KIT_SOURCE[spot.source] : null);
   const sourceHint = $derived.by(() => {
     if (!spot.source) return undefined;
@@ -45,6 +54,63 @@
     return `${base} In etwa ${Math.round(spot.reliability * 10)} von 10 Prüf-Spots lag sie höchstens eine Stufe neben der Lösung.`;
   });
   const then = $derived(result?.then ?? null);
+  /** "Verlässlichkeit 7 von 10" beside an estimate, so its weight is seen without hovering. */
+  const reliability = $derived(spot.source === "estimate" && spot.reliability !== null ? `trifft in ${Math.round(spot.reliability * 10)} von 10 Prüf-Spots` : null);
+
+  /** "A7" reads like the hand's name, not "7A". */
+  const highFirst = (cards: string[]) => [...cards].sort((a, b) => "23456789TJQKA".indexOf(b[0]) - "23456789TJQKA".indexOf(a[0]));
+  const MOVE: Record<string, ActionKind> = { fold: "fold", check: "check", call: "call", limp: "limp", bet: "bet", raise: "raise", all_in: "allin" };
+
+  // The table takes the window's height below it, so table, controls and choices fit without scrolling.
+  let drillEl = $state<HTMLElement>();
+  let feltEl = $state<HTMLElement>();
+  let feltH = $state(520);
+  function scroller(el: HTMLElement): HTMLElement | null {
+    for (let p = el.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+    return null;
+  }
+  function fit() {
+    if (!feltEl || !drillEl) return;
+    if (drillEl.clientWidth < STACK_BELOW) {
+      feltH = 460;
+      return;
+    }
+    const box = scroller(feltEl);
+    const top = feltEl.getBoundingClientRect().top;
+    const at = box ? top - box.getBoundingClientRect().top + box.scrollTop : top + window.scrollY;
+    const view = box ? box.clientHeight : window.innerHeight;
+    // No taller than the table at this width needs, with the replay controls under it.
+    const need = tableHeight(Math.min(feltEl.clientWidth, 1280)) + CONTROLS;
+    feltH = Math.round(Math.min(need, Math.max(420, view - at - 44)));
+  }
+  const STACK_BELOW = 900;
+  const CONTROLS = 96;
+  $effect(() => {
+    void result;
+    void moves;
+    const frame = requestAnimationFrame(fit);
+    return () => cancelAnimationFrame(frame);
+  });
+
+  /** What is left behind after calling, against the pot then; without a bet against the pot now. */
+  const facing = $derived(view.toCallBB > 0 && !view.unopened);
+  const allIn = $derived(facing && view.toCallBB >= view.behindBB - 0.005);
+  const spr = $derived(facing ? Math.max(0, view.behindBB - view.toCallBB) / (view.potBB + view.toCallBB) : view.behindBB / Math.max(view.potBB, 0.01));
+  const sprMeaning = $derived.by(() => {
+    if (allIn) return "Der Call ist dein ganzer Stack: danach ist alles drin.";
+    if (spr < 0.5) return "Fast alles liegt schon im Pot: Mit dem Call bist du praktisch festgelegt.";
+    if (spr < 2) return "Klein: Mit einem weiteren Einsatz ist alles drin.";
+    if (spr < 6) return "Mittel: Platz für Einsätze auf ein, zwei Straßen.";
+    return "Tief: viel Spielraum, die nächsten Straßen entscheiden mit.";
+  });
+  const stackMeaning = $derived(
+    view.behindBB <= 20
+      ? "Kurz: Meist geht es um All-in oder Fold."
+      : view.behindBB <= 40
+        ? "Mittel: Ein Raise bindet schon einen guten Teil davon."
+        : "Tief: genug Platz, um die Hand nach dem Flop zu spielen.",
+  );
+  const SPR_HELP = "Stack zu Pot: wie oft der Pot in deinen restlichen Stack passt. Je kleiner die Zahl, desto eher geht es um alles.";
 
   async function choose(i: number) {
     if (busy || result) return;
@@ -61,7 +127,7 @@
   }
 
   $effect(() => {
-    if (preview("answer")) untrack(() => choose(0));
+    if (preview("answer")) untrack(() => choose(Number(preview("pick") ?? 0) || 0));
   });
 
   /** 1–9 pick a choice; Enter goes on once answered. */
@@ -83,226 +149,226 @@
   }
 </script>
 
-<svelte:window onkeydown={onKey} />
+<svelte:window onkeydown={onKey} onresize={fit} />
 
 {#snippet arrow()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>{/snippet}
 
-<div class="drill">
-  <div class="stage">
-    <div class="felt-box">
-      <Replayer hand={spot.hand} upTo={spot.action_index} quiz={!result} inBigBlinds quietPlay solve={false}>
-        <div class="hand-title">
-          <span class="stop" class:done={!!result}>{result ? "Beantwortet" : "Stopp vor deiner Entscheidung"}</span>
-        </div>
-      </Replayer>
+<div class="drill" class:answered={!!result} bind:this={drillEl}>
+<div class="grid">
+  <header class="top">
+    <div class="origin">
+      {#if real}
+        <Badge tone="info" size="sm">Echte Hand</Badge>
+        <span>vom {dayOf(spot.played_at)}</span>
+      {:else}
+        <Badge size="sm">Neu gegeben</Badge>
+        <span>Lage wie am {dayOf(spot.played_at)}, andere Karten</span>
+      {/if}
+      <span class="spot">· {spot.title} · {spot.detail}</span>
     </div>
+    {#if kit}
+      <span class="rated-by">Bewertet mit <SourceNote kind={kit} hint={sourceHint} />{#if reliability}<span class="num">{reliability}</span>{/if}</span>
+    {/if}
+  </header>
 
-    <aside class="side">
-      <div class="ask">
-        <div class="origin">
-          {#if real}
-            <Badge tone="info" size="sm">Echte Hand</Badge>
-            <span>aus deiner Hand vom {dayOf(spot.played_at)}</span>
-          {:else}
-            <Badge size="sm">Neu gegeben</Badge>
-            <span>Lage wie in deiner Hand vom {dayOf(spot.played_at)}, andere Karten</span>
-          {/if}
-        </div>
-        <p class="eyebrow">{spot.title} · {spot.detail}</p>
-        <h2 class="question">
-          {#if spot.position}Du sitzt im <abbr title={positionHint(spot.position)}>{spot.position}</abbr> mit{:else}Du hast{/if}
-          <CardText hands text={spot.hero_cards.join("")} />, noch <span class="num">{stack}</span> im Stack. Was spielst du?
-        </h2>
-        <p class="scene">
-          <span class="street">{view.street}</span>
-          {#if view.board.length}
-            <span class="board">{#each view.board as c (c)}<PlayingCard card={c} size={20} />{/each}</span>
-          {/if}
-          <span class="facing">{view.facing}</span>
-          <span>Pot <b class="num">{view.pot}</b></span>
-        </p>
-        {#if kit}
-          <p class="rated-by">Bewertet wie in der Hand-Analyse: <SourceNote kind={kit} hint={sourceHint} /></p>
-        {/if}
-      </div>
-
-      <div class="act">
-        {#if !result}
-          <div class="choices" role="group" aria-label="Deine Entscheidung" in:appear>
-            {#each spot.choices as c, i (i)}
-              <Button size="lg" full kbd={String(i + 1)} disabled={busy} onclick={() => choose(i)}>{c.label}</Button>
-            {/each}
-          </div>
-          {#if error}<p class="error" role="alert">{error}</p>{/if}
-        {:else}
-          <div class="after" in:rise>
-            {#if then && then.rating}
-              <p class="then">
-                Damals hast du <b>{then.played}</b> gespielt:
-                <span style:color={RATING[then.rating].color}>{RATING[then.rating].label}</span>{#if (then.ev_loss_bb ?? 0) > 0.005}, das kostete
-                  etwa {bbText(then.ev_loss_bb ?? 0)}{/if}.
-              </p>
-            {/if}
-            {#if onNext}
-              <Button variant="primary" size="lg" icon={arrow} kbd="Enter" onclick={onNext}>{nextLabel}</Button>
-            {/if}
-          </div>
-        {/if}
-      </div>
-    </aside>
+  <div class="table-col">
+    <ActionChain streets={moves} turn={result ? undefined : { pos: `Du · ${seat ?? "?"}`, text: "bist dran" }} label="Bisher in der Hand" />
+    <div class="felt-box" bind:this={feltEl} style:height="{feltH}px">
+      <Replayer hand={spot.hand} upTo={spot.action_index} quiz={!result} inBigBlinds quietPlay solve={false} moveList={false} />
+    </div>
   </div>
 
-  {#if result}
-    <div class="verdict" in:rise>
-      <DecisionCard decision={result.decision} />
-    </div>
-  {/if}
+  <aside class="side">
+    <h2 class="question">
+      {#if seat}Du sitzt im <Term tip={positionHint(seat)}>{seat}</Term> mit{:else}Du hast{/if}
+      <CardText hands text={highFirst(spot.hero_cards).join("")} />{#if result}.{:else}. Was spielst du?{/if}
+    </h2>
+
+    {#if !result}
+      <section class="lage" aria-label="Die Lage" in:appear>
+        <div class="figures">
+          {#if facing}
+            <Stat
+              label="Call kostet"
+              value={bb(view.toCallBB)}
+              meaning={allIn ? "Das ist dein ganzer Stack." : `${pct(view.toCallBB / view.behindBB)} deines Stacks von ${bb(view.behindBB)}.`}
+            />
+            <Stat label={allIn ? "Stack zu Pot" : "Stack zu Pot nach dem Call"} value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
+          {:else}
+            <Stat label="Pot" value={bb(view.potBB)} meaning="liegt schon in der Mitte, Blinds und Antes eingerechnet." />
+            {#if view.street === "Vor dem Flop"}
+              <Stat label="Dein Stack" value={bb(view.behindBB)} meaning={stackMeaning} />
+            {:else}
+              <Stat label="Stack zu Pot" value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
+            {/if}
+          {/if}
+        </div>
+        {#if facing}
+          <PotOdds pot={view.potBB} call={view.toCallBB} />
+        {:else}
+          <p class="free">
+            {#if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes. Du kannst folden, mitgehen (limpen) oder eröffnen.
+            {:else}Noch hat niemand gesetzt: Du kannst checken oder setzen, ohne etwas zu zahlen.{/if}
+          </p>
+        {/if}
+      </section>
+
+      <div class="choices" role="group" aria-label="Deine Entscheidung" in:appear>
+        {#each spot.choices as c, i (i)}
+          {@const kind = MOVE[c.kind]}
+          {#snippet mark()}<i class="mark" style:--c={kind ? actionColor(kind) : "var(--text-3)"}></i>{/snippet}
+          <Button size="lg" full kbd={String(i + 1)} icon={mark} disabled={busy} onclick={() => choose(i)}>{c.label}</Button>
+        {/each}
+      </div>
+      {#if error}<p class="error" role="alert">{error}</p>{/if}
+    {:else}
+      <div class="after" in:rise>
+        <div class="verdict"><DecisionCard decision={result.decision} quiet /></div>
+        {#if then && then.rating}
+          <p class="then">
+            <span>Damals hast du <b>{then.played}</b> gespielt</span>
+            <GradeBadge grade={GRADE_OF[then.rating]} cost={then.ev_loss_bb ?? undefined} size="sm" />
+          </p>
+        {/if}
+        {#if onNext}
+          <div class="next">
+            <Button variant="primary" size="lg" full icon={arrow} kbd="Enter" onclick={onNext}>{nextLabel}</Button>
+          </div>
+        {/if}
+      </div>
+    {/if}
+  </aside>
+</div>
 </div>
 
 <style>
   .drill {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-4);
+    container: drill / inline-size;
   }
-  .stage {
+  .grid {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, min(420px, 36%));
-    gap: 16px;
+    grid-template-columns: minmax(0, 1fr) clamp(340px, 32%, 460px);
+    grid-template-areas:
+      "top top"
+      "table side";
+    gap: var(--sp-4) var(--sp-6);
     align-items: start;
   }
-  .side {
+  .top {
+    grid-area: top;
     display: flex;
-    flex-direction: column;
-    gap: 16px;
-    min-width: 0;
-  }
-  .felt-box {
-    display: flex;
-    height: clamp(460px, 62vh, 640px);
-    min-width: 0;
-    overflow: hidden;
-    padding: 10px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid var(--line);
-  }
-  .hand-title {
-    display: flex;
-    gap: 10px;
-    white-space: nowrap;
-  }
-  .stop {
-    padding: 2px 9px;
-    border-radius: var(--r-pill);
-    border: 1px solid var(--line-2);
-    font-size: var(--fs-md);
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2) var(--sp-4);
     color: var(--text-2);
-  }
-  .stop.done {
-    color: var(--text);
-    border-color: var(--text-2);
+    font-size: var(--fs-md);
   }
   .origin {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 6px 10px;
-    margin-bottom: 10px;
-    font-size: var(--fs-md);
-    color: var(--text-2);
+    gap: var(--sp-1) var(--sp-2);
+    min-width: 0;
   }
-  .eyebrow {
-    margin: 0 0 4px;
-    font-size: var(--fs-md);
-    color: var(--text-2);
+  .spot {
+    color: var(--text-3);
+  }
+  .rated-by {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-3);
+  }
+  .table-col {
+    grid-area: table;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-width: 0;
+  }
+  .felt-box {
+    display: flex;
+    min-width: 0;
+  }
+  .side {
+    grid-area: side;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    min-width: 0;
   }
   .question {
     margin: 0;
-    font-family: var(--font-num);
     font-size: var(--fs-2xl);
     font-weight: var(--fw-semibold);
     line-height: 1.35;
   }
-  abbr {
-    text-decoration: underline dotted var(--text-3);
-    text-underline-offset: 4px;
-    cursor: help;
-  }
-  .scene {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 14px;
-    margin: 12px 0 0;
-    padding: 9px 12px;
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    font-size: var(--fs-md);
-    color: var(--text-2);
-  }
-  .scene .street,
-  .scene .facing,
-  .scene b {
-    color: var(--text);
-  }
-  .scene .street,
-  .scene b {
-    font-weight: var(--fw-semibold);
-  }
-  .scene .board {
-    display: flex;
-    gap: 2px;
-  }
-  .rated-by {
-    margin: 10px 0 0;
-    font-size: var(--fs-md);
-    color: var(--text-2);
-  }
-  .act {
+  .lage {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--sp-4);
+    padding: var(--sp-4);
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .figures {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-4);
+  }
+  .free {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
   }
   .choices {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--sp-2);
+  }
+  .mark {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    background: var(--c);
   }
   .after {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    gap: var(--sp-4);
+  }
+  /* The way on stays in reach while the reason below the verdict is read. */
+  .next {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    padding: var(--sp-3) 0 var(--sp-4);
+    margin-bottom: calc(-1 * var(--sp-4));
+    background: linear-gradient(to bottom, transparent, var(--surface) var(--sp-3));
   }
   .then {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
     margin: 0;
+    color: var(--text-2);
     font-size: var(--fs-base);
-    line-height: 1.5;
   }
   .then b {
+    color: var(--text);
     font-weight: var(--fw-semibold);
   }
   .error {
     margin: 0;
     color: var(--neg);
   }
-  @container (max-width: 980px) {
-    .stage,
-    .side {
-      display: contents;
-    }
-    .ask {
-      order: -3;
-    }
-    .act {
-      order: -2;
-    }
-    .felt-box {
-      height: 520px;
-    }
-    .choices {
-      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  @container drill (max-width: 900px) {
+    .grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "top" "side" "table";
     }
   }
 </style>

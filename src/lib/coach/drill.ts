@@ -1,5 +1,8 @@
 /** Practising one coached decision: where the hand stops, what the hero could do, and what the coach says. */
+import { positionsOf } from "../app/positions";
 import type { Action, Hand, Street } from "../types";
+import type { ChainStreet } from "../ui/ActionChain.svelte";
+import type { ActionKind } from "../ui/poker";
 import type { CoachSpot } from "./types";
 
 export type Choice = "fold" | "check" | "call" | "raise" | "allin";
@@ -66,8 +69,51 @@ export function scene(hand: Hand, index: number) {
     facing: s.facing && s.bettor ? `${s.bettor} setzt ${bb(s.bet)}` : s.facing ? `${bb(s.toCall)} zu zahlen` : "Niemand hat gesetzt",
     /** The pot already holds the bet the hero faces. */
     betIn: s.facing,
+    /** The same in numbers, big blinds. */
+    potBB: s.pot,
+    toCallBB: s.facing ? s.toCall : 0,
+    /** Before the flop with only blinds in: calling the big blind is a limp, not a price to pay. */
+    unopened: s.street === "preflop" && hand.actions.slice(0, index).every((a) => isPost(a) || a.kind === "fold"),
+    behindBB: s.behind,
   };
 }
+
+const KIND: Partial<Record<Action["kind"], ActionKind>> = { fold: "fold", check: "check", call: "call", bet: "bet", raise: "raise" };
+
+/** The hand before the decision as a chain of moves by street, blinds and antes left out. */
+export function chain(hand: Hand, index: number): ChainStreet[] {
+  const positions = positionsOf(hand);
+  const unit = hand.big_blind || 1;
+  const out: ChainStreet[] = [{ street: "preflop", moves: [] }];
+  let put = new Map<string, number>();
+  for (const a of hand.actions.slice(0, index)) {
+    if (a.street !== out[out.length - 1].street) {
+      out.push({ street: a.street, cards: hand.board.slice(BOARD_SIZE[STREETS[STREETS.indexOf(a.street) - 1] ?? "preflop"], BOARD_SIZE[a.street]), moves: [] });
+      put = new Map();
+    }
+    const total = a.kind === "raise" && a.to != null ? a.to : (put.get(a.player) ?? 0) + a.amount;
+    put.set(a.player, total);
+    const kind = a.all_in ? "allin" : KIND[a.kind];
+    if (!kind) continue;
+    out[out.length - 1].moves.push({
+      pos: positions.get(a.player) ?? "–",
+      name: a.player,
+      kind,
+      amount: kind === "fold" || kind === "check" ? undefined : total / unit,
+      hero: a.player === hand.hero,
+    });
+  }
+  const at = hand.actions[index]?.street ?? "preflop";
+  while (out[out.length - 1].street !== at) {
+    const prev = out[out.length - 1].street;
+    const next = STREETS[STREETS.indexOf(prev) + 1];
+    out.push({ street: next, cards: hand.board.slice(BOARD_SIZE[prev], BOARD_SIZE[next]), moves: [] });
+  }
+  return out;
+}
+
+/** The hero's seat name, e.g. "CO". */
+export const heroPosition = (hand: Hand) => positionsOf(hand).get(hand.hero ?? "") ?? null;
 
 export const bb = (v: number) => `${v.toLocaleString("de-DE", { maximumFractionDigits: 1 })} BB`;
 

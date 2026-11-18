@@ -2,6 +2,7 @@
   import { untrack, type Snippet } from "svelte";
   import { preview } from "../learn/preview";
   import { CATEGORY, categoryOf } from "../learn/wissen/poker";
+  import { positionsOf } from "./positions";
   import { openInSolver } from "../solver/handoff.svelte";
   import { spotFromHand } from "../solver/presets";
   import { money, moneyShort } from "../stats";
@@ -24,7 +25,8 @@
    * `quiz` is for practising the hand: while the answer is open, the solver hand-off is hidden
    * and the play button stays quiet. `inBigBlinds` starts the amounts in big blinds instead of
    * chips. `quietPlay` keeps the play button in outline, for screens that have their own main
-   * action.
+   * action. Without `moveList` the move list is left out and the table takes its room, for screens that
+   * tell the hand their own way.
    */
   let {
     hand: full,
@@ -39,6 +41,7 @@
     inBigBlinds = false,
     quietPlay = false,
     solve = true,
+    moveList = true,
   }: {
     hand: Hand;
     upTo?: number | null;
@@ -54,6 +57,7 @@
     quietPlay?: boolean;
     /** The solver hand-off under the table; off where the page offers it already (e.g. in a verdict). */
     solve?: boolean;
+    moveList?: boolean;
   } = $props();
 
   type Event =
@@ -181,38 +185,7 @@
   const WORD: Record<ActionKind, string> = { fold: "Fold", check: "Check", call: "Call", bet: "Bet", raise: "Raise", allin: "All-in", limp: "Limp" };
   const kindOf = (a: Action): ActionKind | undefined => (a.all_in ? "allin" : KIND[a.kind]);
 
-  /**
-   * Position names as the stats engine assigns them: the big blind is whoever posted it, the small
-   * blind only counts when posted from the seat right before, and the button sits before that.
-   */
-  const positions = $derived.by(() => {
-    const active = hand.seats.filter((s) => !s.sitting_out);
-    const n = active.length;
-    const out = new Map<string, string>();
-    if (n < 2) return out;
-    const posted = (kind: Action["kind"]) => hand.actions.find((a) => a.street === "preflop" && a.kind === kind)?.player;
-    let big = active.findIndex((s) => s.name === posted("post_big_blind"));
-    if (big < 0) {
-      const after = active.findIndex((s) => s.seat >= hand.button_seat);
-      big = ((after < 0 ? 0 : after) + 2) % n;
-    }
-    const order = Array.from({ length: n }, (_, i) => active[(big + 1 + i) % n].name);
-    if (n === 2) {
-      out.set(order[0], "BTN");
-      out.set(order[1], "BB");
-      return out;
-    }
-    const tail = ["BTN"];
-    if (posted("post_small_blind") === order[n - 2]) tail.push("SB");
-    tail.push("BB");
-    const LATE = ["LJ", "HJ", "CO"];
-    const EARLY = ["UTG", "UTG+1", "UTG+2", "UTG+3", "UTG+4"];
-    const rest = n - tail.length;
-    const early = Math.max(0, rest - LATE.length);
-    const labels = [...EARLY.slice(0, early), ...LATE.slice(LATE.length - (rest - early)), ...tail];
-    order.forEach((name, i) => out.set(name, labels[i]));
-    return out;
-  });
+  const positions = $derived(positionsOf(hand));
 
   const antes = $derived(hand.actions.filter((a) => a.kind === "post_ante"));
 
@@ -365,12 +338,12 @@
   let headH = $state(0);
   let ctrlH = $state(40);
   const LOG_MIN = 150;
-  const besides = $derived(boxW >= (aside ? 860 : 1150));
+  const besides = $derived((moveList || !!aside) && boxW >= (aside ? 860 : 1150));
   // Wide screens give the extra room to the analysis, not to an ever larger table.
   const sideW = $derived(besides ? Math.round(aside ? Math.min(560, Math.max(320, boxW * 0.28, boxW - 980)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
   const fit = $derived.by(() => {
-    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 960);
-    const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
+    const room = Math.min(besides ? boxW - sideW - 20 : boxW, moveList ? 960 : 1280);
+    const free = boxH - headH - ctrlH - 20 - (besides || !moveList ? 0 : LOG_MIN + 12);
     return fitTable(free, room);
   });
   /** Wide and tall: the log goes under the table in four columns, the side column keeps the analysis. */
@@ -512,7 +485,7 @@
 {/snippet}
 
 <div class="replayer" class:besides>
-  <div class="layout" class:besides style:--side="{sideW}px" style:--table="{fit.w * fit.f}px" bind:clientWidth={boxW} bind:clientHeight={boxH}>
+  <div class="layout" class:besides class:bare={!moveList && !aside} style:--side="{sideW}px" style:--table="{fit.w * fit.f}px" bind:clientWidth={boxW} bind:clientHeight={boxH}>
     <div class="main">
       {#if children}<div bind:clientHeight={headH}>{@render children()}</div>{/if}
       <div class="stage" style:height={fit.f < 1 ? `${tableHeight(fit.w) * fit.f}px` : undefined}>
@@ -599,13 +572,15 @@
         {/if}
         </div>
       </div>
-      {#if logBelow}{@render history()}{/if}
+      {#if logBelow && moveList}{@render history()}{/if}
     </div>
 
-    <div class="side" bind:this={sideEl}>
-      {#if aside && besides}<div class="aside">{@render aside()}</div>{/if}
-      {#if !logBelow}{@render history()}{/if}
-    </div>
+    {#if moveList || aside}
+      <div class="side" bind:this={sideEl}>
+        {#if aside && besides}<div class="aside">{@render aside()}</div>{/if}
+        {#if !logBelow && moveList}{@render history()}{/if}
+      </div>
+    {/if}
   </div>
 </div>
 
@@ -642,6 +617,9 @@
   }
   .scaler {
     transform-origin: 0 0;
+  }
+  .layout.bare {
+    grid-template-rows: auto;
   }
   /* Beside the side column, controls line up with the table; stacked, they take the full width. */
   .besides .main {

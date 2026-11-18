@@ -3,7 +3,8 @@ import type { AnswerSpec, LearnAnswer } from "../types";
 
 /**
  * Browser-demo switches for screenshots of states that are otherwise only reachable by clicking:
- * `learn=today|path|own|trainer|wissen`, `skill=<kind>`, `level=1|2|3`, `article=<id>`, `session=run|done`, `answer=1`,
+ * `learn=today|path|own|trainer|wissen`, `skill=<kind>`, `level=1|2|3`, `article=<id>`, `session=run|done`, `answer=1`
+ * (`pick=<n>` answers a practice spot with its n-th choice, from 0), `task=<n>` (a round opens at its n-th task, from 0),
  * `focus=<spot key>` (a round on one kind of spot), `weak=1` (scrolled to the weaknesses).
  * Always null in the app.
  */

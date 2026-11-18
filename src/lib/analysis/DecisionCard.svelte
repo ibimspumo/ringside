@@ -15,9 +15,11 @@
 
   /**
    * One decision: the verdict with the practice's grades and sentences first, then what the source
-   * plays with the hand, and where the numbers come from.
+   * plays with the hand, and where the numbers come from. `quiet` keeps its tools secondary and
+   * leaves the source to the screen around it, for screens that name it already and whose main
+   * action comes after the card.
    */
-  let { decision: d, onLearn }: { decision: Decision; onLearn?: (target: LearnTarget) => void } = $props();
+  let { decision: d, onLearn, quiet = false }: { decision: Decision; onLearn?: (target: LearnTarget) => void; quiet?: boolean } = $props();
 
   const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
   /** The kit's lines speak of "the solution"; the other sources say who plays it. */
@@ -103,9 +105,9 @@
             </Button>
           {/each}
         {/if}
-        <ChartsButton decision={d} variant="primary" />
+        <ChartsButton decision={d} variant={quiet ? "secondary" : "primary"} />
         {#if prefill}
-          <Button variant="primary" onclick={() => prefill && openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">Im Solver öffnen</Button>
+          <Button variant={quiet ? "secondary" : "primary"} onclick={() => prefill && openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">Im Solver öffnen</Button>
         {/if}
       {/snippet}
     </Verdict>
@@ -138,7 +140,7 @@
       {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
     </p>
 
-    {#if kit}
+    {#if kit && !quiet}
       <SourceNote kind={kit} variant="block">
         {SOURCE[d.source].explain}{#if d.source === "estimate" && d.reliability !== null}{" "}<b class="num">{reliabilityText(d.reliability, d.street)}</b>{/if}
       </SourceNote>

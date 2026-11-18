@@ -1,5 +1,6 @@
 <script lang="ts">
   import Logo from "../Logo.svelte";
+  import ActionChain from "./ActionChain.svelte";
   import ActionLabel from "./ActionLabel.svelte";
   import Badge from "./Badge.svelte";
   import BestHand from "./BestHand.svelte";
@@ -20,6 +21,7 @@
   import Panel from "./Panel.svelte";
   import PlayingCard from "./PlayingCard.svelte";
   import PokerTable, { COMPACT_BELOW, type TableSeat } from "./PokerTable.svelte";
+  import PotOdds from "./PotOdds.svelte";
   import Popover from "./Popover.svelte";
   import { ACTION_NAME, GRADE, GRADES, SOURCE, type ActionKind, type Source } from "./poker";
   import ProgressBar from "./ProgressBar.svelte";
@@ -641,6 +643,20 @@
           Unter {COMPACT_BELOW} px wird der Tisch kompakt: kleinere Schilder bei gleicher Schrift, Aktion am Schildrand. Beim Nachspielen trägt
           deine Aktion ihre Bewertung, der Gewinner sein Plus.
         </p>
+        <Card pad="sm">
+          <ActionChain
+            streets={[
+              { street: "preflop", moves: [{ pos: "LJ", kind: "fold" }, { pos: "HJ", kind: "raise", amount: 2.5 }, { pos: "BTN", kind: "call", amount: 2.5, hero: true }, { pos: "BB", kind: "call", amount: 2.5 }] },
+              { street: "flop", cards: ["Qs", "7c", "2d"], moves: [{ pos: "BB", kind: "check" }, { pos: "HJ", kind: "bet", amount: 3.1 }] },
+            ]}
+            turn={{ pos: "Du · BTN", text: "bist dran" }}
+          />
+        </Card>
+        <div class="two">
+          <Card><PotOdds pot={11.2} call={3.1} /></Card>
+          <Card><PotOdds pot={88.2} call={58.9} /></Card>
+        </div>
+        <p class="muted">Kette: was bisher passiert ist, Straße für Straße; wer dran ist, steht am Ende. Pot Odds: dein Call als Teil des Pots danach – so oft musst du gewinnen.</p>
       </section>
     {/if}
 

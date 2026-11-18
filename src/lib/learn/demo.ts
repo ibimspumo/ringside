@@ -933,7 +933,7 @@ const DEMO_GROUPS: SpotGroup[] = [
     estimate_reliability: 0.71, rank: 4, last_played_at: "2026/11/17 20:55:31", change: null,
   }),
   g({
-    key: "first_in|CO|3|6", lage: "first_in", seat: "CO", band: 3, table: "short", title: "Eröffnen im Cutoff", detail: "ab 40 BB · 6 Spieler",
+    key: "first_in|BTN|3|6", lage: "first_in", seat: "BTN", band: 3, table: "short", title: "Eröffnen am Button", detail: "ab 40 BB · 6 Spieler",
     decisions: 52, flawed: 3, loss_bb: 2.3, open: 0, sources: [["model", 52]], computed: 52, estimate_loss: 0,
     estimate_reliability: null, rank: 5, last_played_at: "2026/11/17 22:10:00", change: null,
   }),
@@ -955,7 +955,7 @@ const DEMO_DRILLS: Record<string, [number, number][]> = {
   "vs_limp|SB|3|6": [[250000000002, 6]],
   "push_fold|BTN|1|6": [[250000000001, 11]],
   "turn_bet|-|3|6": [[250000000000, 12]],
-  "first_in|CO|3|6": [[250000000000, 5]],
+  "first_in|BTN|3|6": [[250000000000, 5]],
 };
 
 export function demoProfile(): PlayProfile {

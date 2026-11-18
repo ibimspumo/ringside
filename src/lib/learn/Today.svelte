@@ -230,9 +230,9 @@
     xpBefore = progress?.xp_week ?? 0;
     scores = items.map(() => null);
     correct = items.map(() => false);
-    index = 0;
+    index = Math.min(items.length - 1, Number(preview("task")) || 0);
     phase = "run";
-    load(0);
+    load(index);
   }
 
   async function next() {
