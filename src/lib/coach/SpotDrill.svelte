@@ -72,6 +72,8 @@
 
   /** The reason's first sentence, next to the verdict; the whole reason follows below the table. */
   const gist = $derived(spot.why.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? spot.why);
+  /** Ringside's own figures behind the verdict, shown right with it; all figures follow below. */
+  const key = $derived(spot.numbers.filter((n) => n.source === "berechnet").slice(0, 2));
   /** The rest of the reason, so the first sentence is not said twice. */
   const rest = $derived(spot.why.slice(gist.length).trim() || spot.why);
 
@@ -179,6 +181,11 @@
               {/if}
             </div>
             <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
+            {#if key.length}
+              <ul class="key">
+                {#each key as f, i (i)}<li><span><CardText hands text={say(ownCards(f.label, spot.hero_cards))} /></span><b class="num">{say(f.value)}</b></li>{/each}
+              </ul>
+            {/if}
             <dl class="compare">
               <div class="mine"><dt>Deine Antwort</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
@@ -366,6 +373,26 @@
     flex-wrap: wrap;
     gap: 8px 12px;
     font-size: var(--fs-lg);
+  }
+  .key {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .key li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+  .key b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
   }
   .gist {
     margin: 0;

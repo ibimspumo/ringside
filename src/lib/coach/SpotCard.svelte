@@ -235,7 +235,7 @@
   .why {
     color: var(--text-2);
     line-height: 1.55;
-    max-width: 78ch;
+    max-width: 72ch;
   }
   footer {
     display: flex;

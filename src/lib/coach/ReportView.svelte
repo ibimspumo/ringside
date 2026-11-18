@@ -337,7 +337,7 @@
     font-size: var(--fs-xl);
     line-height: 1.6;
     text-wrap: pretty;
-    max-width: 68ch;
+    max-width: 60ch;
   }
   .next {
     display: flex;
