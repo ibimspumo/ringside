@@ -265,8 +265,7 @@
     {#if next?.spot}<div class="next-wide">{@render nextStep(next.spot, next.loss_bb)}</div>{/if}
 
     <section class="loss">
-      {#if started}
-        <div class="section-head">
+      <div class="section-head">
           <h2 class="section-title">Wo du Chips verlierst</h2>
           {#if running}
             <span class="snapshot"
@@ -275,9 +274,8 @@
                 : "Zwischenstand – die Zahlen wachsen, solange die Analyse läuft."}</span
             >
           {/if}
-        </div>
-      {/if}
-      <AnalyzeBar compact />
+      </div>
+      <AnalyzeBar compact title="Analyse starten" />
       <Summary {filter} {refresh} onOpen={(id, at) => onHand(id, at)} onSpot={() => onHand(-1, null)} {onLearn} />
     </section>
 

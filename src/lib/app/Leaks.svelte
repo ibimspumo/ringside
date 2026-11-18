@@ -293,7 +293,7 @@
             >
           </div>
           <div class="fig">
-            <span class="label"><Term tip={SURE_HELP}>Sicherheit</Term></span>
+            <span class="label"><Term tip={SURE_HELP}>Sicherheit des Leaks</Term></span>
             <b class="num">{pct(l.confidence)}</b>
             <small
               ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
@@ -992,6 +992,12 @@
     .body {
       grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     }
+    .verdict {
+      grid-template-columns: minmax(0, 720px) minmax(0, 1fr);
+    }
+    .counts {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
   }
   @container (max-width: 1080px) {
     .verdict {
@@ -1018,6 +1024,10 @@
   @container (max-width: 900px) {
     .body {
       grid-template-columns: 1fr;
+    }
+    /* One column: what to do comes right under the title, the figures follow. */
+    .advice {
+      order: -1;
     }
   }
 </style>

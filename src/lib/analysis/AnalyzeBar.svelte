@@ -6,7 +6,7 @@
   import { analysis, watchAnalysis } from "./store.svelte";
 
   /** The one-click run over the whole history, with its progress. */
-  let { compact = false }: { compact?: boolean } = $props();
+  let { compact = false, title = "Wo verlierst du Chips?" }: { compact?: boolean; title?: string } = $props();
 
   watchAnalysis();
   const s = $derived(analysis.status);
@@ -38,7 +38,7 @@
   <div class="bar" class:compact>
     {#if !started}
       <div class="text">
-        <b>Wo verlierst du Chips?</b>
+        <b>{title}</b>
         <span>
           Ringside bewertet jede deiner Entscheidungen: vor dem Flop sofort, nach dem Flop nach und nach im Hintergrund. Du
           siehst danach deine teuersten Fehler zuerst.
@@ -76,7 +76,7 @@
               >{!preDone
                 ? "startet danach"
                 : c.queued
-                  ? `${Math.floor(postShare * 100)}\u00a0%${eta ? ` · ${eta}` : ""} · ${int(c.queued)} Flop-Spots im Solver`
+                  ? `${Math.floor(postShare * 100)}\u00a0% der Entscheidungen bewertet${eta ? ` · ${eta}` : ""} · ${int(c.queued)} Flop-Spots im Solver`
                   : "alles gerechnet"}</small
             >
           </div>

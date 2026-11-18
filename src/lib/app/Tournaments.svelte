@@ -665,8 +665,13 @@
     }
   }
   .of {
-    display: none;
+    display: block;
+    font-size: var(--fs-xs);
+    line-height: 1.1;
     color: var(--text-3);
+  }
+  td.place {
+    line-height: 1.2;
   }
   /* Narrow windows: the field size moves into the place column so every column fits without scrolling. */
   @container (max-width: 1000px) {
