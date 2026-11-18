@@ -62,7 +62,7 @@
   </div>
     <div class="hand">
         <Button size="sm" variant="quiet" icon={play} onclick={() => onHand(spot.hand_id)}>Im Replayer ansehen</Button>
-        <Button size="sm" variant="quiet" onclick={() => requestAnalysis(spot.hand_id)}>Diese Hand analysieren</Button>
+        <Button size="sm" variant="quiet" onclick={() => requestAnalysis(spot.hand_id)} title="Ringside bewertet jede Entscheidung der Hand, kostenlos auf diesem Rechner">Diese Hand analysieren</Button>
       </div>
   </div>
 
@@ -289,6 +289,10 @@
     .spot {
       grid-template-columns: minmax(0, 1fr);
       gap: 14px;
+    }
+    /* Verdict and sentence first; the table preview follows. */
+    .side {
+      order: 1;
     }
     .visual {
       width: 100%;

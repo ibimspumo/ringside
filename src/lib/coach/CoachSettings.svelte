@@ -195,12 +195,14 @@
           <div class="picker">
             <div class="tools-row">
               <input class="field search" type="search" placeholder="Modell suchen" aria-label="Modell suchen" bind:value={search} />
+              <Button size="sm" onclick={() => (open = false)}>Fertig</Button>
+            </div>
+            <div class="opts">
               <span class="opt"
                 ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
                 ></span
               >
               <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
-              <span class="done"><Button size="sm" variant="quiet" onclick={() => (open = false)}>Fertig</Button></span>
             </div>
             {#if modelsError}
               <p class="msg">{modelsError}</p>
@@ -420,10 +422,11 @@
   }
   .search {
     flex: 1 1 220px;
-    max-width: 320px;
   }
-  .done {
-    margin-left: auto;
+  .opts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-5);
   }
   .opt {
     display: flex;

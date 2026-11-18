@@ -111,7 +111,8 @@
         <li class:done={i < stepOf(st)} class:now={i === stepOf(st)} aria-current={i === stepOf(st) ? "step" : undefined}>
           <span class="dot" aria-hidden="true"
             >{#if i < stepOf(st)}<svg viewBox="0 0 24 24" width="9" height="9"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
-              >{/if}</span
+              >{:else if st.kind === "error" && i === stepOf(st)}<svg viewBox="0 0 24 24" width="9" height="9"><path d="M7 7l10 10M17 7L7 17" /></svg
+                >{/if}</span
           >{s}
         </li>
       {/each}
@@ -246,6 +247,7 @@
         </Card>
       </div>
       <div class="tools" aria-label="Was Ringside nachgerechnet hat">
+        {#if used.length}<span class="note">Nachgerechnet:</span>{/if}
         {#each used as t (t)}{@const now = (p?.stage === "tool" || p?.stage === "calling") && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
             >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
           >{:else}<span class="note">Jede Zahl im Bericht rechnet Ringside selbst nach.</span>{/each}

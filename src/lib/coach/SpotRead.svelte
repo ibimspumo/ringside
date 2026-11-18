@@ -116,8 +116,7 @@
     scroll-margin-top: 16px;
   }
   .mine {
-    padding-left: var(--sp-3);
-    box-shadow: inset 3px 0 0 var(--accent);
+    min-width: 0;
   }
   .top {
     display: flex;
