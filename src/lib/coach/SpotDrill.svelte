@@ -150,10 +150,6 @@
                 <div><dt>Besser laut Coach</dt><dd><CardText text={spot.better} /></dd></div>
               {/if}
             </dl>
-            <p class="why"><CardText text={spot.why} /></p>
-            {#if spot.numbers.length}
-              <Figures numbers={spot.numbers} />
-            {/if}
             <div class="next">
               {#if practice.train}
                 <button class="btn primary" onclick={() => onTraining(practice.train)}>
@@ -177,6 +173,21 @@
       </div>
     </aside>
   </div>
+
+  {#if answer}
+    <div class="detail" in:rise>
+      <div class="detail-why">
+        <h3>Warum</h3>
+        <p class="why"><CardText text={spot.why} /></p>
+      </div>
+      {#if spot.numbers.length}
+        <div class="detail-figs">
+          <h3>Ringsides Zahlen</h3>
+          <Figures numbers={spot.numbers} />
+        </div>
+      {/if}
+    </div>
+  {/if}
 </section>
 
 <style>
@@ -409,6 +420,25 @@
     color: var(--text-2);
     max-width: 80ch;
   }
+  .detail {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    gap: 16px 28px;
+    padding: 16px 18px;
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    border: 1px solid var(--line);
+  }
+  .detail h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+  .detail .why {
+    color: var(--text);
+    font-size: 14.5px;
+  }
   .next {
     display: flex;
     flex-wrap: wrap;
@@ -426,6 +456,9 @@
     gap: 16px;
   }
   @container (max-width: 980px) {
+    .detail {
+      grid-template-columns: minmax(0, 1fr);
+    }
     .stage {
       grid-template-columns: minmax(0, 1fr);
     }

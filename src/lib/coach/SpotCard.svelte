@@ -302,12 +302,14 @@
     color: var(--text);
   }
 
-  @container (max-width: 700px) {
+  @container (max-width: 820px) {
     .spot {
       grid-template-columns: minmax(0, 1fr);
+      gap: 14px;
     }
     .visual {
-      max-width: 300px;
+      width: 100%;
+      max-width: 340px;
     }
   }
 </style>
