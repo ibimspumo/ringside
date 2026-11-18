@@ -82,7 +82,10 @@ try {
             const seats = of("seat");
             const me = seats.find((x) => x.seat === hero);
             if (!me || Math.abs(me.x - cx) > 1 || seats.some((x) => x.y > me.y + 0.5)) problems.push(`${where}: you do not sit bottom centre`);
-            if (SHOTS && view.kind === "play" && w === 900 && height === 1100 && hero === 0 && [6, 8, 9].includes(n)) {
+            // Heads-up the opponent faces you across the table.
+            const other = seats.find((x) => x.seat !== hero);
+            if (n === 2 && (!other || Math.abs(other.x - cx) > 1 || other.y >= m.cloth.y)) problems.push(`${where}: the heads-up opponent does not sit top centre`);
+            if (SHOTS && view.kind === "play" && w === 900 && height === 1100 && hero === 0 && [2, 3, 4, 5, 6, 8, 9].includes(n)) {
               writeFileSync(`${SHOTS}/tisch-${n}max-alle-einsaetze.png`, Buffer.from(await s.screenshot(), "base64"));
             }
             if (SHOTS && view.kind !== "play" && w === view.widths[1] && height === 1100 && hero === 0) {

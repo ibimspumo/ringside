@@ -3,10 +3,11 @@
   import { api, onPreflopProgress } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
   import type { PushFoldAnte, PushFoldChart as PfChart, PushFoldGrid, PushFoldNode } from "../types";
-  import type { PreflopGrid, PreflopNode, PreflopProgress, PreflopSpot, PreflopSpots } from "./preflop-types";
+  import type { PreflopGrid, PreflopNode, PreflopProgress, PreflopSpot, PreflopSpots, TableOpens } from "./preflop-types";
   import PushFoldChart from "./PushFoldChart.svelte";
   import PreflopChart from "./PreflopChart.svelte";
   import SeatTable from "./SeatTable.svelte";
+  import SizeCompare from "./SizeCompare.svelte";
   import StackAxis, { type Series } from "./StackAxis.svelte";
   import ActionBar from "./ActionBar.svelte";
   import ReadGuide from "./ReadGuide.svelte";
@@ -463,6 +464,35 @@
   );
   const myName = $derived(positions.find((p) => p.seat === seat)?.name ?? "");
 
+  // ── The same seat at other table sizes ───────────────────────────
+  let sizes = $state<TableOpens[]>([]);
+  const sizeCache = new Map<string, TableOpens[]>();
+
+  $effect(() => {
+    if (!pfGrid || !preGrid) return;
+    const pushfold = engine === "pushfold";
+    const key = `${ante}|${stack}|${pushfold}`;
+    const hit = sizeCache.get(key);
+    if (hit) {
+      sizes = hit;
+      return;
+    }
+    let alive = true;
+    api
+      .tableOpens(ante, stack, pushfold)
+      .then((r) => {
+        sizeCache.set(key, r);
+        if (alive) sizes = r;
+      })
+      .catch(() => alive && (sizes = []));
+    return () => (alive = false);
+  });
+
+  function pickSize(n: number, s: number) {
+    players = n;
+    seat = s;
+  }
+
   // ── Live solve ───────────────────────────────────────────────────
   const done = $derived.by(() => {
     if (!progress) return 0;
@@ -684,6 +714,7 @@
         </section>
 
         <aside class="side">
+          <SizeCompare rows={sizes} {players} {seat} pushfold={engine === "pushfold"} onPick={pickSize} />
           <ReadGuide
             fill={engine === "pushfold"
               ? "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, Fold (blau) steht rechts. Die Zahl unten rechts: wie oft du eine gemischte Hand spielst, in Prozent."

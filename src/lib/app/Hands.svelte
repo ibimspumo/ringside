@@ -190,7 +190,7 @@
     const id = analysis.lastSolved;
     void analysis.solved;
     untrack(() => {
-      if (selected && id === selected.id) loadDecisions(selected.id, chosen);
+      if (selected && id === selected.id) loadDecisions(selected.id, chosen).then(() => standing !== undefined && follow(standing));
     });
   });
 
@@ -256,7 +256,10 @@
     try {
       const hands = await api.hands({ ...filter, player: null, showdown_only: false, result: null, min_pot_bb: null, limit: 5000, offset: 0 });
       await api.analysisHands(hands.map((h) => h.id));
-      if (selected) await loadDecisions(selected.id, chosen);
+      if (selected) {
+        await loadDecisions(selected.id, chosen);
+        if (standing !== undefined) follow(standing);
+      }
       analysis.solved++;
     } finally {
       tournamentBusy = false;
@@ -268,22 +271,23 @@
     return list.find((d) => d.action_index === id) ?? null;
   }
 
-  /** Playing on shows the verdict of the decision the replay stands before. */
+  const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
+  /** The action the replay stands before, or null at the end of the hand. */
   let standing = $state<number | null | undefined>(undefined);
   /** Says whether the table shows the moment of the decision on the right, or a later one. */
   const caption = $derived.by(() => {
     if (!current || standing === undefined) return null;
     const move = current.played.split(" ")[0];
-    if (standing === current.action_index) return { text: `Am Tisch bist du jetzt dran – bewertet wird dein ${move}:`, ahead: false };
-    if (standing === null || standing > current.action_index)
-      return { text: `Bewertet wird dein ${move} am ${({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}:`, ahead: false };
-    return { text: `Deine nächste Entscheidung – so wird dein ${move} bewertet:`, ahead: true };
+    if (standing === current.action_index) return `Am Tisch bist du jetzt dran – bewertet wird dein ${move}:`;
+    return `Bewertet wird dein ${move} am ${STREET[current.street]}:`;
   });
+  /** Before your first decision the replay gives nothing away. */
+  const waiting = $derived(chosen === null && standing !== undefined && decisions?.length ? `Gleich bist du dran: ${STREET[decisions[0].street]}` : null);
+  /** Playing on keeps the decision reached last; the next one shows once the replay stands right before it. */
   function follow(next: number | null) {
     standing = next;
     if (!decisions?.length) return;
-    const d = (next === null ? undefined : decisions.find((x) => x.action_index >= next)) ?? decisions[decisions.length - 1];
-    chosen = d.action_index;
+    chosen = decisions.findLast((d) => next === null || d.action_index <= next)?.action_index ?? null;
   }
 
   function select(action: number) {
@@ -418,7 +422,7 @@
       <GradeIcon grade={g} size={18} />
       <p>
         <b style:color="color-mix(in srgb, var(--grade-{g}) 60%, var(--text))">{RATING[current.rating].label}</b>
-        <span class="quiet">· {({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}</span>
+        <span class="quiet">· {STREET[current.street]}</span>
         {#if current.best && (current.rating === "mistake" || current.rating === "blunder" || current.rating === "inaccuracy")}
           – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} bringt im Schnitt <b class="num">{fmtBb(current.ev_loss_bb ?? 0, { digits: 2 })}</b> weniger
         {:else}
@@ -426,6 +430,8 @@
         {/if}
       </p>
       <Button size="sm" onclick={() => analysisEl?.scrollIntoView({ block: "start", behavior: "smooth" })}>Warum?</Button>
+    {:else if waiting}
+      <p class="quiet">{waiting}</p>
     {:else if decisions && !decisions.length && !locked}
       <p>Diese Hand ist noch nicht bewertet.</p>
       <Button size="sm" variant={started ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={() => analyze()}>Diese Hand analysieren</Button>
@@ -436,7 +442,7 @@
 {/snippet}
 
 {#snippet panel()}
-  <HandPanel {decisions} selected={chosen} {busy} {locked} analyzed={analyzedId === selected?.id} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} main={started} {onCoachSetup} />
+  <HandPanel {decisions} selected={chosen} {busy} {locked} analyzed={analyzedId === selected?.id} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} {waiting} main={started} {onCoachSetup} />
 {/snippet}
 
 {#snippet close()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>{/snippet}

@@ -1,5 +1,5 @@
-// Browser stand-in for the practice: two scripted hands that look like real ones (6-max, 40 BB
-// with a 3-bet after your open, to the river, and a 10 BB push/fold spot), so every state of
+// Browser stand-in for the practice: scripted hands that look like real ones (6-max, 40 BB
+// with a 3-bet after your open, to the river, a 10 BB push/fold spot and a heads-up hand), so every state of
 // the page can be seen without Tauri. Calling the 3-bet leaves the prepared line: the flop is
 // "solved live" for a few seconds, and cancelling plays the hand on without grades.
 import { CLASSES, classCombos, classLabel, comboClass } from "../solver/range";
@@ -32,6 +32,8 @@ type Decide = {
   evs: number[];
   equity: number | null;
   source: Source;
+  /** The choice the demo grid colours as played (default: the second). */
+  agg?: number;
   /** What happens after the hero's choice: the opponents' moves and cards. */
   after: (chosen: number) => Step[];
 };
@@ -116,7 +118,7 @@ const FLOP = ["6h", "9h", "Jd"];
  * folds; on the flop you check, the CO bets, and the hand goes on to the river. With `live`
  * the prepared spot was another line, so the flop is solved while you wait.
  */
-function handA(live: boolean): { seat: number; cards: string[][]; stack: number; ante: number[]; script: Step[] } {
+function handA(live: boolean): Script {
   const post: Source = live ? "live" : "solver";
   const showdown: Step = { kind: "end", winners: [1], shown: [2], made: [null, "Paar", "Paar", null, null, null], reason: "showdown" };
   const river: Decide = {
@@ -208,7 +210,7 @@ function handA(live: boolean): { seat: number; cards: string[][]; stack: number;
   };
 }
 
-function handB(): { seat: number; cards: string[][]; stack: number; ante: number[]; script: Step[] } {
+function handB(): Script {
   const pre: Decide = {
     street: "preflop",
     choices: [c("fold", 0.5, 0), c("all_in", 10, 9.5, 350)],
@@ -242,12 +244,78 @@ function handB(): { seat: number; cards: string[][]; stack: number; ante: number
   };
 }
 
+type Script = { seat: number; cards: string[][]; stack: number; ante: number[]; script: Step[]; positions?: string[]; auto?: number };
+
+/**
+ * Heads-up, 40 BB with a big-blind ante: you have the button and post the small blind, so
+ * you act first before the flop and last after it. You open, the big blind calls and checks
+ * to you on every street.
+ */
+function handHeadsUp(): Script {
+  const showdown: Step = { kind: "end", winners: [0], shown: [1], made: ["Paar", "Paar"], reason: "showdown" };
+  const bbFolds: Step[] = [{ kind: "act", seat: 1, choice: c("fold", 0, 0) }, { kind: "end", winners: [0], shown: [], made: [], reason: "folded" }];
+  const river: Decide = {
+    street: "river",
+    choices: [c("check", 0, 0), c("bet", 4.05, 4.05, 75), c("all_in", 37.8, 37.8, 700)],
+    strategy: [0.35, 0.65, 0],
+    evs: [3.9, 4.3, 2.2],
+    equity: 0.74,
+    source: "solver",
+    after: (k) => (k === 0 ? [showdown] : [{ kind: "act", seat: 1, choice: c("call", river.choices[k].to_bb, river.choices[k].to_bb) }, showdown]),
+  };
+  const turn: Decide = {
+    street: "turn",
+    choices: [c("check", 0, 0), c("bet", 4.05, 4.05, 75), c("all_in", 37.8, 37.8, 700)],
+    strategy: [0.6, 0.4, 0],
+    evs: [3.6, 3.55, 1.9],
+    equity: 0.72,
+    source: "solver",
+    after: (k) =>
+      k === 0
+        ? [{ kind: "board", street: "river", cards: ["Js"] }, { kind: "act", seat: 1, choice: c("check", 0, 0) }, { kind: "decide", d: river }]
+        : bbFolds,
+  };
+  const flop: Decide = {
+    street: "flop",
+    choices: [c("check", 0, 0), c("bet", 1.8, 1.8, 33), c("all_in", 37.8, 37.8, 700)],
+    strategy: [0.3, 0.7, 0],
+    evs: [3.2, 3.45, 1.4],
+    equity: 0.75,
+    source: "solver",
+    after: (k) =>
+      k === 0
+        ? [{ kind: "board", street: "turn", cards: ["2h"] }, { kind: "act", seat: 1, choice: c("check", 0, 0) }, { kind: "decide", d: turn }]
+        : bbFolds,
+  };
+  const pre: Decide = {
+    street: "preflop",
+    choices: [c("fold", 0.5, 0), c("limp", 1, 0.5), c("raise", 2.2, 1.7, 68), c("all_in", 39, 38.5, 1540)],
+    strategy: [0, 0.18, 0.82, 0],
+    evs: [-0.5, 0.71, 0.74, 0.3],
+    equity: null,
+    source: "model",
+    agg: 2,
+    after: (k) =>
+      k === 0
+        ? [{ kind: "end", winners: [1], shown: [], made: [], reason: "folded" }]
+        : k === 3
+          ? bbFolds
+          : [
+              { kind: "act", seat: 1, choice: k === 1 ? c("check", 1, 0) : c("call", 2.2, 1.2) },
+              { kind: "board", street: "flop", cards: ["Kc", "8d", "3s"] },
+              { kind: "act", seat: 1, choice: c("check", 0, 0) },
+              { kind: "decide", d: flop },
+            ],
+  };
+  return { seat: 0, stack: 40, ante: [0, 1], cards: [["Kh", "9h"], ["Qd", "7c"]], positions: ["SB", "BB"], script: [{ kind: "decide", d: pre }], auto: 2 };
+}
+
 // --- A tiny engine that plays a script into hand views ---------------------------------------
 
 type State = {
   config: PlayConfig;
   seed: number;
-  hand: ReturnType<typeof handA>;
+  hand: Script;
   queue: Step[];
   view: HandView;
   put: number[];
@@ -302,7 +370,7 @@ function lessonOf(s: State, d: Decide): Lesson {
     equity: d.equity,
     class: classLabel(cls),
     node: isPost ? postNode(d.street as "flop", s.board, snap.pot, d.choices, d.strategy, d.evs, d.equity ?? 0.5, s.hand.cards[s.hand.seat], toCall) : null,
-    grid: isPost ? null : d.source === "equilibrium" ? grid(2, 1, 0.42) : grid(d.choices.length, 1, 0.5),
+    grid: isPost ? null : d.source === "equilibrium" ? grid(2, 1, 0.42) : grid(d.choices.length, d.agg ?? 1, 0.5),
     path: isPost ? [] : null,
     exploitability_pct: isPost ? (d.source === "live" ? 1.8 : 0.8) : null,
   };
@@ -457,8 +525,8 @@ export function liveCancel(): HandView | null {
 
 function start(config: PlayConfig, seed: number): HandView {
   stopSolve();
-  const hand = config.mode === "push_fold" ? handB() : handA(config.mode === "full");
-  const n = 6;
+  const hand = config.players === 2 ? handHeadsUp() : config.mode === "push_fold" ? handB() : handA(config.mode === "full");
+  const n = hand.cards.length;
   const put = new Array(n).fill(0);
   put[n - 2] = 0.5;
   put[n - 1] = 1;
@@ -466,7 +534,7 @@ function start(config: PlayConfig, seed: number): HandView {
     seed,
     config,
     players: n,
-    positions: POS6,
+    positions: hand.positions ?? POS6,
     stack_bb: hand.stack,
     ante: hand.ante,
     hero: hand.seat,
@@ -478,7 +546,12 @@ function start(config: PlayConfig, seed: number): HandView {
     decision: null,
     outcome: null,
     preflop_source: config.mode === "push_fold" ? "equilibrium" : "model",
-    spot: config.mode === "postflop" ? { id: 1, source: "solver", complete: true, exploitability_pct: 0.8, oop: 1, ip: 2, pot: 14.6, stack: 33.95 } : null,
+    spot:
+      config.mode === "postflop"
+        ? n === 2
+          ? { id: 1, source: "solver", complete: true, exploitability_pct: 0.8, oop: 1, ip: 0, pot: 5.4, stack: 37.8 }
+          : { id: 1, source: "solver", complete: true, exploitability_pct: 0.8, oop: 1, ip: 2, pot: 14.6, stack: 33.95 }
+        : null,
     waiting: false,
     solving: null,
     free: null,
@@ -504,8 +577,9 @@ function start(config: PlayConfig, seed: number): HandView {
     run(state);
     const pre = state.pending!;
     state.pending = null;
-    state.queue = pre.after(1);
-    apply(state, pre.choices[1], hand.seat, null);
+    const auto = hand.auto ?? 1;
+    state.queue = pre.after(auto);
+    apply(state, pre.choices[auto], hand.seat, null);
   }
   run(state);
   return structuredClone(state.view);
@@ -517,7 +591,7 @@ export function prepare(_config: PlayConfig): PoolStatus {
 
 export function next(config: PlayConfig, seed: number | null): HandView {
   count += 1;
-  const alt = { ...config, mode: count % 3 === 0 && config.mode === "full" ? ("push_fold" as const) : config.mode };
+  const alt = { ...config, mode: count % 3 === 0 && config.mode === "full" && config.players !== 2 ? ("push_fold" as const) : config.mode };
   return start(alt, seed ?? 1000 + count);
 }
 

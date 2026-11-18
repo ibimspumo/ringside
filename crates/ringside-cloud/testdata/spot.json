@@ -203,5 +203,10 @@
       "key": "3ddad6d6790a26debcd833e32377905055ad6e0d4ddb6c169207b22cadf8611b"
     }
   ],
-  "model_tables_sha256": "53da52431d2e4a5a9d54298d252975a717d2dff13e0718e66afedb2262e229fd"
+  "model_tables_sha256": "53da52431d2e4a5a9d54298d252975a717d2dff13e0718e66afedb2262e229fd",
+  "added_tables_sha256": "39155232212a9c90f57b01e8a3df77fb7d1d5c3e4096ef2073a407d2af4bc972",
+  "families": {
+    "plain": [2, 3, 4, 5, 6, 8, 9],
+    "limps": [2, 3, 4, 5, 6, 8, 9]
+  }
 }

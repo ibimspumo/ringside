@@ -193,6 +193,17 @@ async function click(sel, text = null, opts) {
   await s.click(el);
 }
 
+/** Antes sum up in one line of the replayer's log, never one row per player. Returns that line. */
+async function anteLine() {
+  const r = await s.exec(`
+    const log = document.querySelector(".replayer [aria-label='Zugverlauf']");
+    const rows = log ? [...log.querySelectorAll(".what")].filter((e) => /\\bAnte\\b/.test(e.textContent)).length : 0;
+    return { rows, line: log?.querySelector(".antes")?.textContent.trim() ?? null };`);
+  if (r.rows) throw new Error(`${r.rows} ante row(s) in the log instead of one line`);
+  log(`ante line: ${r.line ?? "none"}`);
+  return r.line;
+}
+
 const mainText = () => s.exec(`return document.querySelector("main")?.innerText ?? ""`);
 
 function waitText(pattern, timeout) {
@@ -239,7 +250,10 @@ async function consoleErrors() {
   const hooked = await s.exec(`${HOOK}; return window.__e2eErrors.splice(0);`);
   for (const m of hooked) log(`[hook] ${m}`);
   // The driver's log already has what the hook saw, unless the driver has no log.
-  return errors.length ? errors : hooked;
+  // A table sized from its own width settles one frame later after a window resize; the
+  // browser reports that as this "error", which the ResizeObserver spec defines as benign.
+  const benign = (m) => m.includes("ResizeObserver loop completed with undelivered notifications");
+  return (errors.length ? errors : hooked).filter((m) => !benign(m));
 }
 
 // ---------------------------------------------------------------------------------
@@ -322,6 +336,7 @@ step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async 
   await click("main .moment.bad button", "Abspielen");
   await find("main h1", "Hände");
   await find(".replayer");
+  await anteLine();
   await click("main button[aria-label='Turnierfilter entfernen']");
 });
 
@@ -330,6 +345,77 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await click("main [role='option']");
   await find(".replayer");
   await click(".replayer button[aria-label^='Weiter']");
+});
+
+step("Hände: die Analyse zeigt eine Entscheidung erst, wenn das Abspielen dort steht", async () => {
+  const TABS = "main [role='tablist'][aria-label^='Deine Entscheidungen'] [role='tab']";
+  const verdict = () => s.exec(`return !!document.querySelector("main .decision")`);
+  if (!(await s.exec(`return !!document.querySelector(arguments[0])`, TABS))) {
+    if (!TAURI) throw new Error("the demo hand has rated decisions");
+    log("hand without decisions: replay order not checked");
+    return;
+  }
+  await click(TABS);
+  await find("main .decision");
+  // One step back the replay stands before the action ahead of your first decision.
+  await click(".replayer button[aria-label^='Zurück']");
+  await waitText("Gleich bist du dran");
+  if (await verdict()) throw new Error("the first decision's verdict shows before the replay reaches it");
+  await click(".replayer button[aria-label^='Weiter']");
+  await find("main .decision");
+});
+
+step("Hände: auch die beste Aktion zeigt, was sie bringt", async () => {
+  const value = await s.exec(`
+    const row = [...document.querySelectorAll("main .decision .options li")].find((li) => li.querySelector(".ev.best"));
+    return row ? row.querySelector(".gain")?.textContent.trim() ?? "" : null;`);
+  if (value === null) {
+    if (!TAURI) throw new Error("the demo decision lists its actions");
+    log("decision without a list of actions: „bringt“ not checked");
+    return;
+  }
+  if (!/^[+−]?\d+,\d\d BB$/.test(value)) throw new Error(`the best action brings „${value}“`);
+});
+
+/** Scroll boxes in "Hände" that are wider than their room, and how far the analysis sits from the right edge. */
+const OVERFLOW = `
+  const boxes = [document.querySelector("main .content"), ...document.querySelectorAll("main .hands *")].filter((e) => {
+    if (!e || !e.getClientRects().length) return false;
+    const o = getComputedStyle(e);
+    return /auto|scroll/.test(o.overflowX + o.overflowY) && e.scrollWidth > e.clientWidth;
+  });
+  const content = document.querySelector("main .content").getBoundingClientRect();
+  const aside = document.querySelector("main .replayer .aside");
+  return {
+    width: innerWidth,
+    wide: boxes.map((e) => e.className + " +" + (e.scrollWidth - e.clientWidth) + "px"),
+    gap: aside ? Math.round(content.right - aside.getBoundingClientRect().right) : null,
+  };`;
+
+step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", async () => {
+  const check = async () => {
+    // The replayer lays out over a few frames after a resize.
+    await sleep(600);
+    const r = await s.exec(OVERFLOW);
+    log(`hands overflow at ${r.width}px: ${JSON.stringify(r)}`);
+    if (r.wide.length) throw new Error(`scrolls sideways at ${r.width}px: ${r.wide.join(", ")}`);
+    if (r.gap !== null && r.gap < 16) throw new Error(`the analysis is ${r.gap}px from the right edge at ${r.width}px`);
+    return r;
+  };
+  await check();
+  // The analysis only stands beside the table in wide windows: the bug lived there.
+  try {
+    await s.cmd("POST", "/window/rect", { width: 1920, height: 1080 });
+  } catch (e) {
+    log(`window could not be resized, only ${await s.exec("return innerWidth")}px checked: ${e.message}`);
+    return;
+  }
+  try {
+    const r = await check();
+    if (r.width >= 1700 && r.gap === null) throw new Error(`no analysis beside the table at ${r.width}px`);
+  } finally {
+    await s.cmd("POST", "/window/rect", { width: 1280, height: 820 });
+  }
 });
 
 // The demo's decisions link the solver with the line to them; the app's need a solved spot.
@@ -535,6 +621,22 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await waitFor("the weakness as filter chip", `return document.querySelector("main")?.innerText.includes(arguments[0])`, [title]);
 });
 
+step("Deine Hände: die Antes stehen in einer Zeile, nicht je Spieler", async () => {
+  await nav("Lernen");
+  await click("main [role='tab']", "Deine Hände");
+  const found = await waitFor(
+    "a hand or the empty list",
+    `return document.querySelector("main .replayer [aria-label='Zugverlauf']") ? "hand" : /Noch keine passenden Spots/.test(document.querySelector("main").innerText) && "none"`,
+  );
+  if (found === "none") {
+    if (!TAURI) throw new Error("the demo has own spots");
+    return;
+  }
+  const line = await anteLine();
+  // The demo's spots are tournament hands with eight antes.
+  if (!TAURI && !/^Antes 8 × .+ = /.test(line ?? "")) throw new Error(`ante line: ${line}`);
+});
+
 /** Sets the table size with the − / + buttons in the middle of the table. */
 async function tableSize(n) {
   await s.exec(
@@ -550,7 +652,7 @@ async function tableSize(n) {
 async function stackTo(bb) {
   await s.exec(
     `const el = document.querySelector("#stack-axis");
-     const st = el.dataset.stacks.split(",").map(Number);
+     const st = el.dataset.values.split(",").map(Number);
      const lo = Math.log(st[0]), hi = Math.log(st[st.length - 1]);
      el.value = String(Math.round(((Math.log(arguments[0]) - lo) / (hi - lo)) * 1000));
      el.dispatchEvent(new Event("input", { bubbles: true }));`,
@@ -573,6 +675,33 @@ step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await stackTo(50);
   await waitText(/erhöhst du mit etwa \d+ %/);
   await waitText("Modell");
+});
+
+step("Ranges nach Stack: Tischgrößen-Vergleich, Klick auf heads-up wechselt den Tisch", async () => {
+  const panel = "main section[aria-label='Andere Tischgröße']";
+  await find(panel);
+  await waitText(/Als Erster am Zug spielst du an 9-max \d+\s%, heads-up \d+\s%/);
+  const first = `${panel} [role='group'][aria-label^='Als Erster am Zug'] button`;
+  const values = await waitFor(
+    "the bars of the first seat",
+    `const b = [...document.querySelectorAll(arguments[0])];
+     return b.length >= 7 ? b.map((x) => ({ n: x.querySelector(".lbl").textContent, v: Number(x.querySelector(".val").textContent) })) : null;`,
+    [first],
+  );
+  if (values.map((x) => x.n).join() !== "9,8,6,5,4,3,HU") throw new Error(`bars ${values.map((x) => x.n).join(", ")}`);
+  for (let i = 1; i < values.length; i++)
+    if (values[i].v <= values[i - 1].v) throw new Error(`first in does not widen with fewer players: ${values.map((x) => `${x.n} ${x.v}`).join(" · ")}`);
+  await click(first, "HU", { exact: false });
+  await find(".stepper span", "2 Spieler");
+  await waitText(/Heads-up bist du als Button selbst Small Blind|Als Erster am Zug spielst du/);
+  await tableSize(6);
+  await find(".stepper span", "6 Spieler");
+});
+
+step("Ranges nach Stack: Schnellwahl „10 BB“ ändert Wert und Satz", async () => {
+  await click("main [role='group'][aria-label='Schnellwahl Dein Stack'] button", "10");
+  await waitFor("10 BB oben rechts", `return document.querySelector("main output.val")?.textContent.replace(/\\s+/g, " ").trim() === "10 BB"`);
+  await waitText(/Vo[nm] [^\n]*mit 10 BB (erhöhst|foldest) du/);
 });
 
 /** Presses one key the way a keyboard would, on whatever has the focus. */
@@ -725,6 +854,74 @@ step("Hände spielen: die Hand läuft bis zum Handende, auch über einen live ge
     await waitText("Du gewinnst beim Showdown");
     await click("main section[aria-label='Deine Züge in dieser Hand'] button.move", "Flop", { exact: false });
     await waitText(/Quelle: Solver, live gerechnet .* Genauigkeit 1,8 % des Pots/);
+  }
+});
+
+step("Hände spielen: heads-up ist der Button der Small Blind, zuerst vor dem Flop, zuletzt danach", async () => {
+  await click("main button.back");
+  await click("main .tiles button.tile", "Heads-up", { exact: false });
+  // Your seat is dealt at random in the app: play hands until one reaches a flop.
+  for (let hand = 0; ; hand++) {
+    if (hand >= 15) throw new Error("no heads-up flop in 15 hands");
+    await waitFor("your decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+    const table = await s.exec(
+      `const seats = [...document.querySelectorAll("main [data-part='seat']")].map((el) => {
+         const r = el.getBoundingClientRect();
+         return { name: el.querySelector(".plate b").textContent.replace("Du · ", "").trim(), x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 };
+       });
+       const d = document.querySelector("main [data-part='dealer']").getBoundingClientRect();
+       const dx = (d.left + d.right) / 2, dy = (d.top + d.bottom) / 2;
+       const near = seats.reduce((a, b) => (Math.hypot(a.x - dx, a.y - dy) < Math.hypot(b.x - dx, b.y - dy) ? a : b));
+       return { names: seats.map((x) => x.name).sort(), button: near.name };`,
+    );
+    if (table.names.join() !== "BB,SB") throw new Error(`heads-up seats ${table.names.join(", ")}`);
+    if (table.button !== "SB") throw new Error(`the dealer button sits at ${table.button}, not at the small blind`);
+    let flop = null;
+    for (let i = 0; i < 40 && !flop; i++) {
+      const now = await s.exec(
+        `if (document.querySelector("main section.end")) return "end";
+         if (document.querySelector("main [data-part='solving']")) return "solving";
+         return document.querySelector("main .actions button.act") ? "decide" : "wait";`,
+      );
+      if (now === "end") break;
+      if (now === "solving") {
+        await click("main [data-part='solving'] button", "Abbrechen", { exact: false });
+      } else if (now === "decide") {
+        const streets = await s.exec(
+          `return [...document.querySelectorAll("main nav.timeline section.street")].map((sec) => ({
+             name: sec.querySelector(".name").textContent.trim(),
+             first: sec.querySelector("button.move")?.dataset.pos ?? null,
+           }));`,
+        );
+        if (streets[0]?.first && streets[0].first !== "SB") throw new Error(`preflop starts with ${streets[0].first}`);
+        const after = streets.find((x) => x.name === "Flop" && x.first);
+        if (after) {
+          flop = after;
+          break;
+        }
+        const move = await s.exec(
+          `const b = [...document.querySelectorAll("main .actions button.act")];
+           return b.find((x) => /Raise|Call|Check/.test(x.textContent)) ?? b[0];`,
+        );
+        await s.click(move);
+      }
+      await sleep(250);
+    }
+    if (flop) {
+      if (flop.first !== "BB") throw new Error(`the flop starts with ${flop.first}, not with the big blind`);
+      break;
+    }
+    await click("main section.end button", "Nächste Hand", { exact: false });
+  }
+  await waitText(/Heads-up: Du \((SB, mit|BB, ohne) Position\)/);
+  if (!TAURI) {
+    // The demo hand: you open on the button, the big blind calls and checks to you on every street.
+    for (let i = 0; i < 6; i++) {
+      if (await s.exec(`return !!document.querySelector("main section.end")`)) break;
+      await click("main .actions button.act", "Check", { exact: false });
+      await sleep(250);
+    }
+    await waitText("Du gewinnst beim Showdown");
   }
 });
 

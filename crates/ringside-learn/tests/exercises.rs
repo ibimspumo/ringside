@@ -8,7 +8,7 @@ fn seeds(kind: Kind) -> u64 {
         Kind::PushFoldOpen | Kind::PushFoldCall | Kind::IcmCall => 1,
         Kind::EquityHand | Kind::PushFoldSb | Kind::PushFoldBb => 2,
         Kind::RiverBet => 4,
-        Kind::OpenFold => 10,
+        Kind::OpenFold | Kind::OpenFoldShort => 10,
         _ => 25,
     }
 }

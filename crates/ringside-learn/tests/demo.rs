@@ -6,7 +6,7 @@
 use ringside_learn::{Answer, AnswerSpec, Kind, check, generate};
 use serde_json::{Map, Value, json};
 
-const KINDS: [Kind; 6] = [Kind::BountyOdds, Kind::IcmCall, Kind::OpenFold, Kind::RiverBet, Kind::StackDepth, Kind::HudRead];
+const KINDS: [Kind; 7] = [Kind::BountyOdds, Kind::IcmCall, Kind::OpenFold, Kind::OpenFoldShort, Kind::RiverBet, Kind::StackDepth, Kind::HudRead];
 const SEEDS: u64 = 3;
 
 /// Four decimals are plenty for a picture and keep the file small.

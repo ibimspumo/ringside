@@ -43,7 +43,7 @@
     onHands?: (key: string, label: string) => void;
   } = $props();
 
-  type Why = "Spiel" | "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
+  type Why = "Spiel" | "Tische" | "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
   type SkillItem = { type: "skill"; kind: LearnKind; level: number; why: Why };
   /** A decision of the playing profile: a real one, or a variation with another hand. */
   type DrillItem = { type: "drill"; key: string; real: boolean; why: "Spiel" };
@@ -53,6 +53,8 @@
   /** Tasks of a round on one kind of spot. */
   const FOCUS_LENGTH = 6;
   const GOALS = [20, 50, 100];
+  /** Rated decisions at tables of two to five players before their own exercise joins the plan. */
+  const SHORT_TABLES_MIN = 5;
   const GOAL_STORE = "ringside.learn.goal";
 
   let goal = $state(loadGoal());
@@ -82,9 +84,10 @@
 
   /**
    * The costliest kinds of spot from the user's own hands first (a real decision and a variation of
-   * each), then weak spots from coach reports, due reviews, something new and the weakest skills.
+   * each), opening at short tables when the history has them, then weak spots from coach reports,
+   * due reviews, something new and the weakest skills.
    */
-  function buildPlan(p: LearnProgress | null, weak: ConceptCount[], own: SpotGroup[]): Item[] {
+  function buildPlan(p: LearnProgress | null, weak: ConceptCount[], own: SpotGroup[], short: number): Item[] {
     const skills = TRAINABLE.map((k) => p?.skills.find((s) => s.id === k)).filter((s): s is SkillProgress => !!s);
     const items: Item[] = [];
     const top = own.slice(0, 2);
@@ -93,6 +96,10 @@
       items.push({ type: "drill", key: g.key, real: false, why: "Spiel" });
     }
     if (top.length === 1) items.push({ type: "drill", key: top[0].key, real: false, why: "Spiel" });
+    if (short >= SHORT_TABLES_MIN) {
+      const s = skills.find((x) => x.id === "open_fold_short");
+      for (let n = 0; n < 2; n++) items.push({ type: "skill", kind: "open_fold_short", level: nextLevel(s), why: "Tische" });
+    }
     // With spots from the own game, coach concepts get one task each, else two.
     const perConcept = top.length ? 1 : 2;
     const weakKinds = [...new Set(weakConcepts(weak).map(trainableKind).filter((k): k is LearnKind => !!k))].slice(0, 2);
@@ -136,7 +143,9 @@
   }
 
   const own = $derived(weakGroups(profile));
-  const plan = $derived(buildPlan(progress, concepts, own));
+  /** Rated decisions of the history at heads-up and three- to five-handed tables. */
+  const shortTables = $derived((profile?.groups ?? []).filter((g) => g.table === "heads_up" || g.table === "few").reduce((t, g) => t + g.decisions, 0));
+  const plan = $derived(buildPlan(progress, concepts, own, shortTables));
   const groupOf = (key: string) => profile?.groups.find((g) => g.key === key) ?? null;
   const skillGroups = $derived(
     [...new Map(plan.filter((x): x is SkillItem => x.type === "skill").map((x) => [x.kind, x])).values()].map((x) => ({
@@ -280,6 +289,7 @@
   });
 
   const LANES: { why: Why; label: string }[] = [
+    { why: "Tische", label: "Für deine Tische mit 2 bis 5 Spielern" },
     { why: "Schwachstelle", label: "Aus deinen Coach-Berichten" },
     { why: "Wiederholen", label: "Wiederholen, damit es sitzt" },
     { why: "Festigen", label: "Festigen" },
@@ -364,7 +374,9 @@
                     <span class="pname">
                       <b>{SKILLS[g.kind].short}</b>
                       <span class="dim"
-                        >{LEVEL_TEXT[byKind.get(g.kind)?.level ?? 0]} · {g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}{g.why === "Schwachstelle" && whyText(g.kind) ? ` · ${whyText(g.kind)} im Coach` : ""}</span
+                        >{LEVEL_TEXT[byKind.get(g.kind)?.level ?? 0]} · {g.n === 1 ? "1 Aufgabe" : `${g.n} Aufgaben`}{g.why === "Schwachstelle" && whyText(g.kind) ? ` · ${whyText(g.kind)} im Coach` : ""}{g.why === "Tische"
+                          ? ` · ${shortTables} Entscheidungen an solchen Tischen in deinen Händen`
+                          : ""}</span
                       >
                     </span>
                   </li>

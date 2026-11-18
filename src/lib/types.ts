@@ -402,6 +402,7 @@ export type LearnKind =
   | "bounty_odds"
   | "icm_call"
   | "open_fold"
+  | "open_fold_short"
   | "river_bet"
   | "stack_depth"
   | "hud_read"

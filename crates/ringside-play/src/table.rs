@@ -14,7 +14,7 @@ use crate::scenario::{Scenario, scenarios};
 
 /// From here down every decision is shove or fold.
 pub const PUSH_FOLD_MAX_BB: f64 = 20.0;
-pub const PLAYERS: [usize; 3] = preflop_table::PLAYERS;
+pub const PLAYERS: [usize; 7] = preflop_table::PLAYERS;
 /// Stacks of the push/fold mode when they are mixed.
 pub const SHORT_STACKS: [f64; 8] = [6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0];
 
@@ -59,7 +59,9 @@ impl Config {
 
     pub fn validate(&self) -> Result<(), String> {
         if !PLAYERS.contains(&self.players) {
-            return Err("Gespielt wird mit 6, 8 oder 9 Spielern.".into());
+            let (last, rest) = PLAYERS.split_last().expect("table sizes");
+            let rest: Vec<String> = rest.iter().map(|n| n.to_string()).collect();
+            return Err(format!("Gespielt wird mit {} oder {last} Spielern.", rest.join(", ")));
         }
         if self.hero_seat.is_some_and(|s| s >= self.players) {
             return Err("Diesen Platz gibt es am Tisch nicht.".into());

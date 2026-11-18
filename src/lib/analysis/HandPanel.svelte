@@ -22,6 +22,7 @@
     onSelect,
     onLearn,
     caption = null,
+    waiting = null,
     main = true,
     onCoachSetup = () => {},
   }: {
@@ -35,7 +36,9 @@
     onSelect: (action: number) => void;
     onLearn?: (target: LearnTarget) => void;
     /** A line above the verdict, e.g. that the table shows the moment of this decision. */
-    caption?: { text: string; ahead: boolean } | null;
+    caption?: string | null;
+    /** Instead of a verdict while the replay has not reached the first decision. */
+    waiting?: string | null;
     /** Whether analysing this hand is the main action of the screen. */
     main?: boolean;
     /** Opens the coach's setup, for "Frag den Coach" without a key. */
@@ -126,7 +129,7 @@
       {/each}
     </div>
     {#if current}
-      {#if caption}<p class="caption" class:ahead={caption.ahead}>{caption.text}</p>{/if}
+      {#if caption}<p class="caption">{caption}</p>{/if}
       <DecisionCard decision={current} {onLearn} />
       {#if current.status === "rated" && handId !== null}
         {#key `${handId}:${current.action_index}`}
@@ -138,12 +141,15 @@
           />
         {/key}
       {/if}
+    {:else if waiting}
+      <p class="waiting">{waiting}</p>
     {/if}
   </div>
 {/if}
 
 <style>
-  .paused {
+  .paused,
+  .waiting {
     margin: 0;
     padding: var(--sp-3) var(--sp-4);
     border: 1px dashed var(--line-2);
@@ -205,16 +211,6 @@
     margin: 0 0 calc(-1 * var(--sp-1));
     color: var(--text);
     font-size: var(--fs-md);
-  }
-  /* Not played yet at this point of the replay: marked as coming, so it never reads as the move just made. */
-  .caption.ahead::before {
-    content: "Kommt noch";
-    margin-right: var(--sp-2);
-    padding: 1px 7px;
-    border-radius: var(--r-pill);
-    border: 1px dashed var(--line-2);
-    color: var(--text-2);
-    font-size: var(--fs-xs);
   }
   .steps {
     display: flex;

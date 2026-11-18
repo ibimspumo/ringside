@@ -1,7 +1,7 @@
 //! End-to-end check against the deployed API: health, submit, hidden until verified,
-//! verify, served, manipulated solution rejected (for every kind, postflop included), a
-//! shared spot through the community queue, rate limit, report. Deletes its test rows
-//! afterwards, also when a step fails.
+//! verify, served, manipulated solution rejected (for every kind, postflop included),
+//! shared spots (9-max with limps, plain heads-up) through the community queue, rate
+//! limit, report. Deletes its test rows afterwards, also when a step fails.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -161,7 +161,11 @@ fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<()
 
     multiway(client, db, keys, stack_mbb)?;
     postflop(client, db, keys)?;
-    shared_spot(client, db, keys)?;
+    // The hand analysis's tables with limps from every seat, and heads-up practice.
+    shared_spot(client, db, keys, Family::Limps, 9)?;
+    // The queue takes six requests a minute per client, fewer than two rounds make.
+    db.execute(&[("DELETE FROM rate_limits WHERE bucket LIKE 'work-min:%' AND window_start >= ?", vec![(now() / 60 * 60).into()])])?;
+    shared_spot(client, db, keys, Family::Plain, 2)?;
 
     let report = Report {
         app_version: SMOKE_VERSION.into(),
@@ -287,9 +291,8 @@ fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) ->
 
 /// A spot off the catalog: requested, handed out by the queue (and again once its lease
 /// ran out), solved on a suit renaming of its board, submitted, verified and served.
-fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
-    // The hand analysis's tables, with limps from every seat.
-    let (family, ante, players, stack) = (Family::Limps, Ante::BigBlind, 9, 40.0);
+fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>, family: Family, players: usize) -> Result<(), String> {
+    let (ante, stack) = (Ante::BigBlind, 40.0);
     let params = family.params(ante, players, stack);
     let sol = preflop_table::lookup(&params).ok_or("model table missing")?;
     // The 3-bet pot with the fewest combos solves in seconds.
@@ -322,7 +325,7 @@ fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>)
     }
     let (local, input, key) = chosen.ok_or("every smoke spot is taken")?;
     keys.push((SpotKind::NAME, key.clone()));
-    step("spot: local board and canonical key", input.board != local, format!("{local} -> {} key {key}", input.board))?;
+    step("spot: local board and canonical key", input.board != local, format!("{family:?} {players} players, {local} -> {} key {key}", input.board))?;
 
     let status = client.request_work::<SpotKind>(&input).map_err(|e| e.to_string())?;
     step("queue: request", status == "queued", &status)?;

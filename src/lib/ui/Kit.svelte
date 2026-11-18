@@ -12,6 +12,7 @@
   import { bb, cash, int, money, pct, signed } from "./format";
   import GradeBadge from "./GradeBadge.svelte";
   import GradeBars from "./GradeBars.svelte";
+  import ColumnBars from "./ColumnBars.svelte";
   import IconButton from "./IconButton.svelte";
   import Kbd from "./Kbd.svelte";
   import MiniCard from "./MiniCard.svelte";
@@ -27,6 +28,7 @@
   import SectionHead from "./SectionHead.svelte";
   import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
+  import Slider from "./Slider.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
   import Tabs from "./Tabs.svelte";
@@ -124,6 +126,8 @@
   // Auswahl
   let period = $state("7d");
   let small = $state("bb");
+  const DEPTHS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30, 40, 50, 75, 100];
+  let depth = $state(25);
   let tab = $state("hands");
   let tags = $state(["BTN", "CO"]);
   let picked = $state<string[]>(["Cash"]);
@@ -208,6 +212,7 @@
   $effect(() => {
     if (popHost && (only === "popups" || q.get("pop") === "1")) popAnchor = rectOf(popHost);
   });
+  let kitSize = $state(6);
 </script>
 
 <div class="kit" class:gray>
@@ -423,8 +428,12 @@
       <section id="auswahl">
         <SectionHead
           title="Auswahl"
-          sub="Segmente für wenige gleichrangige Optionen, das Auswahlmenü für dieselbe Wahl in schmalen Kopfzeilen, Reiter für Bereiche einer Seite, Tags für Filter."
+          sub="Segmente für wenige gleichrangige Optionen, das Auswahlmenü für dieselbe Wahl in schmalen Kopfzeilen, Reiter für Bereiche einer Seite, Tags für Filter, der Regler für eine Zahl aus vielen Stufen."
         />
+        <Card pad="md">
+          <Slider label="Dein Stack" unit="BB" log values={DEPTHS} value={depth} onchange={(v) => (depth = v)} steps={[5, 10, 15, 20, 25, 30, 40, 50, 75, 100]} />
+        </Card>
+        <div class="gap"></div>
         <div class="two">
           <div class="stack">
             <SegmentedControl label="Zeitraum" bind:value={period} options={[{ value: "today", label: "Heute" }, { value: "7d", label: "7 Tage" }, { value: "30d", label: "30 Tage" }, { value: "all", label: "Alles" }]} />
@@ -522,6 +531,13 @@
             <GradeBars counts={{ best: 9, mix: 3, good: 4, inaccurate: 2, mistake: 1, blunder: 0 }} />
             <p class="muted">Mit <code>grades</code> nur die Stufen einer Quelle, etwa die vier des Coaches:</p>
             <GradeBars grades={["best", "good", "inaccurate", "mistake"]} counts={{ best: 2, good: 1, inaccurate: 1, mistake: 1 }} />
+            <p class="muted">Eine Zahl über wenige Fälle, jeder Balken wählt seinen Fall (<code>ColumnBars</code>):</p>
+            <ColumnBars
+              label="Erster am Zug nach Tischgröße"
+              selected={kitSize}
+              bars={[9, 6, 4, 3, 2].map((n, i) => ({ key: n, value: [15, 24, 37, 50, 98][i], valueText: String([15, 24, 37, 50, 98][i]), label: n === 2 ? "HU" : String(n), title: `${n} Spieler` }))}
+              onpick={(k) => (kitSize = Number(k))}
+            />
           </Panel>
           <Panel title="Zug-Liste" sub="Symbol trägt die Stufe, nicht nur die Wortfarbe.">
             <ol class="moves">

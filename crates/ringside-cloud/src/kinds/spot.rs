@@ -447,19 +447,39 @@ mod tests {
         }
     }
 
+    /// Table sizes added to a family after its model version: they only extend it (a spot
+    /// named before keeps its ranges), so they are pinned apart and the version stays.
+    const ADDED: [(Family, usize); 4] = [(Family::Plain, 2), (Family::Plain, 3), (Family::Plain, 4), (Family::Plain, 5)];
+
+    fn sha256(bytes: &[u8]) -> String {
+        ring::digest::digest(&ring::digest::SHA256, bytes).as_ref().iter().map(|b| format!("{b:02x}")).collect()
+    }
+
     #[test]
     fn model_tables_are_pinned() {
-        let mut all = Vec::new();
+        let (mut model, mut added) = (Vec::new(), Vec::new());
         for family in Family::ALL {
             for ante in Ante::ALL {
                 for &players in family.players() {
-                    all.extend_from_slice(preflop_table::embedded_file(family, ante, players).unwrap());
+                    let file = preflop_table::embedded_file(family, ante, players).unwrap();
+                    if ADDED.contains(&(family, players)) { &mut added } else { &mut model }.extend_from_slice(file);
                 }
             }
         }
-        let digest = ring::digest::digest(&ring::digest::SHA256, &all);
-        let hex: String = digest.as_ref().iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(hex, shared()["model_tables_sha256"].as_str().unwrap(), "preflop tables changed: bump MODEL_VERSION and this hash");
+        let v = shared();
+        assert_eq!(sha256(&model), v["model_tables_sha256"].as_str().unwrap(), "preflop tables changed: bump MODEL_VERSION and this hash");
+        assert_eq!(sha256(&added), v["added_tables_sha256"].as_str().unwrap(), "added preflop tables changed: bump MODEL_VERSION and both hashes");
+    }
+
+    /// The Edge Script accepts the same table sizes per family (`SPOT_FAMILIES` in
+    /// server/edge/kinds.ts, checked against the same vectors).
+    #[test]
+    fn families_match_the_shared_vectors() {
+        let v = shared();
+        for family in Family::ALL {
+            let sizes: Vec<usize> = v["families"][family_name(family)].as_array().unwrap().iter().map(|x| x.as_u64().unwrap() as usize).collect();
+            assert_eq!(sizes, family.players(), "{family:?}");
+        }
     }
 
     #[test]
