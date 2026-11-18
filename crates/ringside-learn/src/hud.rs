@@ -143,6 +143,11 @@ pub fn generate(level: u8, rng: &mut Rng8) -> Task {
         }
         let few = level == 3 && rng.random_bool(0.5);
         let hands = if level < 3 { *deal::pick(rng, &LARGE[2..]) } else if few { *deal::pick(rng, &SMALL) } else { *deal::pick(rng, &LARGE) };
+        // A HUD shows what happened: over 8 hands VPIP can be 25 % but never 22 %.
+        let (vpip, pfr, three_bet) = (seen(vpip, hands), seen(pfr, hands), seen(three_bet, hands));
+        if classify(vpip, pfr) != Some(t) {
+            continue;
+        }
         match trusted(t, vpip, hands) {
             Some(ok) if ok == !few => {}
             _ => continue,
@@ -179,6 +184,12 @@ pub fn generate(level: u8, rng: &mut Rng8) -> Task {
             model_note: None,
         };
     }
+}
+
+/// The whole percent a HUD shows for `pct` over `hands` hands: a count of hands divided by `hands`.
+fn seen(pct: f64, hands: u32) -> f64 {
+    let count = (pct / 100.0 * hands as f64).round();
+    (100.0 * count / hands as f64).round()
 }
 
 /// "35 %": HUD numbers are whole percent.
@@ -271,6 +282,7 @@ mod tests {
             let Prompt::HudRead { vpip, pfr, hands, .. } = task.prompt else { unreachable!() };
             let t = classify(vpip, pfr).unwrap();
             let trust = trusted(t, vpip, hands).expect("never on the edge");
+            assert_eq!(vpip, seen(vpip, hands), "{vpip} % is no count of {hands} hands");
             few += usize::from(!trust);
         }
         assert!((40..160).contains(&few), "{few} of 200 with too few hands");
