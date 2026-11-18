@@ -204,9 +204,9 @@ function permutations(xs: number[]): number[][] {
 
 /** Versions of the preflop model the verifier rebuilds ranges with; mirrors MODEL_VERSION in kinds/spot.rs. */
 export const SPOT_MODELS: readonly number[] = [2];
-/** Table families and their table sizes; mirror `preflop_table::Family` in ringside-engine. */
+/** Table families and their table sizes; mirror `preflop_table::Family` (both checked against testdata/spot.json). */
 export const SPOT_FAMILIES: Readonly<Record<string, readonly number[]>> = {
-  plain: [6, 8, 9],
+  plain: [2, 3, 4, 5, 6, 8, 9],
   limps: [2, 3, 4, 5, 6, 8, 9],
 };
 export const SPOT_STACKS: readonly number[] = [15, 20, 25, 30, 40, 50, 75, 100];
