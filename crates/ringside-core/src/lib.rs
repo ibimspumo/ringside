@@ -12,6 +12,7 @@ pub mod notes;
 pub mod parser;
 pub mod profile;
 pub mod ranges;
+pub mod report;
 pub mod stats;
 pub mod table;
 pub mod tournament;

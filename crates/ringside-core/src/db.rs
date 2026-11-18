@@ -17,6 +17,7 @@ use crate::tournament::{BuyIn, Summary, TournamentRow};
 pub use rusqlite::Error;
 
 mod analysis;
+mod report;
 mod ranges;
 mod solutions;
 pub use ranges::{RangeCounts, RangeFilter, RangeGroup};

@@ -209,7 +209,7 @@ impl Status {
         }
     }
 
-    fn parse(s: &str) -> Status {
+    pub(crate) fn parse(s: &str) -> Status {
         match s {
             "rated" => Status::Rated,
             "pending" => Status::Pending,
@@ -318,7 +318,7 @@ fn street_key(s: Street) -> &'static str {
     }
 }
 
-fn parse_street(s: &str) -> Street {
+pub(super) fn parse_street(s: &str) -> Street {
     match s {
         "flop" => Street::Flop,
         "turn" => Street::Turn,
