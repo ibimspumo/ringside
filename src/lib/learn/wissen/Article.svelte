@@ -167,6 +167,7 @@
   }
   .lead-title {
     margin: 0;
+    color: var(--text);
     font-family: var(--font-num);
     font-size: var(--fs-3xl);
     font-weight: 600;

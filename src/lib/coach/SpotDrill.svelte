@@ -72,6 +72,17 @@
 
   /** The reason's first sentence, next to the verdict; the whole reason follows below the table. */
   const gist = $derived(spot.why.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? spot.why);
+  /** Ringside's own figures behind the verdict, shown right with it; all figures follow below. */
+  /** "You have 18 %, you need 33 %": the two equity figures the verdict rests on, when the coach gave both. */
+  const contrast = $derived.by(() => {
+    const pct = spot.numbers.filter((n) => n.source === "berechnet" && /%/.test(n.value));
+    const need = pct.find((n) => /benötig|brauch|nötig/i.test(n.label));
+    const have = pct.find((n) => n !== need && /equity/i.test(n.label));
+    return need && have ? { need: say(need.value), have: say(have.value) } : null;
+  });
+  /** The coach's own assumption behind those figures, so they are read as "against this range". */
+  const assumed = $derived(spot.numbers.find((n) => n.source !== "berechnet") ?? null);
+  const key = $derived(spot.numbers.filter((n) => n.source === "berechnet").slice(0, 2));
   /** The rest of the reason, so the first sentence is not said twice. */
   const rest = $derived(spot.why.slice(gist.length).trim() || spot.why);
 
@@ -178,7 +189,24 @@
                 <b>Der Coach nennt hier keine eindeutige Aktion.</b>
               {/if}
             </div>
-            <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
+            {#if contrast}
+              <p class="gist">
+                {assumed ? "Gegen die angenommene Range hast du" : "Du hast"} <b class="num">{contrast.have}</b> Equity, brauchst aber
+                <b class="num">{contrast.need}</b>{spot.better
+                  ? ` – deshalb ${spot.better}.`
+                  : "."}
+              </p>
+            {:else}
+              <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
+            {/if}
+            {#if key.length && !contrast}
+              <ul class="key">
+                {#each key as f, i (i)}<li><span><CardText hands text={say(ownCards(f.label, spot.hero_cards))} /></span><b class="num">{say(f.value)}</b></li>{/each}
+              </ul>
+              {#if assumed}
+                <p class="basis">Gerechnet gegen die Gegner-Range, die der Coach annimmt: <b>{say(assumed.value)}</b> (Einschätzung).</p>
+              {/if}
+            {/if}
             <dl class="compare">
               <div class="mine"><dt>Deine Antwort</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
@@ -198,7 +226,7 @@
               {#if practice.articles.length}
                 <Button onclick={onRead}>Nachlesen: {practice.articles[0].title}</Button>
               {/if}
-              <Button variant="quiet" kbd="N" onclick={() => (answer = null)}>Nochmal entscheiden</Button>
+              <span class="again"><Button variant="quiet" kbd="N" onclick={() => (answer = null)}>Nochmal entscheiden</Button></span>
             </div>
             {#if !practice.train}
               <p class="fine">Für dieses Thema gibt es noch keine eigene Übung; hier übst du genau diesen einen Spot.</p>
@@ -367,6 +395,39 @@
     gap: 8px 12px;
     font-size: var(--fs-lg);
   }
+  .key {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .key li {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+  }
+  .key b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+  }
+  .basis {
+    margin: 0;
+    font-size: var(--fs-md);
+    line-height: 1.45;
+    color: var(--text-2);
+  }
+  .basis b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
+  .gist b {
+    font-weight: var(--fw-semibold);
+  }
   .gist {
     margin: 0;
     font-size: var(--fs-base);
@@ -374,22 +435,27 @@
     color: var(--text);
   }
   .compare {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--sp-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
     margin: 0;
   }
   .compare > div {
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    border: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-2) 0;
+    border-top: 1px solid var(--line);
   }
-  .compare dt {
-    white-space: nowrap;
+  .compare > div:first-child {
+    border-top: 0;
   }
-  .compare > .mine {
-    border-color: var(--text-2);
+  .compare dd {
+    margin: 0;
+  }
+  .compare > .mine dd {
+    color: var(--text);
   }
   dt {
     font-size: var(--fs-md);
@@ -439,6 +505,10 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2);
+  }
+  /* A quiet button's text lines up with the edge of the buttons above. */
+  .again {
+    margin-left: calc(-1 * var(--sp-3));
   }
   .fine {
     margin: 0;

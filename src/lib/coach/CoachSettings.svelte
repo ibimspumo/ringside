@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { EFFORTS, coachApi, cost, errorText, usd } from "./api";
+  import { EFFORTS, coachApi, errorText, usd } from "./api";
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import IconButton from "../ui/IconButton.svelte";
   import KeyForm from "./KeyForm.svelte";
+  import { money } from "./meaning";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
 
   let { onClose, onChange }: { onClose?: () => void; onChange?: (s: CoachStatus) => void } = $props();
@@ -13,6 +14,7 @@
   let message = $state<{ ok: boolean; text: string } | null>(null);
   let busy = $state(false);
   let replacing = $state(false);
+  let confirmDelete = $state(false);
 
   let models = $state<ModelInfo[] | null>(null);
   let modelsError = $state<string | null>(null);
@@ -111,7 +113,7 @@
 </script>
 
 <section class="panel coach" aria-labelledby="coach-settings-title">
-  <div class="panel-head">
+  <div class="head">
     <h2 class="panel-title" id="coach-settings-title">KI-Coach</h2>
     {#if onClose}
       <IconButton label="Einstellungen schließen" onclick={onClose}
@@ -136,7 +138,13 @@
             <span class="state on"><i></i>Key hinterlegt</span>
             <Button size="sm" onclick={test} disabled={busy}>Testen</Button>
             <Button size="sm" variant="quiet" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
-            <Button size="sm" variant="danger" onclick={remove} disabled={busy}>Löschen</Button>
+            {#if confirmDelete}
+              <span class="ask">Key wirklich löschen?</span>
+              <Button size="sm" variant="danger" onclick={() => { confirmDelete = false; remove(); }} disabled={busy}>Ja, löschen</Button>
+              <Button size="sm" variant="quiet" onclick={() => (confirmDelete = false)}>Behalten</Button>
+            {:else}
+              <Button size="sm" variant="quiet" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
+            {/if}
           </div>
           {#if replacing}
             <div class="sub-block"><KeyForm replace onSaved={saved} /></div>
@@ -172,7 +180,7 @@
           {#if current}
             {@const t = perTournament(current)}
             <div class="price" title={RICHTWERT}>
-              <b class="num">{t == null ? "–" : `ca. ${cost(t)}`}</b>
+              <b class="num">{t == null ? "–" : `ca. ${money(t)}`}</b>
               <span class="fine">je Turnier</span>
             </div>
           {/if}
@@ -187,12 +195,14 @@
           <div class="picker">
             <div class="tools-row">
               <input class="field search" type="search" placeholder="Modell suchen" aria-label="Modell suchen" bind:value={search} />
+              <Button size="sm" onclick={() => (open = false)}>Fertig</Button>
+            </div>
+            <div class="opts">
               <span class="opt"
                 ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
                 ></span
               >
               <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
-              <span class="done"><Button size="sm" variant="quiet" onclick={() => (open = false)}>Fertig</Button></span>
             </div>
             {#if modelsError}
               <p class="msg">{modelsError}</p>
@@ -225,7 +235,7 @@
                     </span>
                     <span class="cost">
                       <span class="pbar" aria-hidden="true"><i style="width:{priceShare(t)}%"></i></span>
-                      <span class="num strong">{t == null ? "–" : cost(t)}</span>
+                      <span class="num strong">{t == null ? "–" : money(t)}</span>
                     </span>
                     {#if technical}
                       <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>
@@ -285,8 +295,19 @@
     margin: 0;
     line-height: 1.5;
   }
+  .head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    padding: var(--sp-5) var(--sp-6) 0;
+  }
+  .ask {
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
   .hint {
-    padding: 4px 18px 0;
+    padding: var(--sp-1) var(--sp-6) 0;
     max-width: 780px;
     color: var(--text-2);
   }
@@ -299,7 +320,7 @@
     display: grid;
     grid-template-columns: 190px minmax(0, 1fr);
     gap: 16px;
-    padding: 16px 18px;
+    padding: var(--sp-4) var(--sp-6);
     border-top: 1px solid var(--line);
   }
   .rlabel {
@@ -313,7 +334,7 @@
   }
   .rlabel span,
   .fine {
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .rbody {
@@ -401,10 +422,11 @@
   }
   .search {
     flex: 1 1 220px;
-    max-width: 320px;
   }
-  .done {
-    margin-left: auto;
+  .opts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-5);
   }
   .opt {
     display: flex;

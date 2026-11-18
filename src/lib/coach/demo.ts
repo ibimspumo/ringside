@@ -204,7 +204,7 @@ export const models = (): ModelInfo[] => [
 export async function prepare(tournament: number): Promise<Estimate> {
   if (preview.run === "preparing") return new Promise(() => {});
   if (preview.run === "error")
-    throw "OpenRouter ist gerade nicht erreichbar. Prüf deine Internetverbindung und versuch es noch einmal.";
+    throw "Ringside konnte die Preise bei OpenRouter nicht abrufen, gesendet wurde nichts. Prüf deine Internetverbindung und versuch es noch einmal.";
   if (!hasKey) throw "Hinterleg zuerst in den Einstellungen einen OpenRouter-Key.";
   await new Promise((r) => setTimeout(r, 300));
   return estimate(tournament);

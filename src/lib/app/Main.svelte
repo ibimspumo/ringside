@@ -38,7 +38,7 @@
   import ChoiceMenu from "../ui/ChoiceMenu.svelte";
   import PageHeader from "../ui/PageHeader.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
-  import { pageHead } from "../ui/page.svelte";
+  import { followPage, pageHead } from "../ui/page.svelte";
 
   type Tab =
     | "dashboard"
@@ -412,7 +412,7 @@
       {/snippet}
     </PageHeader>
 
-    <div class="content" class:fill={tab === "hands"}>
+    <div class="content" class:fill={tab === "hands"} use:followPage>
       {#if tab === "dashboard"}
         <Dashboard
           {filter}
