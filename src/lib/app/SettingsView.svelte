@@ -7,6 +7,7 @@
   import MalformedReports from "../cloud/MalformedReports.svelte";
   import CoachSettings from "../coach/CoachSettings.svelte";
   import GpuTest from "../gpu/GpuTest.svelte";
+  import ProgressBar from "../ui/ProgressBar.svelte";
   import type { ClientWindow, ImportStatus, NotesSource, Settings } from "../types";
 
   let { status }: { status: ImportStatus | null } = $props();
@@ -22,9 +23,20 @@
     windows = await api.clientWindows();
   }
   let version = $state("dev");
-  let update = $state<{ state: "idle" | "checking" | "none" | "available" | "installing" | "error"; text?: string }>({
-    state: "idle",
-  });
+  let update = $state<{ state: "idle" | "checking" | "none" | "available" | "installing" | "error"; text?: string }>(
+    previewUpdate(),
+  );
+  /** Bytes of the update so far and in total (total unknown until the server says it). */
+  let download = $state<{ done: number; total: number | null } | null>(
+    !inTauri && new URLSearchParams(location.search).get("update") === "download" ? { done: 12.4e6, total: 43.6e6 } : null,
+  );
+
+  /** Browser demo only: `?update=download` shows the download in progress. */
+  function previewUpdate(): { state: "idle" | "installing" } {
+    return !inTauri && new URLSearchParams(location.search).get("update") === "download" ? { state: "installing" } : { state: "idle" };
+  }
+
+  const mb = (bytes: number) => (bytes / 1e6).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   let pending: import("@tauri-apps/plugin-updater").Update | null = null;
 
   const loadNotes = () => api.notesSources().then((n) => (notes = n));
@@ -81,8 +93,14 @@
   async function install() {
     if (!pending) return;
     update = { state: "installing" };
+    download = { done: 0, total: null };
     try {
-      await pending.downloadAndInstall();
+      await pending.downloadAndInstall((event) => {
+        if (!download) return;
+        if (event.event === "Started") download = { done: 0, total: event.data.contentLength ?? null };
+        else if (event.event === "Progress") download = { ...download, done: download.done + event.data.chunkLength };
+        else download = null;
+      });
       const { relaunch } = await import("@tauri-apps/plugin-process");
       await relaunch();
     } catch (e) {
@@ -213,8 +231,21 @@
               </button>
             {/if}
             {#if update.state === "none"}<span class="ok">Du bist auf dem neuesten Stand.</span>{/if}
-            {#if update.state === "installing"}<span>Wird installiert, Ringside startet gleich neu …</span>{/if}
+            {#if update.state === "installing" && !download}<span>Wird installiert, Ringside startet gleich neu …</span>{/if}
           </div>
+          {#if update.state === "installing" && download}
+            <div class="download">
+              <ProgressBar value={download.total ? download.done / download.total : null} size="md" label="Download des Updates" />
+              <p class="num">
+                {#if download.total}
+                  {mb(download.done)} von {mb(download.total)} MB · {Math.round((download.done / download.total) * 100)} %
+                {:else}
+                  {mb(download.done)} MB geladen
+                {/if}
+                <span class="faint">– danach installiert sich Ringside und startet neu.</span>
+              </p>
+            </div>
+          {/if}
           {#if update.state === "error"}<p class="error">{update.text}</p>{/if}
         </div>
       </section>
@@ -374,6 +405,14 @@
   .version {
     margin: 0;
     color: var(--text-dim);
+  }
+  .download {
+    display: grid;
+    gap: var(--sp-2);
+    margin-top: var(--sp-3);
+  }
+  .download p {
+    margin: 0;
   }
   .ok {
     color: var(--win);
