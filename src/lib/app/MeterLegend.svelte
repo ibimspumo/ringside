@@ -28,7 +28,7 @@
   }
   /* Without the scales (narrow list) there is nothing to explain. */
   @container player-list (max-width: 760px) {
-    .scale {
+    .item.scale {
       display: none;
     }
   }

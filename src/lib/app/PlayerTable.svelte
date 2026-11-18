@@ -203,6 +203,7 @@
   @container player-list (max-width: 760px) {
     th.core {
       width: auto;
+      padding-right: calc(var(--sp-2) + 10px);
     }
   }
   /* Numbers carry room for the "unsure" ring after them; titles line up with the numbers. */

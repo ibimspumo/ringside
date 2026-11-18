@@ -24,7 +24,7 @@
 
 <span class="cell" class:thin class:meter {title}>
   <span class="val num" style={id === "hands" ? "" : `color:${toneColor(hud, s, "var(--text-3)")}`}>{fmt(s)}</span>
-  {#if !meter}<i class="ring" class:on={thin && s?.value != null} aria-hidden="true"></i>{/if}
+  <i class="ring" class:on={thin && s?.value != null} aria-hidden="true"></i>
   {#if meter && range}
     <StatMeter size="sm" value={s?.value ?? null} low={range.low} high={range.high} {max} color={toneColor(hud, s, "var(--text-3)")} {thin} label={title ?? STAT_META[id].name} />
   {/if}
@@ -42,10 +42,16 @@
     flex: 1;
     min-width: 36px;
   }
-  /* A narrow list keeps the numbers and drops the scale. */
+  /* With a scale the hollow mark sits on it; a narrow list drops the scale and keeps the ring. */
+  .meter > .ring {
+    display: none;
+  }
   @container player-list (max-width: 760px) {
     .meter > :global(.ui-meter) {
       display: none;
+    }
+    .meter > .ring {
+      display: block;
     }
   }
   .val {
