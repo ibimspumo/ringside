@@ -89,7 +89,7 @@
         <span class="topic"><span class="label">Thema</span> {conceptName(spot.concept)}</span>
         <Button size="sm" onclick={onDrill} icon={arrow} title="Die Hand hält vor deiner Entscheidung an; du entscheidest selbst">Diesen Spot üben</Button>
         {#if practice.articles.length}
-          <Button size="sm" variant="quiet" onclick={onRead} title={practice.articles[0].title}>Nachlesen</Button>
+          <Button size="sm" onclick={onRead} title={practice.articles[0].title}>Nachlesen</Button>
         {/if}
       </div>
       <div class="hand">
@@ -283,7 +283,7 @@
     }
     .visual {
       width: 100%;
-      max-width: 340px;
+      max-width: 260px;
     }
   }
 </style>
