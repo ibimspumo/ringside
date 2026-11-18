@@ -312,13 +312,13 @@
     min-width: 0;
   }
   .spot {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .rated-by {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .table-col {
     grid-area: table;

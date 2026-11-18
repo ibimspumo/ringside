@@ -50,6 +50,12 @@
     if (!main || !top || top === main || main.ev_bb === null || d.source === "estimate") return null;
     return `„${top.label}“ bringt rechnerisch ${bb(bestEv - main.ev_bb, 2)} mehr, kommt aber nur in ${pct(top.freq)} der Fälle vor – empfohlen wird der Hauptzug, beides ist hier richtig.`;
   });
+  /** A mistake that still wins: counted from now on, the played move brings a profit, just less. */
+  const stillWins = $derived.by(() => {
+    if (!played || played.ev_bb === null || !d.source || EV_FROM[d.source] !== "now" || !better || grade === "best" || grade === "mix") return null;
+    if (played.ev_bb < 0.005) return null;
+    return `Dein ${played.label} bringt auch Gewinn (${fmtBb(played.ev_bb, { digits: 2, sign: true })}), ${better} bringt noch mehr.`;
+  });
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
 
   /** The reason under the verdict: the practice's sentences, then what the source adds. */
@@ -113,6 +119,7 @@
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       source={quiet && kit ? kit : undefined}
     >
+      {#if stillWins}<p class="still">{stillWins}</p>{/if}
       <p>{reason}{#if mainBelowTop}{" "}{mainBelowTop}{/if}</p>
       {#snippet actions()}
         {#if onLearn && grade !== "best" && grade !== "mix"}
@@ -222,6 +229,9 @@
     margin: 0;
     color: var(--text-2);
     line-height: 1.45;
+  }
+  .still {
+    color: var(--text);
   }
   .mix-box {
     display: flex;
