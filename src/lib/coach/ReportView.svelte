@@ -175,7 +175,7 @@
         <div class="score">
           <div class="score-top">
             <ProgressRing value={spots.length ? good / spots.length : 0} size={76} stroke={7} tone="good" label="Gut gespielt">
-              <span class="ring"><span class="ring-n num">{good}/{spots.length}</span><span class="ring-l">gut</span></span>
+              <span class="ring"><span class="ring-n num">{good}</span><span class="ring-l">von {spots.length} gut</span></span>
             </ProgressRing>
             <p class="big">
               {#if weak.length}

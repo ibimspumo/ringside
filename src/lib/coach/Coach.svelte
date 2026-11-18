@@ -11,6 +11,7 @@
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
+  import IconButton from "../ui/IconButton.svelte";
   import CoachSettings from "./CoachSettings.svelte";
   import KeyForm from "./KeyForm.svelte";
   import { notAnalyzable, shortModel } from "./meaning";
@@ -53,6 +54,7 @@
   let returnTo = $state<number | null>(null);
   /** Spots practised in this visit, by "<tournament>:<n>": the answer and whether it matched. */
   let main = $state<HTMLElement>();
+  let row = $state<HTMLElement>();
   let practised = $state<Record<string, { answer: Choice; right: boolean | null }>>({});
 
   function openSpot(mode: "drill" | "read", n: number) {
@@ -222,8 +224,18 @@
 
           {#if list.length}
             <nav class="reports" aria-labelledby="reports-title">
-              <h2 id="reports-title" class="rail-title">Deine Berichte <span class="count num">{list.length}</span></h2>
-              <ul>
+              <div class="reports-head">
+                <h2 id="reports-title" class="rail-title">Deine Berichte <span class="count num">{list.length}</span></h2>
+                <span class="pager">
+                  <IconButton size="sm" label="Frühere Berichte" onclick={() => row?.scrollBy({ left: -280, behavior: "smooth" })}
+                    ><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg></IconButton
+                  >
+                  <IconButton size="sm" label="Weitere Berichte" onclick={() => row?.scrollBy({ left: 280, behavior: "smooth" })}
+                    ><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></IconButton
+                  >
+                </span>
+              </div>
+              <ul bind:this={row}>
                 {#each list as r (r.tournament_id)}
                   <li>
                     <Card
@@ -469,6 +481,22 @@
   .sub {
     font-size: var(--fs-md);
     color: var(--text-2);
+  }
+  .reports-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .pager {
+    display: none;
+    gap: var(--sp-1);
+  }
+  .pager svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .count {
     margin-left: var(--sp-1);
@@ -733,6 +761,9 @@
       overflow-y: hidden;
       mask-image: linear-gradient(to right, var(--text) calc(100% - 36px), transparent);
       padding: 0 var(--sp-8) var(--sp-1) 0;
+    }
+    .pager {
+      display: flex;
     }
     .reports li {
       flex: 0 0 260px;

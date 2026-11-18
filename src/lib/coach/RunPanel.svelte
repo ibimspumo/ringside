@@ -34,7 +34,7 @@
     | { kind: "preparing" }
     | { kind: "confirm"; estimate: Estimate }
     | { kind: "running"; estimate: Estimate; progress: CoachProgress | null }
-    | { kind: "error"; message: string; noKey: boolean; paid?: number };
+    | { kind: "error"; message: string; noKey: boolean; paid?: number; at: number };
 
   let st = $state<State>({ kind: "preparing" });
   $effect(() => onRunning?.(st.kind === "running"));
@@ -46,7 +46,7 @@
     outs: "Outs",
   };
   const STEPS = ["Hände vorbereiten", "Kosten bestätigen", "Analyse läuft"];
-  const stepOf = (k: State["kind"]) => (k === "preparing" ? 0 : k === "confirm" ? 1 : k === "running" ? 2 : -1);
+  const stepOf = (s: State) => (s.kind === "preparing" ? 0 : s.kind === "confirm" ? 1 : s.kind === "running" ? 2 : s.at);
   let used = $state<string[]>([]);
   let cancelling = $state(false);
 
@@ -58,7 +58,7 @@
       if (preview.run === "running" || preview.run === "stalled") send(estimate);
     } catch (e) {
       const message = errorText(e);
-      st = { kind: "error", message, noKey: message.includes("OpenRouter-Key") };
+      st = { kind: "error", message, noKey: message.includes("OpenRouter-Key"), at: 0 };
     }
   }
 
@@ -70,7 +70,7 @@
       onDone(await coachApi.run(estimate.token, tournamentId));
     } catch (e) {
       const paid = st.kind === "running" ? (st.progress?.cost_usd ?? 0) : 0;
-      st = { kind: "error", message: errorText(e), noKey: false, paid };
+      st = { kind: "error", message: errorText(e), noKey: false, paid, at: 2 };
     }
   }
 
@@ -85,7 +85,7 @@
     const sub = onProgress((p) => {
       if (st.kind !== "running" || p.tournament_id !== tournamentId) return;
       st.progress = p;
-      if (p.stage === "tool" && p.tool && !used.includes(p.tool)) used = [...used, p.tool];
+      if ((p.stage === "tool" || p.stage === "calling") && p.tool && p.tool in TOOLS && !used.includes(p.tool)) used = [...used, p.tool];
     });
     return () => {
       sub.then((f) => f());
@@ -106,18 +106,16 @@
       <p class="eyebrow">Analyse</p>
       <h2 id="run-title">{title}</h2>
     </div>
-    {#if st.kind !== "error"}
-      <ol class="stepper" aria-label="Ablauf">
-        {#each STEPS as s, i (s)}
-          <li class:done={i < stepOf(st.kind)} class:now={i === stepOf(st.kind)} aria-current={i === stepOf(st.kind) ? "step" : undefined}>
-            <span class="dot" aria-hidden="true"
-              >{#if i < stepOf(st.kind)}<svg viewBox="0 0 24 24" width="9" height="9"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
-                >{/if}</span
-            >{s}
-          </li>
-        {/each}
-      </ol>
-    {/if}
+    <ol class="stepper" class:failed={st.kind === "error"} aria-label="Ablauf">
+      {#each STEPS as s, i (s)}
+        <li class:done={i < stepOf(st)} class:now={i === stepOf(st)} aria-current={i === stepOf(st) ? "step" : undefined}>
+          <span class="dot" aria-hidden="true"
+            >{#if i < stepOf(st)}<svg viewBox="0 0 24 24" width="9" height="9"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg
+              >{/if}</span
+          >{s}
+        </li>
+      {/each}
+    </ol>
     <span class="close" class:hidden={st.kind === "running"}
       ><IconButton label="Analyse schließen" onclick={onClose} disabled={st.kind === "running"}>{@render closeIcon()}</IconButton></span
     >
@@ -176,37 +174,39 @@
         </div>
       {/if}
 
-      <div class="privacy">
-        <span class="label">Das geht raus – ohne Namen</span>
-        <ul class="swaps">
-          <li><s>Dein Name</s><span aria-hidden="true">→</span><b>„Du“</b></li>
-          <li><s>Gegner</s><span aria-hidden="true">→</span><b>„Spieler 1“, „Spieler 2“ …</b></li>
-          <li><s>Chips</s><span aria-hidden="true">→</span><b>Big Blinds</b></li>
-          <li class="plain">dazu Buy-in und Platz</li>
-        </ul>
-        <div class="never-row">
-          <p class="never">
-            Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
-            <b class="num nowrap">{shortModel(e.model)}</b>.
-          </p>
+      <div class="confirm-end">
+        <div class="privacy">
+          <span class="label">Das geht raus – ohne Namen</span>
+          <ul class="swaps">
+            <li><s>Dein Name</s><span aria-hidden="true">→</span><b>„Du“</b></li>
+            <li><s>Gegner</s><span aria-hidden="true">→</span><b>„Spieler 1“, „Spieler 2“ …</b></li>
+            <li><s>Chips</s><span aria-hidden="true">→</span><b>Big Blinds</b></li>
+            <li class="plain">dazu Buy-in und Platz</li>
+          </ul>
+          <div class="never-row">
+            <p class="never">
+              Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
+              <b class="num nowrap">{shortModel(e.model)}</b>.
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div class="row send">
-        <Button variant="primary" size="lg" onclick={() => send(e)}>
-          Senden und analysieren{e.cost_usd != null ? ` · ca. ${money(e.cost_usd)}` : ""}
-        </Button>
-        <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
-        <Button variant="quiet" onclick={onSettings}>Modell ändern</Button>
-        <details class="tech">
-          <summary>Tokens und Preise</summary>
-          <p>
-            Geschätzt <b class="num">{tokens(e.prompt_tokens + e.completion_tokens)}</b> Tokens, höchstens
-            <span class="num">{tokens(e.max_prompt_tokens + e.max_completion_tokens)}</span>. Preis
-            <span class="num">{perM(e.prompt_per_m)} $</span> ein und <span class="num">{perM(e.completion_per_m)} $</span> aus je
-            1 Mio. Tokens.
-          </p>
-        </details>
+        <div class="row send">
+          <Button variant="primary" size="lg" onclick={() => send(e)}>
+            Senden und analysieren{e.cost_usd != null ? ` · ca. ${money(e.cost_usd)}` : ""}
+          </Button>
+          <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
+          <Button variant="quiet" onclick={onSettings}>Modell ändern</Button>
+          <details class="tech">
+            <summary>Tokens und Preise</summary>
+            <p>
+              Geschätzt <b class="num">{tokens(e.prompt_tokens + e.completion_tokens)}</b> Tokens, höchstens
+              <span class="num">{tokens(e.max_prompt_tokens + e.max_completion_tokens)}</span>. Preis
+              <span class="num">{perM(e.prompt_per_m)} $</span> ein und <span class="num">{perM(e.completion_per_m)} $</span> aus je
+              1 Mio. Tokens.
+            </p>
+          </details>
+        </div>
       </div>
     {:else if st.kind === "running"}
       {@const p = st.progress}
@@ -246,7 +246,7 @@
         </Card>
       </div>
       <div class="tools" aria-label="Was Ringside nachgerechnet hat">
-        {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
+        {#each used as t (t)}{@const now = (p?.stage === "tool" || p?.stage === "calling") && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
             >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
           >{:else}<span class="note">Jede Zahl im Bericht rechnet Ringside selbst nach.</span>{/each}
       </div>
@@ -291,7 +291,7 @@
         </details>
       </div>
     {:else}
-      <EmptyState tone="error" title={st.noKey ? "Es fehlt noch der Key von OpenRouter." : "Die Analyse hat nicht geklappt."} text={st.paid ? `${st.message} Bis zum Abbruch bezahlt: ${money(st.paid)}.` : st.message}>
+      <EmptyState tone="error" title={st.noKey ? "Es fehlt noch der Key von OpenRouter." : "Die Analyse hat nicht geklappt."} text={`${st.message} Bisher bezahlt: ${st.paid ? money(st.paid) : "nichts"}.`}>
         {#snippet action()}
           {#if st.kind === "error" && st.noKey}
             <Button variant="primary" onclick={onSettings}>Key hinterlegen</Button>
@@ -372,6 +372,14 @@
   .stepper .now {
     color: var(--text);
     font-weight: var(--fw-semibold);
+  }
+  .stepper.failed .now .dot {
+    border-color: var(--danger);
+    background: var(--danger);
+    box-shadow: none;
+  }
+  .stepper.failed .now {
+    color: var(--danger-text);
   }
   .stepper .now .dot {
     border-color: var(--text);
@@ -491,6 +499,18 @@
   }
   .send {
     padding-top: var(--sp-2);
+  }
+  .confirm-end {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  /* Narrow windows: the decision comes right after the costs, what is sent follows directly. */
+  @container (max-width: 980px) {
+    .confirm-end .send {
+      order: -1;
+      padding-top: 0;
+    }
   }
   .tech {
     margin-left: auto;

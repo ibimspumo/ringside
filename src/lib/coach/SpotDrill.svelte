@@ -73,6 +73,13 @@
   /** The reason's first sentence, next to the verdict; the whole reason follows below the table. */
   const gist = $derived(spot.why.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? spot.why);
   /** Ringside's own figures behind the verdict, shown right with it; all figures follow below. */
+  /** "You have 18 %, you need 33 %": the two equity figures the verdict rests on, when the coach gave both. */
+  const contrast = $derived.by(() => {
+    const pct = spot.numbers.filter((n) => n.source === "berechnet" && /%/.test(n.value));
+    const need = pct.find((n) => /benötig|brauch|nötig/i.test(n.label));
+    const have = pct.find((n) => n !== need && /equity/i.test(n.label));
+    return need && have ? { need: say(need.value), have: say(have.value) } : null;
+  });
   /** The coach's own assumption behind those figures, so they are read as "against this range". */
   const assumed = $derived(spot.numbers.find((n) => n.source !== "berechnet") ?? null);
   const key = $derived(spot.numbers.filter((n) => n.source === "berechnet").slice(0, 2));
@@ -182,7 +189,15 @@
                 <b>Der Coach nennt hier keine eindeutige Aktion.</b>
               {/if}
             </div>
-            <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
+            {#if contrast}
+              <p class="gist">
+                Du hast <b class="num">{contrast.have}</b> Equity, brauchst aber <b class="num">{contrast.need}</b>{spot.better
+                  ? ` – deshalb ${spot.better}.`
+                  : "."}
+              </p>
+            {:else}
+              <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
+            {/if}
             {#if key.length}
               <ul class="key">
                 {#each key as f, i (i)}<li><span><CardText hands text={say(ownCards(f.label, spot.hero_cards))} /></span><b class="num">{say(f.value)}</b></li>{/each}
@@ -407,6 +422,9 @@
   }
   .basis b {
     color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
+  .gist b {
     font-weight: var(--fw-semibold);
   }
   .gist {
