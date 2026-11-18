@@ -242,7 +242,8 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Ringside hat gerechnet" value={finished(p) ? `${finished(p)}-mal` : st.estimate.spots ? `${st.estimate.spots} vorab` : "noch nichts"} />
+            <Stat label="Ringside hat gerechnet" value={st.estimate.spots + finished(p) ? `${st.estimate.spots + finished(p)}-mal` : "noch nichts"}
+              meaning={st.estimate.spots ? `davon ${st.estimate.spots} vorab` : undefined} />
             <span class="tools">
               {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
                   >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge

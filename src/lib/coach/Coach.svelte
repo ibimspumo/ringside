@@ -221,7 +221,7 @@
 
           {#if list.length}
             <nav class="reports" aria-labelledby="reports-title">
-              <h2 id="reports-title" class="rail-title">Deine Berichte</h2>
+              <h2 id="reports-title" class="rail-title">Deine Berichte <span class="count num">{list.length}</span></h2>
               <ul>
                 {#each list as r (r.tournament_id)}
                   <li>
@@ -409,6 +409,7 @@
                 practised={(n) => (report ? practised[`${report.tournament_id}:${n}`] : undefined)}
                 onHand={(id) => report && onHand(report.tournament_id, id)}
                 {onTraining}
+                canAnalyze={!!status?.has_key && !running}
                 onReanalyze={() => report && start(report.tournament_id)}
                 onDelete={() => report && remove(report.tournament_id)}
                 onDrill={(n) => openSpot("drill", n)}
@@ -466,6 +467,11 @@
   }
   .sub {
     font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .count {
+    margin-left: var(--sp-1);
+    font-weight: var(--fw-regular);
     color: var(--text-2);
   }
   .nowrap {

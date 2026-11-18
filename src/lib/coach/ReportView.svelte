@@ -38,6 +38,7 @@
     onRead,
     returnTo = null,
     practised,
+    canAnalyze = true,
   }: {
     report: CoachReport;
     title: string;
@@ -53,6 +54,8 @@
     returnTo?: number | null;
     /** How spot `n` was answered when practised in this visit. */
     practised: (n: number) => { answer: Choice; right: boolean | null } | undefined;
+    /** False without a key or while another analysis runs. */
+    canAnalyze?: boolean;
   } = $props();
 
   type Show = "all" | "practise" | "good";
@@ -134,7 +137,9 @@
           <Button variant="danger" onclick={onDelete}>Ja, löschen</Button>
           <Button variant="quiet" onclick={() => (confirmDelete = false)}>Behalten</Button>
         {:else}
-          <Button icon={again} onclick={onReanalyze}>Neu analysieren</Button>
+          <Button icon={again} onclick={onReanalyze} disabled={!canAnalyze}
+            title={canAnalyze ? undefined : "Erst den Key von OpenRouter hinterlegen oder die laufende Analyse abwarten"}>Neu analysieren</Button
+          >
           <Button variant="quiet" onclick={() => (confirmDelete = true)}>Löschen</Button>
         {/if}
       </div>
