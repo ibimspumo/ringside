@@ -94,7 +94,7 @@
     background: none;
     color: var(--text-2);
     font: inherit;
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     text-decoration: underline;
     text-decoration-color: var(--line-2);
     text-underline-offset: 3px;

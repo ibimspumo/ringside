@@ -137,7 +137,7 @@
         {:else}
           <Button size="sm" onclick={test} loading={busy} disabled={busy}>Testen</Button>
           <Button size="sm" onclick={() => (replacing = !replacing)} aria-expanded={replacing}>Ersetzen</Button>
-          <Button size="sm" variant="danger" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
+          <Button size="sm" variant="danger-quiet" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</Button>
         {/if}
       {:else if status}
         <span class="state"><i></i>Noch kein Key</span>
@@ -166,7 +166,7 @@
         {#if current}
           {@const t = perTournament(current)}
           <b>{modelName(current)}</b>
-          <span class="fine num" title={RICHTWERT}>{provider(current)} · {t == null ? "Preis unbekannt" : `ca. ${money(t)} je Turnier`}</span>
+          <span class="fine" title={RICHTWERT}>{provider(current)} · {t == null ? "Preis unbekannt" : `ca. ${money(t)} je Turnier`}</span>
         {:else if status}
           <b>{modelLabel(status.model)}</b>
           <span class="fine">{status.has_key ? "Lädt Preise …" : "Preise lädt Ringside, sobald dein Key da ist"}</span>
@@ -312,7 +312,6 @@
     display: inline-flex;
     align-items: center;
     gap: var(--sp-2);
-    margin-right: var(--sp-2);
     color: var(--text-2);
     font-size: var(--fs-md);
     white-space: nowrap;
@@ -342,7 +341,6 @@
     display: flex;
     flex-direction: column;
     align-items: flex-end;
-    margin-right: var(--sp-2);
     min-width: 0;
     text-align: right;
   }

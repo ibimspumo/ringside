@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { gpuApi, gpuErrorText, gpuPreview, onGpuProgress, type GpuBenchmark, type GpuRun } from "./api";
+  import { gpuApi, gpuErrorText, gpuPreview, onGpuProgress, type GpuBenchmark, type GpuRun, type GpuSpotResult } from "./api";
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
@@ -49,19 +49,21 @@
 
   const de = (x: number, digits: number) =>
     x.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
-  const time = (r: GpuRun) => `${de(r.ms / 1000, 2)} s`;
+  const time = (r: GpuRun) => (r.ms < 1000 ? `${Math.round(r.ms)} ms` : `${de(r.ms / 1000, 2)} s`);
+  /** How many times faster the GPU reaches the target than the CPU: the times shown side by side. */
+  const factor = (s: GpuSpotResult) => s.speedup ?? (s.gpu ? s.cpu.ms / s.gpu.ms : null);
 
   /** The verdict comes from the largest spot the GPU solved: small spots say little about speed. */
   const verdict = $derived.by(() => {
     if (!result?.gpu) return null;
-    const solved = result.spots.filter((s) => s.gpu && s.speedup_per_iteration != null);
+    const solved = result.spots.filter((s) => s.gpu && factor(s) != null);
     if (!solved.length) return { same: false, text: "Die GPU konnte keinen Spot lösen. Der Solver rechnet wie bisher auf der CPU." };
     const big = solved.reduce((a, b) => (b.nodes > a.nodes ? b : a));
-    const f = big.speedup_per_iteration!;
+    const f = factor(big)!;
     const same = result.spots.every((s) => s.matches);
     const speed =
       f >= 1.05
-        ? `Beim ${big.name}-Spot schafft deine GPU ${de(f, 1)}× so viele Durchläufe pro Sekunde wie die CPU`
+        ? `Beim ${big.name}-Spot ist deine GPU ${de(f, 1)}× so schnell am Ziel wie die CPU`
         : f > 0.95
           ? `Beim ${big.name}-Spot sind GPU und CPU etwa gleich schnell`
           : `Beim ${big.name}-Spot ist deine GPU langsamer als die CPU (${de(f, 1)}×)`;
@@ -108,7 +110,7 @@
           <p class="verdict" class:bad={!verdict.same}>{verdict.text}</p>
         {/if}
         <div class="facts">
-        <p class="soft small num">
+        <p class="soft">
           {result.gpu.name} · {result.gpu.backend}{result.gpu.driver ? ` · Treiber ${result.gpu.driver}` : ""} · CPU mit {result.cpu_threads}
           Threads · Ziel {de(result.target_pct, 1)} % des Pots
         </p>
@@ -123,7 +125,7 @@
               <th>Spot</th>
               <th class="r">CPU</th>
               <th class="r">GPU</th>
-              <th class="r" title="Durchläufe pro Sekunde der GPU geteilt durch die der CPU">Tempo GPU</th>
+              <th class="r" title="Zeit der CPU geteilt durch die Zeit der GPU">GPU-Tempo</th>
               <th class="r" title="Unterschied im Erwartungswert beider Lösungen, in Prozent des Pots">Abweichung</th>
               <th class="r">Lösung</th>
             </tr>
@@ -138,7 +140,7 @@
                 <td class="r num">{time(spot.cpu)}<div class="soft small">{spot.cpu.iterations} Durchläufe</div></td>
                 {#if spot.gpu}
                   <td class="r num">{time(spot.gpu)}<div class="soft small">{spot.gpu.iterations} Durchläufe</div></td>
-                  {@const f = spot.speedup_per_iteration ?? 0}
+                  {@const f = factor(spot) ?? 0}
                   <td class="r num strong">{de(f, 1)}×<div class="soft small">{f >= 1.05 ? "GPU schneller" : f > 0.95 ? "etwa gleich" : "GPU langsamer"}</div></td>
                   <td class="r num">{de(Math.abs(spot.value_diff_pct ?? 0), 3)} %</td>
                   <td class="r" class:good={spot.matches} class:bad={!spot.matches}>{spot.matches ? "gleich" : "abweichend"}</td>
@@ -150,9 +152,9 @@
           </tbody>
         </table>
         <p class="soft small note">
-          Zeiten bis zum Ziel. Tempo GPU: Durchläufe pro Sekunde der GPU geteilt durch die der CPU; beide rechnen denselben
-          Algorithmus, durch Rundung brauchen sie aber nicht immer gleich viele Durchläufe. Abweichung: Unterschied im
-          Erwartungswert beider Lösungen, in Prozent des Pots.
+          Zeiten bis zum Ziel. GPU-Tempo: Zeit der CPU geteilt durch die Zeit der GPU – über 1 ist die GPU schneller. Beide
+          rechnen denselben Algorithmus, durch Rundung brauchen sie aber nicht immer gleich viele Durchläufe. Abweichung:
+          Unterschied im Erwartungswert beider Lösungen, in Prozent des Pots.
         </p>
         {/if}
       {/if}
@@ -236,6 +238,7 @@
     padding-right: 0;
   }
   .r {
+    padding-left: var(--sp-6);
     text-align: right;
   }
   .good {

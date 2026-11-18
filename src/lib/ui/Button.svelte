@@ -5,7 +5,8 @@
 
   /**
    * One button for every view. `primary` is the single next step of a screen ("Nächste Hand"),
-   * `secondary` the alternatives, `quiet` the incidental ones, `danger` anything that deletes.
+   * `secondary` the alternatives, `quiet` the incidental ones, `danger` anything that deletes;
+   * `danger-quiet` deletes too but sits in a row of rare actions, so it fills only on hover.
    */
   let {
     variant = "secondary",
@@ -21,7 +22,7 @@
     class: extra = "",
     ...rest
   }: {
-    variant?: "primary" | "secondary" | "quiet" | "danger";
+    variant?: "primary" | "secondary" | "quiet" | "danger" | "danger-quiet";
     size?: "sm" | "md" | "lg";
     /** Shortcut shown inside the button, e.g. "Leertaste" or "Strg + K". */
     kbd?: string | string[];
@@ -121,6 +122,15 @@
   }
   .danger:is(:hover, [data-force="hover"]) {
     background: color-mix(in srgb, var(--danger) 22%, var(--surface-2));
+  }
+  .danger-quiet {
+    background: transparent;
+    border-color: transparent;
+    color: var(--danger-text);
+  }
+  .danger-quiet:is(:hover, [data-force="hover"]) {
+    background: color-mix(in srgb, var(--danger) 12%, var(--surface-2));
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
   }
   .ui-btn:active:not(:disabled) {
     transform: translateY(1px);

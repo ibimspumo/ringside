@@ -134,8 +134,6 @@
   let pending: import("@tauri-apps/plugin-updater").Update | null = null;
 
   const loadNotes = () => api.notesSources().then((n) => (notes = n));
-  /** "…\PokerStars.EU\notes.Hero.xml": the folder tells which client it belongs to. */
-  const shortPath = (p: string) => `…\\${p.split(/[\\/]/).slice(-2).join("\\")}`;
 
   onMount(() => {
     const subs = [on("notes-changed", loadNotes), on<boolean>("poker-client", (r) => (clientRunning = r))];
@@ -341,8 +339,10 @@
               {/each}
             </ul>
             {#if status}
-              <p class="meta num">
-                <span class="dot on"></span>{int(status.total_hands)} Hände gespeichert · {int(status.hands_imported)} neu seit dem Start
+              <p class="meta">
+                <span class="dot on"></span><span><span class="num">{int(status.total_hands)}</span> Hände gespeichert · <span
+                    class="num">{int(status.hands_imported)}</span
+                  > neu seit dem Start</span>
               </p>
             {/if}
           {:else}
@@ -385,7 +385,7 @@
                   {:else}
                     {@render tableLabel(t, i)}
                   {/if}
-                  <span class="tstate" class:wait={!w.has_hands}>{w.has_hands ? "Hände da" : "Noch keine Hand importiert"}</span>
+                  <span class="tstate" class:wait={!w.has_hands}>{w.has_hands ? "HUD zeigt Werte" : "HUD füllt sich nach der ersten Hand"}</span>
                 </li>
               {:else}
                 <li class="none">Kein Tisch offen – PokerStars zeigt gerade nur Lobby-Fenster.</li>
@@ -429,9 +429,9 @@
               {#each notes as n (n.path)}
                 <li>
                   {@render fileIcon()}
-                  <code title={n.path}>{shortPath(n.path)}</code>
-                  {#if n.error}<span class="error">nicht lesbar ({n.error})</span>{:else}<span class="count num"
-                      >{int(n.players)} Spieler mit Notiz</span
+                  <code title={n.path}>{n.path}</code>
+                  {#if n.error}<span class="error">nicht lesbar ({n.error})</span>{:else}<span class="count"
+                      ><span class="num">{int(n.players)}</span> Spieler mit Notiz</span
                     >{/if}
                 </li>
               {/each}
@@ -486,7 +486,7 @@
           {#if update.state === "installing"}
             <div class="download">
               <ProgressBar value={download?.total ? download.done / download.total : null} size="md" label="Download des Updates" />
-              <p class="meta num">
+              <p class="meta">
                 {#if download?.total}
                   {mb(download.done)} von {mb(download.total)} MB · {Math.round((download.done / download.total) * 100)} %
                 {:else if download}
@@ -637,7 +637,7 @@
   }
   .count {
     color: var(--text-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     white-space: nowrap;
   }
   .found {
@@ -646,7 +646,7 @@
     gap: var(--sp-1);
     flex-shrink: 0;
     color: var(--text-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
   }
   .found svg {
     width: 14px;
@@ -659,7 +659,7 @@
     gap: var(--sp-2);
     margin-top: var(--sp-2);
     color: var(--text-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
   }
   .dot {
     flex-shrink: 0;
@@ -687,13 +687,13 @@
     font-size: var(--fs-md);
     line-height: 1.4;
   }
-  .tname b,
   .rest {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .tname b {
+    overflow-wrap: anywhere;
     font-weight: var(--fw-medium);
     color: var(--text);
   }
@@ -703,7 +703,7 @@
   .tstate {
     flex-shrink: 0;
     color: var(--text-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
   }
   .none {
     color: var(--text-2);
