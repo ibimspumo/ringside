@@ -1,27 +1,7 @@
 // Plain-language answers for players who are getting good, not for solver experts: what the
-// solution does in one line, why in one sentence, and the words it uses.
+// solution does in one line and why in one sentence. The words it uses live in ui/words.ts.
 import { isAggressive, sizePct, toCall } from "./play";
 import type { SolverAction, SolverHand, SolverNode } from "./types";
-
-export const GLOSSARY = {
-  oop: "OOP („out of position“): handelt nach dem Flop auf jeder Straße zuerst und sieht vorher nicht, was der Gegner tut – ein Nachteil.",
-  ip: "IP („in position“): handelt nach dem Flop als Letzter und weiß schon, was der Gegner getan hat – ein Vorteil.",
-  spr: "SPR (Stack-to-Pot-Ratio): effektiver Stack geteilt durch den Pot. Unter 3 ist mit ein, zwei Einsätzen alles drin; über 8 bleibt viel Spielraum für Turn und River.",
-  effective: "Effektiver Stack: der kleinere der beiden Stacks. Mehr kann in dieser Hand keiner gewinnen oder verlieren.",
-  equity: "Equity: wie oft eine Hand den Pot gewinnen würde, wenn jetzt alle Karten ohne weitere Einsätze aufgedeckt würden – gegen alle Hände, die der Gegner hier haben kann.",
-  ev: "EV (Erwartungswert): was eine Hand oder Aktion von hier an im Schnitt einbringt, in Big Blinds. Höher ist besser; Folden hat EV 0.",
-  range: "Range: alle Hände, die ein Spieler an dieser Stelle haben kann, gewichtet danach, wie oft er bis hierher so spielt.",
-  exploit:
-    "Genauigkeit der Lösung: So viel (in % des Pots) könnte ein perfekter Gegner gegen sie im Schnitt mehr gewinnen. Je kleiner, desto genauer; unter 1 % ist zum Lernen mehr als genug.",
-  evloss: "EV-Verlust: wie viel deine Wahl im Schnitt weniger einbringt als die beste Aktion mit genau deiner Hand.",
-  potodds: "Pot Odds: wie viel Equity ein Call mindestens braucht – der Call geteilt durch den Pot nach dem Call.",
-  threebet:
-    "3-Bet: die zweite Erhöhung vor dem Flop – jemand erhöht gegen einen Raise. Darauf folgt die 4-Bet. Wer 3-bettet, hat meist eine starke Hand oder blufft gezielt mit Händen, die gut blocken.",
-  mixed:
-    "Gemischt: Die Lösung spielt dieselbe Hand mal so, mal so. Beide Aktionen sind dann etwa gleich viel wert; das Mischen macht dich für den Gegner schwer lesbar.",
-} as const;
-
-export type Term = keyof typeof GLOSSARY;
 
 /** How often, in words. */
 export function often(f: number): string {

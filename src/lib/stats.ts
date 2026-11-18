@@ -1,30 +1,27 @@
 import type { ClassicPreset, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
 import { cash, compact, moneyShort } from "./ui/format";
+import { WORDS, explain, type WordId } from "./ui/words";
 
 export { cash, compact, money, moneyShort } from "./ui/format";
 
+/** Name and explanation of a stat from the glossary. */
+const said = (id: StatId & WordId) => ({ name: WORDS[id].word, help: explain(id) });
+
 /** `plain` + value + `after` reads as a sentence in the "Klartext" preset. */
 export const STAT_META: Record<StatId, { short: string; name: string; plain: string; after?: string; help: string; ratio?: boolean }> = {
-  hands: { short: "H", name: "Hände", plain: "Hände", help: "Gemeinsame Hände – je mehr, desto verlässlicher die Werte." },
-  vpip: { short: "VPIP", name: "VPIP", plain: "spielt", help: "Wie oft freiwillig Geld in den Pot gelegt wird. Hoch = spielt viele Hände (loose)." },
-  pfr: { short: "PFR", name: "Preflop-Raise", plain: "erhöht", help: "Wie oft vor dem Flop erhöht wird. Nah an VPIP = aggressiv, weit darunter = passiv." },
-  three_bet: { short: "3B", name: "3-Bet", plain: "3-bettet", help: "Erhöht noch einmal, nachdem vor ihm schon jemand erhöht hat (Re-Raise)." },
-  fold_to_three_bet: { short: "F3B", name: "Fold auf 3-Bet", plain: "gibt auf Re-Raise auf", help: "Wie oft nach eigenem Raise auf ein Re-Raise gefoldet wird." },
-  steal: { short: "ST", name: "Steal", plain: "klaut Blinds", help: "Open-Raise aus Cutoff, Button oder Small Blind, wenn alle davor gefoldet haben." },
-  fold_to_steal: { short: "FST", name: "Fold auf Steal", plain: "gibt Blinds her", help: "Wie oft die Blinds gegen einen Steal folden." },
-  cbet: { short: "CB", name: "C-Bet", plain: "setzt am Flop nach", help: "Continuation-Bet am Flop nach eigenem Preflop-Raise." },
-  fold_to_cbet: { short: "FCB", name: "Fold auf C-Bet", plain: "gibt am Flop auf", help: "Wie oft auf eine C-Bet am Flop gefoldet wird." },
-  wtsd: { short: "WTSD", name: "Showdown", plain: "geht zum Showdown", help: "Wie oft es nach gesehenem Flop zum Showdown geht." },
-  wsd: { short: "W$SD", name: "Gewonnen am Showdown", plain: "gewinnt Showdowns", help: "Anteil gewonnener Showdowns." },
-  af: {
-    short: "AF",
-    name: "Aggression",
-    plain: "setzt/erhöht",
-    after: "so oft wie er callt",
-    help: "Aggressionsfaktor nach dem Flop: (Bets + Raises) ÷ Calls. 2,8× heißt: auf jeden Call kommen 2,8 Bets oder Raises. Unter 1,5 passiv, 1,5–3,5 normal, über 3,5 sehr aggressiv. Checks und Folds zählen nicht mit.",
-    ratio: true,
-  },
-  afq: { short: "AFq", name: "Aggressions-Frequenz", plain: "aggressiv nach dem Flop", help: "Anteil aggressiver Aktionen nach dem Flop." },
+  hands: { short: "H", ...said("hands"), plain: "Hände" },
+  vpip: { short: "VPIP", ...said("vpip"), plain: "spielt" },
+  pfr: { short: "PFR", ...said("pfr"), plain: "erhöht" },
+  three_bet: { short: "3B", ...said("three_bet"), plain: "3-bettet" },
+  fold_to_three_bet: { short: "F3B", ...said("fold_to_three_bet"), plain: "gibt auf Re-Raise auf" },
+  steal: { short: "ST", ...said("steal"), plain: "klaut Blinds" },
+  fold_to_steal: { short: "FST", ...said("fold_to_steal"), plain: "gibt Blinds her" },
+  cbet: { short: "CB", ...said("cbet"), plain: "setzt am Flop nach" },
+  fold_to_cbet: { short: "FCB", ...said("fold_to_cbet"), plain: "gibt am Flop auf" },
+  wtsd: { short: "WTSD", ...said("wtsd"), plain: "geht zum Showdown" },
+  wsd: { short: "W$SD", ...said("wsd"), plain: "gewinnt Showdowns" },
+  af: { short: "AF", ...said("af"), plain: "setzt/erhöht", after: "so oft wie er callt", ratio: true },
+  afq: { short: "AFq", ...said("afq"), plain: "aggressiv nach dem Flop" },
 };
 
 export const ALL_STATS = Object.keys(STAT_META) as StatId[];

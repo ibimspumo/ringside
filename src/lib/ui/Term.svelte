@@ -1,19 +1,27 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import Tooltip from "./Tooltip.svelte";
+  import { WORDS, explain, type WordId } from "./words";
 
   /**
    * A poker word with its explanation where it stands: dotted underline, reachable by keyboard,
    * the explanation opens on hover and focus through Tooltip and stays inside the window.
+   * `id` takes word and explanation from the glossary (words.ts); `tip` is for explanations that
+   * belong to one place only. Without children the glossary's word is shown.
    */
   let {
+    id,
     tip,
     side = "top",
     children,
-  }: { tip: string; side?: "top" | "bottom" | "right" | "left"; children: Snippet } = $props();
+  }: { id?: WordId; tip?: string; side?: "top" | "bottom" | "right" | "left"; children?: Snippet } = $props();
+
+  const text = $derived(tip ?? (id ? explain(id) : ""));
 </script>
 
-<Tooltip text={tip} {side}><button type="button" class="ui-term">{@render children()}</button></Tooltip>
+<Tooltip {text} {side}
+  ><button type="button" class="ui-term">{#if children}{@render children()}{:else if id}{WORDS[id].word}{/if}</button></Tooltip
+>
 
 <style>
   .ui-term {

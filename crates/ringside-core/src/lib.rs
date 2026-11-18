@@ -16,6 +16,7 @@ pub mod report;
 pub mod stats;
 pub mod table;
 pub mod tournament;
+pub mod words;
 
 pub use db::Db;
 pub use model::Hand;

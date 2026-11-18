@@ -30,7 +30,7 @@
   import { meSide, solvedTable, solver } from "./store.svelte";
   import { comboClass, parseRange } from "./range";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
-  import Term from "./Term.svelte";
+  import Term from "../ui/Term.svelte";
   import type { SolverNode, SolverPlayer } from "./types";
 
   let { onStudy }: { onStudy: () => void } = $props();
@@ -353,9 +353,9 @@
           {#if last.verdict.loss !== null}
             <p class="loss num">
               {#if last.verdict.loss < 0.005}
-                Kein EV-Verlust.
+                Kostet nichts – so gut wie die beste Aktion.
               {:else}
-                <Term term="evloss">EV-Verlust</Term> <b>{bb(last.verdict.loss, 2)} BB</b> ({fmt(last.verdict.lossPct ?? 0)} % des Pots) gegenüber {last.labels[last.verdict.best].replace(/ \(.*\)$/, "")}.
+                <Term id="ev_loss">Kostet im Schnitt</Term> <b>{bb(last.verdict.loss, 2)} BB</b> ({fmt(last.verdict.lossPct ?? 0)} % des Pots) gegenüber {last.labels[last.verdict.best].replace(/ \(.*\)$/, "")}.
               {/if}
             </p>
           {:else}

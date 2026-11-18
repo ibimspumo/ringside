@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 144,
+      "total": 143,
       "files": {
         "app/Main.svelte": 1,
         "app/Reports.svelte": 1,
@@ -39,7 +39,6 @@
         "ranges/RangeGrid.svelte": 1,
         "solver/RangeEditor.svelte": 1,
         "solver/Saved.svelte": 1,
-        "solver/Term.svelte": 1,
         "stats.ts": 6
       }
     },
@@ -94,7 +93,7 @@
       }
     },
     "button-style": {
-      "total": 130,
+      "total": 129,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -128,8 +127,7 @@
         "solver/RangeEditor.svelte": 1,
         "solver/Setup.svelte": 1,
         "solver/SizeChooser.svelte": 2,
-        "solver/Study.svelte": 6,
-        "solver/Term.svelte": 1
+        "solver/Study.svelte": 6
       }
     },
     "global-class-override": {
@@ -171,7 +169,7 @@
       "files": {}
     },
     "motion": {
-      "total": 44,
+      "total": 43,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -196,8 +194,7 @@
         "learn/wissen/widgets/Outs.svelte": 1,
         "learn/wissen/widgets/PotOdds.svelte": 2,
         "learn/wissen/widgets/StackRuler.svelte": 2,
-        "learn/wissen/Wissen.svelte": 1,
-        "solver/Term.svelte": 1
+        "learn/wissen/Wissen.svelte": 1
       }
     },
     "page-heading": {

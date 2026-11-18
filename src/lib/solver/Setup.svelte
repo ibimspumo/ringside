@@ -16,7 +16,7 @@
   import SolverTable from "./SolverTable.svelte";
   import MeChooser from "./MeChooser.svelte";
   import { meSide, solver, startSolve } from "./store.svelte";
-  import Term from "./Term.svelte";
+  import Term from "../ui/Term.svelte";
   import type { SolverEstimate } from "./types";
 
   /** Most sizes per street the solver takes, `ringside_solver::MAX_SIZES`. */
@@ -360,8 +360,8 @@
       <Slider label="Stacktiefe" unit="BB" log values={DEPTHS} value={stackText} onchange={slideStack} steps={[10, 20, 40, 60, 100, 200]} />
       <div class="facts num">
         <span>Pot <b>{bb(solver.spot.pot, 2)}</b></span>
-        <span><Term term="effective">effektiv</Term> <b>{bb(solver.spot.stack, 2)}</b></span>
-        <span><Term term="spr">SPR</Term> <b>{bb(spr, 1)}</b></span>
+        <span><Term id="effective">effektiv</Term> <b>{bb(solver.spot.stack, 2)}</b></span>
+        <span><Term id="spr">SPR</Term> <b>{bb(spr, 1)}</b></span>
       </div>
     </section>
 

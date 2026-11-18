@@ -4,7 +4,7 @@
   import PlayingCard from "../PlayingCard.svelte";
   import { openSaved, solutionsApi, type Origin, type SavedSolution, type SolutionsView } from "./solutions";
   import { solver } from "./store.svelte";
-  import Term from "./Term.svelte";
+  import Term from "../ui/Term.svelte";
   import Button from "../ui/Button.svelte";
   import { cap, precision } from "./explain";
 
@@ -154,15 +154,15 @@
           <div class="who">
             <h3>{s.title}</h3>
             <p class="seats">
-              <span><Term term="oop">{s.oop || "OOP"}</Term> handelt zuerst</span>
-              <span><Term term="ip">{s.ip || "IP"}</Term> handelt zuletzt</span>
+              <span><Term id="oop">{s.oop || "OOP"}</Term> handelt zuerst</span>
+              <span><Term id="ip">{s.ip || "IP"}</Term> handelt zuletzt</span>
             </p>
           </div>
           <dl class="facts">
             <div><dt>Stack</dt><dd class="num">{num(s.stack_bb)} BB</dd></div>
             <div><dt>Pot</dt><dd class="num">{num(s.pot_bb)} BB</dd></div>
             <div>
-              <dt><Term term="exploit">Genauigkeit</Term></dt>
+              <dt><Term id="exploit">Genauigkeit</Term></dt>
               <dd class="num" title="Abweichung vom perfekten Spiel: {num(s.exploitability_pct, 2)} % des Pots">{cap(precision(s.exploitability_pct))}</dd>
             </div>
           </dl>
@@ -232,7 +232,7 @@
             <div class="who"><h3>{f.title}</h3></div>
             <dl class="facts">
               <div>
-                <dt><Term term="exploit">Genauigkeit</Term></dt>
+                <dt><Term id="exploit">Genauigkeit</Term></dt>
                 <dd class="num" title="Abweichung vom perfekten Spiel: {num(f.exploitability_pct, 2)} % des Pots">{cap(precision(f.exploitability_pct))}</dd>
               </div>
             </dl>

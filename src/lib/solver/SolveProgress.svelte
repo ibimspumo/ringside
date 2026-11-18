@@ -5,7 +5,7 @@
   import { duration } from "./actions";
   import { precision } from "./explain";
   import { solver } from "./store.svelte";
-  import Term from "./Term.svelte";
+  import Term from "../ui/Term.svelte";
 
   /** A running solve: how far it is, how exact it is so far, and a way to stop it. */
   let { total = null }: { /** The estimate for the whole solve, in seconds. */ total?: number | null } = $props();
@@ -29,7 +29,7 @@
   </div>
   <ProgressBar value={share} tone="good" size="md" label="Fortschritt des Solvers" />
   <p class="detail">
-    <Term term="exploit">Genauigkeit</Term> bisher <b>{solver.progress ? precision(solver.progress.exploitability_pct) : "–"}</b>, Ziel
+    <Term id="exploit">Genauigkeit</Term> bisher <b>{solver.progress ? precision(solver.progress.exploitability_pct) : "–"}</b>, Ziel
     <b>{precision(solver.settings.target_pct)}</b> · läuft seit <span class="num">{duration(elapsed)}</span>{#if total}, geschätzt
       <span class="num">ca. {duration(total)}</span> insgesamt{/if}
   </p>

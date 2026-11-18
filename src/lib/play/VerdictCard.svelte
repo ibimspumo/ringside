@@ -1,6 +1,6 @@
 <script lang="ts">
   import { SOURCE, reliabilityText } from "../analysis/labels";
-  import Term from "../solver/Term.svelte";
+  import Term from "../ui/Term.svelte";
   import CardText from "../ui/CardText.svelte";
   import Reason from "../ui/Reason.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
@@ -68,7 +68,7 @@
         {:else}
           <span role="columnheader">So oft spielt es die Lösung mit <CardText text={lesson.street === "preflop" ? lesson.class : view.hero_cards.join("")} /></span>
         {/if}
-        {#if lesson.evs}<span role="columnheader" class="ev"><Term term="ev">EV</Term></span>{/if}
+        {#if lesson.evs}<span role="columnheader" class="ev"><Term id="ev">EV</Term></span>{/if}
       </div>
       {#each lesson.choices as c, k (k)}
         {@const f = lesson.strategy[k] ?? 0}
@@ -95,7 +95,7 @@
             .filter((_, k) => equal[k])
             .map((c) => choiceLabel(c).label)
             .join(" und ")} sind gleich viel wert: {equalCount === 2 ? "beide" : "alle"} ≈ {signed(topEv)} BB. Die Lösung
-          <Term term="mixed">mischt</Term> sie, damit sie schwer zu lesen ist.
+          <Term id="mixed">mischt</Term> sie, damit sie schwer zu lesen ist.
         </p>
       {/if}
     </div>
@@ -115,7 +115,7 @@
 
   {#if j && j.loss_bb !== null}
     <p class="loss">
-      <Term term="evloss">EV-Verlust</Term>
+      <Term id="ev_loss">Kostet im Schnitt</Term>
       <b class="num">{num(j.loss_bb, 2)} BB</b>
       <span class="faint num">= {num(j.loss_pct ?? 0, 1)} % des Pots</span>
       <span class="faint rule" title={THRESHOLD_TEXT[j.grade]}>· {GRADE[j.grade].label}: {THRESHOLD_TEXT[j.grade]}</span>
