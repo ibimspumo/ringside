@@ -89,7 +89,7 @@
       {:else}
         <span class="dot {tone}" aria-hidden="true"></span>
       {/if}
-      <span>{words[0]}{#if pct !== null}<span class="pct num"> · {pct}&nbsp;%</span>{/if}</span>
+      <span>{words[0]}{#if pct !== null}<span class="pct num">&nbsp;·&nbsp;{pct}&nbsp;%</span>{/if}</span>
     </p>
     {#if worker.state === "solving" && worker.community}
       {@const [where, flop] = worker.community.split(/,\s*Flop\s+/)}

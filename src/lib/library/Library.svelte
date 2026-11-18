@@ -111,7 +111,8 @@
       verified,
       waiting,
       rejected: n("rejected"),
-      notUploaded: n("only_here") + n("failed"),
+      onlyHere: n("only_here"),
+      failed: n("failed"),
     };
   });
 
@@ -166,9 +167,9 @@
   const MARK_SHORT: Record<Mark, string> = {
     verified: "geprüft",
     submitted: "wartet",
-    only_here: "nicht geteilt",
+    only_here: "noch nicht hochgeladen",
     rejected: "abgelehnt",
-    failed: "Upload folgt",
+    failed: "neuer Versuch folgt",
   };
 
   const pct = (x: number) => `${Math.round(x * 100)} %`;
@@ -196,16 +197,16 @@
           <section class="stand" aria-label="Stand der Bibliothek">
             <h2 class="label">Stand der Bibliothek</h2>
             <div class="ringrow">
-            <ProgressRing value={totals.spots ? totals.done / totals.spots : 0} size={56} stroke={5} tone="info" label="Anteil fertiger Spots">
-              <span class="ring-num num">{pct(totals.spots ? totals.done / totals.spots : 0)}</span>
-            </ProgressRing>
-            <div class="facts">
-              <p class="lead">
-                <b class="num">{int(totals.done)}</b> von <span class="num">{int(totals.spots)}</span>
-                <Term tip="Ein Spot ist eine Situation mit einem bestimmten Flop, zum Beispiel du am Button gegen den Big Blind auf K♠ 7♦ 2♣.">Spots</Term> fertig
-              </p>
-              <p class="meta">In <b class="num">{totals.started}</b> von {totals.situations} Situationen kannst du schon nachsehen.</p>
-            </div>
+              <ProgressRing value={totals.spots ? totals.done / totals.spots : 0} size={56} stroke={5} tone="info" label="Anteil fertiger Spots">
+                <span class="ring-num num">{pct(totals.spots ? totals.done / totals.spots : 0)}</span>
+              </ProgressRing>
+              <div class="facts">
+                <p class="lead">
+                  <b class="num">{int(totals.done)}</b> von <span class="num">{int(totals.spots)}</span>
+                  <Term tip="Ein Spot ist eine Situation mit einem bestimmten Flop, zum Beispiel du am Button gegen den Big Blind auf K♠ 7♦ 2♣.">Spots</Term> fertig
+                </p>
+                <p class="meta">In <b class="num">{totals.started}</b> von {totals.situations} Situationen kannst du schon nachsehen.</p>
+              </div>
             </div>
           </section>
 
@@ -222,41 +223,47 @@
               {/snippet}
             </RunControl>
           </section>
-            <div class="yours" aria-label="Dein Beitrag">
-            {#if !data.share}
-              <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
-            {:else if totals.contributed === 0 && totals.notUploaded === 0}
-              <p class="meta">Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.</p>
-            {:else}
-              <ul class="keys">
-                <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
-                <li>
-                  <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> <Term tip="Ein Prüfer hat deine Lösung nachgerechnet. Jetzt können alle Ringside-Nutzer sie laden.">geprüft</Term> <i>– nachgerechnet, für alle da</i></span>
-                </li>
-                {#if totals.waiting > 0}
+          <div class="yours" aria-label="Dein Beitrag">
+              {#if !data.share}
+                <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
+              {:else if totals.contributed === 0 && totals.onlyHere + totals.failed === 0}
+                <p class="meta">Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.</p>
+              {:else}
+                <ul class="keys">
+                  <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
                   <li>
-                    <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> <Term tip="Hochgeladen, aber noch nicht nachgerechnet. Der Prüfer rechnet einmal pro Stunde nach, danach bekommen alle den Spot.">warten auf Prüfung</Term> <i>– jede Stunde</i></span>
+                    <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> <Term tip="Ein Prüfer hat deine Lösung nachgerechnet. Jetzt können alle Ringside-Nutzer sie laden.">geprüft</Term> <i>– nachgerechnet, für alle da</i></span>
                   </li>
-                {/if}
-                {#if totals.notUploaded > 0}
+                  {#if totals.waiting > 0}
+                    <li>
+                      <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> <Term tip="Hochgeladen, aber noch nicht nachgerechnet. Der Prüfer rechnet einmal pro Stunde nach, danach bekommen alle den Spot.">warten auf Prüfung</Term> <i>– jede Stunde</i></span>
+                    </li>
+                  {/if}
+                  {#if totals.onlyHere > 0}
+                    <li>
+                      <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
+                        <span class="item"><ShareMark mark="only_here" /><span><b class="num">{totals.onlyHere}</b> {MARK_SHORT.only_here}</span></span>
+                      </Tooltip>
+                    </li>
+                  {/if}
+                  {#if totals.failed > 0}
                   <li>
-                    <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
-                      <span class="item"><ShareMark mark="only_here" /><span><b class="num">{totals.notUploaded}</b> noch nicht hochgeladen</span></span>
+                    <Tooltip text="Das Hochladen klappte nicht, etwa weil keine Verbindung bestand. Ringside versucht es von selbst noch einmal.">
+                      <span class="item"><ShareMark mark="failed" /><span><b class="num">{totals.failed}</b> {MARK_SHORT.failed}</span></span>
                     </Tooltip>
                   </li>
                 {/if}
                 {#if totals.rejected > 0}
-                  <li>
-                    <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
-                      <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> abgelehnt</span></span>
-                    </Tooltip>
-                  </li>
-                {/if}
-              </ul>
-            {/if}
-          </div>
+                    <li>
+                      <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
+                        <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> abgelehnt</span></span>
+                      </Tooltip>
+                    </li>
+                  {/if}
+                </ul>
+              {/if}
+            </div>
         </div>
-
       </Card>
 
       <Dialog bind:open={tuning} size="lg" title="Kraft und Automatik" sub="Wie viel dein PC für die Bibliothek rechnet – und wann.">
@@ -299,7 +306,7 @@
 
       <div class="body">
         <nav class="situations" aria-label="Situationen">
-          <p class="step"><span class="n num">1</span>Situation wählen</p>
+          <div class="steprow"><p class="step"><span class="n num">1</span>Situation wählen</p></div>
           {#if stacks.length > 1 && current}
             <div class="depth">
               <SegmentedControl label="Stacktiefe" value={current.stack_bb} options={stackOptions} onchange={pickStack} />
@@ -330,21 +337,22 @@
 
         {#if current}
           {@const cov = coverage(current)}
+          <div class="flopcol">
+          <div class="steprow">
+            <p class="step"><span class="n num">2</span>Flop anklicken und nachsehen</p>
+            {#if cov > 0}
+              <Button variant="primary" loading={opening !== null} onclick={() => openAny(current)}>Zufälligen Flop ansehen</Button>
+            {/if}
+          </div>
           <Card pad="lg">
             <section class="flops" aria-label="Flops">
-              <div class="steprow">
-                <p class="step"><span class="n num">2</span>Flop anklicken und nachsehen</p>
-                {#if cov > 0}
-                  <Button variant="primary" loading={opening !== null} onclick={() => openAny(current)}>Zufälligen Flop ansehen</Button>
-                {/if}
-              </div>
               <SectionHead title={titleOf(current)} sub="{situationOf(current)} · Pot {num(current.pot)} BB · jeder hat noch {num(current.stack)} BB" />
               <p class="story">
                 {storyOf(current)} {firstOf(current)}
                 {#if cov > 0}
                   <span class="cover">
                     {cov >= 0.995 ? "Für jeden Flop gibt es hier eine Lösung." : `Für ${pct(cov)} aller möglichen Flops gibt es hier schon eine Lösung.`}
-                    Ein Klick auf einen hellen Flop zeigt dir für jede Hand, ob Checken, Setzen oder Aufgeben am meisten bringt.
+                    <span class="howto">Ein Klick auf einen hellen Flop zeigt dir für jede Hand, ob Checken, Setzen oder Aufgeben am meisten bringt.</span>
                   </span>
                 {/if}
               </p>
@@ -370,8 +378,10 @@
                 <span><MiniCard card="As" />Fertig</span>
                 <span><MiniCard card="As" dim />Noch offen</span>
                 {#if marksHere.length}
-                  <span class="from">Deine Spots:</span>
-                  {#each marksHere as m (m)}<span><ShareMark mark={m} />{MARK_SHORT[m]}</span>{/each}
+                  <span class="mine">
+                    <span class="from">Deine Spots:</span>
+                    {#each marksHere as m (m)}<span><ShareMark mark={m} />{MARK_SHORT[m]}</span>{/each}
+                  </span>
                 {/if}
               </div>
 
@@ -426,18 +436,21 @@
               </details>
             </section>
           </Card>
+          </div>
         {/if}
       </div>
     {:else if error}
+      <div class="state">
       <EmptyState
         tone="error"
         title="Die Bibliothek ließ sich nicht laden"
         text="{error} Meist sperrt ein Virenscanner oder ein fehlendes Schreibrecht den Datenordner von Ringside. Gib ihn frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
       >
-        {#snippet action()}<Button onclick={load}>Noch einmal versuchen</Button>{/snippet}
+        {#snippet action()}<Button variant="primary" onclick={load}>Noch einmal versuchen</Button>{/snippet}
       </EmptyState>
+      </div>
     {:else}
-      <EmptyState tone="loading" title="Bibliothek wird geladen" text="Das dauert nur einen Moment." />
+      <div class="state"><EmptyState tone="loading" title="Bibliothek wird geladen" text="Das dauert nur einen Moment." /></div>
     {/if}
   </div>
 </ClientLock>
@@ -457,6 +470,13 @@
   .err {
     color: var(--neg);
     font-size: var(--fs-md);
+  }
+
+  /* Like the lock of the page: error and loading sit in the middle of the window. */
+  .state {
+    display: grid;
+    place-items: center;
+    min-height: calc(100vh - 220px);
   }
 
   /* The band: where the library stands, what you gave, and the worker. */
@@ -609,7 +629,14 @@
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
   }
+  .flopcol {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-width: 0;
+  }
   .steprow {
+    min-height: 32px;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
@@ -711,11 +738,15 @@
     align-items: center;
     gap: var(--sp-1);
   }
-  /* Availability first, then a clear break before the marks of your own spots. */
-  .legend .from {
-    margin-left: var(--sp-2);
+  /* Your own marks wrap as one group, so the line never breaks inside it. */
+  .legend .mine {
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
     padding-left: var(--sp-4);
     border-left: 1px solid var(--line-2);
+  }
+  /* Availability first, then a clear break before the marks of your own spots. */
+  .legend .from {
     color: var(--text-2);
   }
   .texture {
@@ -789,7 +820,8 @@
     .flops {
       margin: calc(-1 * var(--sp-2));
     }
-    .keys i {
+    .keys i,
+    .howto {
       display: none;
     }
   }
