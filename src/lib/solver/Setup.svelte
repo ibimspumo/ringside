@@ -338,7 +338,7 @@
           <button class:on={solver.scenario.pot === t.id} title={t.hint} onclick={() => change({ pot: t.id as PotType })}>{t.label}</button>
         {/each}
       </div>
-      <p class="faint small">{POT_TYPES.find((t) => t.id === solver.scenario.pot)?.hint}</p>
+      <p class="dim small">{POT_TYPES.find((t) => t.id === solver.scenario.pot)?.hint}</p>
     </section>
 
     <section>
@@ -367,9 +367,10 @@
         <div class="who">
           <b class="num">{solver.positions[p]}</b>
           <span class="dim">{solver.notes[p] || "Range"}</span>
-          <span class="num faint" title="Anteil aller Starthände">{Math.round((share(text) / 1326) * 1000) / 10} %</span>
+          <span class="num dim" title="Anteil aller Starthände">{(Math.round((share(text) / 1326) * 1000) / 10).toLocaleString("de-DE")} %</span>
         </div>
       {/each}
+      <p class="faint small share-note">Prozent: Anteil aller möglichen Starthände.</p>
       <p class="origin" class:custom={solver.custom.oop || solver.custom.ip}>
         {#if solver.custom.oop || solver.custom.ip}
           {solver.custom.oop && solver.custom.ip ? "Beide Ranges angepasst" : `${solver.positions[solver.custom.oop ? "oop" : "ip"]} angepasst`}
@@ -489,6 +490,8 @@
     align-items: start;
   }
   .stagecol {
+    /* On wide screens the table stops growing; board, hand and "Lösen" stay close together. */
+    --stage-vh: min(52vh, 600px);
     display: flex;
     flex-direction: column;
     gap: 8px;

@@ -66,7 +66,7 @@
     display: grid;
     grid-template-columns: 1fr auto;
     grid-template-areas:
-      "what freq"
+      "what what"
       "chips freq";
     align-items: baseline;
     gap: 0 8px;
@@ -110,23 +110,24 @@
   }
   .what {
     grid-area: what;
-    font-size: 13px;
-    font-weight: 600;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .chips {
     grid-area: chips;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     color: var(--text-2);
     white-space: nowrap;
   }
   .freq {
     grid-area: freq;
-    font-size: 17px;
-    font-weight: 700;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-bold);
     line-height: 1;
+    justify-self: end;
   }
   .fill {
     position: absolute;

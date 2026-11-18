@@ -54,7 +54,7 @@
       }
     },
     "font-size": {
-      "total": 253,
+      "total": 251,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
@@ -108,7 +108,7 @@
         "play/VerdictCard.svelte": 4,
         "ranges/RangeGrid.svelte": 3,
         "ranges/Ranges.svelte": 10,
-        "solver/ActionBar.svelte": 3,
+        "solver/ActionBar.svelte": 1,
         "solver/DeckPopover.svelte": 1,
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 7,

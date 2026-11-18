@@ -338,7 +338,7 @@
                 <span class="faint">{STREET_NAME[d.street]}</span>
                 <span>{d.label.replace(/ \(.*\)$/, "")}</span>
                 <span class="tag {d.verdict.grade}">{GRADES[d.verdict.grade].label}</span>
-                <span class="num dim">{d.verdict.loss !== null && d.verdict.loss >= 0.005 ? `−${bb(d.verdict.loss, 2)} BB` : "kein Verlust"}</span>
+                <span class="num dim">{d.verdict.loss !== null && d.verdict.loss >= 0.005 ? `−${bb(d.verdict.loss, 2)} BB` : "±0 BB"}</span>
               </li>
             {/each}
           </ol>

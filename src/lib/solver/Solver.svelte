@@ -58,7 +58,7 @@
   ] as const;
 
   usePageHead(() => ({
-    sub: "Der Solver zeigt, wie du einen Spot mit jeder Hand am besten spielst. Deine Hand ist eine davon – wie gut sie gespielt ist, hängt davon ab, was du mit den anderen tust.",
+    sub: "Zeigt für jede Hand den besten Zug – auch für deine. Wie gut sie gespielt ist, hängt davon ab, was du mit den anderen tust.",
     label: "Ansicht",
     value: view,
     tabs: TABS.map((t) => {
