@@ -1012,9 +1012,9 @@
       var(--surface);
     opacity: 0.6;
   }
+  /* While a depth is solved live the progress box says it all. */
   .placeholder.short {
-    aspect-ratio: auto;
-    height: 120px;
+    display: none;
   }
   /* Near the top of the grid, so it stays in view on short windows. */
   .over {
