@@ -38,6 +38,7 @@
     quiz = false,
     inBigBlinds = false,
     quietPlay = false,
+    solve = true,
   }: {
     hand: Hand;
     upTo?: number | null;
@@ -51,6 +52,8 @@
     quiz?: boolean;
     inBigBlinds?: boolean;
     quietPlay?: boolean;
+    /** The solver hand-off under the table; off where the page offers it already (e.g. in a verdict). */
+    solve?: boolean;
   } = $props();
 
   type Event =
@@ -561,7 +564,7 @@
           ]}
           bind:value={() => (inBB ? "bb" : "money"), (v) => (inBB = v === "bb")}
         />
-        {#if solveSpot && !quiz}
+        {#if solveSpot && !quiz && solve}
           <Button
             size="sm"
             variant="quiet"

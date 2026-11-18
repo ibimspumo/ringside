@@ -156,7 +156,7 @@
         <span class="bet num" style="{at(p.bet)}; {from(i, p.bet)}"><i aria-hidden="true"></i>{amount(s.bet)}</span>
       {/if}
       {#if s.won !== undefined}
-        <span class="tag won num" style="{at(p.badge)}; {from(i, p.badge)}">+{amount(s.won)}</span>
+        <span class="tag won num" style="{at(p.badge)}; {from(i, p.badge)}" title="Was dieser Spieler aus dem Pot bekommt">+{amount(s.won)}</span>
       {:else if s.action}
         <span class="tag" class:graded={!!s.grade} style="{at(p.badge)}; {from(i, p.badge)}" title={s.grade ? GRADE[s.grade].label : undefined}
           ><ActionLabel {...s.action} amount={undefined} size="sm" />{#if s.grade}<GradeIcon grade={s.grade} size={15} />{/if}</span

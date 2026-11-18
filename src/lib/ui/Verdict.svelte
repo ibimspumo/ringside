@@ -61,7 +61,7 @@
       <p class="fix">
         Besser: <b>{better}</b> – dein {played}
         {#if costly}
-          kostet im Schnitt <b class="num">{bb(cost ?? 0, { digits: 2 })}</b>{#if potShare !== undefined}{" "}<span class="share">({pct(potShare)} des Pots)</span>{/if}.
+          bringt im Schnitt <b class="num">{bb(cost ?? 0, { digits: 2 })}</b> weniger{#if potShare !== undefined}{" "}<span class="share">({pct(potShare)} des Pots)</span>{/if}.
         {:else}
           ist schwächer.
         {/if}

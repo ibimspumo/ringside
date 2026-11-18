@@ -394,12 +394,12 @@
         <b style:color="color-mix(in srgb, var(--grade-{g}) 60%, var(--text))">{RATING[current.rating].label}</b>
         <span class="quiet">· {({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}</span>
         {#if current.best && (current.rating === "mistake" || current.rating === "blunder" || current.rating === "inaccuracy")}
-          – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} kostet im Schnitt <b class="num">{fmtBb(current.ev_loss_bb ?? 0, { digits: 2 })}</b>
+          – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} bringt im Schnitt <b class="num">{fmtBb(current.ev_loss_bb ?? 0, { digits: 2 })}</b> weniger
         {:else}
           – {current.played.split(" ")[0]} passt
         {/if}
       </p>
-      <Button size="sm" onclick={() => analysisEl?.scrollIntoView({ block: "start", behavior: "smooth" })}>Warum? Bewertung ansehen</Button>
+      <Button size="sm" onclick={() => analysisEl?.scrollIntoView({ block: "start", behavior: "smooth" })}>Warum?</Button>
     {:else if decisions && !decisions.length && !locked}
       <p>Diese Hand ist noch nicht bewertet.</p>
       <Button size="sm" variant={started ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={() => analyze()}>Diese Hand analysieren</Button>
@@ -606,10 +606,10 @@
             {/if}
           </span>
           {#if rail && w?.rating && !locked}
-            <span class="rail-verdict">{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
+            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
           {/if}
           <span class="end">
-            {#if rail && w?.rating && !locked}<GradeIcon grade={gradeOf(w.rating)} size={13} />{/if}
+
             {#if view === "mistakes" && costly(w) && !locked}
               <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{fmtBb(w!.ev_loss_bb!, { digits: 2 })}</span>
             {:else}
@@ -674,13 +674,13 @@
         <div class="work" class:wide bind:clientHeight={workH}>
           {#if wide}
             <div class="replay">
-              <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay>
+              <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay solve={!current?.solver}>
                 {#snippet aside()}{@render panel()}{/snippet}
               </Replayer>
             </div>
           {:else}
             <div class="replay" style:height="{replayH}px">
-              <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay />
+              <Replayer hand={selected} {marks} {jumpTo} onMark={select} onStep={follow} quietPlay solve={!current?.solver} />
             </div>
             <div class="analysis" bind:this={analysisEl}>{@render panel()}</div>
           {/if}
@@ -1165,10 +1165,9 @@
   }
   .rail-verdict {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    gap: 2px;
-    text-align: center;
+    gap: 3px;
+    white-space: nowrap;
     color: var(--text-2);
     font-size: var(--fs-xs);
   }
