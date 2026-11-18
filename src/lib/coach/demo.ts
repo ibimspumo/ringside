@@ -323,7 +323,7 @@ const LINKS: Record<string, { exercise: string | null; articles: string[] }> = {
   short_stack: { exercise: "push_fold_open", articles: ["push-fold", "m-ratio", "fold-equity"] },
   pot_odds: { exercise: "pot_odds", articles: ["pot-odds", "mdf"] },
   outs: { exercise: "outs", articles: ["outs", "regel-2-4", "implizite-odds"] },
-  value_bet: { exercise: null, articles: ["value-bluff", "alpha"] },
+  value_bet: { exercise: "river_bet", articles: ["value-bluff", "alpha"] },
 };
 
 export function concepts(): ConceptCount[] {
