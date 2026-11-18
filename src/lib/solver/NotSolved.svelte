@@ -198,7 +198,7 @@
 <style>
   .wait {
     max-width: 760px;
-    margin: var(--sp-6) auto 0;
+    margin-top: var(--sp-2);
   }
   .main {
     display: flex;

@@ -93,6 +93,8 @@
 
 <style>
   .solver {
+    /* Table, answer and the 13×13 grid side by side use the room of wide screens. */
+    max-width: 1680px;
     container: solverpage / inline-size;
   }
   .source {

@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 167,
+      "total": 166,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
@@ -48,7 +48,7 @@
         "ranges/RangeGrid.svelte": 1,
         "solver/DeckPopover.svelte": 1,
         "solver/RangeEditor.svelte": 1,
-        "solver/Saved.svelte": 2,
+        "solver/Saved.svelte": 1,
         "solver/Term.svelte": 1,
         "stats.ts": 6
       }

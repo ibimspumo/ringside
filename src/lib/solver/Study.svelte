@@ -223,11 +223,27 @@
   const startBoard = $derived(spot.board.replace(/[^AKQJT2-9cdhs]/gi, "").match(/.{2}/g) ?? []);
   const pct = (x: number) => `${Math.round(x * 100)} %`;
 
+  /** Whole percents that add up to 100, so the parts on screen sum as a reader expects. */
+  function whole(shares: number[]): number[] {
+    const raw = shares.map((f) => f * 100);
+    const out = raw.map(Math.floor);
+    let left = 100 - out.reduce((a, b) => a + b, 0);
+    for (const k of raw.map((x, k) => ({ k, r: x - Math.floor(x) })).sort((a, b) => b.r - a.r).map((x) => x.k)) {
+      if (left <= 0) break;
+      out[k] += 1;
+      left -= 1;
+    }
+    return out;
+  }
+  /** Short windows open the explanation on request, so table and actions stay in view. */
+  const roomy = typeof matchMedia === "undefined" || matchMedia("(min-height: 860px) and (min-width: 1200px)").matches;
+  const heroShares = $derived(heroNumbers?.hand ? whole(heroNumbers.hand.strategy) : []);
+
   /** How your hand differs from the range it belongs to, in equity and in how often it bets. */
   function handVsRange(n: SolverNode, h: SolverHand): string {
     const aggressive = (k: number) => isAggressive(n.actions[k].kind);
-    const mine = h.strategy.reduce((s, f, k) => s + (aggressive(k) ? f : 0), 0);
-    const all = n.actions.reduce((s, a) => s + (isAggressive(a.kind) ? a.frequency : 0), 0);
+    const mine = whole(h.strategy).reduce((s, f, k) => s + (aggressive(k) ? f : 0), 0) / 100;
+    const all = whole(n.actions.map((a) => a.frequency)).reduce((s, f, k) => s + (aggressive(k) ? f : 0), 0) / 100;
     const eq = n.players[side(n.player!)].equity;
     const strength =
       h.equity > eq + 0.08 ? "stärker als der Schnitt" : h.equity < eq - 0.08 ? "schwächer als der Schnitt" : "etwa so stark wie der Schnitt";
@@ -276,9 +292,9 @@
       </div>
     {/if}
     <div class="buttons">
-      <button class="btn" onclick={onPractice}>Üben</button>
-      <button class="btn" onclick={onEdit}>Spot bearbeiten</button>
-      <button class="btn ghost" onclick={onNew}>Verwerfen</button>
+      <Button onclick={onPractice}>Üben</Button>
+      <Button onclick={onEdit}>Spot bearbeiten</Button>
+      <Button variant="danger-quiet" onclick={onNew}>Verwerfen</Button>
     </div>
   </section>
 
@@ -340,16 +356,19 @@
         <div class="handmix" role="img" aria-label="So spielt die Lösung deine Hand">
           {#each h.strategy as f, k (k)}
             {#if f >= 0.005}
-              <i style="flex-grow:{f}; --c:{colors[k]}" title="{labels[k]}: in {pct(f)} der Fälle">
-                <span>{labels[k].replace(/ \(.*\)$/, "")}</span><b class="num">{pct(f)}</b>
+              <i style="flex-grow:{f}; --c:{colors[k]}" title="{labels[k]}: in {heroShares[k]} % der Fälle">
+                <span>{labels[k].replace(/ \(.*\)$/, "")}</span><b class="num">{heroShares[k]} %</b>
               </i>
             {/if}
           {/each}
         </div>
-        <div class="whyrange">
-          <p><b>Warum deine Hand so?</b> {handVsRange(node, h)}</p>
-          <p><b>Ganze Range:</b> {cap(headline(node).replace(/^Hier /, ""))} {why(node)}</p>
-        </div>
+        <details class="whyrange" open={roomy}>
+          <summary>Warum? Deine Hand im Vergleich zur ganzen Range</summary>
+          <div class="whytext">
+            <p><b>Deine Hand:</b> {handVsRange(node, h)}</p>
+            <p><b>Ganze Range:</b> {cap(headline(node).replace(/^Hier /, ""))} {why(node)}</p>
+          </div>
+        </details>
       {:else if node.kind === "action" && node.player}
         <span class="who">
           <b>{pos(node.player)}</b> ist am Zug ·
@@ -678,15 +697,23 @@
     font-weight: var(--fw-semibold);
   }
   .whyrange {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: var(--sp-2) var(--sp-6);
     margin: var(--sp-3) 0 0;
-    padding-top: var(--sp-3);
+    padding-top: var(--sp-2);
     border-top: 1px solid var(--line);
     font-size: var(--fs-md);
     line-height: 1.5;
     color: var(--text-2);
+  }
+  .whyrange summary {
+    cursor: pointer;
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
+  .whytext {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--sp-2) var(--sp-6);
+    margin-top: var(--sp-2);
   }
   .whyrange p {
     margin: 0;

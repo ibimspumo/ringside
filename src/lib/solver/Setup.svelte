@@ -383,9 +383,9 @@
         {/if}
       </p>
       {#if deriveNote}<p class="warn small" title={deriveDetail || undefined}>{deriveNote}</p>{/if}
-      <button class="btn ghost full" aria-expanded={editing} onclick={() => (editing = !editing)}>
+      <Button variant="quiet" full aria-expanded={editing} onclick={() => (editing = !editing)}>
         {editing ? "Ranges schließen" : "Ranges anpassen"}
-      </button>
+      </Button>
     </section>
   </aside>
 </div>
@@ -600,9 +600,7 @@
     color: var(--amber);
     margin: 0 0 10px;
   }
-  .full {
-    width: 100%;
-  }
+
   .ranges {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

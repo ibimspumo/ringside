@@ -166,16 +166,24 @@
             {#if !s.complete}· <span title="Gespeichert sind die erste Straße und der Einstieg in die nächste. Tiefer rechnet Ringside bei Bedarf neu.">erste Straße + Einstieg</span>{/if}
           </p>
           <div class="acts">
-            <button class="btn primary" disabled={opening !== null} onclick={() => open(s.id)}>
-              {opening === s.id ? "Öffnet …" : solver.savedId === s.id ? "Offen – ansehen" : "Öffnen"}
-            </button>
-            <button class="btn ghost icon" class:active={s.pinned} aria-pressed={s.pinned} title={s.pinned ? "Nicht mehr anheften" : "Anheften: wird beim Aufräumen nie gelöscht"} onclick={() => pin(s)}>
-              <svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M6 2.5h4l-.5 4 2.5 2.5H4l2.5-2.5zM8 9v4.5" /></svg>
+            <span class="grow">
+              <Button variant="primary" full disabled={opening !== null} loading={opening === s.id} onclick={() => open(s.id)}>
+                {solver.savedId === s.id ? "Offen – ansehen" : "Öffnen"}
+              </Button>
+            </span>
+            <Button
+              variant="quiet"
+              class={s.pinned ? "pinned" : ""}
+              aria-pressed={s.pinned}
+              title={s.pinned ? "Nicht mehr anheften" : "Anheften: wird beim Aufräumen nie gelöscht"}
+              onclick={() => pin(s)}
+            >
+              {#snippet icon()}<svg class="pin" class:on={s.pinned} viewBox="0 0 16 16" width="15" height="15"><path d="M6 2.5h4l-.5 4 2.5 2.5H4l2.5-2.5zM8 9v4.5" /></svg>{/snippet}
               {s.pinned ? "Angeheftet" : "Anheften"}
-            </button>
-            <button class="btn ghost icon" class:warn={confirm === s.id} onclick={() => remove(s.id)} onblur={() => confirm === s.id && (confirm = null)}>
+            </Button>
+            <Button variant={confirm === s.id ? "danger" : "danger-quiet"} onclick={() => remove(s.id)} onblur={() => confirm === s.id && (confirm = null)}>
               {confirm === s.id ? "Wirklich löschen?" : "Löschen"}
-            </button>
+            </Button>
           </div>
         </li>
       {/each}
@@ -382,23 +390,17 @@
     margin-top: auto;
     padding-top: 2px;
   }
-  .acts .primary {
+  .grow {
     flex: 1;
   }
-  .icon svg path {
+  .pin path {
     fill: none;
     stroke: currentColor;
     stroke-width: 1.5;
     stroke-linejoin: round;
     stroke-linecap: round;
   }
-  .icon.active {
-    color: var(--text);
-  }
-  .icon.active svg path {
+  .pin.on path {
     fill: currentColor;
-  }
-  .icon.warn {
-    color: #ff9d93;
   }
 </style>

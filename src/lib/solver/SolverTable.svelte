@@ -320,8 +320,8 @@
     cursor: pointer;
   }
   .seat.out {
-    transform: translate(-50%, -50%) scale(calc(var(--k) * 0.82));
-    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(calc(var(--k) * 0.9));
+    opacity: 0.7;
   }
   .seat.out.pickable:has(.seatbtn:hover) {
     opacity: 0.9;
@@ -398,7 +398,7 @@
     color: var(--text);
   }
   .out .posname {
-    font-size: 12px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .role {
@@ -418,8 +418,8 @@
     color: var(--text);
   }
   .fold {
-    font-size: var(--fs-xs);
-    color: var(--text-3);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
   }
   .tag {
     position: absolute;
@@ -431,7 +431,7 @@
     background: var(--surface-3);
     border: 1px solid var(--line-2);
     color: var(--text);
-    font-size: 11px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     line-height: 17px;
     white-space: nowrap;

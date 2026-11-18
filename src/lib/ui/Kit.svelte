@@ -112,8 +112,8 @@
   let ringValue = $state(0.35);
 
   // Knöpfe
-  const VARIANTS = ["primary", "secondary", "quiet", "danger"] as const;
-  const VNAME = { primary: "Haupt", secondary: "Neben", quiet: "Leise", danger: "Gefahr" };
+  const VARIANTS = ["primary", "secondary", "quiet", "danger", "danger-quiet"] as const;
+  const VNAME = { primary: "Haupt", secondary: "Neben", quiet: "Leise", danger: "Gefahr", "danger-quiet": "Gefahr, leise" };
   const SIZES = ["sm", "md", "lg"] as const;
   const STATES = [
     ["Ruhe", {}],
@@ -391,7 +391,7 @@
           {#each VARIANTS as v (v)}
             <span class="row-head">{VNAME[v]}</span>
             {#each STATES as [name, props] (name)}
-              <span><Button variant={v} {...props}>{v === "danger" ? "Löschen" : v === "primary" ? "Nächste Hand" : v === "quiet" ? "Abbrechen" : "Wiederholen"}</Button></span>
+              <span><Button variant={v} {...props}>{v === "danger" ? "Löschen" : v === "danger-quiet" ? "Verwerfen" : v === "primary" ? "Nächste Hand" : v === "quiet" ? "Abbrechen" : "Wiederholen"}</Button></span>
             {/each}
           {/each}
         </div>

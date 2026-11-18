@@ -70,8 +70,8 @@
     font-size: calc(var(--w) * 0.5);
   }
   .ui-slot.optional:not(.filled) {
-    border-color: color-mix(in srgb, var(--text) 18%, transparent);
-    color: color-mix(in srgb, var(--text) 40%, transparent);
+    border-color: color-mix(in srgb, var(--text) 24%, transparent);
+    color: color-mix(in srgb, var(--text) 58%, transparent);
   }
   .ui-slot.static:not(.filled) {
     border-color: color-mix(in srgb, var(--text) 8%, transparent);
