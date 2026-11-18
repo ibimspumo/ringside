@@ -7,30 +7,36 @@
 //!   hand is: before the flop by all-in equity against a random hand (limps by the
 //!   model's typical limping range), after the flop by equity against a random hand on
 //!   the board. Bets and raises keep the strong part and some of the weakest (bluffs),
-//!   calls the middle, checks most of it.
+//!   calls the middle, checks most of it; on the river bets and raises are polarized and
+//!   calls are bluff catchers.
 //! - **Equity** of the hero's two cards against all opponents at once, sampled with card
 //!   removal.
 //! - **EV of each option**, in BB from now on: fold 0; check `R × equity × pot`; call
 //!   `R × equity × (pot + call) − call`; a bet or raise wins the pot when everyone folds
 //!   and otherwise plays against what continues. Opponents continue with the strongest
 //!   part of their range, as much as the pot odds of the bet ask them to defend (the
-//!   minimum defence frequency, a little more after the flop, as real players call
-//!   more); all-ins are played out. `R` (equity realization) is 1 on the river and
-//!   all-in; before that less out of position, with more opponents and with a deeper
-//!   stack-to-pot ratio, more for the aggressor.
-//!
+//!   minimum defence frequency times a fitted factor); all-ins are played out. `R`
+//!   (equity realization) is 1 on the river and all-in; before that less out of
+//!   position, with more opponents and with a deeper stack-to-pot ratio, more for the
+//!   aggressor.
 //! - **Kinds, not sizes.** The formulas favour the biggest bet far more than solvers
-//!   do, so the estimate rates the kind of move only: every bet or raise (all-in
-//!   included) counts as much as the best one, as does every check or call.
+//!   do, so the estimate rates the kind of move: every bet or raise counts as much as
+//!   the best one, as does every check or call. An all-in counts with its own EV.
+//! - **Lines are mixed.** With enough equity to go on, how a hand goes on (check or
+//!   bet, call or raise) is what equilibrium strategies mix and what the formulas can't
+//!   rank; there no option loses more than a fitted small share of the pot. Folding a
+//!   hand that can go on, or going on with one that can't, is graded by the EVs.
 //!
-//! How often its grades agree with the solver's is measured on solved spots
-//! (`analysis-calibrate`) and stored with every estimated decision.
+//! The free numbers are fitted per street, and how often its grades agree with the
+//! solver's is measured on solved spots (`analysis-calibrate`) and stored with every
+//! estimated decision.
 
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use ringside_engine::eval::Hand as Cards;
 use ringside_engine::preflop::limp_shape;
 use ringside_engine::{Card, CardSet, Combo, HandClass, PreflopMatrix};
+use ringside_play::grade::{Grade, judge};
 use serde::{Deserialize, Serialize};
 
 pub const COMBOS: usize = 1326;
@@ -233,9 +239,48 @@ pub fn narrow(range: &mut Range, signal: Signal, strength: &[f32], dead: CardSet
         _ => {}
     }
     let top = top_share(range, strength, dead);
+    let river = dead.0.count_ones() == 5;
     for c in Combo::all() {
         let i = c.index();
-        range.0[i] *= keep(signal, 1.0 - top[i]);
+        let p = 1.0 - top[i];
+        range.0[i] *= if river { keep_river(signal, p) } else { keep(signal, p) };
+    }
+}
+
+/// [`keep`] on the river, where nothing is left to draw: bets and raises are polarized,
+/// the strong hands and about as many of the weakest as the pot odds of a usual bet
+/// make indifferent to call (a bluff for every two value bets); calls are the hands
+/// that beat bluffs; checks give up most of the strongest.
+fn keep_river(signal: Signal, p: f32) -> f32 {
+    let top = 1.0 - p;
+    match signal {
+        Signal::Bet => {
+            if top <= 0.20 || p <= 0.06 {
+                1.0
+            } else {
+                0.05
+            }
+        }
+        Signal::Raise => {
+            if top <= 0.10 || p <= 0.05 {
+                1.0
+            } else {
+                0.02
+            }
+        }
+        Signal::Call => {
+            if top <= 0.08 {
+                0.5
+            } else if p >= 0.35 {
+                1.0
+            } else {
+                0.05
+            }
+        }
+        Signal::PostCheck => {
+            if top <= 0.15 { 0.25 } else { 1.0 }
+        }
+        _ => keep(signal, p),
     }
 }
 
@@ -423,6 +468,14 @@ pub struct Tuning {
     /// the estimate can tell apart: they share the recommendation like a mix.
     #[serde(default = "default_tie")]
     pub tie_pct: f64,
+    /// A hand with at least the pot odds' equity less this margin can go on, and how it
+    /// goes on (check or bet, call or raise) is what equilibrium strategies mix and the
+    /// estimate can't rank: there no such option loses more than `line_pct` of the pot.
+    /// Hands above `line_top` equity are left out, a near-nut hand misplayed is a
+    /// mistake the estimate does see. A margin of −1 leaves every line to the EVs.
+    pub line_margin: f64,
+    pub line_pct: f64,
+    pub line_top: f64,
 }
 
 fn default_tie() -> f64 {
@@ -431,7 +484,15 @@ fn default_tie() -> f64 {
 
 impl Default for Tuning {
     fn default() -> Tuning {
-        Tuning { shrink: 1.0, strength: 0.0, defend: 1.1, tie_pct: default_tie() }
+        Tuning {
+            shrink: 1.0,
+            strength: 0.0,
+            defend: 1.1,
+            tie_pct: default_tie(),
+            line_margin: -1.0,
+            line_pct: 100.0,
+            line_top: 1.0,
+        }
     }
 }
 
@@ -450,12 +511,22 @@ fn realization(s: &Spot, spr: f64, eq: f64, t: &Tuning) -> f64 {
 
 /// EVs of `options` at `spot`.
 pub fn estimate(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning) -> Estimate {
+    let strength = strength(&spot.board, &mut ChaCha8Rng::seed_from_u64(seed ^ 0x5eed));
+    estimate_with(spot, options, seed, t, &strength)
+}
+
+/// [`estimate`] with the [`strength`] of the board's combos given.
+pub fn estimate_with(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &[f32]) -> Estimate {
+    settle(&prepare(spot, options, seed, t, strength), t)
+}
+
+/// What an estimate needs before [`settle`].
+pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &[f32]) -> Prepared {
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
     let dead = CardSet(spot.hero.mask().0 | CardSet::from_cards(&spot.board).0);
     let board_dead = CardSet::from_cards(&spot.board);
     let ranges: Vec<&Range> = spot.opponents.iter().map(|o| &o.range).collect();
     let eq = equity(spot.hero, &ranges, &spot.board, &mut rng);
-    let strength = strength(&spot.board, &mut rng);
     let call = spot.to_call();
     let behind_after_call = spot.hero_behind - call;
     let spr_now = behind_after_call / (spot.pot + call).max(0.01);
@@ -469,23 +540,67 @@ pub fn estimate(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning) -> Estimate
                 let rr = if call >= spot.hero_behind - 1e-9 { 1.0 } else { r };
                 rr * eq * (spot.pot + call) - call
             }
-            Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), &strength, board_dead, dead, rng, t),
-            Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, &strength, board_dead, dead, rng, t),
+            Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), strength, board_dead, dead, rng, t),
+            Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, strength, board_dead, dead, rng, t),
         }
     };
-    let raw: Vec<f64> = options.iter().map(|&o| ev_of(o, &mut rng)).collect();
-    let family = |o: Opt| match o {
+    let evs: Vec<f64> = options.iter().map(|&o| ev_of(o, &mut rng)).collect();
+    Prepared { options: options.to_vec(), evs, equity: eq, pot_odds, pot: spot.pot }
+}
+
+/// The part of an estimate that the free numbers after [`Tuning::defend`] and
+/// [`Tuning::strength`] don't change, so they can be tried on it quickly.
+#[derive(Clone, Debug)]
+pub struct Prepared {
+    options: Vec<Opt>,
+    /// Unshrunk EV of each option, BB.
+    evs: Vec<f64>,
+    equity: f64,
+    pot_odds: Option<f64>,
+    pot: f64,
+}
+
+/// The estimate's EVs from what [`prepare`] found.
+pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
+    let kind = |o: Opt| match o {
         Opt::Fold => 0,
         Opt::Check | Opt::Call => 1,
-        _ => 2,
+        Opt::Bet(_) | Opt::Raise(_) => 2,
+        Opt::AllIn => 3,
     };
-    let by_kind: Vec<f64> = options
+    let by_kind: Vec<f64> = p
+        .options
         .iter()
-        .map(|&o| options.iter().zip(&raw).filter(|(x, _)| family(**x) == family(o)).map(|(_, &e)| e).fold(f64::NEG_INFINITY, f64::max))
+        .map(|&o| p.options.iter().zip(&p.evs).filter(|(x, _)| kind(**x) == kind(o)).map(|(_, &e)| e).fold(f64::NEG_INFINITY, f64::max))
         .collect();
     let top = by_kind.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let evs = by_kind.iter().map(|&e| top - t.shrink * (top - e)).collect();
-    Estimate { evs, equity: eq, pot_odds }
+    let goes_on = p.equity >= p.pot_odds.unwrap_or(0.0) - t.line_margin && p.equity < t.line_top;
+    let line_cap = t.line_pct / 100.0 * p.pot;
+    let evs = p
+        .options
+        .iter()
+        .zip(&by_kind)
+        .map(|(&o, &e)| {
+            let loss = t.shrink * (top - e);
+            top - if goes_on && o != Opt::Fold { loss.min(line_cap) } else { loss }
+        })
+        .collect();
+    Estimate { evs, equity: p.equity, pot_odds: p.pot_odds }
+}
+
+/// How often the estimate plays each option: it has no mixed strategy, so the options
+/// it can't tell apart from the best one share the frequency.
+pub fn strategy(est: &Estimate, pot: f64, t: &Tuning) -> Vec<f64> {
+    let top = est.evs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let near: Vec<bool> = est.evs.iter().map(|&e| (top - e) / pot.max(0.01) * 100.0 <= t.tie_pct).collect();
+    let share = 1.0 / near.iter().filter(|&&x| x).count().max(1) as f64;
+    near.iter().map(|&x| if x { share } else { 0.0 }).collect()
+}
+
+/// The grade of every option, as the analysis and the practice give it.
+pub fn grades(est: &Estimate, options: &[Opt], pot: f64, t: &Tuning) -> Vec<Grade> {
+    let freq = strategy(est, pot, t);
+    (0..options.len()).map(|k| judge(&freq, Some(&est.evs), k, pot).grade).collect()
 }
 
 /// EV of betting or raising to `to` on the street.
