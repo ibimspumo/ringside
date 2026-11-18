@@ -1,11 +1,23 @@
 <script lang="ts">
-  import { usePageHead } from "../ui/page.svelte";
   import { onMount } from "svelte";
+  import { inTauri } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import MiniCard from "../ui/MiniCard.svelte";
+  import { usePageHead } from "../ui/page.svelte";
+  import ProgressBar from "../ui/ProgressBar.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
+  import SectionHead from "../ui/SectionHead.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import Tooltip from "../ui/Tooltip.svelte";
   import { libraryApi, onLibraryStatus } from "./api";
   import BackgroundMode from "./BackgroundMode.svelte";
-  import { cards, depthOf, firstOf, flopName, MARK_NAME, markOf, markText, type Mark, situationOf, storyOf, suit, titleOf } from "./labels";
+  import { preview } from "./demo";
+  import { cards, depthOf, firstOf, flopName, MARK_NAME, markOf, markText, type Mark, situationOf, storyOf, titleOf } from "./labels";
   import { openInSolver } from "./open";
+  import PowerChoice from "./PowerChoice.svelte";
   import RunControl from "./RunControl.svelte";
   import ShareMark from "./ShareMark.svelte";
   import type { LibraryMode, LibraryOverview, LibraryScenario, WorkerStatus } from "./types";
@@ -17,7 +29,9 @@
   let worker = $state<WorkerStatus | null>(null);
   let selected = $state<string | null>(null);
   let error = $state<string | null>(null);
+  let openError = $state<string | null>(null);
   let opening = $state<string | null>(null);
+  let tuning = $state(!inTauri && preview.has("settings"));
 
   async function load() {
     try {
@@ -27,9 +41,10 @@
       error = null;
       if (!selected || !o.scenarios.some((s) => s.id === selected)) selected = o.scenarios[0]?.id ?? null;
     } catch (e) {
-      error = String(e);
+      error = message(e);
     }
   }
+  const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
   onMount(() => {
     load();
@@ -54,12 +69,19 @@
     opening = flop;
     try {
       await openInSolver(s, flop);
+      openError = null;
       onOpen();
     } catch (e) {
-      error = String(e);
+      openError = message(e);
     } finally {
       opening = null;
     }
+  }
+
+  /** Any solved flop of the situation, for a first look without choosing. */
+  function openAny(s: LibraryScenario) {
+    const solved = data?.flops.filter((_, i) => s.status[i]) ?? [];
+    if (solved.length) open(s, solved[Math.floor(Math.random() * solved.length)]);
   }
 
   const ALL_FLOPS = 22_100;
@@ -76,22 +98,35 @@
     const marks = all.flatMap((s) => s.status.flatMap((st, i) => (st === "local" ? [markOf(s.shared[i])] : [])));
     const n = (m: Mark) => marks.filter((x) => x === m).length;
     const verified = n("verified");
-    const contributed = verified + n("submitted");
+    const waiting = n("submitted");
     return {
       local,
-      cloud,
       spots,
       done: local + cloud,
       started,
       situations: all.length,
-      contributed,
+      contributed: verified + waiting,
       verified,
+      waiting,
       rejected: n("rejected"),
-      waiting: n("only_here") + n("failed"),
+      notUploaded: n("only_here") + n("failed"),
     };
   });
-  const stacks = $derived([...new Set((data?.scenarios ?? []).map((s) => s.stack_bb))]);
+
   const current = $derived(data?.scenarios.find((s) => s.id === selected) ?? null);
+  const stacks = $derived([...new Set((data?.scenarios ?? []).map((s) => s.stack_bb))].sort((a, b) => a - b));
+  const stackOptions = $derived(stacks.map((s) => ({ value: s, label: `${s} BB`, hint: depthOf(s) })));
+  const POTS: { id: LibraryScenario["pot_type"]; name: string; hint: string }[] = [
+    { id: "srp", name: "Normaler Raise", hint: "Du erhöhst, einer geht mit" },
+    { id: "three_bet", name: "Nach einer 3-Bet", hint: "Du erhöhst, einer erhöht noch einmal, du gehst mit" },
+  ];
+  /** The situation with the most solutions at a depth, so a new depth opens on something to see. */
+  function pickStack(stack: number) {
+    const at = (data?.scenarios ?? []).filter((s) => s.stack_bb === stack);
+    selected = [...at].sort((a, b) => coverage(b) - coverage(a))[0]?.id ?? selected;
+  }
+  /** Fullest situation of all, as the way out of an empty one. */
+  const fullest = $derived([...(data?.scenarios ?? [])].sort((a, b) => coverage(b) - coverage(a))[0] ?? null);
 
   type Texture = "Rainbow" | "Zweifarbig" | "Monoton" | "Gepaart" | "Drilling";
   const TEXTURE_HINT: Record<Texture, string> = {
@@ -120,408 +155,449 @@
     });
     return out;
   });
+  /** Marks that occur in the situation on view; the legend names only those. */
+  const marksHere = $derived.by(() => {
+    if (!current) return [];
+    const seen = new Set(current.status.flatMap((st, i) => (st === "local" ? [markOf(current.shared[i])] : [])));
+    return (["verified", "submitted", "only_here", "rejected", "failed"] as Mark[]).filter((m) => seen.has(m));
+  });
+  const MARK_SHORT: Record<Mark, string> = {
+    verified: "geprüft",
+    submitted: "wartet auf Prüfung",
+    only_here: "noch nicht geteilt",
+    rejected: "abgelehnt",
+    failed: "Hochladen klappte nicht",
+  };
 
   const pct = (x: number) => `${Math.round(x * 100)} %`;
+  const int = (x: number) => x.toLocaleString("de-DE");
   const num = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   const mb = (b: number) =>
     b >= 1e9 ? `${(b / 1e9).toLocaleString("de-DE", { maximumFractionDigits: 1 })} GB` : `${Math.round(b / 1e6).toLocaleString("de-DE")} MB`;
-  const MARKS: Mark[] = ["only_here", "submitted", "verified", "rejected", "failed"];
+
+  function tip(s: LibraryScenario, i: number, busy: boolean): string {
+    const st = s.status[i];
+    if (busy) return "Wird gerade gerechnet.";
+    if (st === "local") return `${markText(s.shared[i], data?.share ?? false)} Klick zum Ansehen.`;
+    if (st === "cloud") return "Fertig, aus der Cloud geladen und geprüft. Klick zum Ansehen.";
+    return "Noch nicht gelöst. Mitrechnen füllt die Bibliothek nach und nach.";
+  }
 
   usePageHead(() => ({ sub: "Fertig gelöste Spots für die häufigsten Turnier-Situationen – gerechnet hier oder geladen aus Ringside Cloud." }));
 </script>
 
 <ClientLock feature="Die Bibliothek">
   <div class="page library">
-    {#if error}<p class="err">{error}</p>{/if}
-
     {#if data && worker}
-      <ol class="how" aria-label="So nutzt du die Bibliothek">
-        <li><b>Situation wählen</b><span>zum Beispiel du am Button gegen den Big Blind</span></li>
-        <li><b>Flop anklicken</b><span>die drei Karten nach der Preflop-Runde</span></li>
-        <li><b>Nachsehen und üben</b><span>für jede Hand: checken, setzen oder aufgeben – was bringt am meisten?</span></li>
-      </ol>
-
-      <div class="top">
-        <section class="panel overview" aria-label="Stand der Bibliothek">
-          <div class="ring" style="--p:{totals.spots ? totals.done / totals.spots : 0}">
-            <span class="num">{pct(totals.spots ? totals.done / totals.spots : 0)}</span>
-          </div>
-          <div class="otext">
-            <p class="lead">
-              <b class="num">{totals.done.toLocaleString("de-DE")}</b> von {totals.spots.toLocaleString("de-DE")} Spots sind fertig.
-            </p>
-            <p class="faint">
-              In {totals.started} von {totals.situations} Situationen kannst du schon nachsehen.
-              {#if totals.local > 0}{totals.local} davon hat dein PC selbst gerechnet.{/if}
-            </p>
-          </div>
-          <div class="contrib">
-            {#if data.share || totals.contributed > 0}
-              <p class="lead">
-                <b class="num">{totals.contributed}</b> von dir beigetragen, <b class="num">{totals.verified}</b> geprüft
+      <Card pad="md">
+        <div class="band">
+          <section class="stand" aria-label="Stand der Bibliothek">
+            <h2 class="label">Stand der Bibliothek</h2>
+            <div class="ringrow">
+            <ProgressRing value={totals.spots ? totals.done / totals.spots : 0} size={64} stroke={6} tone="info" label="Anteil fertiger Spots">
+              <span class="ring-num num">{pct(totals.spots ? totals.done / totals.spots : 0)}</span>
+            </ProgressRing>
+            <div class="facts">
+              <p class="lead"><b class="num">{int(totals.done)}</b> von <span class="num">{int(totals.spots)}</span> Spots fertig</p>
+              <p class="meta">
+                Ein Spot ist eine Situation mit einem bestimmten Flop. In <b class="num">{totals.started}</b> von {totals.situations} Situationen
+                kannst du schon nachsehen.
               </p>
-              <div class="cbar" aria-hidden="true">
-                <i class="ok" style="flex:{totals.verified}"></i>
-                <i class="wait" style="flex:{totals.contributed - totals.verified}"></i>
-                <i class="rest" style="flex:{totals.contributed ? 0 : 1}"></i>
-              </div>
-              <p class="faint">
-                {#if totals.contributed === 0}
-                  Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.
-                {:else if totals.contributed > totals.verified}
-                  {totals.contributed - totals.verified} warten noch auf die Prüfung; der Prüfer rechnet einmal pro Stunde nach.
-                {:else}
-                  Alles, was du beigetragen hast, ist geprüft und für alle verfügbar.
-                {/if}
-                {#if totals.waiting > 0}{totals.waiting} noch nicht hochgeladen, das holt Ringside nach.{/if}
-                {#if totals.rejected > 0}{totals.rejected} abgelehnt (Grund im Tooltip der Kachel).{/if}
+            </div>
+            </div>
+          </section>
+
+          <section class="mine" aria-label="Dein Beitrag">
+            <h2 class="label">Dein Beitrag</h2>
+            {#if !data.share}
+              <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
+            {:else if totals.contributed === 0}
+              <p class="meta">
+                Noch nichts. Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.
               </p>
             {:else}
-              <p class="faint">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Ändern kannst du das in den Einstellungen unter Ringside Cloud.</p>
-            {/if}
-          </div>
-        </section>
-
-        <section class="panel worker" aria-label="Mitrechnen">
-          <div class="panel-head"><h2 class="panel-title">Mitrechnen</h2></div>
-          <div class="wbody">
-            <RunControl {data} {worker} onChange={load} />
-            <div class="auto">
-              <span class="label">Automatik</span>
-              <BackgroundMode mode={data.mode} onChange={setMode} />
-            </div>
-            <p class="why">
-              Die Bibliothek wächst, weil Ringside-PCs Spots rechnen und teilen. Geteilt wird nur der Spot und seine Lösung,
-              nichts über dich.
-            </p>
-            <details>
-              <summary>Details für Experten</summary>
-              <dl>
-                {#if worker.state === "solving"}
-                  <dt>Iteration</dt>
-                  <dd class="num">{worker.iteration}</dd>
-                  <dt>Ausbeutbarkeit</dt>
-                  <dd class="num">{num(worker.exploitability_pct)} % des Pots, Ziel {num(data.target_pct)} %</dd>
-                  <dt>Threads</dt>
-                  <dd class="num">{worker.threads}</dd>
+              <p class="lead"><b class="num">{int(totals.contributed)}</b> Spots von dir geteilt</p>
+              <ProgressBar value={totals.verified / totals.contributed} tone="good" label="Anteil geprüfter Spots" />
+              <ul class="keys">
+                <li>
+                  <ShareMark mark="verified" />
+                  <p><b class="num">{int(totals.verified)}</b> geprüft <span>– nachgerechnet, jetzt für alle da</span></p>
+                </li>
+                {#if totals.waiting > 0}
+                  <li>
+                    <ShareMark mark="submitted" />
+                    <p><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <span>– ein Prüfer rechnet einmal pro Stunde nach</span></p>
+                  </li>
                 {/if}
-                <dt>Seit dem Start</dt>
-                <dd>{worker.solved} gerechnet, {worker.fetched} geladen, {worker.shared} hochgeladen</dd>
-                <dt>Auf der Festplatte</dt>
-                <dd class="num">{mb(data.disk_bytes)}</dd>
-                {#if worker.last_error}<dt>Zuletzt</dt><dd class="warn">{worker.last_error}</dd>{/if}
-              </dl>
-            </details>
+              </ul>
+            {/if}
+            {#if data.share && (totals.notUploaded > 0 || totals.rejected > 0)}
+              <p class="meta">
+                {#if totals.notUploaded > 0}{totals.notUploaded} noch nicht hochgeladen, das holt Ringside nach.{/if}
+                {#if totals.rejected > 0}{totals.rejected} abgelehnt – den Grund zeigt die Kachel.{/if}
+              </p>
+            {/if}
+          </section>
+
+          <section class="worker" aria-label="Mitrechnen">
+            <h2 class="label">Mitrechnen</h2>
+            <RunControl {data} {worker} primary={totals.done === 0} onChange={load} />
+            <Button variant="quiet" size="sm" class="tune" aria-expanded={tuning} aria-controls="lib-tuning" onclick={() => (tuning = !tuning)}>
+              {#snippet icon()}
+                <svg class="chev" viewBox="0 0 16 16" width="12" height="12"><path d="M4 6l4 4 4-4" /></svg>
+              {/snippet}
+              Kraft und Automatik
+            </Button>
+          </section>
+        </div>
+
+        <div class="more" class:open={tuning} id="lib-tuning" inert={!tuning}>
+          <div class="more-inner">
+            <div class="tuning">
+              <div class="row">
+                <h3 class="label">Kraft</h3>
+                <PowerChoice {data} />
+              </div>
+              <div class="row">
+                <h3 class="label">Automatik</h3>
+                <BackgroundMode mode={data.mode} onChange={setMode} />
+              </div>
+              <div class="row">
+                <span></span>
+                <div class="why">
+                  <p>Die Bibliothek wächst, weil Ringside-PCs Spots rechnen und teilen. Geteilt wird nur der Spot und seine Lösung, nichts über dich.</p>
+                  <details>
+                    <summary>Details für Experten</summary>
+                    <dl>
+                      {#if worker.state === "solving"}
+                        <dt>Iteration</dt>
+                        <dd class="num">{worker.iteration}</dd>
+                        <dt>Ausbeutbarkeit</dt>
+                        <dd class="num">{num(worker.exploitability_pct)} % des Pots, Ziel {num(data.target_pct)} %</dd>
+                        <dt>Threads</dt>
+                        <dd class="num">{worker.threads}</dd>
+                      {/if}
+                      <dt>Seit dem Start</dt>
+                      <dd>{worker.solved} gerechnet, {worker.fetched} geladen, {worker.shared} hochgeladen</dd>
+                      <dt>Auf der Festplatte</dt>
+                      <dd class="num">{mb(data.disk_bytes)}</dd>
+                      {#if worker.last_error}<dt>Zuletzt</dt><dd class="warn">{worker.last_error}</dd>{/if}
+                    </dl>
+                  </details>
+                </div>
+              </div>
+            </div>
           </div>
-        </section>
-      </div>
+        </div>
+      </Card>
 
       <div class="body">
-        <nav class="panel scenarios" aria-label="Situationen">
-          {#each stacks as stack (stack)}
-            <h3>{stack} BB <span>· {depthOf(stack)}</span></h3>
-            {#each data.scenarios.filter((s) => s.stack_bb === stack) as s (s.id)}
-              {@const cov = coverage(s)}
-              <button class="scenario" class:on={s.id === selected} onclick={() => (selected = s.id)}>
-                <span class="name">{titleOf(s)}</span>
-                <span class="kind">{s.pot_type === "srp" ? "Normaler Raise" : "Nach einer 3-Bet"}</span>
-                <span class="mini" aria-label="{pct(cov)} der Flops gelöst">
-                  <i class="cloud" style="width:{(count(s, 'cloud') / s.status.length) * 100}%"></i>
-                  <i class="local" style="width:{(count(s, 'local') / s.status.length) * 100}%"></i>
-                </span>
-                <span class="count num">{pct(cov)}</span>
-              </button>
-            {/each}
+        <nav class="situations" aria-label="Situationen">
+          <p class="step"><span class="n num">1</span>Situation wählen</p>
+          {#if stacks.length > 1 && current}
+            <div class="depth">
+              <SegmentedControl label="Stacktiefe" value={current.stack_bb} options={stackOptions} onchange={pickStack} />
+              <p>{depthOf(current.stack_bb).replace(/^./, (c) => c.toUpperCase())}: so viele Big Blinds hat jeder vor der Hand.</p>
+            </div>
+          {/if}
+          {#each POTS as pot (pot.id)}
+            {@const list = data.scenarios.filter((s) => s.stack_bb === current?.stack_bb && s.pot_type === pot.id)}
+            {#if list.length}
+              <div class="pot">
+                <h3>{pot.name} <span>· {pot.hint}</span></h3>
+                {#each list as s (s.id)}
+                  {@const cov = coverage(s)}
+                  <Card pad="sm" selected={s.id === selected} onclick={() => (selected = s.id)}>
+                    <span class="sit">
+                      <span class="sname">{titleOf(s)}</span>
+                      <span class="sbar">
+                        <ProgressBar value={cov} tone="info" label="Anteil gelöster Flops" />
+                        <span class="num" class:none={cov === 0}>{cov === 0 ? "leer" : pct(cov)}</span>
+                      </span>
+                    </span>
+                  </Card>
+                {/each}
+              </div>
+            {/if}
           {/each}
         </nav>
 
         {#if current}
           {@const cov = coverage(current)}
-          <section class="panel flops" aria-label="Flops">
-            <div class="fhead">
-              <h2>{titleOf(current)}</h2>
-              <p class="sub">{situationOf(current)}</p>
-              <p>
-                {storyOf(current)}
-                Im Pot liegen {num(current.pot)} BB, jeder hat noch {num(current.stack)} BB. {firstOf(current)}
+          <Card pad="lg">
+            <section class="flops" aria-label="Flops">
+              <p class="step"><span class="n num">2</span>Flop anklicken und nachsehen</p>
+              <SectionHead title={titleOf(current)} sub={situationOf(current)}>
+                {#snippet actions()}
+                  {#if cov > 0}
+                    <Button variant="primary" loading={opening !== null} onclick={() => openAny(current)}>Zufälligen Flop ansehen</Button>
+                  {/if}
+                {/snippet}
+              </SectionHead>
+              <p class="story">
+                {storyOf(current)} Im Pot liegen <span class="num">{num(current.pot)}</span> BB, jeder hat noch
+                <span class="num">{num(current.stack)}</span> BB. {firstOf(current)}
               </p>
-              <p class="cover">
-                {#if cov >= 0.995}
-                  Für jeden Flop gibt es hier eine Lösung.
-                {:else if cov > 0}
-                  Schon für <b>{pct(cov)}</b> aller möglichen Flops gibt es hier eine Lösung. Klick auf einen farbigen Flop.
-                {:else}
-                  Hier ist noch nichts gelöst. Mitrechnen füllt die Bibliothek nach und nach.
+
+              {#if cov === 0}
+                <EmptyState
+                  inline
+                  compact
+                  title="Hier ist noch nichts gelöst"
+                  text={totals.done === 0
+                    ? "Die Bibliothek ist noch leer. Ringside lädt fertige Spots aus der Cloud, und Mitrechnen füllt sie nach und nach."
+                    : "Mitrechnen füllt die Bibliothek nach und nach. In anderen Situationen gibt es schon fertige Flops."}
+                >
+                  {#snippet action()}
+                    {#if fullest && coverage(fullest) > 0 && fullest.id !== current.id}
+                      <Button onclick={() => (selected = fullest.id)}>Zur vollsten Situation</Button>
+                    {/if}
+                  {/snippet}
+                </EmptyState>
+              {:else}
+                <p class="cover">
+                  {#if cov >= 0.995}
+                    Für jeden Flop gibt es hier eine Lösung.
+                  {:else}
+                    Für <b class="num">{pct(cov)}</b> aller möglichen Flops gibt es hier schon eine Lösung.
+                  {/if}
+                  Klick auf einen hellen Flop: Du siehst für jede Hand, ob Checken, Setzen oder Aufgeben am meisten bringt.
+                </p>
+              {/if}
+              {#if openError}<p class="err" role="alert">Der Spot ließ sich nicht öffnen: {openError}</p>{/if}
+
+              <div class="legend" aria-label="Legende">
+                <span><MiniCard card="As" />Fertig, klick zum Ansehen</span>
+                <span><MiniCard card="As" dim />Noch offen</span>
+                {#if marksHere.length}
+                  <span class="from">Von dir gerechnet:</span>
+                  {#each marksHere as m (m)}
+                    <span title={m === "only_here" && !data.share ? "Nur auf deinem PC, Teilen ist aus" : MARK_NAME[m]}><ShareMark mark={m} />{MARK_SHORT[m]}</span>
+                  {/each}
                 {/if}
-              </p>
-            </div>
-            <div class="legend" aria-label="Legende">
-              <div>
-                <h4>Flop-Kachel</h4>
-                <span><i class="dot cloud"></i>Heruntergeladen, fertig zum Ansehen</span>
-                <span><i class="dot local"></i>Auf deinem PC gerechnet</span>
-                <span><i class="dot open"></i>Noch offen</span>
               </div>
-              <div>
-                <h4>Symbol an deinen Spots</h4>
-                {#each MARKS as m (m)}
-                  <span><ShareMark mark={m} />{m === "only_here" && !data.share ? "Nur auf deinem PC, Teilen ist aus" : MARK_NAME[m]}</span>
-                {/each}
-              </div>
-            </div>
-            {#each groups as g (g.name)}
-              <h3>{g.name} <span class="faint">– {TEXTURE_HINT[g.name]}</span></h3>
-              <div class="grid">
-                {#each g.flops as { flop, i } (flop)}
-                  {@const st = current.status[i]}
-                  {@const busy = worker.state === "solving" && worker.scenario === current.id && worker.flop === flop}
-                  <button
-                    class="flop {st ?? 'open'}"
-                    class:busy
-                    disabled={!st || opening !== null}
-                    title={st === "local"
-                      ? `${markText(current.shared[i], data.share)} Klick zum Ansehen.`
-                      : st === "cloud"
-                        ? "Heruntergeladen – klick zum Ansehen."
-                        : busy
-                          ? "Wird gerade gerechnet"
-                          : "Noch nicht gelöst"}
-                    onclick={() => open(current, flop)}
-                  >
-                    {#each cards(flop) as [r, s], k (k)}<span class="card {s}">{r}<small>{suit(s)}</small></span>{/each}
-                    {#if st === "local"}<span class="badge"><ShareMark mark={markOf(current.shared[i])} /></span>{/if}
-                  </button>
-                {/each}
-              </div>
-            {/each}
-            <details class="expert">
-              <summary>Wie die Lösungen entstehen</summary>
-              <p>
-                Gelöst wird mit dem Solver von Ringside, bis kein Gegner mehr als {num(data.target_pct)} % des Pots gegen die
-                Strategie gewinnen könnte (Ausbeutbarkeit). Die Ranges vor dem Flop stammen aus dem Preflop-Modell (9 Spieler,
-                Big-Blind-Ante); Einsätze nach dem Flop: ein Drittel des Pots auf dem Flop, zwei Drittel bis drei Viertel auf Turn und River, dazu Raises und All-in.
-                Gespeichert sind alle Flop-Entscheidungen beider Spieler je Hand und die erste Entscheidung auf jedem Turn je
-                Handklasse; tiefer rechnet der Solver auf Wunsch neu.
-              </p>
-              <p>
-                Die {data.flops.length} Flops sind eine geschichtete Stichprobe der 1755 strategisch verschiedenen Flops (Flops, die
-                sich nur durch vertauschte Farben unterscheiden, spielen sich gleich). Jeder steht für etwa
-                {Math.round(ALL_FLOPS / data.flops.length)} der {ALL_FLOPS.toLocaleString("de-DE")} möglichen Flops; daher die
-                Prozentangaben. Heruntergeladene Spots hat ein Prüfer mit dem Solver nachgemessen, oder sie tragen die Signatur von
-                Ringside.
-              </p>
-            </details>
-          </section>
+
+              {#each groups as g (g.name)}
+                {@const solved = g.flops.filter(({ i }) => current.status[i]).length}
+                <h3 class="texture">
+                  <span>{g.name} <span class="hint">– {TEXTURE_HINT[g.name]}</span></span>
+                  <span class="gcount num">{solved} von {g.flops.length} fertig</span>
+                </h3>
+                <div class="grid">
+                  {#each g.flops as { flop, i } (flop)}
+                    {@const st = current.status[i]}
+                    {@const busy = worker.state === "solving" && worker.scenario === current.id && worker.flop === flop}
+                    <div class="cell">
+                      <Tooltip text={tip(current, i, busy)}>
+                        <Card
+                          pad="xs"
+                          disabled={!st || opening !== null}
+                          aria-label="Flop {flopName(flop)}{st ? '' : ', noch nicht gelöst'}"
+                          onclick={() => open(current, flop)}
+                        >
+                          <span class="tile" class:open={!st}>
+                            {#each cards(flop) as [r, s], k (k)}<MiniCard card={r + s} />{/each}
+                            {#if busy || opening === flop}
+                              <span class="mark"><ProgressRing value={null} size={14} stroke={2} label="Wird gerechnet" /></span>
+                            {:else if st === "local"}
+                              <span class="mark"><ShareMark mark={markOf(current.shared[i])} /></span>
+                            {/if}
+                          </span>
+                        </Card>
+                      </Tooltip>
+                    </div>
+                  {/each}
+                </div>
+              {/each}
+
+              <details class="expert">
+                <summary>Wie die Lösungen entstehen</summary>
+                <p>
+                  Gelöst wird mit dem Solver von Ringside, bis kein Gegner mehr als {num(data.target_pct)} % des Pots gegen die Strategie
+                  gewinnen könnte (Ausbeutbarkeit). Die Ranges vor dem Flop stammen aus dem Preflop-Modell (9 Spieler, Big-Blind-Ante);
+                  Einsätze nach dem Flop: ein Drittel des Pots auf dem Flop, zwei Drittel bis drei Viertel auf Turn und River, dazu Raises und
+                  All-in. Gespeichert sind alle Flop-Entscheidungen beider Spieler je Hand und die erste Entscheidung auf jedem Turn je
+                  Handklasse; tiefer rechnet der Solver auf Wunsch neu.
+                </p>
+                <p>
+                  Die {data.flops.length} Flops sind eine geschichtete Stichprobe der 1755 strategisch verschiedenen Flops (Flops, die sich nur
+                  durch vertauschte Farben unterscheiden, spielen sich gleich). Jeder steht für etwa {Math.round(ALL_FLOPS / data.flops.length)}
+                  der {int(ALL_FLOPS)} möglichen Flops; daher die Prozentangaben. Heruntergeladene Spots hat ein Prüfer mit dem Solver
+                  nachgemessen, oder sie tragen die Signatur von Ringside.
+                </p>
+              </details>
+            </section>
+          </Card>
         {/if}
       </div>
-    {:else if !error}
-      <p class="faint">Lädt …</p>
+    {:else if error}
+      <EmptyState tone="error" title="Die Bibliothek ließ sich nicht laden" text={error}>
+        {#snippet action()}<Button onclick={load}>Noch einmal versuchen</Button>{/snippet}
+      </EmptyState>
+    {:else}
+      <EmptyState tone="loading" title="Bibliothek wird geladen" text="Das dauert nur einen Moment." />
     {/if}
   </div>
 </ClientLock>
 
 <style>
-  .err {
-    color: #ff9d93;
+  .library {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+  }
+  p {
+    margin: 0;
   }
   .warn {
     color: var(--amber);
   }
-  .how {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    margin: 0 0 14px;
-    padding: 0;
-    list-style: none;
-    counter-reset: step;
-  }
-  .how li {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 2px 10px;
-    padding: 12px 14px;
-    border-radius: var(--r-lg);
-    background: var(--surface);
-    border: 1px solid var(--line);
-    counter-increment: step;
-  }
-  .how li::before {
-    content: counter(step);
-    grid-row: span 2;
-    display: grid;
-    place-items: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: var(--surface-3);
-    font-family: var(--font-num);
-    font-weight: 600;
-    font-size: 13px;
-  }
-  .how b {
-    font-size: 13.5px;
-    font-weight: 600;
-  }
-  .how span {
-    color: var(--text-2);
-    font-size: 12.5px;
-  }
-  .top {
-    display: grid;
-    grid-template-columns: minmax(280px, 400px) minmax(0, 1fr);
-    gap: 14px;
-    margin-bottom: 14px;
-    align-items: start;
-  }
-  .overview {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 16px 18px;
-    align-items: center;
-    padding: 18px;
-  }
-  .contrib {
-    grid-column: 1 / -1;
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    padding-top: 14px;
-    border-top: 1px solid var(--line);
-  }
-  .contrib p {
-    margin: 0;
-    font-size: 12.5px;
-    line-height: 1.45;
-  }
-  .contrib .lead {
-    font-size: 14px;
-  }
-  .cbar {
-    display: flex;
-    height: 6px;
-    overflow: hidden;
-    border-radius: 99px;
-    background: var(--surface-3);
-  }
-  .cbar i {
-    display: block;
-  }
-  .cbar .ok {
-    background: var(--pos);
-  }
-  .cbar .wait {
-    background: var(--amber);
-  }
-  .ring {
-    --p: 0;
-    flex: none;
-    display: grid;
-    place-items: center;
-    width: 84px;
-    height: 84px;
-    border-radius: 50%;
-    background:
-      radial-gradient(closest-side, var(--surface) 76%, transparent 77%),
-      conic-gradient(var(--sd) calc(var(--p) * 100%), var(--surface-3) 0);
-  }
-  .ring span {
-    font-size: 19px;
-    font-weight: 600;
-  }
-  .otext {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .otext p {
-    margin: 0;
-    font-size: 12.5px;
-    line-height: 1.45;
-  }
-  .otext .lead {
-    font-size: 14px;
-    color: var(--text);
-  }
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 36px;
-    margin-top: 14px;
-    padding: 12px 14px;
-    border-radius: var(--r-sm);
-    background: var(--bg);
-    border: 1px solid var(--line);
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .legend div {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 16px;
-  }
-  .legend h4 {
-    flex-basis: 100%;
-    margin: 0;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: var(--text-3);
-  }
-  .legend span {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-  }
-  i.cloud,
-  .dot.cloud {
-    background: var(--sd);
-  }
-  i.local,
-  .dot.local {
-    background: var(--pos);
-  }
-  .dot.open {
-    background: var(--surface-3);
-    box-shadow: inset 0 0 0 1px var(--line-2);
+  .err {
+    color: var(--neg);
+    font-size: var(--fs-md);
   }
 
-  .wbody {
+  /* The band: where the library stands, what you gave, and the worker. */
+  .band {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.1fr);
+    gap: var(--sp-6);
+  }
+  .band > section + section {
+    padding-left: var(--sp-6);
+    border-left: 1px solid var(--line);
+  }
+  .ringrow {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+  }
+  .ring-num {
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
+  }
+  .facts,
+  .stand,
+  .mine,
+  .worker {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 14px 18px 16px;
+    gap: var(--sp-2);
+    min-width: 0;
   }
-  .auto {
+  .label {
+    margin: 0;
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+  }
+  .lead {
+    color: var(--text);
+    font-size: var(--fs-lg);
+    line-height: var(--lh-tight);
+  }
+  .lead b {
+    font-weight: var(--fw-semibold);
+  }
+  .meta {
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
+  }
+  .meta b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
+  .keys {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    margin: var(--sp-1) 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: var(--fs-md);
+  }
+  .keys li {
     display: grid;
-    grid-template-columns: 76px minmax(0, 1fr);
-    gap: 14px;
-    align-items: start;
-    padding-top: 14px;
+    grid-template-columns: 14px minmax(0, 1fr);
+    gap: var(--sp-2);
+    align-items: baseline;
+    line-height: var(--lh-base);
+  }
+  .keys li > :global(.mark) {
+    transform: translateY(2px);
+  }
+  .keys b {
+    font-weight: var(--fw-semibold);
+  }
+  .keys span {
+    color: var(--text-2);
+  }
+  .worker :global(.tune) {
+    align-self: flex-start;
+    margin-left: calc(-1 * var(--sp-3));
+  }
+  .chev {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    transition: transform var(--dur-fast) var(--ease-standard);
+  }
+  :global([aria-expanded="true"]) .chev {
+    transform: rotate(180deg);
+  }
+
+  .more {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows var(--dur-slow) var(--ease-standard),
+      opacity var(--dur-slow) var(--ease-standard);
+  }
+  .more.open {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  .more-inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .tuning {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-4);
     border-top: 1px solid var(--line);
   }
-  .auto .label {
-    padding-top: 6px;
+  .row {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+    gap: var(--sp-4);
+    align-items: start;
+  }
+  .row > .label {
+    padding-top: var(--sp-2);
     color: var(--text-2);
-    font-size: 12.5px;
-    font-weight: 600;
+    font-size: var(--fs-md);
   }
   .why {
-    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
     color: var(--text-2);
-    font-size: 12.5px;
-    line-height: 1.5;
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
     max-width: 75ch;
   }
   details summary {
     cursor: pointer;
     color: var(--text-3);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
+    transition: color var(--dur-fast) var(--ease-standard);
   }
   details summary:hover {
     color: var(--text-2);
@@ -529,9 +605,9 @@
   dl {
     display: grid;
     grid-template-columns: max-content minmax(0, 1fr);
-    gap: 4px 14px;
-    margin: 8px 0 0;
-    font-size: 12.5px;
+    gap: var(--sp-1) var(--sp-4);
+    margin: var(--sp-2) 0 0;
+    font-size: var(--fs-md);
   }
   dt {
     color: var(--text-3);
@@ -541,215 +617,191 @@
     color: var(--text-2);
   }
 
+  /* Situation on the left, its flops on the right. */
   .body {
     display: grid;
-    grid-template-columns: 300px minmax(0, 1fr);
-    gap: 14px;
+    grid-template-columns: 272px minmax(0, 1fr);
+    gap: var(--sp-4);
     align-items: start;
   }
-  .scenarios {
+  .step {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .step .n {
+    display: grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: var(--r-pill);
+    background: var(--surface-3);
+    color: var(--text);
+    font-size: var(--fs-sm);
+  }
+  .situations {
+    position: sticky;
+    top: var(--sp-3);
     display: flex;
     flex-direction: column;
-    padding: 8px;
-    position: sticky;
-    top: 12px;
+    gap: var(--sp-3);
   }
-  .scenarios h3 {
-    margin: 12px 10px 4px;
-    font-size: 12px;
-    font-weight: 600;
-    color: var(--text-2);
-  }
-  .scenarios h3 span {
-    color: var(--text-3);
-    font-weight: 400;
-  }
-  .scenario {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 3px 10px;
-    padding: 9px 10px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-  }
-  .scenario:hover {
-    background: var(--surface-2);
-  }
-  .scenario.on {
-    background: var(--surface-3);
-  }
-  .name {
-    grid-column: 1 / -1;
-    font-size: 13.5px;
-    font-weight: 500;
-  }
-  .kind {
-    grid-column: 1 / -1;
-    color: var(--text-3);
-    font-size: 12px;
-  }
-  .mini {
+  .depth {
     display: flex;
-    height: 4px;
-    overflow: hidden;
-    border-radius: 99px;
-    background: var(--surface-3);
+    flex-direction: column;
+    gap: var(--sp-2);
   }
-  .mini i {
-    display: block;
-    height: 100%;
+  .depth p {
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
   }
-  .count {
+  .pot {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .pot h3 {
+    margin: var(--sp-2) 0 0;
     color: var(--text-2);
-    font-size: 12px;
-    min-width: 3.2em;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+  }
+  .pot h3 span {
+    color: var(--text-3);
+    font-weight: var(--fw-regular);
+  }
+  .sit {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+  }
+  .sname {
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+    line-height: var(--lh-tight);
+  }
+  .sbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 3.2em;
+    align-items: center;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
     text-align: right;
+  }
+  .sbar .none {
+    color: var(--text-3);
   }
 
   .flops {
-    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
   }
-  .fhead h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 600;
-  }
-  .fhead p {
-    margin: 4px 0 0;
+  .story {
     color: var(--text-2);
-    font-size: 13px;
-    line-height: 1.5;
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
+    max-width: 90ch;
   }
-  .fhead .sub {
-    margin-top: 2px;
+  .cover {
+    color: var(--text);
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-4);
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-sm);
+    background: var(--surface-sunken);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+  }
+  .legend .from {
     color: var(--text-3);
   }
-  .fhead .cover {
-    margin-top: 10px;
+  .texture {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-1) var(--sp-4);
+    margin: var(--sp-3) 0 0;
     color: var(--text);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
   }
-  .flops h3 {
-    margin: 18px 0 8px;
-    font-size: 12.5px;
-    font-weight: 600;
+  .texture .hint {
+    color: var(--text-3);
+    font-weight: var(--fw-regular);
+  }
+  .gcount {
     color: var(--text-2);
-  }
-  .flops h3 span {
-    font-weight: 400;
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-regular);
   }
   .grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: var(--sp-2);
   }
-  .flop {
+  /* A grid cell blockifies the tooltip's anchor, so every tile fills its column. */
+  .cell {
+    display: grid;
+  }
+  .tile {
     position: relative;
     display: flex;
     justify-content: center;
-    align-items: center;
     gap: 3px;
-    height: 34px;
-    border-radius: var(--r-sm);
-    border: 1px solid var(--line);
-    background: var(--bg);
-    cursor: pointer;
-    font-family: var(--font-num);
-    font-size: 14px;
-    font-weight: 600;
-    transition:
-      border-color 0.12s,
-      background 0.12s;
+    font-size: var(--fs-base);
   }
-  .flop.local {
-    border-color: color-mix(in srgb, var(--pos) 45%, transparent);
-    background: color-mix(in srgb, var(--pos) 10%, var(--surface));
-  }
-  .flop.cloud {
-    border-color: color-mix(in srgb, var(--sd) 45%, transparent);
-    background: color-mix(in srgb, var(--sd) 10%, var(--surface));
-  }
-  .flop:not(:disabled):hover {
-    background: var(--surface-3);
-    border-color: var(--text-2);
-  }
-  .flop.open {
-    opacity: 0.4;
-    cursor: default;
-  }
-  .flop.busy {
-    opacity: 1;
-    border-style: dashed;
-    border-color: var(--pos);
-  }
-  .badge {
+  .mark {
     position: absolute;
-    top: -6px;
-    right: -6px;
+    top: -12px;
+    right: -12px;
     display: grid;
     place-items: center;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--bg);
-  }
-  .card small {
-    font-size: 11px;
-    margin-left: 1px;
-  }
-  .card.s small {
-    color: var(--text);
-  }
-  .card.h small {
-    color: var(--neg);
-  }
-  .card.d small {
-    color: var(--sd);
-  }
-  .card.c small {
-    color: var(--pos);
-  }
-  .expert {
-    margin-top: 20px;
+    line-height: 0;
   }
   .expert p {
-    margin: 8px 0 0;
+    margin-top: var(--sp-2);
     color: var(--text-2);
-    font-size: 12.5px;
-    line-height: 1.55;
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
     max-width: 90ch;
   }
-  /* Very wide windows: the flop grid gets the room; reading text keeps its own measure. */
+
   @container (min-width: 1800px) {
     .library {
       max-width: 1760px;
     }
-    /* Power and automatic sit beside the button instead of under it. */
-    .wbody {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-      gap: 16px 32px;
-    }
-    .wbody > :global(.run) {
-      grid-row: span 2;
-      align-self: start;
-    }
-    .wbody > .why,
-    .wbody > details {
-      grid-column: 1 / -1;
-    }
   }
-  @media (max-width: 980px) {
-    .how,
-    .top,
-    .body {
-      grid-template-columns: 1fr;
+  /* Narrow windows: the worker gets its own row under facts and contribution. */
+  @container (max-width: 1100px) {
+    .band {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }
-    .scenarios {
-      position: static;
+    .band > .worker {
+      grid-column: 1 / -1;
+      padding: var(--sp-4) 0 0;
+      border-left: 0;
+      border-top: 1px solid var(--line);
+    }
+    .body {
+      grid-template-columns: 236px minmax(0, 1fr);
     }
   }
 </style>
