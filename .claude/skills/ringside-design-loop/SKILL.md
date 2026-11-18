@@ -11,7 +11,7 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
 ## Grundregeln
 - **Eigener Checkout:** Arbeite in einem eigenen Git-Worktree auf einem Branch `design/<bereich>` von `main` (andere Helfer arbeiten im Haupt-Checkout). Nach dem Anlegen `pnpm install`. Kleine Commits (Conventional Commits, Ende `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`), Branch pushen; zusammenführen macht der Koordinator. Nie `git stash`, `reset`, `checkout` auf fremde Arbeit, kein breites `pkill`.
 - **Nur Optik, Anordnung, Bedienung, Texte.** Keine neue Rechenlogik, keine Änderung an Engine-Ergebnissen. Fehlt für eine bessere Bedienung ein Datum aus dem Backend, kleinste Ergänzung mit Test und im Bericht nennen.
-- **Zielgruppe:** Spieler, die gerade gut werden – keine Profis. Antwort und nächster Schritt zuerst, Details auf Wunsch; Klartext, Pokerbegriffe dort erklärt, wo sie stehen (Tooltip oder ein Satz), keine unerklärten Abkürzungen; geführte Abläufe und gute Voreinstellungen statt Konfiguration; jede Zahl bekommt Bedeutung (gut/schlecht, warum, was tun) und einen Weg zum Üben oder Nachlesen.
+- **Zielgruppe:** der Gelegenheitsspieler – zahlt mal 20 € ein, spielt kleine Turniere zum Spaß und will besser werden, ohne Fachbegriffe zu pauken; keine Profis, keine Optionsflut. Dieselben Daten wie Profi-Tools, aber verständlich. Antwort und nächster Schritt zuerst, Details auf Wunsch; Klartext, Pokerbegriffe dort erklärt, wo sie stehen (Tooltip oder ein Satz), keine unerklärten Abkürzungen; geführte Abläufe und gute Voreinstellungen statt Konfiguration; jede Zahl bekommt Bedeutung (gut/schlecht, warum, was tun) und einen Weg zum Üben oder Nachlesen.
 - **UI-Standard des Nutzers:** visuell und smart statt Formularwüsten. Eingaben über Tisch, Karten, Charts, Schieber und Auswahlkarten; Werte ableiten statt abfragen; Expertenfelder nur aufklappbar. Jede Hand überall mit einem Klick analysierbar. Lade für die Arbeit das Skill `frontend-design`.
 - **Feste Entscheide (nicht umwerfen, auch wenn Prüfer es wollen – dann ENTSCHEID-Zeile im Bericht):**
   - Dunkles Theme mit den Tokens aus `src/lib/theme.css` (Flächen `--surface-*`, Linien `--line-*`, Text `--text-*`, Status `--pos` grün, `--neg` rot, `--amber` Hinweis). Keine neuen Farbsysteme; neue Tokens nur dort.
@@ -59,7 +59,7 @@ Der Nutzer hält GTO Wizard für das beste Vorbild an Bedienung und Feinschliff 
 > Du bekommst Screenshots einer Desktop-App für Pokerspieler, die gerade besser werden (keine Profis); Pfade unten, je Ansicht in drei Fensterbreiten. Sieh dir alle Bilder an. Bewerte die Oberfläche in diesen 10 Kriterien jeweils mit einer Note von 0 bis 10 (Kommastellen erlaubt):
 > 1. Visuelle Hierarchie (was ist wichtig, was nicht)
 > 2. Lesbarkeit (Schriftgrößen, Kontrast, Zeilen)
-> 3. Klarheit für die Zielgruppe: Versteht ein Aufsteiger sofort, was er hier tun kann, was die Zahlen bedeuten und was er daraus machen soll – und bei Bildfolgen in jedem Schritt, was gerade passiert ist?
+> 3. Klarheit für die Zielgruppe: Versteht ein Gelegenheitsspieler (kleine Turniere, kein Fachwissen) sofort, was er hier tun kann, was die Zahlen bedeuten und was er daraus machen soll – und bei Bildfolgen in jedem Schritt, was gerade passiert ist?
 > 4. Einheitliches Designsystem (gleiche Farben, Schriftrollen, Radien, Abstände wie im Vergleichsbild)
 > 5. Knopf- und Aktions-Hierarchie (Hauptaktion, Nebenaktionen, leise Aktionen, Gefahr klar unterscheidbar)
 > 6. Ordnung und Ausrichtung (Raster, Bündigkeit, Symmetrie)
