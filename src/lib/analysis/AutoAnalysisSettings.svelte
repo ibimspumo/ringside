@@ -4,7 +4,13 @@
   import SettingRow from "../ui/SettingRow.svelte";
   import Switch from "../ui/Switch.svelte";
 
+  /** `onChange` hears every known state, for summaries elsewhere on the page. */
+  let { onChange }: { onChange?: (auto: boolean) => void } = $props();
+
   let auto = $state<boolean | null>(null);
+  $effect(() => {
+    if (auto !== null) onChange?.(auto);
+  });
 
   onMount(() => {
     api.getSettings().then((s) => (auto = s.analysis.auto));

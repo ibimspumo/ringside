@@ -67,7 +67,7 @@
           : `Beim ${big.name}-Spot ist deine GPU langsamer als die CPU (${de(f, 1)}×)`;
     return {
       same,
-      text: `${speed}.${same ? "" : " Achtung: Die Lösungen weichen voneinander ab."} Du musst nichts tun – Ringside rechnet weiter auf dem Prozessor.`,
+      text: `Du musst nichts tun – Ringside rechnet weiter auf dem Prozessor. ${speed}.${same ? "" : " Achtung: Die Lösungen weichen voneinander ab."}`,
     };
   });
 </script>
@@ -104,9 +104,8 @@
         <p class="verdict">Keine GPU gefunden. Du musst nichts tun – der Solver rechnet wie bisher auf der CPU.</p>
       {:else if result?.gpu}
         {#if verdict}
-          <p class="verdict" class:bad={!verdict.same}>
-            {#if verdict.same}<span class="same"><Tag><span class="ok-dot"></span>gleiche Lösung</Tag></span>{/if}{verdict.text}
-          </p>
+          {#if verdict.same}<span class="same"><Tag><span class="ok-dot"></span>GPU und CPU kommen auf dieselbe Lösung</Tag></span>{/if}
+          <p class="verdict" class:bad={!verdict.same}>{verdict.text}</p>
         {/if}
         <div class="facts">
         <p class="soft small num">
@@ -178,9 +177,10 @@
   .verdict {
     max-width: 76ch;
     color: var(--text);
+    font-size: var(--fs-md);
   }
   .same {
-    margin-right: var(--sp-2);
+    display: flex;
   }
   .ok-dot {
     width: 7px;
@@ -197,7 +197,7 @@
     font-size: var(--fs-md);
   }
   .small {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   .note {
     max-width: 76ch;

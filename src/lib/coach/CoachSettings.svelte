@@ -7,6 +7,7 @@
   import Panel from "../ui/Panel.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
+  import Tag from "../ui/Tag.svelte";
   import KeyForm from "./KeyForm.svelte";
   import { modelLabel, money } from "./meaning";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
@@ -187,11 +188,8 @@
           <Button size="sm" onclick={() => (open = false)}>Fertig</Button>
         </div>
         <div class="opts">
-          <span class="opt"
-            ><label class="check"><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die mit Ringside funktionieren</label
-            ></span
-          >
-          <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
+          <Tag selected={toolsOnly} onclick={() => (toolsOnly = !toolsOnly)}>Nur Modelle, die mit Ringside funktionieren</Tag>
+          <Tag selected={technical} onclick={() => (technical = !technical)}>Technische Angaben</Tag>
         </div>
         {#if modelsError}
           <p class="msg">{modelsError}</p>
@@ -370,13 +368,7 @@
   .opts {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--sp-2) var(--sp-5);
-  }
-  .opt {
-    display: flex;
-    align-items: center;
-    font-size: var(--fs-md);
-    color: var(--text-2);
+    gap: var(--sp-2);
   }
   .list {
     display: flex;

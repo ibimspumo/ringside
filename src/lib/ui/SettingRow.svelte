@@ -136,14 +136,45 @@
     min-height: 0;
     overflow: hidden;
     color: var(--text-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     line-height: 1.55;
+  }
+  .more-inner :global(ul) {
+    margin: 0 0 var(--sp-2);
+    padding-left: var(--sp-5);
+  }
+  .more-inner :global(li + li) {
+    margin-top: 2px;
+  }
+  /* A second fold inside "Mehr dazu" for what only the curious need. */
+  .more-inner :global(details) {
+    margin-top: var(--sp-2);
+  }
+  .more-inner :global(summary) {
+    width: fit-content;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .more-inner :global(summary:hover) {
+    color: var(--text);
+  }
+  .more-inner :global(summary:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: var(--r-xs);
+  }
+  .more-inner :global(details[open] > summary) {
+    margin-bottom: var(--sp-2);
   }
   .more-inner > :global(:first-child) {
     margin-top: var(--sp-2);
   }
   .more-inner :global(h4) {
-    margin: var(--sp-3) 0 var(--sp-1);
+    margin: var(--sp-2) 0 var(--sp-1);
     color: var(--text);
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);

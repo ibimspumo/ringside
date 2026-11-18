@@ -5,7 +5,13 @@
   import Switch from "../ui/Switch.svelte";
   import type { CloudSettings } from "./types";
 
+  /** `onChange` hears every known state, for summaries elsewhere on the page. */
+  let { onChange }: { onChange?: (cloud: CloudSettings) => void } = $props();
+
   let cloud = $state<CloudSettings | null>(null);
+  $effect(() => {
+    if (cloud) onChange?.($state.snapshot(cloud));
+  });
 
   onMount(() => {
     cloudApi.settings().then((c) => (cloud = c));
@@ -27,12 +33,15 @@
     {#if cloud}<Switch label="Fertige Lösungen abrufen" checked={cloud.fetch} onchange={(on) => set("fetch", on)} />{/if}
   {/snippet}
   {#snippet more()}
-    <h4>Wie Ringside fremden Lösungen traut</h4>
-    <p>
-      Push/Fold-Lösungen rechnet Ringside vor der Nutzung mit der eigenen Engine nach. Spots der Bibliothek misst vor der
-      Freigabe ein Prüfer mit dem Solver; auf deinem PC prüft Ringside dann nur noch, ob die Lösung richtig aufgebaut ist. Grundstock-Pakete
-      müssen die Signatur von Ringside tragen.
-    </p>
+    <p>Ringside nimmt nur Lösungen, die geprüft sind. Du musst dafür nichts tun.</p>
+    <details>
+      <summary>Technische Details</summary>
+      <p>
+        Push/Fold-Lösungen rechnet Ringside vor der Nutzung mit der eigenen Engine nach. Spots der Bibliothek misst vor der
+        Freigabe ein Prüfer mit dem Solver; auf deinem PC prüft Ringside dann nur noch, ob die Lösung richtig aufgebaut ist.
+        Die Grundausstattung der Bibliothek (Grundstock-Pakete) muss die Signatur von Ringside tragen.
+      </p>
+    </details>
   {/snippet}
 </SettingRow>
 
@@ -45,20 +54,25 @@
   {/snippet}
   {#snippet more()}
     <h4>Was übertragen wird</h4>
-    <p>
-      Die Rechen-Eingabe und das Ergebnis: bei Push/Fold Stacks, Blinds, Antes und Auszahlungen, bei Bibliothek-Spots Board,
-      Ranges und Einsatzgrößen. Das geschieht im Hintergrund.
-    </p>
-    <p>
-      Flop-Spots aus der Handanalyse und aus „Hände spielen“ teilt Ringside nur, wenn ihre Ranges aus dem Preflop-Modell
-      stammen. Dann gehen Flop, Pot, Stack, Einsatzgrößen und die Modell-Linie hoch, aus der die Ranges folgen – nie deine
-      Karten, die Hand oder wann du sie gespielt hast.
-    </p>
-    <h4>Wie geprüft wird</h4>
-    <p>
-      Ein Prüfer misst jede Lösung, bevor andere sie bekommen. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots, die andere
-      noch brauchen.
-    </p>
+    <ul>
+      <li>bei Push/Fold: Stacks, Blinds, Antes und Auszahlungen</li>
+      <li>bei Spots der Bibliothek: Board, Ranges und Einsatzgrößen</li>
+      <li>dazu die fertige Lösung</li>
+    </ul>
+    <h4>Was nie übertragen wird</h4>
+    <p>Deine Karten, die Hand und wann du sie gespielt hast.</p>
+    <details>
+      <summary>Technische Details</summary>
+      <p>
+        Flop-Spots aus der Handanalyse und aus „Hände spielen“ teilt Ringside nur, wenn ihre Ranges aus Ringsides
+        Preflop-Modell stammen. Dann gehen Flop, Pot, Stack, Einsatzgrößen und die Modell-Linie hoch, also der Weg durchs
+        Modell, aus dem die Ranges folgen.
+      </p>
+      <p>
+        Ein Prüfer misst jede Lösung, bevor andere sie bekommen. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots, die
+        andere noch brauchen. Das Teilen läuft im Hintergrund.
+      </p>
+    </details>
   {/snippet}
 </SettingRow>
 

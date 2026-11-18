@@ -91,7 +91,7 @@
     <div class="report">
       <p class="hint">
         So geht die Hand an Ringside Cloud, damit der Fehler im Lesen behoben werden kann: Spielernamen sind durch „Hero“ und
-        „Spieler 1 …“ ersetzt, Tisch-, Turnier- und Handnummern entfernt, Chat-Texte gelöscht. Sonst wird nichts gesendet
+        „Spieler 1 …“ ersetzt, Tisch-, Turnier- und Handnummern durch Platzhalter wie „#1“, Chat-Texte gelöscht. Sonst wird nichts gesendet
         außer dem Grund und der Ringside-Version. Bitte prüf den Text, bevor du ihn sendest.
       </p>
       <div class="reason">

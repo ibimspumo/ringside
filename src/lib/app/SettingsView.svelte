@@ -7,6 +7,10 @@
   import MalformedReports from "../cloud/MalformedReports.svelte";
   import CoachSettings from "../coach/CoachSettings.svelte";
   import { COACH_INTRO } from "../coach/api";
+  import { modelLabel } from "../coach/meaning";
+  import type { CoachStatus } from "../coach/types";
+  import type { CloudSettings as CloudChoice } from "../cloud/types";
+  import Card from "../ui/Card.svelte";
   import GpuTest from "../gpu/GpuTest.svelte";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
@@ -38,8 +42,11 @@
   /** While a jump scrolls the page, the scroll position says nothing about the chosen group. */
   let jumping = false;
 
+  /** Wide windows show the groups in the overview column beside the page instead of as a tab row. */
+  let wide = $state(false);
+
   usePageHead(() => ({
-    tabs: GROUPS.map((g) => ({ id: g.id, label: g.label })),
+    tabs: wide ? [] : GROUPS.map((g) => ({ id: g.id, label: g.label })),
     value: active,
     label: "Gruppen der Einstellungen",
     jump: true,
@@ -60,6 +67,14 @@
     box.addEventListener("scrollend", done, { once: true });
     setTimeout(done, 900);
   }
+
+  $effect(() => {
+    const box = scroller();
+    if (!box) return;
+    const size = new ResizeObserver(() => (wide = box.clientWidth >= 1500));
+    size.observe(box);
+    return () => size.disconnect();
+  });
 
   $effect(() => {
     const box = scroller();
@@ -214,6 +229,42 @@
   }
   const int = (n: number) => n.toLocaleString("de-DE");
 
+  let auto = $state<boolean | null>(null);
+  let cloud = $state<CloudChoice | null>(null);
+  let coach = $state<CoachStatus | null>(null);
+
+  type Tone = "ok" | "off" | "wait" | "bad";
+  /** One line per group for the overview column: how it stands, without opening it. */
+  const overview = $derived<Record<GroupId, { tone: Tone; line: string }>>({
+    "s-pokerstars": dirs.length
+      ? {
+          tone: "ok",
+          line: `${int(status?.total_hands ?? 0)} Hände · ${tables.length === 1 ? "1 Tisch" : `${tables.length} Tische`} erkannt`,
+        }
+      : { tone: "bad", line: "Kein Hand-History-Ordner gefunden" },
+    "s-rechnen": clientRunning
+      ? { tone: "wait", line: "Pausiert, solange PokerStars läuft" }
+      : { tone: auto ? "ok" : "off", line: auto === null ? "…" : auto ? "Neue Hände werden automatisch analysiert" : "Analyse nur, wenn du sie startest" },
+    "s-cloud": !cloud
+      ? { tone: "off", line: "…" }
+      : cloud.fetch || cloud.share
+        ? { tone: "ok", line: cloud.fetch && cloud.share ? "Lösungen abrufen und teilen" : cloud.fetch ? "Lösungen nur abrufen" : "Lösungen nur teilen" }
+        : { tone: "off", line: "Aus" },
+    "s-coach": !coach
+      ? { tone: "off", line: "…" }
+      : coach.has_key
+        ? { tone: "ok", line: `Bereit · ${modelLabel(coach.model)}` }
+        : { tone: "off", line: "Noch kein Key – der Coach ist freiwillig" },
+    "s-updates":
+      update.state === "available"
+        ? { tone: "wait", line: `Version ${update.text} ist da` }
+        : update.state === "installing"
+          ? { tone: "wait", line: download?.total ? `Update lädt · ${Math.round((download.done / download.total) * 100)} %` : "Update wird installiert" }
+          : update.state === "error"
+            ? { tone: "bad", line: "Suche nach Updates fehlgeschlagen" }
+            : { tone: update.state === "none" ? "ok" : "off", line: update.state === "none" ? `Version ${version} – aktuell` : `Version ${version}` },
+  });
+
   /** Which table names are cut off: only those get the full title as a tooltip. */
   let cut = $state<Record<number, boolean>>({});
   function clipped(node: HTMLElement, report: (cut: boolean) => void) {
@@ -241,8 +292,23 @@
   <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2h5.5L12 4.5V14H4zM9.5 2v2.5H12M6 8h4M6 10.5h4" /></svg>
 {/snippet}
 
-<div class="page settings" bind:this={page}>
+<div class="page settings" class:wide bind:this={page}>
+  {#if settings && wide}
+    <aside class="overview" aria-label="Einstellungen auf einen Blick">
+      <p class="ov-title">Auf einen Blick</p>
+      {#each GROUPS as g (g.id)}
+        {@const o = overview[g.id]}
+        <Card pad="sm" selected={active === g.id} onclick={() => jump(g.id)} aria-current={active === g.id ? "location" : undefined}>
+          <span class="ov-item">
+            <b>{g.label}</b>
+            <span class="ov-line"><span class="dot {o.tone}"></span>{o.line}</span>
+          </span>
+        </Card>
+      {/each}
+    </aside>
+  {/if}
   {#if settings}
+  <div class="groups">
     <section class="group" id="s-pokerstars" aria-labelledby="s-pokerstars-h">
       {@render head(0)}
       <Panel flush>
@@ -378,7 +444,7 @@
     <section class="group" id="s-rechnen" aria-labelledby="s-rechnen-h">
       {@render head(1)}
       <Panel flush>
-        <AutoAnalysisSettings />
+        <AutoAnalysisSettings onChange={(a) => (auto = a)} />
         <LibrarySettings locked={clientRunning} />
         <GpuTest locked={clientRunning} />
       </Panel>
@@ -386,12 +452,12 @@
 
     <section class="group" id="s-cloud" aria-labelledby="s-cloud-h">
       {@render head(2)}
-      <Panel flush><CloudSettings /></Panel>
+      <Panel flush><CloudSettings onChange={(c) => (cloud = c)} /></Panel>
     </section>
 
     <section class="group" id="s-coach" aria-labelledby="s-coach-h">
       {@render head(3)}
-      <Panel flush><CoachSettings /></Panel>
+      <Panel flush><CoachSettings onChange={(c) => (coach = c)} /></Panel>
     </section>
 
     <section class="group" id="s-updates" aria-labelledby="s-updates-h">
@@ -442,6 +508,7 @@
         </SettingRow>
       </Panel>
     </section>
+  </div>
   {/if}
 </div>
 
@@ -452,6 +519,57 @@
 <style>
   .settings {
     max-width: 1040px;
+  }
+  .settings.wide {
+    display: grid;
+    grid-template-columns: 280px minmax(0, 1fr);
+    gap: var(--sp-10);
+    max-width: 1560px;
+  }
+  .overview {
+    position: sticky;
+    top: var(--sp-6);
+    align-self: start;
+    display: grid;
+    gap: var(--sp-2);
+  }
+  .ov-title {
+    margin-bottom: var(--sp-1);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-medium);
+  }
+  .ov-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+  .ov-item b {
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
+  }
+  .ov-line {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    line-height: 1.4;
+  }
+  .ov-line .dot {
+    transform: translateY(-1px);
+  }
+  .dot.ok {
+    background: var(--pos);
+    border-color: var(--pos);
+  }
+  .dot.wait {
+    border-color: var(--amber);
+  }
+  .dot.bad {
+    background: var(--neg);
+    border-color: var(--neg);
   }
   .group {
     scroll-margin-top: var(--sp-6);
@@ -502,7 +620,7 @@
     align-items: center;
     gap: var(--sp-3);
     min-height: 40px;
-    padding: var(--sp-1) var(--sp-3);
+    padding: var(--sp-2) var(--sp-3);
   }
   .files li + li,
   .tables li + li {
@@ -564,35 +682,28 @@
   }
   .tname {
     display: flex;
-    align-items: baseline;
-    gap: var(--sp-2);
+    flex-direction: column;
     min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
     font-size: var(--fs-md);
+    line-height: 1.4;
   }
-  .tname b {
-    flex-shrink: 1;
-    min-width: 0;
+  .tname b,
+  .rest {
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .tname b {
     font-weight: var(--fw-medium);
     color: var(--text);
   }
   .rest {
-    flex-shrink: 100;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
     color: var(--text-2);
   }
   .tstate {
     flex-shrink: 0;
     color: var(--text-2);
     font-size: var(--fs-md);
-  }
-  .tstate.wait {
-    color: var(--text-3);
   }
   .none {
     color: var(--text-2);
@@ -608,141 +719,6 @@
   }
   .chev.open {
     transform: rotate(180deg);
-  }
-  .other-list {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-  }
-  .files,
-  .tables {
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
-    background: var(--surface-sunken);
-  }
-  .files li,
-  .tables li {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-3);
-    min-height: 40px;
-    padding: var(--sp-1) var(--sp-3);
-  }
-  .files li + li,
-  .tables li + li {
-    border-top: 1px solid var(--line);
-  }
-  code {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-size: var(--fs-md);
-    color: var(--text);
-  }
-  .count {
-    color: var(--text-2);
-    font-size: var(--fs-md);
-    white-space: nowrap;
-  }
-  .found {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-1);
-    flex-shrink: 0;
-    color: var(--text-2);
-    font-size: var(--fs-md);
-  }
-  .found svg {
-    width: 14px;
-    height: 14px;
-    color: var(--pos);
-  }
-  .meta {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    margin-top: var(--sp-2);
-    color: var(--text-2);
-    font-size: var(--fs-md);
-  }
-  .dot {
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    border: 1.5px solid var(--text-3);
-  }
-  .dot.on {
-    background: var(--pos);
-    border-color: var(--pos);
-  }
-  .dot.wait {
-    border-color: var(--amber);
-  }
-  .tables :global(.ui-tooltip-anchor),
-  .tables li > .tname {
-    flex: 1;
-    min-width: 0;
-  }
-  .tname {
-    display: flex;
-    align-items: baseline;
-    gap: var(--sp-2);
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    font-size: var(--fs-md);
-  }
-  .tname b {
-    flex-shrink: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-weight: var(--fw-medium);
-    color: var(--text);
-  }
-  .rest {
-    flex-shrink: 100;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: var(--text-2);
-  }
-  .tstate {
-    flex-shrink: 0;
-    color: var(--text-2);
-    font-size: var(--fs-md);
-  }
-  .tstate.wait {
-    color: var(--text-3);
-  }
-  .none {
-    color: var(--text-2);
-    font-size: var(--fs-md);
-  }
-  .others {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-1);
-    margin-top: var(--sp-2);
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font: inherit;
-    font-size: var(--fs-md);
-    cursor: pointer;
-    transition: color var(--dur-fast) var(--ease-standard);
-  }
-  .others:hover {
-    color: var(--text);
-  }
-  .others:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-    border-radius: var(--r-xs);
   }
   .other-list {
     display: grid;
