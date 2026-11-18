@@ -34,6 +34,7 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
+    max-width: 760px;
     container-type: inline-size;
   }
   .figures {
