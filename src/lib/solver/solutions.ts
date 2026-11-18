@@ -2,7 +2,7 @@ import { call } from "../api";
 import type { Shared } from "../library/types";
 import { demoShow } from "./demo";
 import { defaultSizes } from "./presets";
-import { solver } from "./store.svelte";
+import { keepOwnHand, solver } from "./store.svelte";
 import type { SolverSpot, SolverSummary } from "./types";
 
 /** A solution saved on this computer, see `src-tauri/src/solutions.rs`. */
@@ -133,6 +133,7 @@ export const solutionsApi = {
 /** Shows a saved solution on the solver page at once, without solving. */
 export async function openSaved(id: number): Promise<void> {
   const o = await solutionsApi.open(id);
+  keepOwnHand(o.spot.board);
   solver.run += 1;
   solver.spot = o.spot;
   solver.solved = o.spot;
@@ -148,7 +149,6 @@ export async function openSaved(id: number): Promise<void> {
   solver.custom = { oop: false, ip: false };
   solver.origin = o.info.ranges;
   solver.source = "";
-  solver.hero = null;
   solver.replay = null;
   solver.labels = {};
   solver.solvedTable = null;

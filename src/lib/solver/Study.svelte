@@ -293,13 +293,38 @@
 
   {#if node}
     <section class="answer" aria-live="polite">
-      {#if node.kind === "action" && node.player}
+      {#if node.kind === "action" && node.player && hero && heroNumbers?.hand && heroAdvice}
+        {@const h = heroNumbers.hand}
+        <span class="who"><b>Du</b> bist am Zug · {pos(node.player)}</span>
+        <div class="mineanswer">
+          <span class="cards" aria-label="Deine Hand">{#each hero as c (c)}<PlayingCard card={c} size={30} />{/each}</span>
+          <div>
+            <p class="say">Mit {hero.map(cardText).join("")} hier {heroAdvice.line}.</p>
+            {#if heroAdvice.close}<p class="close">{heroAdvice.close}</p>{/if}
+          </div>
+        </div>
+        <div class="handmix" role="img" aria-label="So spielt die Lösung deine Hand">
+          {#each h.strategy as f, k (k)}
+            {#if f >= 0.005}<i style="flex-grow:{f}; --c:{colors[k]}"><span>{labels[k].replace(/ \(.*\)$/, "")} {pct(f)}</span></i>{/if}
+          {/each}
+        </div>
+        <p class="because">
+          <b>Warum?</b> Die Lösung spielt die ganze Range zusammen: {headline(node).replace(/^Hier /, "").replace(/\.$/, "")}. {why(node)}
+        </p>
+      {:else if node.kind === "action" && node.player}
         <span class="who">
           <b>{pos(node.player)}</b> ist am Zug ·
           {#if node.player === "oop"}<Term term="oop">OOP</Term>{:else}<Term term="ip">IP</Term>{/if}
         </span>
-        <p class="say">{headline(node)}</p>
-        <p class="because">{why(node)}</p>
+        {#if hero && heroNumbers && !heroNumbers.hand}
+          <p class="say">{hero.map(cardText).join("")} kommt hier nicht vor.</p>
+          <p class="because">
+            {pos(node.player)} spielt diese Hand bis hierher laut Range nie, darum gibt es für sie keine Strategie. So spielt die Range: {headline(node).replace(/^Hier /, "")}
+          </p>
+        {:else}
+          <p class="say">{headline(node)}</p>
+          <p class="because">{why(node)}</p>
+        {/if}
       {:else if node.kind === "chance"}
         <p class="say">Jetzt kommt der {node.board.length === 3 ? "Turn" : "River"}.</p>
         <p class="because">Wähle die Karte am Tisch oder lass sie zufällig kommen – danach siehst du, wie sich die Strategie ändert.</p>
@@ -433,8 +458,8 @@
             </div>
             {#if heroClass !== null && heroAdvice}
               <p class="mine">
-                Deine Hand <b class="num">{hero?.map(cardText).join("")}</b>: {cap(heroAdvice.line)}.
-                <span class="faint">Die Zelle {classLabel(heroClass)} im Raster mischt alle Farben dieser Klasse.</span>
+                Deine Hand <b class="num">{hero?.map(cardText).join("")}</b> ist im Raster umrandet.
+                <span class="faint">Die Zelle {classLabel(heroClass)} mischt alle Farbvarianten dieser Hand.</span>
                 <button class="more" onclick={() => (pinned = heroClass)}>Details</button>
               </p>
             {:else}
@@ -549,6 +574,54 @@
     font-size: 18px;
     font-weight: 600;
     line-height: 1.3;
+  }
+  .mineanswer {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-top: var(--sp-1);
+  }
+  .mineanswer .cards {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .mineanswer .say {
+    margin: 0;
+  }
+  .close {
+    margin: 2px 0 0;
+    font-size: var(--fs-md);
+    color: var(--text);
+  }
+  .handmix {
+    display: flex;
+    gap: 2px;
+    height: 26px;
+    margin-top: var(--sp-3);
+    border-radius: var(--r-xs);
+    overflow: hidden;
+  }
+  .handmix i {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    padding: 0 var(--sp-2);
+    background: color-mix(in srgb, var(--c) 24%, var(--surface-2));
+    box-shadow: inset 0 -3px 0 var(--c);
+    color: var(--text);
+    font-size: var(--fs-xs);
+    font-style: normal;
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .handmix span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .because b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
   }
   .because {
     margin: 4px 0 0;

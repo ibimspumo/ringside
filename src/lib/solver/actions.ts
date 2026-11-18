@@ -47,3 +47,6 @@ export function duration(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
   return `${(seconds / 3600).toLocaleString("de-DE", { maximumFractionDigits: 1 })} h`;
 }
+
+/** The estimate is for 0.5 % of the pot; a finer target takes longer, roughly with its root. */
+export const solveSeconds = (estimate: number, targetPct: number) => estimate * Math.sqrt(0.5 / Math.max(0.05, targetPct));

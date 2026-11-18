@@ -6,7 +6,8 @@
     label,
     onchange,
   }: {
-    tabs: { id: T; label: string; count?: number; disabled?: boolean; hint?: string }[];
+    /** `note`: a quiet word on the tab's state, e.g. "nach dem Lösen" for a section still waiting. */
+    tabs: { id: T; label: string; count?: number; note?: string; disabled?: boolean; hint?: string }[];
     value: T;
     label: string;
     onchange?: (id: T) => void;
@@ -46,6 +47,7 @@
     >
       {t.label}
       {#if t.count !== undefined}<span class="count num">{t.count}</span>{/if}
+      {#if t.note}<span class="note">{t.note}</span>{/if}
     </button>
   {/each}
 </div>
@@ -106,6 +108,11 @@
     outline: 2px solid var(--focus);
     outline-offset: 2px;
     border-radius: var(--r-xs);
+  }
+  .note {
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-regular);
   }
   .count {
     padding: 1px 6px;

@@ -1,4 +1,4 @@
-import { solver } from "../solver/store.svelte";
+import { keepOwnHand, solver } from "../solver/store.svelte";
 import { libraryApi } from "./api";
 import { labelOf } from "./labels";
 import type { LibraryScenario } from "./types";
@@ -8,6 +8,7 @@ const num = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 2 
 /** Loads a stored spot and shows it on the solver page as a finished solution. */
 export async function openInSolver(s: LibraryScenario, flop: string): Promise<void> {
   const o = await libraryApi.open(s.id, flop);
+  keepOwnHand(o.spot.board);
   solver.run += 1;
   solver.spot = o.spot;
   solver.solved = o.spot;
@@ -20,7 +21,6 @@ export async function openInSolver(s: LibraryScenario, flop: string): Promise<vo
   solver.custom = { oop: false, ip: false };
   solver.origin = `aus dem Preflop-Modell, 9 Spieler, ${num(s.stack_bb)} BB`;
   solver.source = `Bibliothek: ${labelOf(s)}`;
-  solver.hero = null;
   solver.replay = null;
   solver.labels = { [o.oop]: shortNote(o.oop_note), [o.ip]: shortNote(o.ip_note) };
   solver.solvedTable = { players: 9, positions: { oop: o.oop, ip: o.ip }, labels: solver.labels, run: solver.run };

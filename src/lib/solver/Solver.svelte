@@ -1,20 +1,35 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api } from "../api";
+  import { api, inTauri } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
   import { handoff, takePrefill } from "./handoff.svelte";
+  import NotSolved from "./NotSolved.svelte";
   import Practice from "./Practice.svelte";
   import Saved from "./Saved.svelte";
   import Setup from "./Setup.svelte";
-  import { listen, solver } from "./store.svelte";
+  import { listen, solver, startSolve } from "./store.svelte";
   import Study from "./Study.svelte";
   import { usePageHead } from "../ui/page.svelte";
 
   onMount(() => {
     listen();
     api.solverPage(true);
+    if (!inTauri) preview();
     return () => api.solverPage(false);
   });
+
+  /**
+   * Browser preview only, for pictures of every state: `hand=AsQd` picks your hand, `solve=1`
+   * solves at once (`hold` stops half-way), `sview=result|practice|saved` opens a tab.
+   */
+  function preview() {
+    const q = new URLSearchParams(window.location.search);
+    const hand = q.get("hand")?.match(/[AKQJT2-9][cdhs]/g);
+    if (hand?.length === 2) solver.hero = { player: solver.me ?? "oop", cards: hand };
+    const view = q.get("sview");
+    if (view === "result" || view === "practice" || view === "saved") solver.view = view;
+    if (q.get("solve") && solver.status !== "running" && !solver.summary) startSolve();
+  }
 
   // A spot sent from the replayer or the hand analysis replaces the current inputs.
   $effect(() => {
@@ -33,7 +48,8 @@
   }
 
   const solved = $derived(!!solver.summary && solver.status !== "running");
-  const view = $derived(solver.view === "saved" ? "saved" : solved ? solver.view : "setup");
+  const running = $derived(solver.status === "running");
+  const view = $derived(solver.view);
   const TABS = [
     { id: "setup", label: "Aufbau" },
     { id: "result", label: "Durchspielen" },
@@ -42,12 +58,12 @@
   ] as const;
 
   usePageHead(() => ({
-    sub: "Heads-up ab Flop, Turn oder River: Spot aufbauen, lösen, durchspielen und üben. Gerechnet wird nur auf diesem Rechner.",
+    sub: "Der Solver zeigt, wie du einen Spot mit jeder Hand am besten spielst. Deine Hand ist eine davon – wie gut sie gespielt ist, hängt davon ab, was du mit den anderen tust.",
     label: "Ansicht",
     value: view,
     tabs: TABS.map((t) => {
-      const locked = t.id !== "setup" && t.id !== "saved" && !solved;
-      return { id: t.id, label: t.label, disabled: locked, hint: locked ? "Erst lösen" : undefined };
+      const waits = (t.id === "result" || t.id === "practice") && !solved;
+      return { id: t.id, label: t.label, note: waits ? (running ? "rechnet …" : "nach dem Lösen") : undefined };
     }),
     onchange: (id) => (solver.view = id as typeof solver.view),
   }));
@@ -61,7 +77,9 @@
       <p class="source">Vorbelegt aus <b>{solver.source}</b>: Board, Pot und effektiver Stack stammen aus der Hand.</p>
     {/if}
 
-    {#if view === "result"}
+    {#if (view === "result" || view === "practice") && !solved}
+      <NotSolved what={view} onSetup={() => (solver.view = "setup")} />
+    {:else if view === "result"}
       <Study onEdit={() => (solver.view = "setup")} onNew={discard} onPractice={() => (solver.view = "practice")} />
     {:else if view === "saved"}
       <Saved />

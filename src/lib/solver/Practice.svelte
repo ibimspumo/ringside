@@ -8,6 +8,7 @@
   import { cap, lesson, verb } from "./explain";
   import { loadNode } from "./nodes";
   import { STREET_NAME, actionText, type Crumb } from "./play";
+  import { cardText } from "../play/labels";
   import {
     BEST_MIN_FREQUENCY,
     GRADES,
@@ -24,7 +25,9 @@
   } from "./practice";
   import type { SeatView } from "./SolverTable.svelte";
   import SolverTable from "./SolverTable.svelte";
-  import { solvedTable, solver } from "./store.svelte";
+  import { meSide, solvedTable, solver } from "./store.svelte";
+  import { comboClass, parseRange } from "./range";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
   import Term from "./Term.svelte";
   import type { SolverNode, SolverPlayer } from "./types";
 
@@ -36,9 +39,17 @@
    */
   const table = $derived(solvedTable());
   const spot = $derived(solver.solved ?? solver.spot);
-  const board = $derived(spot.board.replace(/[^AKQJT2-9cdhs]/gi, "").match(/.{2}/g) ?? []);
+  const board = $derived<string[]>(spot.board.replace(/[^AKQJT2-9cdhs]/gi, "").match(/.{2}/g) ?? []);
 
-  let me = $state<SolverPlayer>(solver.hero?.player ?? "oop");
+  let me = $state<SolverPlayer>(meSide());
+  // Your own hand from the setup, if it can be dealt here; otherwise hands from your range.
+  const ownHand = $derived.by(() => {
+    const h = solver.hero;
+    if (!h || h.player !== me || h.cards.some((c) => board.includes(c))) return null;
+    const w = parseRange(me === "oop" ? spot.oop_range : spot.ip_range);
+    return w && w[comboClass(h.cards[0], h.cards[1])] > 0 ? h.cards : null;
+  });
+  let useOwn = $state(true);
   const other = $derived<SolverPlayer>(me === "oop" ? "ip" : "oop");
   const pos = (p: SolverPlayer) => table.positions[p];
 
@@ -72,7 +83,7 @@
 
   function deal() {
     problem = null;
-    const mine = dealFrom(me === "oop" ? spot.oop_range : spot.ip_range, board);
+    const mine = ownHand && useOwn ? [...ownHand] : dealFrom(me === "oop" ? spot.oop_range : spot.ip_range, board);
     const theirs = mine && dealFrom(other === "oop" ? spot.oop_range : spot.ip_range, [...board, ...mine]);
     if (!mine || !theirs) {
       problem = "Aus diesen Ranges lässt sich keine Hand austeilen.";
@@ -194,7 +205,7 @@
     const out: { oop: SeatView; ip: SeatView } = { oop: {}, ip: {} };
     const street = node?.street;
     for (const c of line) if (c.player && c.street === street) out[c.player] = { tag: c.label.replace(/ \(.*\)$/, ""), tone: c.kind === "all_in" ? "allin" : undefined };
-    out[me].cards = cards?.me ?? "hidden";
+    out[me].cards = cards?.me ?? (ownHand && useOwn ? ownHand : "hidden");
     out[other].cards = phase === "over" && cards ? cards.other : "hidden";
     if (!cards) out[me].tag = "Du";
     return out;
@@ -214,15 +225,29 @@
   <section class="head">
     <div class="title">
       <b>Üben: {pos(me)} gegen {pos(other)}</b>
-      <span class="dim">Du bekommst eine Hand aus deiner Range; der Gegner spielt die Lösung.</span>
+      <span class="dim">
+        {ownHand && useOwn ? "Du spielst deine Hand aus dem Aufbau" : "Du bekommst eine Hand aus deiner Range"}; der Gegner spielt die Lösung.
+      </span>
     </div>
     <div class="seg" role="group" aria-label="Dein Platz">
       {#each ["oop", "ip"] as const as p (p)}
         <button class:on={me === p} disabled={phase === "me" || phase === "wait"} onclick={() => (me = p)}>{pos(p)} ({p === "oop" ? "OOP" : "IP"})</button>
       {/each}
     </div>
+    {#if ownHand}
+      <SegmentedControl
+        size="sm"
+        label="Welche Hand du spielst"
+        options={[
+          { value: "own", label: `Deine Hand ${ownHand.map(cardText).join("")}` },
+          { value: "range", label: "Zufällig aus der Range" },
+        ]}
+        value={useOwn ? "own" : "range"}
+        onchange={(v: string) => (useOwn = v === "own")}
+      />
+    {/if}
     <div class="buttons">
-      <button class="btn" onclick={onStudy}>Zur Lösung</button>
+      <Button onclick={onStudy}>Zur Lösung</Button>
     </div>
   </section>
 
@@ -251,7 +276,9 @@
         <div class="start">
           {#if phase === "over"}<p>{result}</p>{/if}
           {#if problem}<p class="neg">{problem}</p>{/if}
-          <Button variant="primary" kbd="N" onclick={deal}>{phase === "idle" ? "Hand austeilen" : "Nächste Hand"}</Button>
+          <Button variant="primary" kbd="N" onclick={deal}>
+            {ownHand && useOwn ? (phase === "idle" ? "Deine Hand spielen" : "Noch einmal spielen") : phase === "idle" ? "Hand austeilen" : "Nächste Hand"}
+          </Button>
           {#if phase === "idle"}<span class="faint small">Klick auf einen der beiden Plätze wählt deine Seite.</span>{/if}
         </div>
       {/if}

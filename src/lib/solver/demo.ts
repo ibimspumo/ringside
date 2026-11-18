@@ -69,6 +69,9 @@ export function demoShow(s: SolverSpot) {
   spot = s;
 }
 
+/** Preview only: `?solve=hold` keeps a solve running half-way, for pictures of the progress. */
+const hold = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("solve") === "hold";
+
 export function demoStart(s: SolverSpot, settings: SolverSettings, id: number) {
   stop();
   spot = s;
@@ -90,6 +93,7 @@ export function demoStart(s: SolverSpot, settings: SolverSettings, id: number) {
   };
   emit(0);
   timer = setInterval(() => {
+    if (hold && iteration >= 60) return;
     iteration += 10;
     const p = emit(iteration);
     if (p.exploitability_pct <= settings.target_pct || iteration >= settings.max_iterations) {

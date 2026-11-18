@@ -609,7 +609,7 @@ step("Solver: kleiner River-Spot", async () => {
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Board leeren")?.click()`);
   const slots = ["Flop", "Flop", "Flop", "Turn", "River"];
   for (const [i, card] of ["Ks", "7d", "2c", "3c", "4d"].entries()) {
-    await click(`main .board button.slot[aria-label='${slots[i]}-Karte wählen']`);
+    await click(`main .board button.ui-slot[aria-label='${slots[i]}-Karte wählen']`);
     await click(`.deck-pop button.pick[aria-label='${card}']:not(:disabled)`);
   }
   await click("main button", "Ranges anpassen");

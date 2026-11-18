@@ -11,6 +11,7 @@
 <script lang="ts">
   import { REFERENCE_ASPECT } from "../hud/geometry";
   import PlayingCard from "../PlayingCard.svelte";
+  import CardSlot from "../ui/CardSlot.svelte";
   import OvalFelt from "../table/OvalFelt.svelte";
   import { clear, layout, placeOf } from "../table/seats";
   import { bb } from "./actions";
@@ -37,6 +38,8 @@
     views = { oop: {}, ip: {} },
     seatsClickable = false,
     onSeat,
+    pickCards = null,
+    onCards,
     street = "",
   }: {
     players: number;
@@ -55,6 +58,9 @@
     views?: { oop: SeatView; ip: SeatView };
     seatsClickable?: boolean;
     onSeat?: (position: string) => void;
+    /** The player whose cards are picked at the table, shown as two slots while empty. */
+    pickCards?: SolverPlayer | null;
+    onCards?: (card: number, el: HTMLElement) => void;
     street?: string;
   } = $props();
 
@@ -125,23 +131,16 @@
     <div class="center" data-part="middle">
       <div class="board" role="group" aria-label="Board">
         {#each SLOT as name, i (i)}
-          {@const card = board[i]}
-          {#if slotsClickable || (i === nextSlot && onSlot)}
-            <button
-              class="slot"
-              class:filled={!!card}
-              class:optional={i >= 3 && !card}
-              class:next={i === nextSlot}
-              onclick={(e) => onSlot?.(i, e.currentTarget)}
-              aria-label={card ? `${name}: ${card} ändern` : `${name}-Karte wählen`}
-            >
-              {#if card}<PlayingCard {card} size={42} />{:else}<span>{name}</span>{/if}
-            </button>
-          {:else if card}
-            <span class="slot filled"><PlayingCard {card} size={42} /></span>
-          {:else}
-            <span class="slot ghost" class:next={i === nextSlot}></span>
-          {/if}
+          {@const card = board[i] ?? null}
+          {@const pickable = slotsClickable || (i === nextSlot && !!onSlot)}
+          <CardSlot
+            {card}
+            size={42}
+            label={pickable ? name : ""}
+            tone={i === nextSlot ? "next" : i >= 3 ? "optional" : "idle"}
+            onpick={pickable ? (el) => onSlot?.(i, el) : undefined}
+            ariaLabel={card ? `${name}: ${card} ändern` : `${name}-Karte wählen`}
+          />
         {/each}
       </div>
       <div class="pot">
@@ -178,8 +177,7 @@
       {#if pos === "BTN"}
         <span class="dealer" data-part="dealer" style="left:{p.dx * 100}%; top:{p.dy * 100}%" title="Dealer-Button">D</span>
       {/if}
-      <svelte:element
-        this={seatsClickable ? "button" : "div"}
+      <div
         class="seat"
         data-part="seat"
         data-seat={i}
@@ -188,24 +186,37 @@
         class:acting={!!s && acting === s}
         class:pickable={seatsClickable}
         style="left:{p.x * 100}%; top:{p.y * 100}%"
-        onclick={seatsClickable ? () => onSeat?.(pos) : undefined}
-        aria-pressed={seatsClickable ? !!s : undefined}
-        aria-label={seatsClickable ? `${pos}${s ? ` (${s === "oop" ? "OOP" : "IP"}, in der Hand)` : ""}` : undefined}
-        role={seatsClickable ? undefined : "group"}
+        role="group"
+        aria-label={pos}
       >
         {#if s}
-          <div class="cards">
-            {#if view?.cards === "hidden" || !view?.cards}
-              <PlayingCard hidden size={30} /><PlayingCard hidden size={30} />
-            {:else}
-              {#each view.cards as c (c)}<PlayingCard card={c} size={30} />{/each}
-            {/if}
-          </div>
+          {@const face = view?.cards && view.cards !== "hidden" ? view.cards : null}
+          {#if pickCards === s}
+            <div class="cards" role="group" aria-label="Deine Hand">
+              {#each [0, 1] as j (j)}
+                <CardSlot
+                  card={face?.[j] ?? null}
+                  size={30}
+                  label="?"
+                  onpick={(el) => onCards?.(j, el)}
+                  ariaLabel={face ? `Deine Hand ${face.join(" ")} ändern` : "Deine Hand wählen (optional)"}
+                />
+              {/each}
+            </div>
+          {:else}
+            <div class="cards">
+              {#if face}
+                {#each face as c (c)}<PlayingCard card={c} size={30} />{/each}
+              {:else}
+                <PlayingCard hidden size={30} /><PlayingCard hidden size={30} />
+              {/if}
+            </div>
+          {/if}
         {/if}
-        <div class="pod">
+        {#snippet plate()}
           {#if s && acting === s}<span class="turn">am Zug</span>{/if}
           <div class="who">
-            <span class="pos">{pos}</span>
+            <span class="posname">{pos}</span>
             {#if s}<span class="role" title={GLOSSARY[s]}>{s === "oop" ? "OOP" : "IP"}</span>{/if}
           </div>
           {#if s}
@@ -216,8 +227,13 @@
           {#if view?.tag}
             <span class="tag" class:allin={view.tone === "allin"} class:win={view.tone === "win"} class:lose={view.tone === "lose"}>{view.tag}</span>
           {/if}
-        </div>
-      </svelte:element>
+        {/snippet}
+        {#if seatsClickable}
+          <button class="seatbtn" onclick={() => onSeat?.(pos)} aria-pressed={!!s} aria-label="{pos}{s ? ` (${s === 'oop' ? 'OOP' : 'IP'}, in der Hand)` : ''}"><div class="pod">{@render plate()}</div></button>
+        {:else}
+          <div class="pod">{@render plate()}</div>
+        {/if}
+      </div>
     {/each}
   </div>
 </div>
@@ -254,72 +270,38 @@
     display: flex;
     gap: 5px;
   }
-  .slot {
-    width: 42px;
-    height: 59px;
-    padding: 0;
-    border-radius: 6px;
-    display: grid;
-    place-items: center;
-    border: 0;
-    background: none;
-    line-height: 0;
-  }
-  button.slot {
-    cursor: pointer;
-  }
-  .slot:not(.filled) {
-    border: 1.5px dashed rgba(236, 235, 231, 0.28);
-    background: rgba(0, 0, 0, 0.18);
-    color: rgba(236, 235, 231, 0.55);
-    font-size: 10.5px;
-    font-weight: 600;
-    line-height: 1;
-  }
-  .slot.optional {
-    border-color: rgba(236, 235, 231, 0.14);
-    color: rgba(236, 235, 231, 0.32);
-  }
-  .slot.ghost {
-    border-color: rgba(236, 235, 231, 0.08);
-    background: rgba(0, 0, 0, 0.1);
-  }
-  button.slot:not(.filled):hover {
-    border-color: var(--text);
-    color: var(--text);
-  }
-  button.slot.filled:hover {
-    transform: translateY(-2px);
-  }
-  .slot.next {
-    border: 1.5px solid var(--text);
-    color: var(--text);
-    background: rgba(236, 235, 231, 0.08);
-  }
+
+
+
+
+
+
+
+
   .pot {
     display: flex;
     align-items: baseline;
     gap: 7px;
     padding: 3px 12px;
     border-radius: 99px;
-    background: rgba(0, 0, 0, 0.42);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--bg) 42%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
     font-size: 12px;
     color: var(--text-2);
   }
   .pot b {
-    font-size: 15px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--text);
   }
   .total {
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .street {
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
-    color: rgba(236, 235, 231, 0.4);
+    color: color-mix(in srgb, var(--text) 40%, transparent);
   }
 
   .seat {
@@ -334,14 +316,16 @@
     background: none;
     text-align: center;
   }
-  .seat.pickable {
+  .seatbtn {
+    all: unset;
+    display: block;
     cursor: pointer;
   }
   .seat.out {
     transform: translate(-50%, -50%) scale(calc(var(--k) * 0.82));
     opacity: 0.5;
   }
-  .seat.out.pickable:hover {
+  .seat.out.pickable:has(.seatbtn:hover) {
     opacity: 0.9;
   }
   .cards {
@@ -351,6 +335,11 @@
     margin-bottom: -10px;
     z-index: 1;
   }
+
+
+
+
+
   .pod {
     position: relative;
     min-width: 104px;
@@ -359,41 +348,39 @@
     background: var(--plate);
     box-shadow:
       inset 0 0 0 1px var(--plate-edge),
-      0 6px 16px rgba(0, 0, 0, 0.45);
-    transition: box-shadow 0.15s;
+      var(--shadow-2);
+    transition: box-shadow var(--dur-fast) var(--ease-standard);
   }
   .out .pod {
     min-width: 76px;
     padding: 7px 10px 6px;
-    background: rgba(40, 43, 49, 0.7);
+    background: color-mix(in srgb, var(--plate) 70%, transparent);
   }
-  .seat.pickable:hover .pod {
+  .seatbtn:hover .pod {
     box-shadow:
       inset 0 0 0 1.5px var(--text-2),
-      0 6px 16px rgba(0, 0, 0, 0.45);
+      var(--shadow-2);
   }
-  .seat.pickable:focus-visible {
-    outline: none;
-  }
-  .seat.pickable:focus-visible .pod {
+  .seatbtn:focus-visible .pod {
     outline: 2px solid var(--focus);
     outline-offset: 2px;
   }
   .acting .pod {
     box-shadow:
       inset 0 0 0 2px var(--text),
-      0 0 0 4px rgba(236, 235, 231, 0.08),
-      0 6px 16px rgba(0, 0, 0, 0.45);
+      0 0 0 4px color-mix(in srgb, var(--text) 8%, transparent),
+      var(--shadow-2);
   }
   .turn {
     position: absolute;
-    right: -10px;
-    top: -9px;
+    right: 0;
+    top: 50%;
+    transform: translate(70%, -50%);
     padding: 0 7px;
     border-radius: 99px;
     background: var(--text);
     color: var(--bg);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     font-weight: 700;
     line-height: 16px;
     white-space: nowrap;
@@ -405,19 +392,19 @@
     justify-content: center;
     gap: 6px;
   }
-  .pos {
+  .posname {
     font-family: var(--font-num);
     font-size: 14px;
     font-weight: 700;
     letter-spacing: 0.02em;
     color: var(--text);
   }
-  .out .pos {
+  .out .posname {
     font-size: 12px;
     color: var(--text-2);
   }
   .role {
-    font-size: 10px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: var(--text-3);
   }
@@ -428,12 +415,12 @@
     white-space: nowrap;
   }
   .stack b {
-    font-size: 15px;
+    font-size: var(--fs-lg);
     font-weight: 700;
-    color: #fff;
+    color: var(--text);
   }
   .fold {
-    font-size: 10.5px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .tag {
@@ -457,7 +444,7 @@
     border-color: var(--text);
   }
   .tag.win {
-    background: #1d2a1a;
+    background: color-mix(in srgb, var(--pos) 14%, var(--surface));
     border-color: color-mix(in srgb, var(--pos) 55%, transparent);
     color: var(--pos);
   }
@@ -474,11 +461,11 @@
     background: var(--text);
     color: var(--bg);
     font-family: var(--font-num);
-    font-size: 10.5px;
+    font-size: var(--fs-xs);
     font-weight: 700;
     display: grid;
     place-items: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 1px 3px color-mix(in srgb, var(--bg) 50%, transparent);
   }
   .bet {
     position: absolute;
@@ -491,8 +478,8 @@
     gap: 6px;
     padding: 2px 9px 2px 3px;
     border-radius: 99px;
-    background: rgba(0, 0, 0, 0.5);
-    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    background: color-mix(in srgb, var(--bg) 50%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent);
     font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
@@ -503,7 +490,7 @@
     border-radius: 50%;
     background: var(--text);
     box-shadow:
-      inset 0 0 0 2px #8f9198,
+      inset 0 0 0 2px var(--text-2),
       inset 0 0 0 4px var(--text);
   }
 </style>

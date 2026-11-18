@@ -1,7 +1,7 @@
 // What the open page adds to the one PageHeader of the app: a line about the page and the
 // sections it is divided into. Pages register it while they are shown.
 
-export type PageTab = { id: string; label: string; count?: number; disabled?: boolean; hint?: string };
+export type PageTab = { id: string; label: string; count?: number; note?: string; disabled?: boolean; hint?: string };
 
 import type { Snippet } from "svelte";
 

@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 190,
+      "total": 168,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
@@ -50,13 +50,12 @@
         "solver/RangeEditor.svelte": 1,
         "solver/Saved.svelte": 2,
         "solver/Setup.svelte": 1,
-        "solver/SolverTable.svelte": 22,
         "solver/Term.svelte": 1,
         "stats.ts": 6
       }
     },
     "font-size": {
-      "total": 262,
+      "total": 253,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
@@ -118,12 +117,11 @@
         "solver/Saved.svelte": 7,
         "solver/Setup.svelte": 5,
         "solver/SizeChooser.svelte": 5,
-        "solver/SolverTable.svelte": 9,
         "solver/Study.svelte": 14
       }
     },
     "button-style": {
-      "total": 153,
+      "total": 149,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -165,13 +163,12 @@
         "solver/RangeEditor.svelte": 1,
         "solver/Setup.svelte": 1,
         "solver/SizeChooser.svelte": 2,
-        "solver/SolverTable.svelte": 4,
         "solver/Study.svelte": 6,
         "solver/Term.svelte": 1
       }
     },
     "global-class-override": {
-      "total": 112,
+      "total": 110,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
@@ -213,7 +210,6 @@
         "solver/RangeEditor.svelte": 1,
         "solver/Setup.svelte": 8,
         "solver/SizeChooser.svelte": 4,
-        "solver/SolverTable.svelte": 2,
         "solver/Study.svelte": 1,
         "ui/ChoiceMenu.svelte": 1
       }
@@ -223,7 +219,7 @@
       "files": {}
     },
     "motion": {
-      "total": 55,
+      "total": 53,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -255,8 +251,6 @@
         "play/Start.svelte": 1,
         "play/Table.svelte": 1,
         "solver/ActionBar.svelte": 1,
-        "solver/Setup.svelte": 1,
-        "solver/SolverTable.svelte": 1,
         "solver/Term.svelte": 1
       }
     },

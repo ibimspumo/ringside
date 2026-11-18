@@ -129,7 +129,8 @@ export function listen() {
       solver.savedId = d.saved;
       solver.reused = d.reused;
       solver.partial = d.reused && boardCards(solver.solved?.board ?? "") < 5;
-      solver.view = "result";
+      // Solved from the practice tab, you stay there to practise.
+      if (solver.view !== "practice") solver.view = "result";
     } else if (d.status === "cancelled") {
       solver.status = "cancelled";
       solver.error = d.locked ? "Abgebrochen, weil PokerStars gestartet wurde." : null;
@@ -141,6 +142,15 @@ export function listen() {
   onSolverReleased(() => {
     if (solver.status === "solved") solver.partial = boardCards(solver.solved?.board ?? "") < 5;
   });
+}
+
+/**
+ * A hand you picked yourself stays when another spot opens, unless the new board holds one of
+ * its cards; a hand handed over from a played hand belongs to that hand's spot.
+ */
+export function keepOwnHand(board: string) {
+  const cards = solver.hero?.cards ?? [];
+  if (solver.source || cards.some((c) => board.includes(c))) solver.hero = null;
 }
 
 const boardCards = (b: string) => b.replace(/[^AKQJT2-9cdhs]/gi, "").length / 2;

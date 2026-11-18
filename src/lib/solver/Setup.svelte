@@ -2,13 +2,16 @@
   import { onMount } from "svelte";
   import { api } from "../api";
   import type { Anchor } from "../app/format";
-  import { bb, bytes, duration } from "./actions";
+  import { bb, bytes, duration, solveSeconds } from "./actions";
   import DeckPopover from "./DeckPopover.svelte";
-  import { DECK } from "./practice";
+  import { DECK, dealFrom } from "./practice";
+  import Button from "../ui/Button.svelte";
+  import MiniCard from "../ui/MiniCard.svelte";
   import RangeEditor from "./RangeEditor.svelte";
-  import { parseRange, rangeCombos } from "./range";
+  import { comboClass, parseRange, rangeCombos } from "./range";
   import { ANTES, POT_TYPES, derive, oopIp, originText, potTypeProblem, template, type PotType, type Scenario } from "./scenario";
   import SizeChooser from "./SizeChooser.svelte";
+  import SolveProgress from "./SolveProgress.svelte";
   import SolverTable from "./SolverTable.svelte";
   import MeChooser from "./MeChooser.svelte";
   import { meSide, solver, startSolve } from "./store.svelte";
@@ -70,8 +73,9 @@
     solver.labels = d.labels;
     solver.origin = origin;
     solver.custom = { oop: false, ip: false };
+    // A hand handed over belongs to that hand's spot; your own pick stays with you.
+    if (solver.source) solver.hero = null;
     solver.source = "";
-    solver.hero = null;
     edited();
   }
 
@@ -110,6 +114,7 @@
   let picker = $state<{ slot: number; anchor: Anchor } | null>(null);
 
   function openSlot(i: number, el: HTMLElement) {
+    handPicker = null;
     const r = el.getBoundingClientRect();
     picker = { slot: Math.min(i, board.length), anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } };
   }
@@ -135,10 +140,57 @@
 
   function randomFlop() {
     const out: string[] = [];
-    while (out.length < 3) out.push(randomCard(out));
+    const dead = mine();
+    while (out.length < 3) out.push(randomCard([...out, ...dead]));
     setBoard(out);
     picker = null;
   }
+
+  // Your hand, picked at your seat like the board; optional.
+  let draft = $state<string[]>([]);
+  let handPicker = $state<{ slot: number; anchor: Anchor } | null>(null);
+  const mine = () => solver.hero?.cards ?? draft;
+  const shownHand = $derived(solver.hero?.cards ?? draft);
+
+  function openHand(slot: number, el: HTMLElement) {
+    picker = null;
+    const r = el.getBoundingClientRect();
+    handPicker = { slot: Math.min(slot, shownHand.length), anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } };
+  }
+
+  function setHand(cards: string[]) {
+    if (cards.length === 2) {
+      solver.hero = { player: meSide(), cards };
+      draft = [];
+    } else {
+      solver.hero = null;
+      draft = cards;
+    }
+    edited();
+  }
+
+  function pickHandCard(card: string) {
+    if (!handPicker) return;
+    const next = [...shownHand];
+    next[handPicker.slot] = card;
+    setHand(next.filter(Boolean));
+    handPicker = handPicker.slot === 0 && next.filter(Boolean).length < 2 ? { ...handPicker, slot: 1 } : null;
+  }
+
+  function randomHand() {
+    const side = meSide();
+    const cards = dealFrom(side === "oop" ? solver.spot.oop_range : solver.spot.ip_range, board);
+    if (cards) setHand(cards);
+    handPicker = null;
+  }
+
+  /** Whether your hand is in your range at all; otherwise the solution has nothing for it. */
+  const handInRange = $derived.by(() => {
+    const cards = solver.hero?.cards;
+    if (!cards) return true;
+    const w = parseRange(meSide() === "oop" ? solver.spot.oop_range : solver.spot.ip_range);
+    return !w || w[comboClass(cards[0], cards[1])] > 0;
+  });
 
   // Ranges.
   let editing = $state(false);
@@ -180,25 +232,15 @@
     };
   });
 
-  /** Bar position on a log scale from the first measurement down to the target. */
-  const progressShare = $derived.by(() => {
-    const p = solver.progress;
-    if (!p || solver.startPct === null) return 0;
-    const from = Math.log(Math.max(solver.startPct, solver.settings.target_pct * 1.01));
-    const to = Math.log(solver.settings.target_pct);
-    const now = Math.log(Math.max(p.exploitability_pct, solver.settings.target_pct));
-    return Math.min(1, Math.max(0, (from - now) / (from - to)));
-  });
   const running = $derived(solver.status === "running");
   const canStart = $derived(!!estimate?.fits && !running && !deriving && board.length >= 3);
-  const pctText = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: x < 1 ? 2 : 1 });
   const spr = $derived(solver.spot.stack / Math.max(solver.spot.pot, 0.01));
-  const seatViews = $derived({
-    oop: { cards: "hidden" as const, tag: solver.labels[solver.positions.oop] },
-    ip: { cards: "hidden" as const, tag: solver.labels[solver.positions.ip] },
+  const seatViews = $derived.by(() => {
+    const me = meSide();
+    const view = (p: "oop" | "ip") => ({ cards: p === me && shownHand.length ? shownHand : ("hidden" as const), tag: solver.labels[solver.positions[p]] });
+    return { oop: view("oop"), ip: view("ip") };
   });
-  /** The estimate is for 0.5 % of the pot; a finer target takes longer, roughly with its root. */
-  const seconds = $derived(estimate ? estimate.seconds * Math.sqrt(0.5 / Math.max(0.05, solver.settings.target_pct)) : 0);
+  const seconds = $derived(estimate ? solveSeconds(estimate.seconds, solver.settings.target_pct) : 0);
 </script>
 
 <div class="setup">
@@ -211,6 +253,8 @@
       slotsClickable
       nextSlot={board.length < 3 ? board.length : -1}
       onSlot={openSlot}
+      pickCards={solver.source && solver.hero ? null : meSide()}
+      onCards={openHand}
       pot={solver.spot.pot}
       stacks={[solver.spot.stack, solver.spot.stack]}
       views={seatViews}
@@ -220,11 +264,23 @@
     />
     <div class="under">
       <MeChooser positions={solver.positions} />
-      <span class="faint">Plätze anklicken: wer spielt. Boardplätze anklicken: Karten.</span>
+      <span class="handnote">
+        {#if solver.hero}
+          Deine Hand <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>
+          {#if !solver.source}<Button variant="quiet" size="sm" onclick={() => setHand([])}>Entfernen</Button>{/if}
+        {:else}
+          <span class="faint">Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
+        {/if}
+      </span>
       <span class="spacer"></span>
-      {#if board.length}<button class="btn ghost" onclick={() => setBoard([])}>Board leeren</button>{/if}
-      <button class="btn" onclick={randomFlop}>Zufälliger Flop</button>
+      {#if board.length}<Button variant="quiet" size="sm" onclick={() => setBoard([])}>Board leeren</Button>{/if}
+      <Button size="sm" onclick={randomFlop}>Zufälliger Flop</Button>
     </div>
+    {#if !handInRange && solver.hero}
+      <p class="warn small">
+        {solver.positions[meSide()]} spielt <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span> laut Range hier nie – die Lösung hat dafür keine Strategie. Wähl eine andere Hand oder pass die Range an.
+      </p>
+    {/if}
   </div>
 
   <aside class="panel scen">
@@ -362,20 +418,7 @@
 
 <section class="panel go" aria-live="polite">
   {#if running}
-    <div class="progress">
-      <div class="ptext">
-        <span>Löse … Iteration <b class="num">{solver.progress?.iteration ?? 0}</b></span>
-        <span
-          ><Term term="exploit">Abstand zum Ziel</Term> <b class="num">{solver.progress ? `${pctText(solver.progress.exploitability_pct)} %` : "–"}</b> · Ziel
-          <b class="num">{pctText(solver.settings.target_pct)} %</b></span
-        >
-        <span class="faint num">{duration((solver.progress?.elapsed_ms ?? 0) / 1000)}</span>
-      </div>
-      <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(progressShare * 100)}>
-        <i style="width:{progressShare * 100}%"></i>
-      </div>
-    </div>
-    <button class="btn danger" onclick={() => api.solverCancel()}>Abbrechen</button>
+    <SolveProgress />
   {:else}
     <div class="est">
       <span class="spot num"><b>{solver.positions.oop}</b> gegen <b>{solver.positions.ip}</b> · {board.join(" ") || "kein Board"}</span>
@@ -403,15 +446,31 @@
   <DeckPopover
     anchor={picker.anchor}
     title={picker.slot < 3 ? `Flop, Karte ${picker.slot + 1}` : picker.slot === 3 ? "Turn" : "River"}
-    available={DECK.filter((c) => !board.includes(c) || c === board[picker!.slot])}
+    available={DECK.filter((c) => (!board.includes(c) || c === board[picker!.slot]) && !shownHand.includes(c))}
     current={board[picker.slot] ?? null}
     onPick={pickCard}
-    onRandom={picker.slot < 3 && board.length < 3 ? randomFlop : () => pickCard(randomCard(board))}
+    onRandom={picker.slot < 3 && board.length < 3 ? randomFlop : () => pickCard(randomCard([...board, ...shownHand]))}
     onClear={() => {
       setBoard(board.slice(0, picker!.slot));
       picker = null;
     }}
     onClose={() => (picker = null)}
+  />
+{/if}
+
+{#if handPicker}
+  <DeckPopover
+    anchor={handPicker.anchor}
+    title={`Deine Hand, Karte ${handPicker.slot + 1}`}
+    available={DECK.filter((c) => !board.includes(c) && (!shownHand.includes(c) || c === shownHand[handPicker!.slot]))}
+    current={shownHand[handPicker.slot] ?? null}
+    onPick={pickHandCard}
+    onRandom={randomHand}
+    onClear={() => {
+      setHand([]);
+      handPicker = null;
+    }}
+    onClose={() => (handPicker = null)}
   />
 {/if}
 
@@ -437,6 +496,16 @@
   }
   .spacer {
     flex: 1;
+  }
+  .handnote {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-2);
+  }
+  .cards {
+    display: inline-flex;
+    gap: 2px;
   }
   .scen {
     display: flex;
@@ -631,36 +700,11 @@
   .go .btn.primary {
     min-width: 110px;
   }
-  .progress {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    min-width: 0;
-  }
-  .ptext {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 18px;
-    font-size: 13px;
-    color: var(--text-2);
-  }
-  .ptext b {
-    color: var(--text);
-    font-weight: 500;
-  }
-  .bar {
-    height: 6px;
-    border-radius: 3px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .bar i {
-    display: block;
-    height: 100%;
-    background: var(--pos);
-    transition: width 0.25s;
-  }
+
+
+
+
+
   @container solverpage (max-width: 900px) {
     .setup {
       grid-template-columns: minmax(0, 1fr) 256px;
