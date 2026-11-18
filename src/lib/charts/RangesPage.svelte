@@ -245,7 +245,7 @@
   const onGrid = $derived(axis.includes(stack));
 
   // ── Situations ───────────────────────────────────────────────────
-  type Item = { key: string; label: string; reach: number; color: string };
+  type Item = { key: string; label: string; reach: number };
 
   const pfKey = (n: PushFoldNode) => (n.shover === null ? "open" : `${n.shover}:${n.callers.join(",")}`);
   const pfPos = (s: number) => pf?.nodes.find((n) => n.seat === s)?.position ?? "";
@@ -271,17 +271,11 @@
           n.shover === null
             ? "Alle vor dir haben gefoldet"
             : `Gegen All-in ${byPos(pfPos(n.shover))}${n.callers.length ? `, nach Call ${n.callers.map((c) => byPos(pfPos(c))).join(", ")}` : ""}`;
-        add(n.shover === null ? "open" : "vs_shove", { key: pfKey(n), label, reach: n.reach, color: n.shover === null ? SHOVE : CALL });
+        add(n.shover === null ? "open" : "vs_shove", { key: pfKey(n), label, reach: n.reach });
       }
     } else {
       for (const s of visible.filter((n) => n.seat === seat).sort((a, b) => b.reach - a.reach)) {
-        const last = s.line[s.line.length - 1];
-        add(segmentOf(s), {
-          key: String(s.id),
-          label: s.line.length ? spotLabel(s) : "Alle vor dir haben gefoldet",
-          reach: s.reach,
-          color: last ? actionColor(last.kind) : "var(--text-3)",
-        });
+        add(segmentOf(s), { key: String(s.id), label: s.line.length ? spotLabel(s) : "Alle vor dir haben gefoldet", reach: s.reach });
       }
     }
     return out;
@@ -587,7 +581,6 @@
                     {@const on = item?.key === it.key}
                     <Tag selected={on} onclick={() => (pick = it.key)}>
                       <span class="spot">
-                        <i class="sw" style="background:{it.color}"></i>
                         <span>{it.label}</span>
                         <small class="num" title="So oft kommt diese Situation an deinem Platz vor">{pct(it.reach * 100, it.reach < 0.01 ? 2 : 1)} %</small>
                       </span>

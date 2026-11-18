@@ -143,7 +143,7 @@
 
 <div class="axis" bind:clientWidth={width}>
   <div class="top">
-    <label class="lbl" for={id}><Tooltip text={TERM.stack}><span class="term">Stack</span></Tooltip> <span class="faint">· die wichtigste Wahl</span></label>
+    <label class="lbl" for={id}><Tooltip text={TERM.stack}><span class="term">Stack</span></Tooltip> <span class="lead-in">· die wichtigste Wahl</span></label>
     {#if !onGrid}<span class="own">eigener Stack</span>{/if}
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
@@ -285,6 +285,9 @@
   .term {
     text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
     text-underline-offset: 3px;
+  }
+  .lead-in {
+    color: var(--text-2);
   }
   .lbl {
     font-size: var(--fs-md);
