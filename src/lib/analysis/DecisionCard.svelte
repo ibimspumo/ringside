@@ -109,7 +109,7 @@
       {better}
       cost={d.ev_loss_bb ?? undefined}
       {potShare}
-      {context}
+      context={d.source === "estimate" ? `${context} · laut Einschätzung` : context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       source={quiet && kit ? kit : undefined}
     >
@@ -135,7 +135,7 @@
         <span class="mix-head">So oft spielt {d.source === "solver" ? "der" : "das"} {SOURCE[d.source].label} das mit deiner Hand; umrandet: deine Wahl</span>
         <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
           {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-            <span class="part {tone(c)}" class:mine={c.played} style:flex-grow={Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
+            <span class="part {tone(c)}" class:mine={c.played} class:never={c.freq < 0.005} style:flex-grow={c.freq < 0.005 ? 0 : Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
           {/each}
         </div>
       </div>
@@ -236,6 +236,13 @@
     display: flex;
     gap: 2px;
     height: 12px;
+  }
+  /* A move the source never plays has no share, only the ring that marks your choice. */
+  .part.never {
+    flex-basis: 2px;
+    min-width: 2px;
+    margin: 0 3px;
+    background: transparent;
   }
   .part {
     flex-basis: 0;

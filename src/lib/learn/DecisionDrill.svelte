@@ -202,7 +202,7 @@
       <CardText hands text={highFirst(spot.hero_cards).join("")} />{#if result}.{:else}. Was spielst du?{/if}
     </h2>
 
-    {#if view.board.length}
+    {#if view.board.length && !result}
       <p class="board-line"><span>{view.street}</span><CardText text={view.board.join(" ")} /></p>
     {/if}
     {#if !result}
