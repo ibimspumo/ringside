@@ -50,6 +50,8 @@
   let width = $state(600);
   /** Narrow windows: the curve folds away behind a toggle, the slider stays. */
   const narrow = $derived(width < 760);
+  /** Folded behind a toggle on narrow windows and while it is only a comparison. */
+  const folded = $derived(narrow || !!compare);
   let showCurve = $state(false);
   // Lower on narrow windows, so table and grid still come into view.
   const H = $derived(narrow ? 120 : 168);
@@ -140,7 +142,7 @@
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
 
-  {#if !narrow || showCurve}
+  {#if !folded || showCurve}
   <p class="what" class:compare>
     {#if compare}<b>Nur zum Vergleich</b> – die Range unten gilt für „{compare}“. Die Linien zeigen, wie oft jede Position eröffnet.{:else}Zum Vergleich: wie oft jede Position eröffnet, wenn alle vor ihr gefoldet haben{/if}
   </p>
@@ -204,9 +206,9 @@
   </div>
 
   <div class="foot">
-  {#if narrow}
+  {#if folded}
     <Button variant="quiet" size="sm" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
-      {showCurve ? "Kurve ausblenden" : "Kurve zeigen"}
+      {showCurve ? "Kurve ausblenden" : compare ? "Vergleich: Eröffnen je Position zeigen" : "Kurve zeigen"}
     </Button>
   {/if}
   {#if custom}
@@ -279,12 +281,12 @@
     text-underline-offset: 3px;
   }
   .lbl {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .what {
     margin: 2px 0 0;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .what b {
@@ -319,7 +321,7 @@
     fill: color-mix(in srgb, var(--pos) 6%, transparent);
   }
   .band-t {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     fill: var(--text-2);
   }
   .grid {
@@ -328,7 +330,7 @@
   }
   .y {
     font-family: var(--font-num);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     fill: var(--text-2);
     text-anchor: end;
   }
@@ -432,7 +434,7 @@
     background: none;
     color: var(--text-2);
     font-family: var(--font-num);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
   }
   .ticks span.here {
     color: var(--text);

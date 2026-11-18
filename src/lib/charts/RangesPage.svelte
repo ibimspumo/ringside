@@ -804,7 +804,7 @@
     margin: -10px 0 10px;
     padding: 10px 0;
     background: var(--bg);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .back-bar svg {
