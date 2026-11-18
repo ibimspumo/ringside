@@ -704,14 +704,26 @@
       position: static;
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      grid-template-rows: auto 1fr;
       align-items: start;
     }
+    /* The list becomes one scrolling row, so the open report starts right below. */
     .reports {
-      grid-row: span 2;
+      grid-column: 1 / -1;
+      grid-row: auto;
+      order: -1;
     }
     .reports ul {
-      max-height: 200px;
+      flex-direction: row;
+      max-height: none;
+      overflow-x: auto;
+      overflow-y: hidden;
+      mask-image: linear-gradient(to right, var(--text) calc(100% - 36px), transparent);
+      padding: 0 var(--sp-8) var(--sp-1) 0;
+    }
+    .reports li {
+      flex: 0 0 260px;
+      min-width: 0;
+      max-width: 260px;
     }
     /* While a task runs, it comes first; the lists follow. */
     .busy .main {
