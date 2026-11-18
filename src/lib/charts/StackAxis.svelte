@@ -40,8 +40,11 @@
   const TICKS = [2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100];
 
   let width = $state(600);
+  /** Narrow windows: the curve folds away behind a toggle, the slider stays. */
+  const narrow = $derived(width < 760);
+  let showCurve = $state(false);
   // Lower on narrow windows, so table and grid still come into view.
-  const H = $derived(width < 760 ? 108 : 168);
+  const H = $derived(narrow ? 120 : 168);
   let hover = $state<{ stack: number; seat: number; anchor: Anchor } | null>(null);
   let open = $state(false);
   let typed = $state("");
@@ -126,9 +129,16 @@
   <div class="top">
     <label class="lbl" for={id}><Hint text={TERM.stack}>Stack</Hint> <span class="faint">· die wichtigste Wahl</span></label>
     {#if !onGrid}<span class="own">eigener Stack</span>{/if}
+    {#if narrow}
+      <button type="button" class="more" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
+        {showCurve ? "Kurve ausblenden" : "Kurve zeigen"}
+      </button>
+    {/if}
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
 
+  {#if !narrow || showCurve}
+  <p class="what">Zum Vergleich: wie oft jede Position eröffnet, wenn alle vor ihr gefoldet haben</p>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions (a mouse shortcut: keys reach depth and seat through the slider and the table) -->
   <svg
     width={width}
@@ -168,6 +178,7 @@
       <text class="wait" x={PAD.l + plotW / 2} y={H / 2}>Kurve wird geladen …</text>
     {/if}
   </svg>
+  {/if}
 
   <input
     {id}
@@ -256,6 +267,14 @@
   .lbl {
     font-size: 12px;
     color: var(--text-2);
+  }
+  .what {
+    margin: 2px 0 0;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .top .more {
+    margin: 0;
   }
   .val {
     margin-left: auto;

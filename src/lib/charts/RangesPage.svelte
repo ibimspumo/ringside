@@ -69,6 +69,8 @@
   let pin = $state<string | null>(preview("pin"));
   /** The hand the page was opened from, for "Zurück zur Hand". */
   let fromHand = $state<number | null>(preview("fromhand") ? Number(preview("fromhand")) : null);
+  /** The hand's cards as a class, e.g. "99", for the way back. */
+  let fromLabel = $state<string | null>(null);
   let pendingNode = $state<number | null>(null);
 
   onMount(() => {
@@ -98,6 +100,7 @@
     custom = false;
     stack = t.stack_bb;
     fromHand = hand;
+    fromLabel = t.hand;
     only = null;
     if (t.kind === "pushfold") {
       pfView = t.stack_bb >= (preGrid ? Math.min(...preGrid.stacks) : 15);
@@ -453,14 +456,17 @@
 
 <ClientLock feature="Die Seite „Ranges nach Stack“">
   <div class="page ranges-page">
-    <div class="intro">
-      <p>Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack.</p>
-      {#if fromHand !== null}
+    {#if fromHand !== null}
+      <!-- Stays in view while the page scrolls, without taking room. -->
+      <div class="back-bar">
         <button class="btn" onclick={() => backToHand()}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" /></svg>
-          Zurück zur Hand
+          Zurück zur Hand{fromLabel ? ` · ${fromLabel}` : ""}
         </button>
-      {/if}
+      </div>
+    {/if}
+    <div class="intro">
+      <p>Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack.</p>
     </div>
 
     {#if pfGrid && preGrid}
@@ -481,9 +487,14 @@
           />
           {#if mine !== null}
             <p class="pfr">
-              <b>{fromPos(myName)} mit {bb(stack)} BB eröffnest du etwa {pct(mine, 0)} % deiner Hände</b>
-              {engine === "pushfold" ? "– jedes Mal all-in." : "– meist mit einem Raise."}
-              <span class="faint">Je kürzer der Stack, desto öfter geht es direkt all-in.</span>
+              {#if seg === "open"}
+                <b>{fromPos(myName)} mit {bb(stack)} BB eröffnest du etwa {pct(mine, 0)} % deiner Hände</b>
+                {engine === "pushfold" ? "– jedes Mal all-in." : "– meist mit einem Raise."}
+                <span class="faint">Je kürzer der Stack, desto öfter geht es direkt all-in.</span>
+              {:else}
+                Zum Vergleich: Wenn alle vor dir folden, eröffnest du {fromPos(myName).replace(/^\S+/, (w) => w.toLowerCase())} mit {bb(stack)} BB etwa
+                {pct(mine, 0)} % deiner Hände. <span class="faint">Die Range unten gilt für „{SEG_LABEL[seg]}“.</span>
+              {/if}
             </p>
           {/if}
         </section>
@@ -522,13 +533,14 @@
               </div>
               <p class="seg-hint">{SEG_HINT[seg]}</p>
               {#if items.length > 1}
+                <span class="lbl">Genau: <span class="faint">die Zahl sagt, wie oft die Situation vorkommt</span></span>
                 <div class="spots" role="radiogroup" aria-label="Genaue Situation">
                   {#each items as it (it.key)}
                     {@const on = item?.key === it.key}
                     <button type="button" role="radio" aria-checked={on} class="spot" class:on onclick={() => (pick = it.key)}>
                       <i class="sw" style="background:{it.color}"></i>
                       <span>{it.label}</span>
-                      <small class="num">{pct(it.reach * 100, 2)} %</small>
+                      <small class="num" title="So oft kommt diese Situation an deinem Platz vor">{pct(it.reach * 100, it.reach < 0.01 ? 2 : 1)} %</small>
                     </button>
                   {/each}
                 </div>
@@ -734,6 +746,24 @@
   .ranges-page {
     max-width: 1600px;
   }
+  .back-bar {
+    position: sticky;
+    top: 12px;
+    z-index: 8;
+    height: 0;
+    display: flex;
+    justify-content: flex-end;
+  }
+  .back-bar .btn {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+  .back-bar svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
   .intro {
     display: flex;
     align-items: center;
@@ -744,13 +774,6 @@
   .intro p {
     margin: 0;
     color: var(--text-2);
-  }
-  .intro .btn svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   .body {
     display: grid;
