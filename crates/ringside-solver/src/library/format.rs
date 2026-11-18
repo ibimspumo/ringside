@@ -378,6 +378,129 @@ pub fn encode(solution: &mut Solution, catalog: &Catalog, scenario: &Scenario, f
 }
 
 // -----------------------------------------------------------------------------------
+// Suit renaming.
+
+/// The suit renaming that turns the flop `from` into `to`, as new suit per old suit.
+pub fn suit_map(from: &[Card], to: &[Card]) -> Option<[u8; 4]> {
+    let target = CardSet::from_cards(to);
+    if from.len() != to.len() {
+        return None;
+    }
+    let mut perms = Vec::with_capacity(24);
+    for a in 0..4u8 {
+        for b in (0..4).filter(|&b| b != a) {
+            for c in (0..4).filter(|&c| c != a && c != b) {
+                perms.push([a, b, c, 6 - a - b - c]);
+            }
+        }
+    }
+    perms.into_iter().find(|p| {
+        let mapped: Vec<Card> = from.iter().map(|x| Card::new(x.rank(), p[x.suit() as usize])).collect();
+        CardSet::from_cards(&mapped) == target
+    })
+}
+
+impl Stored {
+    /// The same spot on `flop`, a suit renaming of this one's flop: hands and turn cards
+    /// move, nothing is recomputed. `scenario` gives the ranges, which must weigh every
+    /// suit alike (class ranges do).
+    pub fn renamed(&self, scenario: &Scenario, flop: &str) -> Result<Stored, Error> {
+        let from = parse_board(&self.flop)?;
+        let to = parse_board(flop)?;
+        let perm = suit_map(&from, &to).ok_or_else(|| invalid("the flops are no suit renaming of each other"))?;
+        let rename = |c: Card| Card::new(c.rank(), perm[c.suit() as usize]);
+        // Per player: for each hand in this flop's storage order, its place on the new flop.
+        let mut places: [Vec<usize>; 2] = [Vec::new(), Vec::new()];
+        for (p, range) in [&scenario.oop_range, &scenario.ip_range].into_iter().enumerate() {
+            let old = hands(range, &from)?;
+            let new = hands(range, &to)?;
+            let mut at = vec![usize::MAX; 1326];
+            for (i, (combo, _)) in new.iter().enumerate() {
+                at[combo.index()] = i;
+            }
+            for (combo, weight) in &old {
+                let (a, b) = combo.cards();
+                let i = at[Combo::new(rename(a), rename(b)).index()];
+                if i == usize::MAX || new[i].1 != *weight || old.len() != new.len() {
+                    return Err(invalid("the ranges treat suits differently"));
+                }
+                places[p].push(i);
+            }
+        }
+        let alive = [vec![true; places[0].len()], vec![true; places[1].len()]];
+        let mut nodes = Vec::with_capacity(self.nodes.len());
+        let mut next = 0;
+        self.rename_node(&mut next, alive, &places, &mut nodes)?;
+        if next != self.nodes.len() {
+            return Err(invalid("extra flop nodes"));
+        }
+
+        let old_cards = turn_cards(&from);
+        let new_cards = turn_cards(&to);
+        let aliases = turn_aliases(&to, &new_cards);
+        let mut back = [0u8; 4];
+        for (old, &new) in perm.iter().enumerate() {
+            back[new as usize] = old as u8;
+        }
+        let mut turns = Vec::with_capacity(self.turns.len());
+        for line in &self.turns {
+            let root = |i: usize| match line.get(i) {
+                Some(TurnEntry::Root(r)) => Ok(r),
+                Some(TurnEntry::Same(j)) => match line.get(*j as usize) {
+                    Some(TurnEntry::Root(r)) => Ok(r),
+                    _ => Err(invalid("turn reference")),
+                },
+                None => Err(invalid("turn line too short")),
+            };
+            let mut out = Vec::with_capacity(new_cards.len());
+            for (j, card) in new_cards.iter().enumerate() {
+                if aliases[j] != j {
+                    out.push(TurnEntry::Same(aliases[j] as u8));
+                    continue;
+                }
+                let old = Card::new(card.rank(), back[card.suit() as usize]);
+                let i = old_cards.iter().position(|c| *c == old).ok_or_else(|| invalid("turn card"))?;
+                out.push(TurnEntry::Root(root(i)?.clone()));
+            }
+            turns.push(out);
+        }
+        Ok(Stored { flop: flop.to_string(), nodes, turns, ..self.clone() })
+    }
+
+    /// Copies node `*next` and its subtree with every hand row moved to its new place.
+    fn rename_node(&self, next: &mut usize, alive: [Vec<bool>; 2], places: &[Vec<usize>; 2], out: &mut Vec<FlopNode>) -> Result<(), Error> {
+        let node = self.nodes.get(*next).ok_or_else(|| invalid("missing flop nodes"))?;
+        *next += 1;
+        let p = node.player as usize;
+        let k = node.actions.len();
+        let hands: Vec<usize> = (0..alive[p].len()).filter(|&h| alive[p][h]).collect();
+        if node.equity.len() != hands.len() || node.strategy.len() != hands.len() * k {
+            return Err(invalid("stored hands do not fit the ranges"));
+        }
+        let mut order: Vec<usize> = (0..hands.len()).collect();
+        order.sort_by_key(|&row| places[p][hands[row]]);
+        let mut renamed = FlopNode { strategy: Vec::new(), equity: Vec::new(), ev: Vec::new(), ..node.clone() };
+        for &row in &order {
+            renamed.strategy.extend_from_slice(&node.strategy[row * k..(row + 1) * k]);
+            renamed.equity.push(node.equity[row]);
+            renamed.ev.push(node.ev[row]);
+        }
+        out.push(renamed);
+        for a in 0..k {
+            if node.children[a] != Child::Node {
+                continue;
+            }
+            let mut child = alive.clone();
+            for (row, &h) in hands.iter().enumerate() {
+                child[p][h] = node.strategy[row * k + a] > 0;
+            }
+            self.rename_node(next, child, places, out)?;
+        }
+        Ok(())
+    }
+}
+
+// -----------------------------------------------------------------------------------
 // Bytes.
 
 struct W(Vec<u8>);
