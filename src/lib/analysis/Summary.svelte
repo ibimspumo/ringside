@@ -224,7 +224,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     white-space: nowrap;
   }
   .sources b {

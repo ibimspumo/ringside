@@ -602,7 +602,7 @@
   }
   .gid {
     flex-shrink: 0;
-    color: var(--text-3);
+    color: var(--text-2);
     font-family: var(--font-num);
     font-size: var(--fs-sm);
   }
@@ -645,7 +645,7 @@
     font-family: var(--font-ui);
     font-weight: 400;
     font-size: var(--fs-md);
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   @container (min-width: 1900px) {
@@ -668,7 +668,7 @@
     display: block;
     font-size: var(--fs-xs);
     line-height: 1.1;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   td.place {
     line-height: 1.2;
@@ -686,6 +686,12 @@
     }
     .gname {
       max-width: 100%;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      white-space: normal;
+      line-height: 1.2;
     }
     .tours-table th:nth-child(4),
     .tours-table td:nth-child(4),
@@ -713,7 +719,7 @@
     }
     .clock {
       font-size: var(--fs-sm);
-      color: var(--text-3);
+      color: var(--text-2);
     }
     .tours-table td,
     .tours-table th {

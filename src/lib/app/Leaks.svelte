@@ -578,7 +578,7 @@
     color: var(--text);
   }
   .counts li.ok b {
-    color: var(--pos);
+    color: var(--text);
   }
   .counts li.na b {
     color: var(--text-3);
@@ -938,11 +938,11 @@
     background: var(--surface-3);
   }
   .fine-where {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .fine-opp {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .fine-nums {
     display: flex;

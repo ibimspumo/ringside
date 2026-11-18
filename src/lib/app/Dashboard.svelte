@@ -159,11 +159,11 @@
 {#snippet nextStep(spot: SpotType, loss: number)}
   <div class="next">
     <span class="next-label"
-      >Dein nächster Schritt{#if running && !preflopDone}<span class="early"
+      >Dein nächster Schritt{#if running}<span class="early"
           ><Term tip="Die Analyse läuft noch. Mit jeder bewerteten Hand kann sich die teuerste Baustelle ändern.">vorläufig</Term></span
         >{/if}</span
     >
-    <p><b>{SPOT[spot]}</b> kostet dich bisher am meisten: {bb(loss)}. {SPOT_HINT[spot]}</p>
+    <p><b>{SPOT[spot]}</b> kostet dich laut Hand-Analyse am meisten: {bb(loss)}. {SPOT_HINT[spot]}</p>
     {#if onLearn}
       <Button variant="primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</Button>
     {/if}
@@ -580,8 +580,8 @@
   .positions li.pos-head {
     height: 24px;
     border-bottom-color: var(--line-2);
-    font-size: var(--fs-sm);
-    color: var(--text-3);
+    font-size: var(--fs-md);
+    color: var(--text-2);
   }
   .pos-head .r {
     text-align: right;
@@ -702,7 +702,7 @@
   }
   .stat .name {
     min-height: 2.7em;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     line-height: 1.35;
     color: var(--text-2);
   }
@@ -722,7 +722,7 @@
   }
   .value em {
     font-style: normal;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .stat .leak-hint {
@@ -762,7 +762,7 @@
     box-shadow: 0 0 0 1px var(--surface);
   }
   .stat small {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     line-height: 1.35;
     color: var(--text-2);
   }
