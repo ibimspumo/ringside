@@ -640,7 +640,8 @@ pub fn run() {
                 settings: Mutex::new(settings),
                 import: Mutex::new(ImportStatus::default()),
                 overlays: Overlays::default(),
-                client_running: AtomicBool::new(false),
+                // Until the first scan says otherwise, so nothing calculates in the moment before it.
+                client_running: AtomicBool::new(cfg!(windows)),
                 notes: Mutex::new(NotesState::default()),
             });
             app.manage(coach::CoachState::default());
