@@ -173,7 +173,19 @@ export function demoTable(maxSeats = 8): TableView {
 /** With a tournament chosen, the demo shows a smaller slice of the same players. */
 const inTournament = (f: Filter) => f.tournament_id !== null && f.tournament_id !== undefined;
 
+/** `?many=1`: a long list with long names, for density and overflow. */
+function manyPlayers(): PlayerView[] {
+  return Array.from({ length: 64 }, (_, i) => {
+    const [, , v] = PLAYERS[1 + (i % (PLAYERS.length - 1))];
+    const shift = ((i * 7) % 11) - 5;
+    const name = i % 9 === 0 ? `Ein_sehr_langer_Spielername_${i}` : `Gegner_${String(i + 1).padStart(2, "0")}`;
+    const tuned = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Math.max(0, k === "af" ? x : x + shift)]));
+    return { name, net: 0, stats: stats([1_234_567, 2400, 640, 180, 75, 31, 12, 4][i % 8], tuned) };
+  });
+}
+
 export function demoPlayers(filter?: Filter): PlayerView[] {
+  if (new URLSearchParams(window.location.search).get("many") === "1") return [...PLAYERS.slice(0, 1).map(([name, hands, v]) => ({ name, net: 0, stats: stats(hands, v) })), ...manyPlayers()];
   const all = PLAYERS.map(([name, hands, v], i) => ({ name, net: [0, 920, -1830, 4210, -310, -2650, 330, -1200][i], stats: stats(hands, v) }));
   if (!filter || !inTournament(filter)) return all;
   return PLAYERS.slice(0, 6).map(([name, , v], i) => ({ name, net: [0, 410, -980, 1250, -60, -2650][i], stats: stats([212, 27, 33, 140, 25, 8][i], v) }));

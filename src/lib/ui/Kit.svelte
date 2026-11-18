@@ -34,6 +34,10 @@
   import Slider from "./Slider.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
+  import StatMeter from "./StatMeter.svelte";
+  import SearchField from "./SearchField.svelte";
+  import SortHeader from "./SortHeader.svelte";
+  import CellButton from "./CellButton.svelte";
   import Switch from "./Switch.svelte";
   import Tabs from "./Tabs.svelte";
   import CardSlot from "./CardSlot.svelte";
@@ -225,6 +229,8 @@
     if (popHost && (only === "popups" || q.get("pop") === "1")) popAnchor = rectOf(popHost);
   });
   let kitSize = $state(6);
+  let kitSearch = $state("");
+  let kitSort = $state<"name" | "hands">("hands");
 </script>
 
 <div class="kit" class:gray>
@@ -457,6 +463,7 @@
             <Tabs label="Bereiche" bind:value={tab} tabs={[{ id: "hands", label: "Hände", count: 248 }, { id: "stats", label: "Statistik" }, { id: "leaks", label: "Leaks", count: 3 }]} />
           </div>
           <div class="stack">
+            <SearchField label="Spieler suchen" bind:value={kitSearch} />
             <div class="row">{#each ["Cash", "Turnier", "Spin & Go"] as t (t)}<Tag selected={picked.includes(t)} onclick={() => toggle(t)}>{t}</Tag>{/each}</div>
             <div class="row">{#each tags as t (t)}<Tag onremove={() => (tags = tags.filter((x) => x !== t))} removeLabel="Filter {t} entfernen">Position: {t}</Tag>{/each}<Tag>nur Beschriftung</Tag></div>
           </div>
@@ -475,6 +482,27 @@
           <Card onclick={() => {}}><SectionHead level={3} title="Klickbare Karte" sub="Ganze Fläche ist ein Knopf." /></Card>
           <Card onclick={() => {}} selected><SectionHead level={3} title="Ausgewählt" sub="Rahmen in Textfarbe." /></Card>
           <Card onclick={() => {}} disabled title="Gerade nicht wählbar"><SectionHead level={3} title="Gesperrt" sub="Klickbar, aber gerade nicht wählbar." /></Card>
+        </div>
+        <div class="two">
+          <Panel title="Wert auf seiner Skala" sub="Band = üblicher Bereich, Punkt = Wert in HUD-Farbe; hohl heißt: zu wenig Gelegenheiten.">
+            <div class="meters">
+              <span>VPIP 33 %</span><StatMeter value={33} low={20} high={35} color="var(--amber)" label="VPIP 33 %, üblich 20–35 %" />
+              <span>PFR 3 %</span><StatMeter value={3} low={12} high={25} color="var(--neg)" label="PFR 3 %, unter üblich" />
+              <span>AF 4,2×</span><StatMeter value={4.2} max={6} low={1.5} high={3.5} color="var(--pos)" label="AF 4,2, über üblich" />
+              <span>3-Bet 8 %</span><StatMeter value={8} low={4} high={10} color="var(--amber)" thin label="3-Bet 8 %, noch unsicher" />
+              <span>klein</span><StatMeter size="sm" value={41} low={20} high={35} color="var(--pos)" label="VPIP 41 %" />
+            </div>
+          </Panel>
+          <Panel title="Tabelle mit Sortierung" sub="Spaltentitel sortieren, die erste Zelle öffnet die Zeile – auch per Tastatur." flush>
+            <table class="kit-table">
+              <thead><tr><th><SortHeader active={kitSort === "name"} asc onclick={() => (kitSort = "name")}>Spieler</SortHeader></th><th class="r"><SortHeader active={kitSort === "hands"} onclick={() => (kitSort = "hands")}>Hände</SortHeader></th><th class="r"><SortHeader>Stack</SortHeader></th></tr></thead>
+              <tbody>
+                {#each [["Lee Ann", "412", "47"], ["Rüdiger", "96", "114"]] as [n, h, st], i (n)}
+                  <tr><td><CellButton current={i === 0} onclick={() => {}}>{n}</CellButton></td><td class="r num">{h}</td><td class="r num">{st}<span class="unit">BB</span></td></tr>
+                {/each}
+              </tbody>
+            </table>
+          </Panel>
         </div>
         <Panel title="Panel mit Kopf" sub="Titel, Erklärzeile und Aktionen rechts.">
           {#snippet actions()}<Button size="sm" variant="quiet">Alle ansehen</Button>{/snippet}
@@ -871,6 +899,31 @@
     flex-direction: column;
     gap: var(--sp-3);
     min-width: 0;
+  }
+  .meters {
+    display: grid;
+    grid-template-columns: 90px minmax(0, 1fr);
+    align-items: center;
+    gap: var(--sp-3) var(--sp-4);
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .kit-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .kit-table th {
+    height: 34px;
+    padding: 0 var(--sp-4);
+    border-bottom: 1px solid var(--line-2);
+    text-align: left;
+  }
+  .kit-table td {
+    border-bottom: 1px solid var(--line);
+  }
+  .kit-table .r {
+    padding: 0 var(--sp-4);
+    text-align: right;
   }
   .two {
     display: grid;

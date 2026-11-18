@@ -1,22 +1,43 @@
 <script lang="ts">
   import { api } from "../api";
   import PlayingCard from "../PlayingCard.svelte";
-  import { RATED_STATS, STAT_META, compact, fmt, stat, toneColor } from "../stats";
-  import type { HudConfig, PlayerNote, PlayerView, ShownHand } from "../types";
+  import { STAT_META, compact, fmtUnit, stat, tone, toneColor } from "../stats";
+  import type { HudConfig, PlayerNote, PlayerView, ShownHand, StatId } from "../types";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import IconButton from "../ui/IconButton.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
+  import StatMeter from "../ui/StatMeter.svelte";
+  import Term from "../ui/Term.svelte";
   import { dateTime, int, sign, signed } from "./format";
+  import { SMALL_SAMPLE, TYPE, read, sampleNote } from "./reads";
   import Wheel from "./Wheel.svelte";
 
   let {
     player,
     hud,
+    advice,
+    hero = false,
+    docked = false,
     onClose,
     onHands,
   }: {
     player: PlayerView;
     hud: HudConfig;
-    onClose: () => void;
+    /** Player type and counter may show: PokerStars is closed. */
+    advice: boolean;
+    /** One of your own names: no player type for yourself. */
+    hero?: boolean;
+    /** Next to the list instead of sliding in over it. */
+    docked?: boolean;
+    onClose?: () => void;
     onHands: (name: string, handId?: number) => void;
   } = $props();
+
+  const GROUPS: [string, StatId[]][] = [
+    ["Vor dem Flop", ["vpip", "pfr", "three_bet", "fold_to_three_bet", "steal", "fold_to_steal"]],
+    ["Nach dem Flop", ["cbet", "fold_to_cbet", "wtsd", "wsd", "af", "afq"]],
+  ];
 
   let shown = $state<ShownHand[] | null>(null);
   let note = $state<PlayerNote | null>(null);
@@ -29,117 +50,200 @@
     note = null;
     api.shownHands(name).then((r) => live && (shown = r));
     api.playerNote(name).then((n) => live && (note = n));
-    panel?.focus();
+    if (!docked) panel?.focus();
     return () => (live = false);
   });
 
   const hands = $derived(stat(player.stats, "hands")?.value ?? 0);
+  const r = $derived(read(player.stats));
   const cards = (s: string) => s.split(" ").filter(Boolean);
 
+  function word(id: StatId): string {
+    const t = tone(hud, stat(player.stats, id));
+    return t === "low" ? "unter üblich" : t === "high" ? "über üblich" : t === "mid" ? "üblich" : "noch kein Wert";
+  }
+
   function key(e: KeyboardEvent) {
-    if (e.key === "Escape") onClose();
+    if (e.key === "Escape" && onClose && !e.defaultPrevented) onClose();
   }
 </script>
 
-<svelte:window onkeydown={key} />
+<svelte:window onkeydown={docked ? undefined : key} />
 
-<div class="backdrop" onclick={onClose} aria-hidden="true"></div>
-<aside class="drawer" bind:this={panel} tabindex="-1" aria-label="Spieler {player.name}">
+{#if !docked}<div class="backdrop" onclick={onClose} aria-hidden="true"></div>{/if}
+<aside class="detail" class:docked class:drawer={!docked} bind:this={panel} tabindex="-1" aria-label="Spieler {player.name}">
   <header>
     <Wheel stats={player.stats} {hud} size={48} hands={compact(hands)} />
     <div class="who">
       <h2 title={player.name}>{player.name}</h2>
-      <span class="dim"><span class="num">{int(hands)}</span> gemeinsame Hände</span>
+      <span class="sub">
+        <span class="num">{int(hands)}</span> gemeinsame {hands === 1 ? "Hand" : "Hände"}
+      </span>
     </div>
-    <button class="icon-btn" onclick={onClose} aria-label="Schließen" title="Schließen (Esc)">
-      <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6 6 18" /></svg>
-    </button>
+    {#if onClose && !docked}
+      <IconButton label="Schließen (Esc)" onclick={onClose}><svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6 6 18" /></svg></IconButton>
+    {/if}
   </header>
 
   <div class="body">
-    {#if note}
-      <div class="note" style="--c:{note.label?.color ?? 'var(--line-2)'}">
+    {#if hero}
+      <p class="self">Das bist du. Wie gut deine eigenen Werte sind, zeigt dir die Seite <b>Leaks</b>.</p>
+    {:else if !advice}
+      <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte unten bleiben sichtbar.</SourceNote>
+    {:else if r?.type}
+      {@const t = TYPE[r.type]}
+      <section class="read" class:unsure={r.sure !== "sure"} aria-label="Spielertyp">
+        <div class="read-head">
+          <span class="kicker">Spielertyp</span>
+          <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
+        </div>
+        <p class="type"><b>{t.name}</b> <span>{t.sketch}</span></p>
+        <p class="counter"><span class="kicker">Gegenzug</span>{t.counter}</p>
+        <p class="why">{t.why}</p>
+        <p class="sure" class:warn={r.sure !== "sure"}>
+          <i aria-hidden="true"></i>
+          {#if r.sure === "sure"}
+            Bei {int(r.hands)} Händen sicher: Auch mit Zufall bleibt er in diesem Typ.
+          {:else if r.sure === "maybe"}
+            Bei {int(r.hands)} Händen knapp: Er liegt nah an der Grenze zum Nachbartyp.
+          {:else}
+            Bei {int(r.hands)} Händen noch unsicher: Beobachte ihn weiter, bevor du dich darauf verlässt.
+          {/if}
+        </p>
+      </section>
+    {:else if r}
+      <section class="read unsure" aria-label="Spielertyp">
+        <div class="read-head"><span class="kicker">Spielertyp</span></div>
+        <p class="type"><b>Kein klarer Typ</b> <span>Seine Werte liegen zwischen den vier Typen.</span></p>
+        <p class="why">Spiel gegen ihn solide und achte auf einzelne Werte, die weit vom Üblichen abweichen.</p>
+      </section>
+    {/if}
+
+    {#if note && (note.text || note.label)}
+      <section class="note" style="--c:{note.label?.color ?? 'var(--line-2)'}" aria-label="Deine Notiz">
         <span class="note-head">
-          {#if note.label}<i class="dot" aria-hidden="true"></i>{note.label.name || "Label"}{:else}Notiz{/if}
+          {#if note.label}<i aria-hidden="true"></i>{note.label.name || "Label"}{:else}Deine Notiz{/if}
           <small>aus PokerStars</small>
         </span>
         {#if note.text}<p>{note.text}</p>{/if}
-      </div>
+      </section>
     {/if}
-    <button class="btn all" onclick={() => onHands(player.name)}>Alle Hände mit {player.name} anzeigen</button>
 
-    <h3 class="panel-title">Werte</h3>
-    <dl class="stats">
-      {#each RATED_STATS as id (id)}
-        {@const s = stat(player.stats, id)}
-        <div class="stat">
-          <dt>
-            <span>{STAT_META[id].name}</span>
-            <small>{STAT_META[id].help}</small>
-          </dt>
-          <dd>
-            <b class="num" style="color:{toneColor(hud, s, 'var(--text-3)')}"
-              >{fmt(s)}{#if s && s.value !== null && !STAT_META[id].ratio}<span class="unit">%</span>{/if}</b
-            >
-            <small class="num" title="Treffer / Gelegenheiten">{int(s?.made ?? 0)}/{int(s?.opp ?? 0)}</small>
-          </dd>
-        </div>
-      {/each}
-    </dl>
+    {#each GROUPS as [title, ids] (title)}
+      <section class="group" aria-label={title}>
+        <h3>{title}</h3>
+        <dl>
+          {#each ids as id (id)}
+            {@const s = stat(player.stats, id)}
+            {@const range = hud.thresholds[id]}
+            {@const thin = (s?.opp ?? 0) < SMALL_SAMPLE}
+            <div class="stat" class:thin>
+              <dt>
+                <Term tip={STAT_META[id].help}>{STAT_META[id].name}</Term>
+                <small>{word(id)} · {sampleNote(s)}</small>
+              </dt>
+              <dd>
+                {#if range}
+                  <StatMeter
+                    value={s?.value ?? null}
+                    low={range.low}
+                    high={range.high}
+                    max={STAT_META[id].ratio ? 6 : 100}
+                    color={toneColor(hud, s, "var(--text-3)")}
+                    {thin}
+                    label={`${STAT_META[id].name} ${fmtUnit(s)}, üblich ${range.low}–${range.high}`}
+                  />
+                {/if}
+                <b class="num" style="color:{toneColor(hud, s, 'var(--text-3)')}">{fmtUnit(s)}</b>
+              </dd>
+            </div>
+          {/each}
+        </dl>
+      </section>
+    {/each}
 
-    <h3 class="panel-title">Gezeigte Karten</h3>
-    {#if shown === null}
-      <p class="faint">Lädt …</p>
-    {:else if shown.length === 0}
-      <p class="faint none">{player.name} hat dir noch keine Karten gezeigt.</p>
-    {:else}
-      <ul class="shown">
-        {#each shown as h (h.hand_id)}
-          {@const net = h.big_blind ? h.net / h.big_blind : 0}
-          <li>
-            <span class="hole">{#each cards(h.cards) as c (c)}<PlayingCard card={c} size={24} />{/each}</span>
-            <span class="board">
-              {#each cards(h.board) as c (c)}<PlayingCard card={c} size={18} />{/each}
-              {#if !h.board}<span class="faint">kein Board</span>{/if}
-            </span>
-            <span class="meta">
-              <b class="num {sign(net)}">{signed(net)}<span class="unit">BB</span></b>
-              <small>{h.position ?? "–"} · {dateTime(h.played_at)}</small>
-            </span>
-            <button class="btn" onclick={() => onHands(player.name, h.hand_id)}>Abspielen</button>
-          </li>
-        {/each}
-      </ul>
-    {/if}
+    <section class="group" aria-label="Gezeigte Karten">
+      <h3>Gezeigte Karten</h3>
+      {#if shown === null}
+        <EmptyState inline tone="loading" title="Lädt …" />
+      {:else if shown.length === 0}
+        <EmptyState inline title="Noch keine gezeigten Karten" text="Sobald {player.name} am Showdown Karten zeigt, stehen sie hier." />
+      {:else}
+        <ul class="shown">
+          {#each shown as h (h.hand_id)}
+            {@const net = h.big_blind ? h.net / h.big_blind : 0}
+            <li>
+              <span class="hole">{#each cards(h.cards) as c (c)}<PlayingCard card={c} size={24} />{/each}</span>
+              <span class="board">
+                {#each cards(h.board) as c (c)}<PlayingCard card={c} size={18} />{/each}
+                {#if !h.board}<span class="none">kein Board</span>{/if}
+              </span>
+              <span class="meta">
+                <b class="num {sign(net)}">{signed(net)}<span class="unit">BB</span></b>
+                <small>{h.position ?? "–"} · {dateTime(h.played_at)}</small>
+              </span>
+              <Button size="sm" variant="quiet" onclick={() => onHands(player.name, h.hand_id)}>Abspielen</Button>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+    </section>
   </div>
+
+  <footer>
+    <Button full onclick={() => onHands(player.name)}>Alle Hände mit {player.name}</Button>
+  </footer>
 </aside>
 
 <style>
   .backdrop {
     position: fixed;
     inset: 0;
-    z-index: 30;
-    background: rgba(8, 9, 11, 0.5);
+    z-index: var(--z-dock);
+    background: var(--overlay);
+    animation: fade var(--dur) var(--ease-standard);
+  }
+  .detail {
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    outline: none;
   }
   .drawer {
     position: fixed;
-    z-index: 31;
+    z-index: var(--z-dock);
     top: 0;
     right: 0;
     bottom: 0;
     width: min(460px, calc(100vw - 220px));
-    display: flex;
-    flex-direction: column;
-    background: var(--surface);
     border-left: 1px solid var(--line-2);
-    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.4);
-    outline: none;
+    box-shadow: var(--shadow-3);
+    animation: slide var(--dur-slow) var(--ease-enter);
+  }
+  .docked {
+    position: sticky;
+    top: var(--sp-4);
+    max-height: calc(100vh - 140px);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+  @keyframes slide {
+    from {
+      transform: translateX(32px);
+      opacity: 0;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
   }
   header {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 18px 16px 16px 20px;
+    gap: var(--sp-3);
+    padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-5);
     border-bottom: 1px solid var(--line);
   }
   .who {
@@ -149,104 +253,179 @@
   h2 {
     margin: 0;
     font-family: var(--font-num);
-    font-size: 20px;
-    font-weight: 600;
+    font-size: var(--fs-xl);
+    font-weight: var(--fw-semibold);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .who .dim {
-    font-size: 13px;
+  .sub {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-md);
   }
-  header .icon-btn {
-    align-self: flex-start;
+  .note-head i {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--c);
   }
   .body {
     flex: 1;
     overflow: auto;
-    padding: 16px 20px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-5);
+    padding: var(--sp-4) var(--sp-5) var(--sp-5);
   }
-  .all {
-    width: 100%;
+  .kicker {
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .read {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-4);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .read-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+  .read p {
+    margin: 0;
+  }
+  .type b {
+    display: block;
+    font-family: var(--font-num);
+    font-size: var(--fs-2xl);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
+  }
+  .type span {
+    color: var(--text-2);
+  }
+  .read .counter {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: var(--sp-1);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-medium);
+  }
+  .why {
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    line-height: var(--lh-base);
+  }
+  .sure {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .sure i {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pos);
+    transform: translateY(-1px);
+  }
+  .sure.warn i {
+    background: none;
+    box-shadow: inset 0 0 0 2px var(--amber);
+  }
+  .self {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-md);
   }
   .note {
-    margin-bottom: 14px;
-    padding: 9px 12px 10px;
+    padding: var(--sp-3);
     border-radius: var(--r-sm);
     border-left: 3px solid var(--c);
     background: var(--surface-2);
-    font-size: 13.5px;
+    font-size: var(--fs-md);
   }
   .note-head {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--sp-2);
+    font-weight: var(--fw-medium);
   }
   .note-head small {
     margin-left: auto;
-    font-size: 11.5px;
     color: var(--text-3);
-  }
-  .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--c);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-regular);
   }
   .note p {
-    margin: 5px 0 0;
+    margin: var(--sp-1) 0 0;
     color: var(--text-2);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
   h3 {
-    margin: 22px 0 8px;
+    margin: 0 0 var(--sp-1);
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
   }
-  .stats {
+  dl {
     margin: 0;
   }
   .stat {
-    display: flex;
-    gap: 16px;
-    padding: 9px 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(130px, 40%);
+    align-items: center;
+    gap: var(--sp-3);
+    padding: var(--sp-2) 0;
     border-bottom: 1px solid var(--line);
   }
   .stat:last-child {
     border-bottom: 0;
   }
   dt {
-    flex: 1;
     min-width: 0;
-  }
-  dt span {
-    display: block;
-    font-size: 13.5px;
+    font-size: var(--fs-base);
   }
   dt small {
     display: block;
     margin-top: 1px;
-    font-size: 12px;
-    line-height: 1.4;
     color: var(--text-3);
+    font-size: var(--fs-sm);
   }
   dd {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 52px;
+    align-items: center;
+    gap: var(--sp-3);
     margin: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    min-width: 64px;
   }
   dd b {
-    font-size: 19px;
-    font-weight: 600;
-    line-height: 1.2;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+    text-align: right;
   }
-  dd small {
-    font-size: 11.5px;
-    color: var(--text-3);
-  }
-  .none {
-    font-size: 13px;
+  .thin dd b {
+    opacity: 0.55;
   }
   .shown {
     margin: 0;
@@ -257,9 +436,12 @@
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto auto;
     align-items: center;
-    gap: 12px;
-    padding: 10px 0;
+    gap: var(--sp-3);
+    padding: var(--sp-2) 0;
     border-bottom: 1px solid var(--line);
+  }
+  .shown li:last-child {
+    border-bottom: 0;
   }
   .hole,
   .board {
@@ -268,7 +450,10 @@
   }
   .board {
     gap: 2px;
-    font-size: 12px;
+  }
+  .none {
+    color: var(--text-3);
+    font-size: var(--fs-sm);
   }
   .meta {
     display: flex;
@@ -276,17 +461,22 @@
     align-items: flex-end;
   }
   .meta b {
-    font-size: 15px;
-    font-weight: 600;
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
   }
   .meta small {
-    font-size: 11.5px;
     color: var(--text-3);
+    font-size: var(--fs-xs);
     white-space: nowrap;
   }
-  .shown .btn {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
+  footer {
+    padding: var(--sp-3) var(--sp-5);
+    border-top: 1px solid var(--line);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .drawer,
+    .backdrop {
+      animation: none;
+    }
   }
 </style>

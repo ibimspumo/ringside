@@ -1,30 +1,39 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, on } from "../api";
-  import { STAT_META, fmt, moneyShort, stat, toneColor } from "../stats";
-  import type { LiveTable, PlayerView, SeatView, StatId, TableView } from "../types";
+  import { moneyShort } from "../stats";
+  import type { LiveTable, PlayerView, SeatView, TableView } from "../types";
+  import Badge from "../ui/Badge.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import { pokerClient, watchPokerClient } from "./client.svelte";
   import { int } from "./format";
+  import MeterLegend from "./MeterLegend.svelte";
   import PlayerDetail from "./PlayerDetail.svelte";
-  import Wheel from "./Wheel.svelte";
+  import PlayerTable, { type ExtraColumn, type PlayerRow } from "./PlayerTable.svelte";
+  import { preview } from "../learn/preview";
 
   let { onHands }: { onHands: (name: string, handId?: number) => void } = $props();
 
-  const COLS: StatId[] = ["hands", "vpip", "pfr", "three_bet", "fold_to_three_bet", "steal", "fold_to_steal", "cbet", "af"];
-  /** Below this many chances a value is still noise; it stays visible but recedes. */
-  const SMALL_SAMPLE = 20;
-
   let tables = $state<LiveTable[]>([]);
   let loaded = $state(false);
-  let selected = $state<{ player: PlayerView; table: TableView } | null>(null);
+  // Browser demo: `cols=all` all values, `player=<name>` opens that player at the first table.
+  let columns = $state<"core" | "all">(preview("cols") === "all" ? "all" : "core");
+  let selected = $state<{ key: string; player: PlayerView; table: TableView; hero: boolean } | null>(null);
 
   function load() {
     api.liveTables().then((t) => {
       tables = t;
+      const want = loaded ? null : preview("player");
+      const first = t.find((x) => x.table)?.table;
+      const seat = first?.seats.find((x) => x.name === want);
+      if (first && seat) pick(first, rowKey(first, seat));
       loaded = true;
     });
   }
 
   onMount(() => {
+    watchPokerClient();
     load();
     const subs = [on("table-updated", load), on("tables-tracked", load), on("settings-changed", load), on("notes-changed", load)];
     // Titles change when a tournament moves you to another table; the tracker reports no event for that.
@@ -36,101 +45,84 @@
   });
 
   const seatsOf = (t: TableView) => [...t.seats].sort((a, b) => a.visual - b.visual);
-  const hasBounty = (t: TableView) => t.seats.some((s) => s.bounty !== null);
-  const hasNotes = (t: TableView) => t.seats.some((s) => s.note);
+  const rowKey = (t: TableView, s: SeatView) => `${t.table_key}:${s.seat}`;
+
+  function rowsOf(t: TableView): PlayerRow[] {
+    return seatsOf(t).map((s) => ({ key: rowKey(t, s), name: s.name, stats: s.stats, label: s.note?.label ?? null, hero: s.is_hero }));
+  }
+
+  function extraOf(t: TableView): ExtraColumn[] {
+    const seat = (r: PlayerRow) => t.seats.find((s) => rowKey(t, s) === r.key);
+    const cols: ExtraColumn[] = [{ key: "stack", head: "Stack", help: "Stack in Big Blinds nach der letzten Hand", at: "before", unit: "BB", text: (r) => int(seat(r)?.stack_bb ?? 0) }];
+    if (t.seats.some((s) => s.bounty !== null))
+      cols.push({ key: "bounty", head: "Bounty", help: "Kopfgeld auf diesen Spieler", at: "before", text: (r) => { const b = seat(r)?.bounty ?? null; return b === null ? "–" : moneyShort(b, t.bounty_currency); } });
+    if (t.seats.some((s) => s.note?.text || s.note?.label))
+      cols.push({ key: "note", head: "Deine Notiz", at: "after", wide: true, text: (r) => { const n = seat(r)?.note; return n ? [n.label?.name, n.text].filter(Boolean).join(" – ") : ""; } });
+    return cols;
+  }
 
   function stakes(t: TableView) {
     if (t.game === "tournament") return `Turnier · BB ${int(t.big_blind / 100)}`;
     return `Cash · ${moneyShort(t.big_blind, t.currency)} BB`;
   }
 
-  function open(seat: SeatView, table: TableView) {
-    selected = { player: { name: seat.name, net: 0, stats: seat.stats }, table };
+  function pick(t: TableView, key: string) {
+    const s = t.seats.find((x) => rowKey(t, x) === key);
+    if (s) selected = { key, player: { name: s.name, net: 0, stats: s.stats }, table: t, hero: s.is_hero };
   }
 </script>
 
-<div class="page">
+<div class="page roomy">
+  {#if tables.some((t) => t.table)}
+    <div class="tools">
+      <MeterLegend />
+      <SegmentedControl
+        label="Spalten"
+        size="sm"
+        value={columns}
+        onchange={(v) => (columns = v)}
+        options={[
+          { value: "core", label: "Kernwerte", hint: "VPIP, PFR, 3-Bet und Aggression" },
+          { value: "all", label: "Alle 12 Werte", hint: "Dazu Steal, C-Bet, Showdown und die Fold-Werte" },
+        ]}
+      />
+    </div>
+  {/if}
+
   {#each tables as t (t.table_key)}
-    <section class="panel">
-      <header class="head">
+    <section class="table-card" aria-label={t.title}>
+      <header>
         <h2 title={t.title}>{t.title}</h2>
         {#if t.table}
-          <span class="dim">{stakes(t.table)}</span>
-          <span class="dim"><span class="num">{t.table.seats.length}</span> Spieler</span>
-          <span class="faint num">Hand #{t.table.hand_id}</span>
+          <span class="facts">
+            <Badge size="sm" tone={t.table.game === "tournament" ? "info" : "neutral"}>{stakes(t.table)}</Badge>
+            <span><span class="num">{t.table.seats.length}</span> Spieler</span>
+            <span class="faint num">Hand #{t.table.hand_id}</span>
+          </span>
         {/if}
       </header>
       {#if t.table}
         {@const table = t.table}
         <div class="scroll">
-          <table class="table">
-            <thead>
-              <tr>
-                <th class="name">Spieler</th>
-                <th title="Stack in Big Blinds nach der letzten Hand">Stack</th>
-                {#if hasBounty(table)}<th title="Kopfgeld auf diesen Spieler">Bounty</th>{/if}
-                {#each COLS as id (id)}
-                  <th title={`${STAT_META[id].name}: ${STAT_META[id].help}`} aria-label={STAT_META[id].name}>{STAT_META[id].short}</th>
-                {/each}
-                {#if hasNotes(table)}<th class="note" title="Deine Notizen und Farb-Labels aus PokerStars">Notiz</th>{/if}
-                <th class="act"><span class="sr">Details</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each seatsOf(table) as seat (seat.seat)}
-                <tr class:hero={seat.is_hero} onclick={() => open(seat, table)}>
-                  <td class="name">
-                    <span class="who">
-                      <Wheel stats={seat.stats} hud={table.hud} size={16} />
-                      <span class="n" title={seat.name}>{seat.name}</span>
-                      {#if seat.note?.label}
-                        <i class="dot" style="--c:{seat.note.label.color}" title={seat.note.label.name || "Label"}></i>
-                      {/if}
-                      {#if seat.is_hero}<span class="you">du</span>{/if}
-                    </span>
-                  </td>
-                  <td>{int(seat.stack_bb)}<span class="unit">BB</span></td>
-                  {#if hasBounty(table)}
-                    <td>{seat.bounty === null ? "–" : moneyShort(seat.bounty, table.bounty_currency)}</td>
-                  {/if}
-                  {#each COLS as id (id)}
-                    {@const s = stat(seat.stats, id)}
-                    <td
-                      class:thin={id !== "hands" && (s?.opp ?? 0) < SMALL_SAMPLE}
-                      style={id === "hands" ? "" : `color:${toneColor(table.hud, s, "var(--text-3)")}`}
-                      title={id === "hands" || !s ? undefined : `${STAT_META[id].name}: ${s.made} von ${s.opp}`}>{fmt(s)}</td
-                    >
-                  {/each}
-                  {#if hasNotes(table)}
-                    {@const note = seat.note}
-                    <td class="note" title={note ? [note.label?.name, note.text].filter(Boolean).join(" – ") : undefined}>
-                      {note?.text || note?.label?.name || ""}
-                    </td>
-                  {/if}
-                  <td class="act">
-                    <button
-                      class="btn ghost"
-                      onclick={(e) => {
-                        e.stopPropagation();
-                        open(seat, table);
-                      }}>Details</button
-                    >
-                  </td>
-                </tr>
-              {/each}
-            </tbody>
-          </table>
+          <PlayerTable
+            label={`Spieler an ${t.title}`}
+            rows={rowsOf(table)}
+            hud={table.hud}
+            {columns}
+            extra={extraOf(table)}
+            selected={selected?.key ?? null}
+            onPick={(k) => pick(table, k)}
+          />
         </div>
       {:else}
-        <p class="wait">Noch keine Hand von diesem Tisch importiert. Die Werte erscheinen nach der ersten Hand.</p>
+        <div class="wait"><EmptyState inline tone="loading" title="Warte auf die erste Hand" text="Die Werte erscheinen, sobald Ringside die erste Hand von diesem Tisch gelesen hat." /></div>
       {/if}
     </section>
   {:else}
     {#if loaded}
-      <section class="panel empty-state">
-        <strong>Kein Tisch offen</strong>
-        Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.
-      </section>
+      <EmptyState title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD." />
+    {:else}
+      <EmptyState tone="loading" title="Suche offene Tische" />
     {/if}
   {/each}
 </div>
@@ -139,29 +131,40 @@
   <PlayerDetail
     player={selected.player}
     hud={selected.table.hud}
+    advice={pokerClient.running === false}
+    hero={selected.hero}
     onClose={() => (selected = null)}
     onHands={(name, id) => onHands(name, id)}
   />
 {/if}
 
 <style>
-  .page {
+  .roomy {
+    container: player-list / inline-size;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding-top: 20px;
+    gap: var(--sp-4);
+    max-width: 1640px;
   }
-  .panel {
-    overflow: hidden;
-    max-width: 1080px;
-  }
-  .head {
+  .tools {
     display: flex;
-    align-items: baseline;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-4);
+  }
+  .table-card {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    overflow: hidden;
+  }
+  header {
+    display: flex;
+    align-items: center;
     flex-wrap: wrap;
-    gap: 4px 14px;
-    padding: 14px 18px 10px;
-    font-size: 13px;
+    gap: var(--sp-1) var(--sp-4);
+    padding: var(--sp-3) var(--sp-4);
+    border-bottom: 1px solid var(--line);
   }
   h2 {
     flex: 0 1 auto;
@@ -172,105 +175,21 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--font-num);
-    font-size: 16px;
-    font-weight: 600;
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+  }
+  .facts {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-3);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    white-space: nowrap;
   }
   .scroll {
     overflow-x: auto;
   }
-  .table th {
-    padding: 8px 8px;
-  }
-  .table td {
-    padding: 0 8px;
-    height: 32px;
-    font-size: 13.5px;
-  }
-  .table td.thin {
-    opacity: 0.45;
-  }
-  th.name {
-    width: 1%;
-  }
-  td.name {
-    min-width: 170px;
-    max-width: 240px;
-  }
-  .who {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-family: var(--font-ui);
-    font-size: 13px;
-    min-width: 0;
-  }
-  .who .n {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .dot {
-    flex-shrink: 0;
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--c);
-  }
-  .table .note {
-    text-align: left;
-  }
-  td.note {
-    max-width: 220px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-family: var(--font-ui);
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-  .you {
-    flex-shrink: 0;
-    padding: 0 5px;
-    border-radius: 3px;
-    font-size: 11px;
-    color: var(--text-2);
-    box-shadow: inset 0 0 0 1px var(--line-2);
-  }
-  tbody tr {
-    cursor: pointer;
-  }
-  tr.hero td {
-    background: rgba(236, 235, 231, 0.02);
-  }
-  .act {
-    width: 1%;
-  }
-  td.act {
-    padding-right: 10px !important;
-  }
-  .act .btn {
-    height: 26px;
-    padding: 0 9px;
-    font-family: var(--font-ui);
-    font-size: 12.5px;
-  }
-  .sr {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-  }
   .wait {
-    margin: 0;
-    padding: 4px 18px 16px;
-    color: var(--text-2);
-    font-size: 13px;
-  }
-  .empty-state strong {
-    display: block;
-    margin-bottom: 4px;
-    color: var(--text);
-    font-weight: 600;
+    padding: var(--sp-3) var(--sp-4);
   }
 </style>
