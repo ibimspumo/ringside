@@ -1,25 +1,28 @@
 // Words for the practice with whole hands: grades, choices, sources and the plain-language
 // "why" after each move. Postflop reasons come from the solver page's explain.ts.
 import { actionColors } from "../solver/actions";
-import { lesson as postflopLesson, often } from "../solver/explain";
+import { lesson as postflopLesson } from "../solver/explain";
 import type { SolverAction } from "../solver/types";
+import { betterLine, mixText, playsLine, sameEv, type Who } from "./words";
 import type { Choice, EndReason, Grade, HandView, Lesson, PlayAnte, PlayConfig, PlayMode, Source, Verdict } from "./types";
 
 export const num = (x: number, d = 1) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
 export const bbText = (x: number, d = 1) => `${num(x, d)} BB`;
 export const signedBB = (x: number) => `${x > 0.04 ? "+" : x < -0.04 ? "−" : "±"}${num(Math.abs(x))} BB`;
 
-export const GRADE: Record<Grade, { label: string; color: string; lead: string }> = {
-  best: { label: "Beste Wahl", color: "var(--g-best)", lead: "Genau so spielt es die Lösung." },
-  good: { label: "Gut", color: "var(--g-good)", lead: "Gut gespielt – fast so viel wert wie die beste Wahl." },
-  inaccurate: { label: "Ungenau", color: "var(--g-inaccurate)", lead: "Knapp daneben, das kostet ein wenig." },
-  mistake: { label: "Fehler", color: "var(--g-mistake)", lead: "Hier lässt du spürbar etwas liegen." },
-  blunder: { label: "Grober Fehler", color: "var(--g-blunder)", lead: "Das wird teuer – schau dir das Warum an." },
+export const GRADE: Record<Grade, { label: string; color: string; lead: string; mark: string }> = {
+  best: { label: "Beste Wahl", color: "var(--grade-best)", lead: "Genau so spielt es die Lösung.", mark: "★" },
+  mix: { label: "Auch richtig (Mix)", color: "var(--grade-mix)", lead: "Gleich viel wert wie der Hauptzug – volle Punkte.", mark: "≈" },
+  good: { label: "Gut", color: "var(--grade-good)", lead: "Gut gespielt – fast so viel wert wie die beste Wahl.", mark: "✓" },
+  inaccurate: { label: "Ungenau", color: "var(--grade-inaccurate)", lead: "Knapp daneben, das kostet ein wenig.", mark: "!" },
+  mistake: { label: "Fehler", color: "var(--grade-mistake)", lead: "Hier lässt du spürbar etwas liegen.", mark: "✕" },
+  blunder: { label: "Grober Fehler", color: "var(--grade-blunder)", lead: "Das wird teuer – schau dir das Warum an.", mark: "✕✕" },
 };
-export const GRADES: Grade[] = ["best", "good", "inaccurate", "mistake", "blunder"];
+export const GRADES: Grade[] = ["best", "mix", "good", "inaccurate", "mistake", "blunder"];
 /** In % of the pot at the decision; crates/ringside-play/src/grade.rs decides with the same numbers. */
 export const THRESHOLD_TEXT: Record<Grade, string> = {
-  best: "kostet höchstens 0,5 % des Pots, und die Lösung spielt den Zug mit deiner Hand",
+  best: "der Zug, den die Lösung mit deiner Hand am häufigsten spielt, und er kostet höchstens 0,5 % des Pots",
+  mix: "die Lösung spielt den Zug mit deiner Hand mindestens jedes zehnte Mal, und er kostet höchstens 0,5 % des Pots",
   good: "kostet höchstens 2 % des Pots",
   inaccurate: "kostet 2 bis 6 % des Pots",
   mistake: "kostet 6 bis 15 % des Pots",
@@ -79,26 +82,6 @@ function asSolverAction(c: Choice): SolverAction {
 
 export const choiceColors = (choices: Choice[]) => actionColors(choices.map(asSolverAction));
 
-/** The verb for a choice, e.g. "erhöhen", "callen". */
-export function verb(c: Choice): string {
-  switch (c.kind) {
-    case "fold":
-      return "folden";
-    case "check":
-      return "checken";
-    case "call":
-      return "callen";
-    case "limp":
-      return "limpen";
-    case "bet":
-      return "setzen";
-    case "raise":
-      return "erhöhen";
-    case "all_in":
-      return "all-in gehen";
-  }
-}
-
 const SOURCE_NAME: Record<Source, string> = {
   model: "Preflop-Modell",
   equilibrium: "Push/Fold-Gleichgewicht",
@@ -124,33 +107,55 @@ export function sourceLine(source: Source, config: PlayConfig, stack: number, ex
 
 export const SOURCE_SHORT = SOURCE_NAME;
 
-/** The plain-language reason for a verdict: what the best move is with this hand, and why. */
+const WHO: Record<Source, Who> = { model: "model", equilibrium: "equilibrium", solver: "solution", library: "solution", saved: "solution" };
+
+/** The headline of a graded move: what was better and what it cost, the mix, or nothing. */
+export function headlineOf(v: Verdict, cards: string[]): string | null {
+  const j = v.judgement;
+  if (!j || !v.strategy) return null;
+  const chosen = v.choices[v.chosen];
+  if (j.grade === "mix") {
+    const main = v.choices[j.main];
+    const ev = (k: number) => (v.evs ? v.evs[k] : null);
+    return mixText(WHO[v.source], handName(v, cards), { kind: main.kind, f: v.strategy[j.main], ev: ev(j.main) }, { kind: chosen.kind, f: v.strategy[v.chosen], ev: ev(v.chosen) });
+  }
+  if ((j.grade === "mistake" || j.grade === "blunder") && j.loss_bb !== null && j.loss_pct !== null) {
+    return betterLine(v.choices[j.best].kind, chosen.kind, j.loss_bb, j.loss_pct);
+  }
+  return null;
+}
+
+/** Hand class preflop, the exact cards after the flop (strategies there are per combo). */
+function handName(v: Verdict | Lesson, cards: string[]): string {
+  return v.street === "preflop" ? v.class : cards.map(cardText).join("");
+}
+
+/** The plain-language reason for a verdict: what the solution does with this hand, and why. */
 export function reason(v: Verdict | Lesson, chosen: number | null, cards: string[]): string {
   if (!v.strategy) {
     return "Diese Hand kommt in der Lösung hier gar nicht an – sie wäre vorher anders gespielt worden. Deshalb gibt es für diesen Zug keine Bewertung.";
   }
   const strategy = v.strategy;
   const best = v.evs ? v.evs.indexOf(Math.max(...v.evs)) : strategy.indexOf(Math.max(...strategy));
-  const bestChoice = v.choices[best];
   if (v.node) {
     const hand = v.node.hands.find((h) => sameCards(h.combo, cards));
-    if (hand && hand.evs.length === strategy.length) return postflopLesson(v.node, hand, best);
+    if (hand && hand.evs.length === strategy.length && chosen !== null && chosen !== best && !sameEv(v.evs?.[best] ?? 0, v.evs?.[chosen] ?? 0)) {
+      return `${postflopLesson(v.node, hand, best)} ${playsLine(WHO[v.source], handName(v, cards), strategy.map((f, k) => ({ kind: v.choices[k].kind, f })))}`;
+    }
   }
-  const mix = strategy
-    .map((f, k) => ({ f, k }))
-    .filter((x) => x.f >= 0.05)
-    .sort((a, b) => b.f - a.f)
-    .map((x) => `${often(x.f)} ${verb(v.choices[x.k])}`)
-    .join(", sonst ");
-  const what = v.street === "preflop" ? (v.source === "equilibrium" ? "Das Gleichgewicht" : "Das Modell") : "Die Lösung";
-  const plays = `${what} spielt ${v.class} hier ${mix}.`;
-  if (chosen === null || chosen === best || !v.evs) return plays;
-  const gain = v.evs[best] - v.evs[chosen];
+  const plays = playsLine(WHO[v.source], handName(v, cards), strategy.map((f, k) => ({ kind: v.choices[k].kind, f })));
+  if (chosen === null || chosen === best || !v.evs || sameEv(v.evs[best], v.evs[chosen])) return plays;
   const pot = v.pot;
-  const odds = v.to_call > 0 ? ` Für einen Call zahlst du ${bbText(v.to_call)} in einen Pot von ${bbText(pot + v.to_call)} – du müsstest dafür rund ${Math.round((v.to_call / (pot + v.to_call)) * 100)} % der Zeit gewinnen.` : "";
-  const word = v.choices[chosen].kind === "fold" ? "Mit dieser Hand lohnt sich das Weiterspielen" : `${cap(verb(bestChoice))} lohnt sich mehr`;
-  return `${word}: im Schnitt ${bbText(gain, 2)} mehr als ${verb(v.choices[chosen])}. ${plays}${odds}`;
+  const odds =
+    v.to_call > 0
+      ? ` Für einen Call zahlst du ${bbText(v.to_call)} in einen Pot von ${bbText(pot + v.to_call)} – du müsstest dafür rund ${Math.round((v.to_call / (pot + v.to_call)) * 100)} % der Zeit gewinnen.`
+      : "";
+  return `${plays}${odds}`;
 }
+
+const SUIT: Record<string, string> = { s: "♠", h: "♥", d: "♦", c: "♣" };
+/** "As" → "A♠", "Td" → "10♦". */
+export const cardText = (c: string) => `${c[0] === "T" ? "10" : c[0].toUpperCase()}${SUIT[c[1]?.toLowerCase()] ?? ""}`;
 
 function sameCards(combo: string, cards: string[]): boolean {
   const a = combo.slice(0, 2);

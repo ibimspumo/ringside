@@ -1,25 +1,27 @@
 //! The spot library in the app: the catalog's spots stored on this computer, downloaded
-//! from signed packs and Ringside Cloud, or solved here in the background.
+//! from signed packs and Ringside Cloud, or solved here.
 //!
-//! The background worker runs only when the setting allows it (by default while nobody
-//! uses the computer), never while PokerStars runs and never while the app is in use; a
-//! solve stops within an iteration when that changes and starts over later. Before it
-//! solves a spot it asks the cloud, and afterwards it shares the spot if the user allows
-//! it. Its solves use half the cores and at most a quarter of the memory, so the
-//! computer stays responsive. Progress survives a restart because every finished spot
-//! is a file.
+//! The worker solves when the user starts it on the library page (until they stop it,
+//! PokerStars starts or no spot is left) and, automatically, when the setting allows it
+//! (by default while nobody uses the computer) and the app is not in use. It never runs
+//! while PokerStars runs; a solve stops within an iteration when that changes and starts
+//! over later. Before it solves a spot it asks the cloud, and afterwards it shares the
+//! spot if the user allows it. `shared.json` remembers what became of every shared spot;
+//! now and then the worker asks the cloud whether the verifier has checked them. Solves
+//! take the cores the power setting allows and at most a quarter of the memory. Progress
+//! survives a restart because every finished spot is a file.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{LazyLock, Mutex};
+use std::sync::{Condvar, LazyLock, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use ringside_cloud::client::{DEFAULT_BASE_URL, RetryPolicy};
+use ringside_cloud::client::{DEFAULT_BASE_URL, MAX_STATUS_KEYS, RetryPolicy};
 use ringside_cloud::kinds::postflop::MAX_BYTES;
 use ringside_cloud::kinds::{Postflop, PostflopInput, PostflopSolution};
 use ringside_cloud::packs::{self, Packs, newest_version};
-use ringside_cloud::{Client, Error as CloudError};
+use ringside_cloud::{Client, Error as CloudError, Kind as _, KeyStatus, SubmitStatus};
 use ringside_solver::library::format::{Stored, unpack};
 use ringside_solver::library::{PotType, SpotId, catalog, solve_spot};
 use ringside_solver::{Error as SolverError, Progress, Spot, Summary};
@@ -27,9 +29,9 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::cloud::{CloudState, may_talk};
-use crate::jobs::{self, Kind, Target};
-use crate::settings::LibraryMode;
-use crate::{AppState, CmdResult, blocking, err, store_settings};
+use crate::jobs::{self, Job, Kind, Target};
+use crate::settings::{LibraryMode, LibraryPower};
+use crate::{AppState, CmdResult, blocking, err, store_settings, unlocked};
 
 /// Without input for this long the computer counts as idle.
 const IDLE_AFTER: Duration = Duration::from_secs(5 * 60);
@@ -39,10 +41,20 @@ const TICK: Duration = Duration::from_secs(5);
 const STATUS_EVERY: Duration = Duration::from_millis(500);
 /// Packs are looked for at most this often.
 const PACKS_EVERY: Duration = Duration::from_secs(6 * 3600);
+/// The verifier runs hourly; asking more often would rarely find anything new.
+const CHECK_SHARED_EVERY: Duration = Duration::from_secs(30 * 60);
+/// Status requests per check, each for up to `MAX_STATUS_KEYS` spots.
+const CHECK_BATCHES: usize = 5;
+/// Spots that still have to go up are sent one at a time at this pace, so the server's
+/// limit of 60 submissions an hour leaves room for freshly solved ones.
+const UPLOAD_EVERY: Duration = Duration::from_secs(90);
+const RETRY_FAILED_AFTER_S: u64 = 6 * 3600;
 const PACK_PREFIX: &str = "library-v1-";
+const SHARED_FILE: &str = "shared.json";
 
 static FOCUSED: AtomicBool = AtomicBool::new(true);
-/// Stopped in the task center; the worker rests until the mode changes or the app restarts.
+/// Stopped by the user; the automatic rests until they start again, change the mode or
+/// restart the app.
 static HALTED: AtomicBool = AtomicBool::new(false);
 static FOCUS_SINCE: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
 
@@ -82,29 +94,109 @@ fn app_in_use() -> bool {
     }
 }
 
-/// Why the worker may not run now, in words for the page; `None` when it may.
-fn blocked(app: &AppHandle, mode: LibraryMode) -> Option<&'static str> {
+/// Why the worker does not solve now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Wait {
+    /// PokerStars runs.
+    Client,
+    /// Stopped by the user on the page or in the task center.
+    Halted,
+    Off,
+    /// Waits until nobody has used the computer for a while.
+    Idle,
+    /// Idle time is only known on Windows.
+    IdleUnknown,
+    /// The user works with the app.
+    InUse,
+}
+
+/// Why the worker may not solve now; `None` when it may.
+fn blocked(app: &AppHandle, mode: LibraryMode) -> Option<Wait> {
     if app.state::<AppState>().client_running.load(Ordering::Relaxed) {
-        return Some("PokerStars läuft");
+        return Some(Wait::Client);
+    }
+    if manual_active(app) {
+        return None;
     }
     if HALTED.load(Ordering::Relaxed) && mode != LibraryMode::Off {
-        return Some("von dir angehalten");
+        return Some(Wait::Halted);
     }
     match mode {
-        LibraryMode::Off => return Some("ausgeschaltet"),
+        LibraryMode::Off => return Some(Wait::Off),
         LibraryMode::Idle if !system_idle().is_some_and(|d| d >= IDLE_AFTER) => {
-            return Some(if cfg!(windows) { "wartet auf Leerlauf" } else { "Leerlauf nur unter Windows erkennbar" });
+            return Some(if cfg!(windows) { Wait::Idle } else { Wait::IdleUnknown });
         }
         _ => {}
     }
-    if app_in_use() {
-        return Some("du benutzt die App");
-    }
-    None
+    app_in_use().then_some(Wait::InUse)
 }
 
 fn mode_of(app: &AppHandle) -> LibraryMode {
     app.state::<AppState>().settings.lock().unwrap().library.background
+}
+
+fn cores() -> usize {
+    std::thread::available_parallelism().map_or(2, |n| n.get())
+}
+
+/// Solver threads for `power`: a quarter, half or all but one of the cores.
+fn threads_for(power: LibraryPower, cores: usize) -> usize {
+    match power {
+        LibraryPower::Gentle => cores.div_ceil(4),
+        LibraryPower::Normal => cores.div_ceil(2),
+        LibraryPower::Full => cores.saturating_sub(1),
+    }
+    .max(1)
+}
+
+/// How far a solve is, 0–1: the error falls roughly geometrically, so the share follows
+/// its logarithm from the first measurement to the target.
+fn spot_share(first: f64, now: f64, target: f64) -> f64 {
+    let (from, to) = (first.max(target * 1.01).ln(), target.ln());
+    ((from - now.max(target).ln()) / (from - to)).clamp(0.0, 1.0)
+}
+
+const SUITS: [(char, char); 4] = [('s', '♠'), ('h', '♥'), ('d', '♦'), ('c', '♣')];
+
+/// "Du am Button gegen den Big Blind, Flop K♠ 7♦ 2♣", as `titleOf` says it on the page.
+fn spot_label(scenario: &str, flop: &str) -> String {
+    let seat = |p: &str| -> (String, String) {
+        let (at, against) = match p {
+            "btn" => ("am Button", "den Button"),
+            "co" => ("im Cutoff", "den Cutoff"),
+            "utg" => ("in früher Position", "die frühe Position"),
+            "sb" => ("im Small Blind", "den Small Blind"),
+            "bb" => ("im Big Blind", "den Big Blind"),
+            _ => return (format!("auf {}", p.to_uppercase()), p.to_uppercase()),
+        };
+        (at.into(), against.into())
+    };
+    let mut seats = scenario.split('-').skip(1);
+    let (opener, other) = (seat(seats.next().unwrap_or("")), seat(seats.next().unwrap_or("")));
+    let chars: Vec<char> = flop.chars().collect();
+    let cards: Vec<String> = chars
+        .chunks(2)
+        .map(|c| {
+            let suit = c.get(1).map(|s| SUITS.iter().find(|(k, _)| k == s).map_or(*s, |(_, v)| *v));
+            format!("{}{}", c[0], suit.map(String::from).unwrap_or_default())
+        })
+        .collect();
+    format!("Du {} gegen {}, Flop {}", opener.0, other.1, cards.join(" "))
+}
+
+fn unix_now() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
+}
+
+/// True when `last` is unset or older than `every`, and then marks now.
+fn due(last: &Mutex<Option<Instant>>, every: Duration) -> bool {
+    let mut last = last.lock().unwrap();
+    let due = last.is_none_or(|t| t.elapsed() >= every);
+    if due {
+        *last = Some(Instant::now());
+    }
+    due
 }
 
 // -----------------------------------------------------------------------------------
@@ -136,13 +228,21 @@ pub(crate) fn status_of(root: &Path, id: SpotId) -> Option<Source> {
     [Source::Local, Source::Cloud].into_iter().find(|&s| spot_path(root, s, id).is_file())
 }
 
-fn write(root: &Path, source: Source, id: SpotId, bytes: &[u8]) -> Result<(), String> {
-    let path = spot_path(root, source, id);
-    std::fs::create_dir_all(path.parent().expect("spot files have a directory")).map_err(err)?;
-    // Written next to it first, so a crash never leaves half a file under the real name.
+fn all_spots() -> impl Iterator<Item = SpotId> {
+    let c = catalog();
+    (0..c.scenarios.len()).flat_map(move |scenario| (0..c.flops.len()).map(move |flop| SpotId { scenario, flop }))
+}
+
+/// Writes next to the real name first, so a crash never leaves half a file under it.
+fn write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    std::fs::create_dir_all(path.parent().expect("library files have a directory")).map_err(err)?;
     let tmp = path.with_extension("part");
     std::fs::write(&tmp, bytes).map_err(err)?;
-    std::fs::rename(&tmp, &path).map_err(err)
+    std::fs::rename(&tmp, path).map_err(err)
+}
+
+fn write(root: &Path, source: Source, id: SpotId, bytes: &[u8]) -> Result<(), String> {
+    write_file(&spot_path(root, source, id), bytes)
 }
 
 fn disk_bytes(dir: &Path) -> u64 {
@@ -158,18 +258,177 @@ fn disk_bytes(dir: &Path) -> u64 {
 }
 
 // -----------------------------------------------------------------------------------
+// Sharing.
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ShareState {
+    /// Uploaded, waits for the verifier.
+    Submitted,
+    /// Checked by the verifier and served to everyone.
+    Verified,
+    /// The verifier refused it.
+    Rejected,
+    /// The upload failed; tried again later.
+    Failed,
+}
+
+/// What became of a spot solved here and offered to the cloud.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Shared {
+    pub state: ShareState,
+    /// Unix seconds of the upload or of the failed try.
+    pub at: u64,
+    /// The verifier's reason for a rejection, or the error of a failed upload.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
+}
+
+/// Per spot ("scenario/flop").
+type SharedLog = BTreeMap<String, Shared>;
+
+fn shared_key(id: SpotId) -> String {
+    let c = catalog();
+    format!("{}/{}", c.scenarios[id.scenario].id, c.flops[id.flop])
+}
+
+fn read_shared(root: &Path) -> SharedLog {
+    std::fs::read(root.join(SHARED_FILE)).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+fn write_shared(root: &Path, log: &SharedLog) -> Result<(), String> {
+    write_file(&root.join(SHARED_FILE), &serde_json::to_vec(log).map_err(err)?)
+}
+
+fn input_of(id: SpotId) -> PostflopInput {
+    let c = catalog();
+    PostflopInput::new(&c.scenarios[id.scenario].id, &c.flops[id.flop])
+}
+
+/// Offers a spot solved here to the cloud and records the outcome. Only with the user's
+/// consent (`cloud.share`) and when `may_talk`.
+fn share(app: &AppHandle, root: &Path, id: SpotId, stored: &Stored, size: usize) {
+    let at = unix_now();
+    let shared = if size > MAX_BYTES {
+        Shared { state: ShareState::Failed, at, note: Some("zu groß zum Teilen".into()) }
+    } else {
+        let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
+        let solution = PostflopSolution::from_stored(stored);
+        match Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<Postflop>(&input_of(id), &solution) {
+            Ok(status) => {
+                update(app, |s| s.shared += 1);
+                let state = match status {
+                    SubmitStatus::Submitted => ShareState::Submitted,
+                    SubmitStatus::AlreadyVerified => ShareState::Verified,
+                };
+                Shared { state, at, note: None }
+            }
+            Err(e) => {
+                note(app, &e);
+                Shared { state: ShareState::Failed, at, note: Some(e.to_string()) }
+            }
+        }
+    };
+    let mut log = read_shared(root);
+    log.insert(shared_key(id), shared);
+    if let Err(e) = write_shared(root, &log) {
+        update(app, |s| s.last_error = Some(format!("Speichern: {e}")));
+    }
+}
+
+/// The record that follows from the cloud's answer for a spot solved here; `None` when
+/// this computer never got it up, so it has to be shared (again).
+fn after_check(known: Option<&Shared>, status: KeyStatus, now: u64) -> Option<Shared> {
+    let at = known.map_or(now, |s| s.at);
+    match (status, known) {
+        (KeyStatus::Verified, _) => Some(Shared { state: ShareState::Verified, at, note: None }),
+        (KeyStatus::Submitted, _) => Some(Shared { state: ShareState::Submitted, at, note: None }),
+        (KeyStatus::Rejected(note), Some(_)) => Some(Shared { state: ShareState::Rejected, at, note }),
+        // Someone else's copy was rejected or the server has none; ours never went up.
+        (KeyStatus::Rejected(_) | KeyStatus::Unknown, _) => None,
+    }
+}
+
+/// Asks the cloud what became of the spots waiting for the verifier, and about spots
+/// solved here before sharing was recorded. Spots it does not have go into the upload
+/// queue.
+fn check_shared(app: &AppHandle, root: &Path) -> Result<(), CloudError> {
+    let mut log = read_shared(root);
+    let open: Vec<SpotId> = all_spots()
+        .filter(|&id| spot_path(root, Source::Local, id).is_file())
+        .filter(|&id| log.get(&shared_key(id)).is_none_or(|s| s.state == ShareState::Submitted))
+        .collect();
+    if open.is_empty() {
+        return Ok(());
+    }
+    let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy { attempts: 2, ..RetryPolicy::impatient() });
+    let mut queue = Vec::new();
+    for chunk in open.chunks(MAX_STATUS_KEYS).take(CHECK_BATCHES) {
+        let keys = chunk
+            .iter()
+            .map(|&id| Postflop::key(&input_of(id)))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| CloudError::Protocol(e.to_string()))?;
+        for (&id, (_, status)) in chunk.iter().zip(client.statuses(&keys)?) {
+            let k = shared_key(id);
+            match after_check(log.get(&k), status, unix_now()) {
+                Some(s) => {
+                    log.insert(k, s);
+                }
+                None => {
+                    log.remove(&k);
+                    queue.push(id);
+                }
+            }
+        }
+    }
+    write_shared(root, &log).map_err(CloudError::Protocol)?;
+    let state = app.state::<LibraryState>();
+    let mut upload = state.upload.lock().unwrap();
+    for id in queue {
+        if !upload.contains(&id) {
+            upload.push(id);
+        }
+    }
+    Ok(())
+}
+
+/// Sends the next spot of the upload queue, or a failed upload that is old enough.
+fn upload_next(app: &AppHandle, root: &Path) {
+    let queued = app.state::<LibraryState>().upload.lock().unwrap().pop();
+    let id = queued.or_else(|| {
+        let log = read_shared(root);
+        let now = unix_now();
+        all_spots().find(|&id| {
+            log.get(&shared_key(id)).is_some_and(|s| {
+                s.state == ShareState::Failed && now.saturating_sub(s.at) >= RETRY_FAILED_AFTER_S
+            }) && spot_path(root, Source::Local, id).is_file()
+        })
+    });
+    let Some(id) = id else { return };
+    let Ok(bytes) = std::fs::read(spot_path(root, Source::Local, id)) else { return };
+    match Stored::from_bytes(&bytes, catalog()) {
+        Ok(stored) => share(app, root, id, &stored, bytes.len()),
+        Err(e) => update(app, |s| s.last_error = Some(format!("{}: {e}", shared_key(id)))),
+    }
+}
+
+// -----------------------------------------------------------------------------------
 // Worker.
 
 #[derive(Clone, Debug, Default, Serialize)]
 pub struct WorkerStatus {
     /// "off", "waiting", "packs", "cloud", "solving" or "done".
     pub state: &'static str,
-    /// Why it waits.
-    pub reason: Option<&'static str>,
+    pub reason: Option<Wait>,
+    /// Started by the user on the page.
+    pub manual: bool,
     pub scenario: Option<String>,
     pub flop: Option<String>,
     pub iteration: u32,
     pub exploitability_pct: f64,
+    /// Of the current spot, 0–1, once measured.
+    pub progress: Option<f64>,
     pub elapsed_ms: u64,
     pub threads: usize,
     /// This session: spots solved here, spots fetched from the cloud, spots shared.
@@ -179,12 +438,26 @@ pub struct WorkerStatus {
     pub last_error: Option<String>,
 }
 
+/// A run the user started on the page: one task in the task center for all its spots.
+struct Manual {
+    job: Job,
+    done: u64,
+    total: u64,
+}
+
 #[derive(Default)]
 pub struct LibraryState {
     status: Mutex<WorkerStatus>,
     /// Spots that failed this session; tried again after a restart.
     skip: Mutex<HashSet<SpotId>>,
     packs_checked: Mutex<Option<Instant>>,
+    shared_checked: Mutex<Option<Instant>>,
+    uploaded: Mutex<Option<Instant>>,
+    /// Spots solved here that the cloud does not have from this computer yet.
+    upload: Mutex<Vec<SpotId>>,
+    manual: Mutex<Option<Manual>>,
+    woken: Mutex<bool>,
+    wake: Condvar,
 }
 
 fn update(app: &AppHandle, f: impl FnOnce(&mut WorkerStatus)) {
@@ -192,6 +465,34 @@ fn update(app: &AppHandle, f: impl FnOnce(&mut WorkerStatus)) {
     let mut s = state.status.lock().unwrap();
     f(&mut s);
     let _ = app.emit("library-status", s.clone());
+}
+
+/// Lets the worker look at its situation now instead of after the next pause.
+fn wake(app: &AppHandle) {
+    let state = app.state::<LibraryState>();
+    *state.woken.lock().unwrap() = true;
+    state.wake.notify_one();
+}
+
+fn manual_active(app: &AppHandle) -> bool {
+    app.state::<LibraryState>().manual.lock().unwrap().as_ref().is_some_and(|m| !m.job.cancelled())
+}
+
+/// Ends the user's run, if one runs, with `how` (finished or stopped).
+fn end_manual(app: &AppHandle, how: impl FnOnce(&Job)) {
+    let ended = app.state::<LibraryState>().manual.lock().unwrap().take();
+    if let Some(m) = ended {
+        how(&m.job);
+        update(app, |s| s.manual = false);
+    }
+}
+
+/// Counts a spot that the user's run added to the library.
+fn count_manual(app: &AppHandle) {
+    if let Some(m) = app.state::<LibraryState>().manual.lock().unwrap().as_mut() {
+        m.done += 1;
+        m.job.steps(m.done, m.total.max(m.done));
+    }
 }
 
 pub fn spawn(app: AppHandle) {
@@ -204,57 +505,85 @@ pub fn spawn(app: AppHandle) {
             let offset = nanos % catalog().flops.len();
             loop {
                 tick(&app, offset);
-                std::thread::sleep(TICK);
+                let state = app.state::<LibraryState>();
+                let woken = state.woken.lock().unwrap();
+                let (mut woken, _) = state.wake.wait_timeout_while(woken, TICK, |w| !*w).unwrap();
+                *woken = false;
             }
         })
         .expect("library thread starts");
 }
 
-fn background_threads() -> usize {
-    std::thread::available_parallelism().map_or(2, |n| n.get()).div_ceil(2).max(1)
+/// Downloads and uploads; they cost the computer nothing worth asking for, so they run
+/// whatever the mode.
+fn cloud_chores(app: &AppHandle, root: &Path) {
+    let cloud = app.state::<AppState>().settings.lock().unwrap().cloud;
+    let state = app.state::<LibraryState>();
+    if cloud.fetch && may_talk(app) && due(&state.packs_checked, PACKS_EVERY) {
+        update(app, |s| (s.state, s.reason) = ("packs", None));
+        if let Err(e) = import_packs(app, root) {
+            eprintln!("library packs: {e}");
+            update(app, |s| s.last_error = Some(format!("Pakete: {e}")));
+        }
+    }
+    if (cloud.fetch || cloud.share)
+        && may_talk(app)
+        && due(&state.shared_checked, CHECK_SHARED_EVERY)
+        && let Err(e) = check_shared(app, root)
+    {
+        note(app, &e);
+    }
+    if cloud.share && may_talk(app) && due(&state.uploaded, UPLOAD_EVERY) {
+        upload_next(app, root);
+    }
 }
 
 fn tick(app: &AppHandle, offset: usize) {
     let Some(root) = root(app) else { return };
-    let cloud = app.state::<AppState>().settings.lock().unwrap().cloud;
-    // Packs are downloads, not work for this computer, so they come whatever the mode.
-    if cloud.fetch && may_talk(app) {
-        let due = app.state::<LibraryState>().packs_checked.lock().unwrap().is_none_or(|t| t.elapsed() >= PACKS_EVERY);
-        if due {
-            update(app, |s| (s.state, s.reason) = ("packs", None));
-            *app.state::<LibraryState>().packs_checked.lock().unwrap() = Some(Instant::now());
-            if let Err(e) = import_packs(app, &root) {
-                eprintln!("library packs: {e}");
-                update(app, |s| s.last_error = Some(format!("Pakete: {e}")));
-            }
-        }
+    let state = app.state::<LibraryState>();
+    let cancelled = state.manual.lock().unwrap().as_ref().is_some_and(|m| m.job.cancelled());
+    if cancelled {
+        HALTED.store(true, Ordering::Relaxed);
+        end_manual(app, Job::stopped);
     }
+    if app.state::<AppState>().client_running.load(Ordering::Relaxed) {
+        end_manual(app, Job::stopped);
+    }
+    cloud_chores(app, &root);
+
     let mode = mode_of(app);
     if let Some(reason) = blocked(app, mode) {
-        let state = if mode == LibraryMode::Off { "off" } else { "waiting" };
-        update(app, |s| (s.state, s.reason) = (state, Some(reason)));
+        let st = if reason == Wait::Off { "off" } else { "waiting" };
+        update(app, |s| (s.state, s.reason, s.progress) = (st, Some(reason), None));
         return;
     }
     let Some(id) = next_open(app, &root, offset) else {
-        update(app, |s| (s.state, s.reason, s.scenario, s.flop) = ("done", None, None, None));
+        end_manual(app, Job::finish);
+        update(app, |s| (s.state, s.reason, s.scenario, s.flop, s.progress) = ("done", None, None, None, None));
         return;
     };
     let c = catalog();
     let (scenario, flop) = (c.scenarios[id.scenario].id.clone(), c.flops[id.flop].clone());
-    let input = PostflopInput::new(&scenario, &flop);
+    let label = spot_label(&scenario, &flop);
+    let manual = state.manual.lock().unwrap().as_ref().map(|m| m.job.clone());
     update(app, |s| {
-        (s.scenario, s.flop, s.iteration, s.exploitability_pct, s.elapsed_ms) =
-            (Some(scenario.clone()), Some(flop.clone()), 0, 0.0, 0);
+        (s.scenario, s.flop, s.iteration, s.exploitability_pct, s.elapsed_ms, s.progress) =
+            (Some(scenario.clone()), Some(flop.clone()), 0, 0.0, 0, None);
     });
 
+    let cloud = app.state::<AppState>().settings.lock().unwrap().cloud;
     if cloud.fetch && may_talk(app) {
         update(app, |s| (s.state, s.reason) = ("cloud", None));
-        match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<Postflop>(&input) {
+        if let Some(job) = &manual {
+            job.detail(format!("Schaut in der Cloud nach: {label}"));
+        }
+        match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<Postflop>(&input_of(id)) {
             Ok(Some(found)) => {
                 if let Ok(bytes) = found.bytes()
                     && write(&root, Source::Cloud, id, &bytes).is_ok()
                 {
                     update(app, |s| s.fetched += 1);
+                    count_manual(app);
                     return;
                 }
             }
@@ -263,27 +592,41 @@ fn tick(app: &AppHandle, offset: usize) {
         }
     }
 
-    let threads = background_threads();
+    let power = app.state::<AppState>().settings.lock().unwrap().library.power;
+    let threads = threads_for(power, cores());
     update(app, |s| (s.state, s.reason, s.threads) = ("solving", None, threads));
-    let s = &c.scenarios[id.scenario];
-    let task = jobs::start(Kind::Library, format!("Bibliothek: {} gegen {} auf {flop}", s.ip, s.oop), Target::to("library", None));
-    task.detail("Rechnet, solange du die App nicht benutzt");
+    let task = match &manual {
+        Some(job) => {
+            job.detail(format!("{label} – 0 %"));
+            job.clone()
+        }
+        None => {
+            let job = jobs::start(Kind::Library, format!("Bibliothek: {label}"), Target::to("library", None));
+            job.detail("Automatisch, solange du die App nicht benutzt");
+            job
+        }
+    };
+    let is_manual = manual.is_some();
     let progress_task = task.clone();
     let target = c.target_pct;
     let mut first: Option<f64> = None;
     let progress_app = app.clone();
     let mut last: Option<Instant> = None;
     let on_progress = move |p: &Progress| {
+        let share = (p.iteration > 0)
+            .then(|| spot_share(*first.get_or_insert(p.exploitability_pct), p.exploitability_pct, target));
+        if !is_manual && let Some(share) = share {
+            progress_task.progress(share);
+        }
         if last.is_none_or(|t| t.elapsed() >= STATUS_EVERY) {
             last = Some(Instant::now());
             update(&progress_app, |s| {
-                (s.iteration, s.exploitability_pct, s.elapsed_ms) = (p.iteration, p.exploitability_pct, p.elapsed_ms);
+                (s.iteration, s.exploitability_pct, s.elapsed_ms, s.progress) =
+                    (p.iteration, p.exploitability_pct, p.elapsed_ms, share);
             });
-        }
-        if p.iteration > 0 {
-            let start = *first.get_or_insert(p.exploitability_pct);
-            let (from, to) = (start.max(target * 1.01).ln(), target.ln());
-            progress_task.progress((from - p.exploitability_pct.max(target).ln()) / (from - to));
+            if is_manual {
+                progress_task.detail(format!("{label} – {} %", (share.unwrap_or(0.0) * 100.0).round()));
+            }
         }
     };
     let stop_app = app.clone();
@@ -296,33 +639,31 @@ fn tick(app: &AppHandle, offset: usize) {
     };
     let limit = crate::solver::memory_limit() / 2;
     let result = solve_spot(c, id, threads, limit, on_progress, stop);
-    match &result {
-        Ok(_) => task.finish(),
-        Err(SolverError::Cancelled) => task.stopped(),
-        Err(e) => task.fail(e.to_string()),
+    // The user's run is one task for all its spots; it ends in `end_manual`.
+    if !is_manual {
+        match &result {
+            Ok(_) => task.finish(),
+            Err(SolverError::Cancelled) => task.stopped(),
+            Err(e) => task.fail(e.to_string()),
+        }
     }
     match result {
         Ok(stored) => {
             let bytes = stored.to_bytes();
             if let Err(e) = write(&root, Source::Local, id, &bytes) {
                 update(app, |s| s.last_error = Some(format!("Speichern: {e}")));
-                app.state::<LibraryState>().skip.lock().unwrap().insert(id);
+                state.skip.lock().unwrap().insert(id);
                 return;
             }
-            update(app, |s| s.solved += 1);
-            let share = app.state::<AppState>().settings.lock().unwrap().cloud.share;
-            if share && bytes.len() <= MAX_BYTES && may_talk(app) {
-                let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
-                let solution = PostflopSolution::from_stored(&stored);
-                match Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<Postflop>(&input, &solution) {
-                    Ok(_) => update(app, |s| s.shared += 1),
-                    Err(e) => note(app, &e),
-                }
+            update(app, |s| (s.solved, s.progress) = (s.solved + 1, Some(1.0)));
+            count_manual(app);
+            if cloud.share && may_talk(app) {
+                share(app, &root, id, &stored, bytes.len());
             }
         }
         Err(SolverError::Cancelled) => {}
         Err(e) => {
-            app.state::<LibraryState>().skip.lock().unwrap().insert(id);
+            state.skip.lock().unwrap().insert(id);
             update(app, |s| s.last_error = Some(format!("{scenario} {flop}: {e}")));
         }
     }
@@ -432,6 +773,8 @@ struct ScenarioView {
     stack: f64,
     /// Per catalog flop: null (open), "local" or "cloud".
     status: Vec<Option<Source>>,
+    /// Per catalog flop, for spots solved here: what became of sharing it, if known.
+    shared: Vec<Option<Shared>>,
 }
 
 #[derive(Serialize)]
@@ -443,30 +786,50 @@ pub struct Overview {
     scenarios: Vec<ScenarioView>,
     disk_bytes: u64,
     mode: LibraryMode,
+    power: LibraryPower,
+    cores: usize,
+    /// The user shares own solutions.
+    share: bool,
     worker: WorkerStatus,
 }
 
-/// The catalog with what is stored of it, the disk use and the worker's state.
+/// The catalog with what is stored and shared of it, the disk use and the worker's state.
 #[tauri::command]
 pub async fn library_overview(app: AppHandle) -> CmdResult<Overview> {
     blocking(app.clone(), move |state| {
         let root = root(&app).ok_or("Kein Datenordner")?;
         let c = catalog();
+        let log = read_shared(&root);
         let scenarios = c
             .scenarios
             .iter()
             .enumerate()
-            .map(|(scenario, s)| ScenarioView {
-                id: s.id.clone(),
-                pot_type: s.pot_type,
-                oop: s.oop.clone(),
-                ip: s.ip.clone(),
-                stack_bb: s.stack_bb,
-                pot: s.pot,
-                stack: s.stack,
-                status: (0..c.flops.len()).map(|flop| status_of(&root, SpotId { scenario, flop })).collect(),
+            .map(|(scenario, s)| {
+                let status: Vec<_> =
+                    (0..c.flops.len()).map(|flop| status_of(&root, SpotId { scenario, flop })).collect();
+                let shared = (0..c.flops.len())
+                    .map(|flop| {
+                        let id = SpotId { scenario, flop };
+                        (status[flop] == Some(Source::Local)).then(|| log.get(&shared_key(id)).cloned()).flatten()
+                    })
+                    .collect();
+                ScenarioView {
+                    id: s.id.clone(),
+                    pot_type: s.pot_type,
+                    oop: s.oop.clone(),
+                    ip: s.ip.clone(),
+                    stack_bb: s.stack_bb,
+                    pot: s.pot,
+                    stack: s.stack,
+                    status,
+                    shared,
+                }
             })
             .collect();
+        let (library, cloud) = {
+            let settings = state.settings.lock().unwrap();
+            (settings.library, settings.cloud)
+        };
         Ok(Overview {
             catalog: c.version,
             target_pct: c.target_pct,
@@ -474,7 +837,10 @@ pub async fn library_overview(app: AppHandle) -> CmdResult<Overview> {
             flop_weights: c.flop_weights.clone(),
             scenarios,
             disk_bytes: disk_bytes(&root),
-            mode: state.settings.lock().unwrap().library.background,
+            mode: library.background,
+            power: library.power,
+            cores: cores(),
+            share: cloud.share,
             worker: app.state::<LibraryState>().status.lock().unwrap().clone(),
         })
     })
@@ -486,7 +852,47 @@ pub async fn library_set_mode(mode: LibraryMode, app: AppHandle, state: State<'_
     let mut settings = state.settings.lock().unwrap().clone();
     settings.library.background = mode;
     HALTED.store(false, Ordering::Relaxed);
+    store_settings(&app, &state, settings)?;
+    wake(&app);
+    Ok(())
+}
+
+/// Takes effect with the next spot.
+#[tauri::command]
+pub async fn library_set_power(power: LibraryPower, app: AppHandle, state: State<'_, AppState>) -> CmdResult<()> {
+    let mut settings = state.settings.lock().unwrap().clone();
+    settings.library.power = power;
     store_settings(&app, &state, settings)
+}
+
+/// Starts solving now, also while the app is in use, until stopped, PokerStars starts or
+/// no spot is left; `run: false` stops any solving until started again.
+#[tauri::command]
+pub async fn library_run(run: bool, app: AppHandle) -> CmdResult<()> {
+    blocking(app.clone(), move |state| {
+        if !run {
+            HALTED.store(true, Ordering::Relaxed);
+            end_manual(&app, Job::stopped);
+            wake(&app);
+            return Ok(());
+        }
+        unlocked(state).map_err(|_| "Solange PokerStars läuft, rechnet Ringside nicht.")?;
+        HALTED.store(false, Ordering::Relaxed);
+        let lib = app.state::<LibraryState>();
+        if lib.manual.lock().unwrap().is_none() {
+            let root = root(&app).ok_or("Kein Datenordner")?;
+            let skip = lib.skip.lock().unwrap().clone();
+            let total = all_spots().filter(|id| !skip.contains(id) && status_of(&root, *id).is_none()).count() as u64;
+            let job = jobs::start(Kind::Library, "Bibliothek: Mitrechnen", Target::to("library", None));
+            job.steps(0, total);
+            job.detail("Startet …");
+            *lib.manual.lock().unwrap() = Some(Manual { job, done: 0, total });
+        }
+        update(&app, |s| s.manual = true);
+        wake(&app);
+        Ok(())
+    })
+    .await
 }
 
 #[derive(Serialize)]
@@ -556,6 +962,49 @@ mod tests {
         assert_eq!(status_of(&dir, SpotId { scenario: 0, flop: 4 }), None);
         assert_eq!(disk_bytes(&dir), 1);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn shared_log_survives_a_restart() {
+        let dir = std::env::temp_dir().join(format!("ringside-library-shared-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(read_shared(&dir).is_empty());
+        let id = SpotId { scenario: 1, flop: 2 };
+        let entry = Shared { state: ShareState::Rejected, at: 7, note: Some("too exploitable".into()) };
+        write_shared(&dir, &SharedLog::from([(shared_key(id), entry.clone())])).unwrap();
+        assert_eq!(read_shared(&dir).get(&shared_key(id)), Some(&entry));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cloud_answers_update_what_was_shared() {
+        let sent = Shared { state: ShareState::Submitted, at: 100, note: None };
+        let verified = after_check(Some(&sent), KeyStatus::Verified, 500).unwrap();
+        assert_eq!((verified.state, verified.at), (ShareState::Verified, 100), "keeps the upload time");
+        let rejected = after_check(Some(&sent), KeyStatus::Rejected(Some("why".into())), 500).unwrap();
+        assert_eq!((rejected.state, rejected.note.as_deref()), (ShareState::Rejected, Some("why")));
+        assert_eq!(after_check(Some(&sent), KeyStatus::Unknown, 500), None, "lost upload goes up again");
+        assert_eq!(after_check(None, KeyStatus::Submitted, 500).map(|s| (s.state, s.at)), Some((ShareState::Submitted, 500)));
+        assert_eq!(after_check(None, KeyStatus::Rejected(None), 500), None, "someone else's rejected copy");
+    }
+
+    #[test]
+    fn power_sets_the_threads() {
+        assert_eq!([LibraryPower::Gentle, LibraryPower::Normal, LibraryPower::Full].map(|p| threads_for(p, 16)), [4, 8, 15]);
+        assert_eq!([LibraryPower::Gentle, LibraryPower::Normal, LibraryPower::Full].map(|p| threads_for(p, 1)), [1, 1, 1]);
+    }
+
+    #[test]
+    fn spot_progress_follows_the_log_of_the_error() {
+        assert_eq!(spot_share(20.0, 20.0, 0.5), 0.0);
+        assert!((spot_share(20.0, 20.0_f64.sqrt() * 0.5_f64.sqrt(), 0.5) - 0.5).abs() < 0.01);
+        assert_eq!(spot_share(20.0, 0.3, 0.5), 1.0);
+    }
+
+    #[test]
+    fn labels_say_the_spot_in_words() {
+        assert_eq!(spot_label("srp-btn-bb-40", "Ks7d2c"), "Du am Button gegen den Big Blind, Flop K♠ 7♦ 2♣");
+        assert_eq!(spot_label("3bp-hj-co-75", "AhAd5s"), "Du auf HJ gegen den Cutoff, Flop A♥ A♦ 5♠");
     }
 
     /// The app's download path against the real CDN: signed index, file hash, every spot

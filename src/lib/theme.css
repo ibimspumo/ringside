@@ -438,3 +438,159 @@ input[type="range"] {
   position: fixed;
   z-index: 40;
 }
+
+/*
+ * Design system scales. Components in src/lib/ui/ build only on these; the catalog shows them at
+ * ?view=kit and scripts/check-ui.mjs keeps new code on them.
+ */
+:root {
+  /* Spacing on a 4 px grid. */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+
+  /* Type scale; check-ui.mjs knows the same steps. */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-base: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 18px;
+  --fs-2xl: 22px;
+  --fs-3xl: 26px;
+  --fs-4xl: 34px;
+  --fs-hero: 44px;
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+  --lh-tight: 1.2;
+  --lh-base: 1.45;
+
+  /* Radii next to --r-sm (6), --r-lg (8) and --r (10). */
+  --r-xs: 3px;
+  --r-md: 8px;
+  --r-xl: 14px;
+  --r-pill: 999px;
+
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-3: 0 14px 40px rgba(0, 0, 0, 0.55);
+
+  --z-raised: 1;
+  --z-sticky: 10;
+  --z-dock: 30;
+  --z-popover: 40;
+  --z-dialog: 60;
+  --z-toast: 70;
+
+  /* Roles. */
+  --surface-sunken: var(--bg);
+  --overlay: rgba(8, 9, 11, 0.6);
+  --text-on-light: var(--bg);
+  --primary: var(--text);
+  --primary-hover: #ffffff;
+  --primary-text: var(--bg);
+  --secondary: var(--surface-2);
+  --secondary-hover: var(--surface-3);
+  --danger: var(--neg);
+  --danger-text: #ff9d93;
+  --success: var(--pos);
+  --info: var(--sd);
+
+  /* Poker actions, the same in bars, cells, labels and buttons. Bets darken with their size. */
+  --act-fold: #4f8fca;
+  --act-check: #5fae45;
+  --act-call: var(--act-check);
+  --act-bet-1: #f2b12e;
+  --act-bet-2: #ec8a2f;
+  --act-bet-3: #e5603a;
+  --act-bet-4: #d23f32;
+  --act-raise: var(--act-bet-3);
+  --act-allin: #a92c25;
+  --act-limp: #7f9fd9;
+
+  /* Grades of a decision, best to worst. */
+  --grade-best: #78c142;
+  --grade-mix: #4fbf9a;
+  --grade-good: #b3cf4f;
+  --grade-inaccurate: #f2b12e;
+  --grade-mistake: #ee7d33;
+  --grade-blunder: #e5483b;
+
+  /* Honesty notes: where a number comes from. */
+  --source: #b9a6e8;
+
+  /* 13×13 grid. The class label sits on its own plate so its contrast never depends on the
+     fill; scripts/check-contrast.mjs measures it against every action colour. */
+  --grid-cell: var(--surface-2);
+  --grid-cell-out: var(--surface);
+  --grid-plate: rgba(18, 20, 24, 0.7);
+  --grid-label: var(--text);
+  --grid-label-out: var(--text-2);
+  --grid-dim: 0.28;
+  --fs-grid-min: 8px;
+
+  /* Table. */
+  --felt: #23312d;
+  --felt-edge: #16201d;
+  --rail: #1c1f24;
+  --chip: #d9d4c7;
+  --card-face: #f3f2ee;
+
+  --kbd-h: 18px;
+  --kbd-fs: var(--fs-xs);
+  /* Motion: curves only, never linear or the keyword eases. Standard for state changes, enter
+     for things that appear, exit for things that leave, spring for small confirmations. */
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+  --dur-loop: 900ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-enter: cubic-bezier(0.05, 0.7, 0.1, 1);
+  --ease-exit: cubic-bezier(0.3, 0, 0.8, 0.15);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-spin: cubic-bezier(0.45, 0.05, 0.55, 0.95);
+}
+
+/*
+ * Keycap. The text box is trimmed to cap height and padded evenly, so "R", "Leertaste" and "←"
+ * sit in the optical middle whatever ascent and descent the number font has. text-box only
+ * works on block containers, hence inline-block rather than flex.
+ */
+kbd {
+  display: inline-block;
+  box-sizing: border-box;
+  height: var(--kbd-h);
+  min-width: var(--kbd-h);
+  padding: 0 5px;
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  border-radius: var(--r-xs);
+  background: color-mix(in srgb, currentColor 7%, transparent);
+  font-family: var(--font-num);
+  font-size: var(--kbd-fs);
+  font-weight: var(--fw-medium);
+  line-height: calc(var(--kbd-h) - 2px);
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+@supports (text-box: trim-both cap alphabetic) {
+  kbd {
+    height: auto;
+    padding-block: calc((var(--kbd-h) - 2px - 1cap) / 2);
+    line-height: 1;
+    text-box: trim-both cap alphabetic;
+  }
+}
+.btn kbd {
+  margin-left: 2px;
+  opacity: 0.75;
+}

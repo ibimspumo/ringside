@@ -38,17 +38,7 @@ export function duration(start: string, end: string): string {
   return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")} h`;
 }
 
-/** German integer with thousands dots. */
-export function int(n: number): string {
-  return Math.round(n).toLocaleString("de-DE");
-}
-
-/** Signed decimal: "+12,4", "−3,0", "0,0". */
-export function signed(n: number, digits = 1): string {
-  const abs = Math.abs(n).toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
-  if (Math.abs(n) < 0.5 / 10 ** digits) return abs;
-  return `${n > 0 ? "+" : "−"}${abs}`;
-}
+export { int, signed } from "../ui/format";
 
 /** CSS class for a result: "pos", "neg" or "". */
 export function sign(n: number | null | undefined): string {
@@ -76,58 +66,4 @@ export function since(period: Period, now = new Date()): string | null {
   return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export type Anchor = { left: number; top: number; right: number; bottom: number };
-export type FloatOptions = { anchor: Anchor; side?: "top" | "right" | "bottom" };
-
-const EDGE = 8;
-const GAP = 6;
-
-/**
- * Svelte action for hover cards and popovers: moves the node to <body> so no scrolling or
- * contained ancestor can clip it, places it above, below or right of the anchor in viewport
- * coordinates, flips to the other side when there is no room and clamps it 8 px inside the window.
- */
-export function floating(node: HTMLElement, options: FloatOptions) {
-  document.body.appendChild(node);
-  node.classList.add("float");
-
-  function place({ anchor: a, side = "top" }: FloatOptions) {
-    const w = node.offsetWidth;
-    const h = node.offsetHeight;
-    const vw = document.documentElement.clientWidth;
-    const vh = document.documentElement.clientHeight;
-    let x: number;
-    let y: number;
-    if (side === "top") {
-      x = (a.left + a.right) / 2 - w / 2;
-      y = a.top - GAP - h;
-      if (y < EDGE && vh - a.bottom > a.top) y = a.bottom + GAP;
-    } else if (side === "bottom") {
-      x = (a.left + a.right) / 2 - w / 2;
-      y = a.bottom + GAP;
-      if (y + h > vh - EDGE && a.top > vh - a.bottom) y = a.top - GAP - h;
-    } else {
-      x = a.right + GAP;
-      if (x + w > vw - EDGE && a.left > vw - a.right) x = a.left - GAP - w;
-      y = a.top;
-    }
-    node.style.left = `${Math.max(EDGE, Math.min(x, vw - EDGE - w))}px`;
-    node.style.top = `${Math.max(EDGE, Math.min(y, vh - EDGE - h))}px`;
-    node.style.visibility = "";
-  }
-
-  // The anchor moves with the page, the card does not; hide it until the next hover. Scrolling
-  // inside the node itself (a long list) moves nothing.
-  const hide = (e: Event) => {
-    if (!(e.target instanceof Node && node.contains(e.target))) node.style.visibility = "hidden";
-  };
-  window.addEventListener("scroll", hide, { capture: true, passive: true });
-  place(options);
-  return {
-    update: place,
-    destroy() {
-      window.removeEventListener("scroll", hide, { capture: true });
-      node.remove();
-    },
-  };
-}
+export { floating, type Anchor, type FloatOptions } from "../ui/floating";

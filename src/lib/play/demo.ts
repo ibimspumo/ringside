@@ -1,5 +1,6 @@
-// Browser stand-in for the practice: two scripted hands that look like real ones (6-max, 40 BB to
-// a showdown, and a 10 BB push/fold spot), so every state of the page can be seen without Tauri.
+// Browser stand-in for the practice: two scripted hands that look like real ones (6-max, 40 BB
+// with a 3-bet after your open, to the river, and a 10 BB push/fold spot), so every state of
+// the page can be seen without Tauri.
 import { CLASSES, classCombos, classLabel, comboClass } from "../solver/range";
 import type { SolverNode } from "../solver/types";
 import type {
@@ -101,52 +102,76 @@ function postNode(street: "flop" | "turn" | "river", board: string[], pot: numbe
   } as SolverNode;
 }
 
-const HERO_A = ["Kh", "Qh"];
-const FLOP = ["Qd", "7c", "2h"];
+const HERO_A = ["As", "Js"];
+const FLOP = ["6h", "9h", "Jd"];
 
+/**
+ * A hand like one a player reported: you open from the HJ, the CO 3-bets, everyone else
+ * folds; on the flop you check, the CO bets, and the hand goes on to the river.
+ */
 function handA(): { seat: number; cards: string[][]; stack: number; ante: number[]; script: Step[] } {
+  const showdown: Step = { kind: "end", winners: [1], shown: [2], made: [null, "Paar", "Paar", null, null, null], reason: "showdown" };
   const river: Decide = {
     street: "river",
-    choices: [c("fold", 0, 0), c("call", 7.35, 7.35), c("all_in", 26.5, 26.5, 85)],
-    strategy: [0.04, 0.9, 0.06],
-    evs: [0, 5.1, 3.4],
+    choices: [c("check", 0, 0), c("bet", 12.5, 12.5, 50), c("all_in", 24.3, 24.3, 97)],
+    strategy: [0.55, 0.4, 0.05],
+    evs: [11.2, 11.15, 9.9],
+    equity: 0.66,
+    source: "solver",
+    after: (k) => (k === 0 ? [{ kind: "act", seat: 2, choice: c("check", 0, 0) }, showdown] : [{ kind: "act", seat: 2, choice: c("call", k === 1 ? 12.5 : 24.3, k === 1 ? 12.5 : 24.3) }, showdown]),
+  };
+  const turn: Decide = {
+    street: "turn",
+    choices: [c("check", 0, 0), c("bet", 16.3, 16.3, 66), c("all_in", 24.3, 24.3, 98)],
+    strategy: [0.7, 0.3, 0],
+    evs: [10.4, 10.1, 7.6],
+    equity: 0.68,
+    source: "solver",
+    after: (k) => [
+      ...(k === 0 ? [{ kind: "act", seat: 2, choice: c("check", 0, 0) } as Step] : [{ kind: "act", seat: 2, choice: c("call", 16.3, 16.3) } as Step]),
+      { kind: "board", street: "river", cards: ["3s"] },
+      { kind: "decide", d: river },
+    ],
+  };
+  const facing: Decide = {
+    street: "flop",
+    choices: [c("fold", 0, 0), c("call", 4.82, 4.82), c("all_in", 33.95, 33.95, 140)],
+    strategy: [0, 0.001, 0.999],
+    evs: [0, 9.54, 10.01],
     equity: 0.71,
     source: "solver",
     after: (k) =>
       k === 0
-        ? [{ kind: "end", winners: [5], shown: [], made: [], reason: "folded" }]
-        : [
-            ...(k === 2 ? [{ kind: "act", seat: 5, choice: c("call", 26.5, 19.15) } as Step] : []),
-            { kind: "end", winners: [3], shown: [5], made: [null, null, null, "Paar", null, "Paar"], reason: "showdown" },
-          ],
-  };
-  const turn: Decide = {
-    street: "turn",
-    choices: [c("check", 0, 0), c("bet", 7.35, 7.35, 75), c("all_in", 35.85, 35.85, 366)],
-    strategy: [0.21, 0.79, 0],
-    evs: [5.9, 6.45, 4.8],
-    equity: 0.74,
-    source: "solver",
-    after: (k) => [
-      ...(k === 0 ? [] : [{ kind: "act", seat: 5, choice: c("call", 7.35, 7.35) } as Step]),
-      { kind: "board", street: "river", cards: ["4c"] },
-      { kind: "act", seat: 5, choice: c("bet", 7.35, 7.35, 75) },
-      { kind: "decide", d: river },
-    ],
+        ? [{ kind: "end", winners: [2], shown: [], made: [], reason: "folded" }]
+        : k === 2
+          ? [{ kind: "act", seat: 2, choice: c("fold", 4.82, 0) }, { kind: "end", winners: [1], shown: [], made: [], reason: "folded" }]
+          : [{ kind: "board", street: "turn", cards: ["2c"] }, { kind: "decide", d: turn }],
   };
   const flop: Decide = {
     street: "flop",
-    choices: [c("check", 0, 0), c("bet", 1.95, 1.95, 33), c("all_in", 37.8, 37.8, 641)],
-    strategy: [0.38, 0.62, 0],
-    evs: [3.85, 3.92, 2.1],
-    equity: 0.78,
+    choices: [c("check", 0, 0), c("bet", 4.82, 4.82, 33), c("all_in", 33.95, 33.95, 233)],
+    strategy: [0.78, 0.22, 0],
+    evs: [9.3, 9.25, 6.1],
+    equity: 0.71,
     source: "solver",
-    after: (k) => [
-      ...(k === 1 ? [{ kind: "act", seat: 5, choice: c("call", 1.95, 1.95) } as Step] : []),
-      { kind: "board", street: "turn", cards: ["9s"] },
-      { kind: "act", seat: 5, choice: c("check", 0, 0) },
-      { kind: "decide", d: turn },
-    ],
+    after: (k) =>
+      k === 0
+        ? [{ kind: "act", seat: 2, choice: c("bet", 4.82, 4.82, 33) }, { kind: "decide", d: facing }]
+        : [{ kind: "act", seat: 2, choice: c("call", 4.82, 4.82) }, { kind: "board", street: "turn", cards: ["2c"] }, { kind: "decide", d: turn }],
+  };
+  const threeBet: Decide = {
+    street: "preflop",
+    choices: [c("fold", 2.2, 0), c("call", 6.05, 3.85), c("raise", 13.3, 11.1, 92), c("all_in", 40, 37.8, 300)],
+    strategy: [0, 0.62, 0.3, 0.08],
+    evs: [0, 2.11, 2.1, 1.6],
+    equity: null,
+    source: "model",
+    after: (k) =>
+      k === 0
+        ? [{ kind: "end", winners: [2], shown: [], made: [], reason: "folded" }]
+        : k === 1
+          ? [{ kind: "board", street: "flop", cards: FLOP }, { kind: "decide", d: flop }]
+          : [{ kind: "act", seat: 2, choice: c("fold", 6.05, 0) }, { kind: "end", winners: [1], shown: [], made: [], reason: "folded" }],
   };
   const pre: Decide = {
     street: "preflop",
@@ -159,25 +184,19 @@ function handA(): { seat: number; cards: string[][]; stack: number; ante: number
       k === 0
         ? [{ kind: "end", winners: [5], shown: [], made: [], reason: "folded" }]
         : [
+            { kind: "act", seat: 2, choice: c("raise", 6.05, 6.05, 81) },
+            { kind: "act", seat: 3, choice: c("fold", 0, 0) },
             { kind: "act", seat: 4, choice: c("fold", 0.5, 0) },
-            { kind: "act", seat: 5, choice: c("call", k === 2 ? 39 : 2.2, k === 2 ? 38 : 1.2) },
-            { kind: "board", street: "flop", cards: FLOP },
-            ...(k === 2
-              ? ([{ kind: "board", street: "turn", cards: ["9s"] }, { kind: "board", street: "river", cards: ["4c"] }, { kind: "end", winners: [3], shown: [5], made: [null, null, null, "Paar", null, "Paar"], reason: "showdown" }] as Step[])
-              : ([{ kind: "act", seat: 5, choice: c("check", 0, 0) }, { kind: "decide", d: flop }] as Step[])),
+            { kind: "act", seat: 5, choice: c("fold", 1, 0) },
+            { kind: "decide", d: threeBet },
           ],
   };
   return {
-    seat: 3,
+    seat: 1,
     stack: 40,
     ante: [0, 0, 0, 0, 0, 1],
-    cards: [["8s", "3d"], ["Td", "6c"], ["9c", "4h"], HERO_A, ["7s", "2d"], ["Jc", "Qs"]],
-    script: [
-      { kind: "act", seat: 0, choice: c("fold", 0, 0) },
-      { kind: "act", seat: 1, choice: c("fold", 0, 0) },
-      { kind: "act", seat: 2, choice: c("fold", 0, 0) },
-      { kind: "decide", d: pre },
-    ],
+    cards: [["8s", "3d"], HERO_A, ["Td", "Th"], ["9c", "4c"], ["7s", "2d"], ["Kc", "5h"]],
+    script: [{ kind: "act", seat: 0, choice: c("fold", 0, 0) }, { kind: "decide", d: pre }],
   };
 }
 
@@ -279,10 +298,15 @@ function judge(l: Lesson, chosen: number): Verdict {
   const best = evs.indexOf(Math.max(...evs));
   const loss = Math.max(0, evs[best] - evs[chosen]);
   const pct = (loss / l.pot) * 100;
-  const f = l.strategy?.[chosen] ?? 0;
-  const grade: Grade = pct <= 0.5 && f >= 0.1 ? "best" : pct <= 2 ? "good" : pct <= 6 ? "inaccurate" : pct <= 15 ? "mistake" : "blunder";
-  const points = { best: 100, good: 70, inaccurate: 30, mistake: 0, blunder: 0 }[grade];
-  return { ...l, chosen, judgement: { grade, best, frequency: f, loss_bb: loss, loss_pct: pct }, hinted: false, points };
+  const s = l.strategy ?? [];
+  const f = s[chosen] ?? 0;
+  const main = s.indexOf(Math.max(...s));
+  const isMain = chosen === main || f >= 0.5;
+  // Mirrors crates/ringside-play/src/grade.rs.
+  const grade: Grade =
+    pct <= 0.5 && isMain && f > 0 ? "best" : pct <= 0.5 && f >= 0.1 ? "mix" : pct <= 2 ? "good" : pct <= 6 ? "inaccurate" : pct <= 15 ? "mistake" : "blunder";
+  const points = { best: 100, mix: 100, good: 70, inaccurate: 30, mistake: 0, blunder: 0 }[grade];
+  return { ...l, chosen, judgement: { grade, best, main, frequency: f, loss_bb: loss, loss_pct: pct }, hinted: false, points };
 }
 
 function apply(s: State, choice: Choice, seat: number, verdict: number | null) {
@@ -291,7 +315,8 @@ function apply(s: State, choice: Choice, seat: number, verdict: number | null) {
     s.put[seat] += choice.add_bb;
     s.streetPut[seat] = choice.to_bb;
   }
-  const snap = snapshot(s, null);
+  const next = s.queue[0];
+  const snap = snapshot(s, next?.kind === "act" ? next.seat : next?.kind === "decide" ? s.hand.seat : null);
   s.view.events.push({ type: "action", street: s.street, seat, choice, verdict, snapshot: snap });
 }
 
@@ -355,7 +380,7 @@ function start(config: PlayConfig, seed: number): HandView {
     decision: null,
     outcome: null,
     preflop_source: config.mode === "push_fold" ? "equilibrium" : "model",
-    spot: config.mode === "push_fold" ? null : { id: 1, source: "solver", complete: true, exploitability_pct: 0.8, oop: 5, ip: 3, pot: 5.9, stack: 36.8 },
+    spot: config.mode === "push_fold" ? null : { id: 1, source: "solver", complete: true, exploitability_pct: 0.8, oop: 1, ip: 2, pot: 14.6, stack: 33.95 },
     waiting: false,
   };
   state = { config, seed, hand, queue: [...hand.script], view, put, streetPut: [...put], folded: new Array(n).fill(false), board: [], street: "preflop", pending: null, hinted: false };
@@ -365,8 +390,8 @@ function start(config: PlayConfig, seed: number): HandView {
     run(state);
     const pre = state.pending!;
     state.pending = null;
-    apply(state, pre.choices[1], hand.seat, null);
     state.queue = pre.after(1);
+    apply(state, pre.choices[1], hand.seat, null);
   }
   run(state);
   return structuredClone(state.view);
@@ -404,8 +429,8 @@ export function act(choice: number): HandView {
   s.view.verdicts.push(v);
   s.pending = null;
   s.view.decision = null;
-  apply(s, d.choices[choice], s.hand.seat, s.view.verdicts.length - 1);
   s.queue = d.after(choice);
+  apply(s, d.choices[choice], s.hand.seat, s.view.verdicts.length - 1);
   run(s);
   return structuredClone(s.view);
 }

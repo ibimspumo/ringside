@@ -113,7 +113,7 @@
     <div class="actions">
       <ChartsButton decision={d} />
       {#if prefill && d.status === "rated"}
-        <button class="btn" onclick={() => openInSolver(prefill)} title="Öffnet den Flop dieser Hand mit denselben Ranges im Solver.">
+        <button class="btn" onclick={() => openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">
           Im Solver öffnen
         </button>
       {/if}

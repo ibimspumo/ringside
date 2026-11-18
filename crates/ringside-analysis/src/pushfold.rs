@@ -21,7 +21,7 @@ type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 64;
 static CACHE: Mutex<Vec<(Key, Option<Arc<Solution>>)>> = Mutex::new(Vec::new());
 
-fn table(ante: Ante, players: usize, stack: f64) -> Option<Arc<Solution>> {
+pub(crate) fn table(ante: Ante, players: usize, stack: f64) -> Option<Arc<Solution>> {
     let key = (ante, players, stack.to_bits());
     if let Some((_, hit)) = CACHE.lock().unwrap_or_else(PoisonError::into_inner).iter().find(|(k, _)| *k == key) {
         return hit.clone();

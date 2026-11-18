@@ -305,13 +305,37 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await click(".replayer button[aria-label='Weiter']");
 });
 
+// The demo's decisions link the solver with the line to them; the app's need a solved spot.
+!TAURI &&
+  step("Analyse: „Im Solver öffnen“ spielt die Hand bis zur Entscheidung", async () => {
+    await click("main .steps button", "Turn · Bet");
+    await click("main article.card button", "Im Solver öffnen");
+    await find("main nav.line button.card.on", "Turn", { exact: false, timeout: 120_000 });
+    await find("main [role='group'][aria-label='Aktionen']");
+    await find("main .cell.hero");
+  });
+
 step("Leaks", () => nav("Leaks"));
+step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", async () => {
+  await nav("Deine Ranges");
+  await waitText(/öffnest du|spielst du|callst du/);
+  await find("main figure figcaption b", "Du");
+  const cell = await waitFor(
+    "a visible cell with hands",
+    `return [...document.querySelectorAll("main .cell")].find((c) => c.offsetParent && !c.getAttribute("aria-label").includes("keine Hände")) ?? null`,
+  );
+  const name = (await s.exec(`return arguments[0].querySelector(".k").textContent`, cell)).trim();
+  await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, cell);
+  await s.click(cell);
+  await find("main h1", "Hände");
+  await find("main .chip-name", name, { exact: false });
+});
 step("Spieler", () => nav("Spieler"));
 step("Live-Tische", () => nav("Live-Tische"));
 step("HUD", () => nav("HUD"));
 
 step("Training: Pot Odds, Stufe 1", async () => {
-  await nav("Training");
+  await nav("Lernen");
   await click("main button", "Trainer");
   // Skill and level buttons also show the user's level and the level's name.
   await click("main button.skill", "Pot Odds", { exact: false });
@@ -370,7 +394,7 @@ async function fill(sel, text) {
 
 step("Solver: kleiner River-Spot", async () => {
   await nav("Solver");
-  await click("main .tabs button", "Aufbau");
+  await click("main [role='tab']", "Aufbau");
   // Five board cards make it a river spot, which solves in a moment.
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Board leeren")?.click()`);
   const slots = ["Flop", "Flop", "Flop", "Turn", "River"];
@@ -386,7 +410,7 @@ step("Solver: kleiner River-Spot", async () => {
 });
 
 step("Solver: die Lösung steht in „Meine Lösungen“ und öffnet ohne Rechnen", async () => {
-  await click("main .tabs button", "Meine Lösungen");
+  await click("main [role='tab']", "Meine Lösungen");
   await click("main .saved li.card button.btn.primary");
   await find("main [role='group'][aria-label='Aktionen']");
 });
@@ -397,11 +421,56 @@ step("Aufgaben: der Solve steht erledigt im Panel", async () => {
   await click("#jobs-panel button.close");
 });
 
+step("Bibliothek: Mitrechnen startet von Hand, steht in den Aufgaben und hält an", async () => {
+  await nav("Bibliothek");
+  await click("main button.go", "Jetzt mitrechnen");
+  await find("main button.go", "Anhalten");
+  if (TAURI) {
+    await click("aside button.dock");
+    await find("#jobs-panel .job", "Bibliothek: Mitrechnen", { exact: false });
+    await click("#jobs-panel button.close");
+  }
+  await click("main button.go", "Anhalten");
+  await waitText("Angehalten", 60_000);
+});
+
 step("Hände spielen: eine Hand startet", async () => {
   await click("nav button", "Hände spielen");
   await find("main h2", "Hände spielen");
   await click("main .tiles button.tile");
   await waitText("Tipp anzeigen");
+});
+
+step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async () => {
+  await click("main [role='radiogroup'][aria-label='Tempo der Animation'] button", "Sofort");
+  const positions = await waitFor(
+    "the seats",
+    `const p = [...document.querySelectorAll("main [data-part='seat'] .plate b")].map((b) => b.textContent.replace("Du · ", "").trim());
+     return p.length ? p : null;`,
+  );
+  // Open or raise where you can, so the others have something to answer.
+  const move = await waitFor(
+    "your buttons",
+    `const b = [...document.querySelectorAll("main .actions button.act")];
+     return b.find((x) => /Raise/.test(x.textContent)) ?? b.find((x) => /Call/.test(x.textContent)) ?? b[0] ?? null;`,
+  );
+  await s.click(move);
+  await waitFor("your move in the history", `return document.querySelector("main nav.timeline button.move.hero") ?? null`);
+  // Your next decision or the end of the hand: everyone has acted on the street by then.
+  await waitFor("the next decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+  const preflop = await s.exec(
+    `const street = document.querySelector("main nav.timeline section");
+     return [...street.querySelectorAll("button.move")].map((b) => b.dataset.pos);`,
+  );
+  const missing = positions.filter((p) => !preflop.includes(p));
+  if (missing.length) throw new Error(`no action of ${missing.join(", ")} in the history: ${preflop.join(" · ")}`);
+  if (!TAURI) {
+    // The demo hand: LJ folds, you open, CO 3-bets, BTN, SB and BB fold.
+    const want = ["LJ", "HJ", "CO", "BTN", "SB", "BB"];
+    if (preflop.join() !== want.join()) throw new Error(`history ${preflop.join(" · ")}, expected ${want.join(" · ")}`);
+    await waitText(/CO hat auf 6,1 BB erhöht\s\(3-Bet\), BTN, SB und BB haben gefoldet\./);
+    await find("main section[aria-label='Deine Züge in dieser Hand'] button.move", null, { exact: false });
+  }
 });
 
 step("Coach: ohne Key erscheint der Hinweis", async () => {

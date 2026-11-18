@@ -11,5 +11,5 @@ pub mod kinds;
 pub mod operator;
 pub mod packs;
 
-pub use client::{Client, Error, Report, SubmitStatus};
+pub use client::{Client, Error, KeyStatus, Report, SubmitStatus};
 pub use kinds::{Kind, Postflop, PushFoldHu, PushFoldMw};

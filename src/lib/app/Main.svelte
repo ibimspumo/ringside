@@ -21,6 +21,8 @@
   import { playNav } from "../play/nav.svelte";
   import RangesPage from "../charts/RangesPage.svelte";
   import { chartsHandoff } from "../charts/handoff.svelte";
+  import Ranges from "../ranges/Ranges.svelte";
+  import type { RangeFilter } from "../ranges/types";
   import Solver from "../solver/Solver.svelte";
   import Library from "../library/Library.svelte";
   import { handoff } from "../solver/handoff.svelte";
@@ -31,11 +33,14 @@
   import type { JobTarget } from "../jobs/types";
   import { openSaved } from "../solver/solutions";
   import { solver } from "../solver/store.svelte";
+  import PageHeader from "../ui/PageHeader.svelte";
+  import { pageHead } from "../ui/page.svelte";
 
   type Tab =
     | "dashboard"
     | "reports"
     | "leaks"
+    | "ranges"
     | "tournaments"
     | "hands"
     | "coach"
@@ -57,6 +62,7 @@
         { id: "reports", label: "Berichte", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
         { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
         { id: "leaks", label: "Leaks", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
+        { id: "ranges", label: "Deine Ranges", icon: "M4.5 4.5h15v15h-15zM4.5 12h15M12 4.5v15M7 7h2.5v2.5H7zM14.5 14.5H17V17h-2.5z" },
         { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
         { id: "coach", label: "Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
       ],
@@ -69,9 +75,9 @@
       ],
     },
     {
-      label: "Lernen",
+      label: "Besser werden",
       items: [
-        { id: "training", label: "Training", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
+        { id: "training", label: "Lernen", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
         { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
         { id: "charts", label: "Ranges nach Stack", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
         { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
@@ -88,7 +94,7 @@
   ];
   const NAV = GROUPS.flatMap((g) => g.items);
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
-  const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "tournaments", "players", "hands"];
+  const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
     tournaments: "Klick auf ein Turnier filtert alle Ansichten darauf und zeigt seine Hände.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
@@ -96,12 +102,15 @@
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
     leaks: "Deine Werte je Position und Stacktiefe gegen veröffentlichte Richtwerte.",
+    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
-    training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen. Gesperrt, solange PokerStars läuft.",
-    play: "Gesperrt, solange PokerStars läuft. Postflop-Spots rechnet Ringside im Hintergrund vor.",
-    solver: "Gesperrt, solange PokerStars läuft. Gerechnet wird nur auf diesem Rechner.",
-    library: "Gesperrt, solange PokerStars läuft. Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
+    training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
+    play: "Postflop-Spots rechnet Ringside im Hintergrund vor.",
+    solver: "Gerechnet wird nur auf diesem Rechner.",
+    library: "Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
+  /** Pages PokerStars' rules lock while the client runs; the PageHeader keeps saying so. */
+  const LOCKED: Tab[] = ["training", "play", "solver", "library"];
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
     ["cash", "Cash"],
@@ -169,7 +178,7 @@
     if (id !== null) showHands(null, id);
   });
   /** Hands tab: a leak-finder spot to list. */
-  let handsSpot = $state<{ filter: SpotFilter; label: string } | null>(null);
+  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; label: string } | null>(null);
   /** Training tab: an article or exercise to open, set from the leak finder. */
   let learnOpen = $state<LearnTarget | null>(null);
 
@@ -337,11 +346,8 @@
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <header class="top">
-      <div class="title">
-        <h1>{NAV.find((n) => n.id === tab)?.label}</h1>
-        {#if NOTES[tab]}<p>{NOTES[tab]}</p>{/if}
-      </div>
+    <PageHeader title={NAV.find((n) => n.id === tab)?.label ?? ""} sub={NOTES[tab]} sections={pageHead.current} locked={LOCKED.includes(tab)}>
+      {#snippet actions()}
       {#if DATA_TABS.includes(tab)}
         {@const off = tournament !== null}
         {@const offTitle = off ? "Gilt nicht, solange ein Turnier gewählt ist. Klick hebt die Turnierauswahl auf." : undefined}
@@ -361,7 +367,8 @@
           </div>
         </div>
       {/if}
-    </header>
+      {/snippet}
+    </PageHeader>
 
     <div class="content" class:fill={tab === "hands"}>
       {#if tab === "dashboard"}
@@ -388,6 +395,15 @@
           onLearn={(target) => {
             learnOpen = target;
             tab = "training";
+          }}
+        />
+      {:else if tab === "ranges"}
+        <Ranges
+          {filter}
+          {refresh}
+          onHands={(range, label) => {
+            showHands(null);
+            handsSpot = { range, label };
           }}
         />
       {:else if tab === "tournaments"}
@@ -638,38 +654,6 @@
     flex-direction: column;
     min-width: 0;
     min-height: 0;
-  }
-  .top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 10px 20px;
-    min-height: 56px;
-    padding: 10px 24px;
-    border-bottom: 1px solid var(--line);
-    background: var(--bg);
-  }
-  .title {
-    display: flex;
-    align-items: baseline;
-    gap: 14px;
-    min-width: 0;
-  }
-  .top h1 {
-    margin: 0;
-    font-family: var(--font-num);
-    font-size: 20px;
-    font-weight: 600;
-    white-space: nowrap;
-  }
-  .title p {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-2);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .filters {
     display: flex;

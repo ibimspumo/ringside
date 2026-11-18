@@ -5,9 +5,13 @@
 //! it pauses while PokerStars runs. Each round of filling it is a task in the task center
 //! (`jobs`) and also goes to the page as `play-pool`. Before it solves a spot it looks for a
 //! saved solution (`solutions`) and in the spot library.
+//!
+//! Solved spots take up to a gigabyte each, so the stock has a small budget and is freed
+//! [`AWAY`] after the page was left (`play_away`); the page fills it again on return.
 
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, LazyLock, Mutex, Once};
+use std::time::{Duration, Instant};
 
 use ringside_core::db::Attempt;
 use ringside_learn::Kind as LearnKind;
@@ -35,10 +39,20 @@ struct PlayState {
     current: Mutex<Option<Current>>,
     worker: Once,
     job: Mutex<Option<Job>>,
+    /// Since when the practice page is closed.
+    away: Mutex<Option<Instant>>,
 }
 
-static PLAY: LazyLock<PlayState> =
-    LazyLock::new(|| PlayState { current: Mutex::new(None), worker: Once::new(), job: Mutex::new(None) });
+static PLAY: LazyLock<PlayState> = LazyLock::new(|| PlayState {
+    current: Mutex::new(None),
+    worker: Once::new(),
+    job: Mutex::new(None),
+    away: Mutex::new(None),
+});
+
+/// How long the stock outlives the closed page, so a quick look elsewhere costs no solve.
+const AWAY: Duration = Duration::from_secs(120);
+const GB: u64 = 1 << 30;
 
 static POOL: LazyLock<Mutex<Option<Arc<Pool>>>> = LazyLock::new(|| Mutex::new(None));
 
@@ -47,16 +61,43 @@ fn pool(app: &AppHandle) -> Arc<Pool> {
     if let Some(p) = slot.as_ref() {
         return p.clone();
     }
-    // Few threads and a quarter of the memory, so the computer and the page stay quick.
+    // Few threads and little memory, so the computer and the page stay quick: an eighth
+    // of the memory, at most 1.5 GB, which holds one or two solved spots.
     let cores = std::thread::available_parallelism().map_or(4, |n| n.get());
     let threads = (cores / 2).clamp(1, 4);
-    let p = Arc::new(Pool::new(Box::new(AppLookup(app.clone())), threads, crate::solver::memory_limit() / 2));
+    let budget = (crate::solver::installed_memory().unwrap_or(8 * GB) / 8).min(3 * GB / 2);
+    let p = Arc::new(Pool::new(Box::new(AppLookup(app.clone())), threads, budget));
     *slot = Some(p.clone());
     p
 }
 
 fn client_running(app: &AppHandle) -> bool {
     app.state::<AppState>().client_running.load(Ordering::Relaxed)
+}
+
+/// The practice page is open again.
+fn here() {
+    *PLAY.away.lock().unwrap() = None;
+}
+
+/// Frees the stock once the page has been closed for [`AWAY`], and a finished hand with
+/// it (its result is recorded; the page goes back to the choice). A hand still running
+/// keeps its spot. Called by the housekeeping thread.
+pub(crate) fn tick() {
+    let mut away = PLAY.away.lock().unwrap();
+    if !away.is_some_and(|t| t.elapsed() >= AWAY) {
+        return;
+    }
+    *away = None;
+    drop(away);
+    if let Some(pool) = POOL.lock().unwrap().as_ref() {
+        pool.set_plan(None);
+    }
+    ringside_play::table::release();
+    let mut current = PLAY.current.lock().unwrap();
+    if current.as_ref().is_some_and(|c| c.hand.is_over()) {
+        *current = None;
+    }
 }
 
 /// Starts the stock's worker once per process.
@@ -144,6 +185,21 @@ impl Lookup for AppLookup {
             .map(|flop| c.flops[flop].clone())
             .collect()
     }
+
+    fn save(&self, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario, solution: &mut ringside_solver::Solution, settings: &ringside_solver::Settings) {
+        let names = ringside_engine::multiway::position_names(table.players);
+        let info = crate::solutions::SaveInfo {
+            title: String::new(),
+            oop: names[scenario.oop].to_string(),
+            ip: names[scenario.ip].to_string(),
+            ranges: format!("Preflop-Modell, {} Spieler, {} BB", table.players, table.stack_bb),
+            source: Some(ringside_core::db::SolutionSource::Training),
+            hand_id: None,
+        };
+        if let Err(e) = crate::solutions::save(&self.0, solution, settings, &info) {
+            eprintln!("saving a practice solve: {e}");
+        }
+    }
 }
 
 // -----------------------------------------------------------------------------------
@@ -216,6 +272,7 @@ fn new_seed() -> u64 {
 /// as a choice is made).
 #[tauri::command]
 pub async fn play_prepare(config: Config, app: AppHandle) -> CmdResult<PoolStatus> {
+    here();
     blocking(app.clone(), move |_| {
         config.validate()?;
         let p = pool(&app);
@@ -230,6 +287,7 @@ pub async fn play_prepare(config: Config, app: AppHandle) -> CmdResult<PoolStatu
 /// Deals a new hand; `seed` repeats a hand of the session history.
 #[tauri::command]
 pub async fn play_next(config: Config, seed: Option<u64>, app: AppHandle) -> CmdResult<HandView> {
+    here();
     blocking(app.clone(), move |state| {
         config.validate()?;
         let p = pool(&app);
@@ -249,6 +307,7 @@ pub async fn play_next(config: Config, seed: Option<u64>, app: AppHandle) -> Cmd
 /// The same hand again: same cards, board and opponents.
 #[tauri::command]
 pub async fn play_repeat(app: AppHandle) -> CmdResult<HandView> {
+    here();
     blocking(app, move |_| {
         let mut slot = PLAY.current.lock().unwrap();
         let old = slot.as_ref().ok_or("Noch keine Hand gespielt.")?;
@@ -263,11 +322,13 @@ pub async fn play_repeat(app: AppHandle) -> CmdResult<HandView> {
 /// The hand on screen, e.g. after coming back to the page.
 #[tauri::command]
 pub async fn play_current(app: AppHandle) -> CmdResult<Option<HandView>> {
+    here();
     blocking(app, move |_| Ok(PLAY.current.lock().unwrap().as_ref().map(|c| c.hand.view()))).await
 }
 
 #[tauri::command]
 pub async fn play_act(choice: usize, app: AppHandle) -> CmdResult<HandView> {
+    here();
     blocking(app, move |state| {
         let mut slot = PLAY.current.lock().unwrap();
         let current = slot.as_mut().ok_or("Noch keine Hand gespielt.")?;
@@ -281,6 +342,7 @@ pub async fn play_act(choice: usize, app: AppHandle) -> CmdResult<HandView> {
 /// The strategy for the hero's hand before the move; the move then counts only half.
 #[tauri::command]
 pub async fn play_hint(app: AppHandle) -> CmdResult<Lesson> {
+    here();
     blocking(app, move |_| {
         let mut slot = PLAY.current.lock().unwrap();
         let current = slot.as_mut().ok_or("Noch keine Hand gespielt.")?;
@@ -298,6 +360,12 @@ pub async fn play_pool_status(app: AppHandle) -> CmdResult<PoolStatus> {
 #[tauri::command]
 pub fn play_pool_cancel(app: AppHandle) {
     pool(&app).cancel();
+}
+
+/// The practice page was closed; the stock goes [`AWAY`] later unless it opens again.
+#[tauri::command]
+pub fn play_away() {
+    PLAY.away.lock().unwrap().get_or_insert_with(Instant::now);
 }
 
 #[derive(Serialize)]
@@ -359,7 +427,7 @@ pub async fn play_open_solver(app: AppHandle) -> CmdResult<Opened> {
             line,
             hero: Some((hero_player, hero_cards)),
         };
-        crate::solver::show_solution(solution);
+        crate::solver::show_solution(solution, TARGET_PCT);
         Ok(opened)
     })
     .await

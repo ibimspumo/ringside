@@ -103,10 +103,6 @@
     {/key}
   {:else}
     <header class="head">
-      <div>
-        <h1>Wissen</h1>
-        <p>Kurze Seiten mit Bild statt Textwand. Eine Idee pro Seite, in einer Minute gelesen.</p>
-      </div>
       <div class="progress" title="{readCount} von {ARTICLES.length} gelesen">
         <span class="num"><b>{readCount}</b> / {ARTICLES.length}</span>
         <span class="dim">gelesen</span>
@@ -199,16 +195,6 @@
     justify-content: space-between;
     gap: 20px;
   }
-  .head h1 {
-    margin: 0;
-    font-family: var(--font-num);
-    font-size: 26px;
-    font-weight: 600;
-  }
-  .head p {
-    margin: 3px 0 0;
-    color: var(--text-2);
-  }
   .progress {
     display: grid;
     grid-template-columns: max-content max-content;
@@ -253,17 +239,11 @@
     font-size: 14px;
     background: var(--surface);
   }
-  kbd {
+  .search kbd {
     position: absolute;
     right: 10px;
     top: 50%;
     transform: translateY(-50%);
-    padding: 0 6px;
-    border-radius: 4px;
-    border: 1px solid var(--line-2);
-    color: var(--text-3);
-    font-family: var(--font-num);
-    font-size: 12px;
   }
   .group h2 {
     display: flex;

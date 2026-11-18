@@ -314,18 +314,18 @@
 
         <div class="stage-foot">
           <ul class="legend">
-            <li><kbd>Ziehen</kbd>{hud.mode === "graphic" ? "verschiebt Ring und Zahlenfeld" : "verschiebt die Box"}</li>
+            <li><b class="gesture">Ziehen</b>{hud.mode === "graphic" ? "verschiebt Ring und Zahlenfeld" : "verschiebt die Box"}</li>
             {#if hud.mode === "graphic"}
-              <li><kbd>Klick aufs Zahlenfeld</kbd>blättert zur nächsten Seite</li>
+              <li><b class="gesture">Klick aufs Zahlenfeld</b>blättert zur nächsten Seite</li>
             {:else}
-              <li><kbd>Doppelklick</kbd>legt die Box zurück an den Avatar</li>
+              <li><b class="gesture">Doppelklick</b>legt die Box zurück an den Avatar</li>
             {/if}
-            <li><kbd>Klick auf den Spieler</kbd>zeigt alle seine Werte</li>
+            <li><b class="gesture">Klick auf den Spieler</b>zeigt alle seine Werte</li>
             {#if hud.mode === "graphic"}
-              <li><kbd class="num">233</kbd>im Ring: gemeinsame Hände – je mehr, desto verlässlicher die Farben</li>
+              <li><b class="gesture num">233</b>im Ring: gemeinsame Hände – je mehr, desto verlässlicher die Farben</li>
             {/if}
             {#if view.seats.some((s) => s.note?.label)}
-              <li><kbd class="frame">Farbiger Rahmen</kbd>deine eigene Spieler-Markierung aus PokerStars</li>
+              <li><b class="gesture frame">Farbiger Rahmen</b>deine eigene Spieler-Markierung aus PokerStars</li>
             {/if}
           </ul>
           <div class="row actions">
@@ -752,12 +752,11 @@
     align-items: center;
     gap: 6px;
   }
-  kbd {
-    font: inherit;
+  .gesture {
     font-weight: 600;
     color: var(--text);
   }
-  kbd.frame {
+  .gesture.frame {
     padding: 0 5px;
     border: 1.5px solid var(--sd);
     border-radius: 4px;

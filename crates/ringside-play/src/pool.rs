@@ -4,8 +4,10 @@
 //! it picks one of the model's heads-up flops (weighted by how often the model plays there,
 //! and with the hero's seat in it when the seat is fixed) and a flop. It first asks the
 //! [`Lookup`] (spot library, saved solves): those open at once but know only the first
-//! street and the first decision on the turn. Otherwise it solves to [`TARGET_PCT`] of the
-//! pot with few threads and 16-bit storage, which halves the memory. A spot serves up to
+//! street and the first decision on the turn. Otherwise it solves with the solver page's
+//! default precision ([`TARGET_PCT`], [`MAX_ITERATIONS`]) on few threads and 16-bit
+//! storage, which halves the memory, and hands the solve to [`Lookup::save`], so the
+//! solver page opens the same solution for the same spot. A spot serves up to
 //! [`MAX_USES`] hands with different cards, then makes room for a new one.
 
 use std::collections::VecDeque;
@@ -16,7 +18,7 @@ use std::time::{Duration, Instant};
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use ringside_engine::{Card, CardSet};
-use ringside_solver::{Error, Settings, Spot, estimate, solve};
+use ringside_solver::{Error, Settings, Solution, Spot, estimate, solve};
 use serde::Serialize;
 
 use crate::scenario::Scenario;
@@ -24,9 +26,10 @@ use crate::table::{Deep, TableKey, deep};
 use crate::tree::{Tree, TreeSource};
 
 pub const TARGET: usize = 3;
-/// Exploitability the practice solves aim for, in percent of the pot.
-pub const TARGET_PCT: f64 = 1.0;
-pub const MAX_ITERATIONS: u32 = 300;
+/// Exploitability the practice solves aim for, in percent of the pot: the solver page's
+/// default (`src/lib/solver/store.svelte.ts`), so both grade a spot by the same solution.
+pub const TARGET_PCT: f64 = 0.5;
+pub const MAX_ITERATIONS: u32 = 1000;
 pub const MAX_USES: u32 = 3;
 /// Seconds a solve is assumed to take before one was measured.
 const FIRST_GUESS_SECS: f64 = 30.0;
@@ -39,6 +42,8 @@ pub trait Lookup: Send + Sync {
     fn flops(&self, _spot: &Spot) -> Vec<String> {
         Vec::new()
     }
+    /// Keeps a fresh solve where [`Lookup::load`] and the solver page find it.
+    fn save(&self, _table: TableKey, _scenario: &Scenario, _solution: &mut Solution, _settings: &Settings) {}
 }
 
 pub struct NoLookup;
@@ -203,6 +208,11 @@ impl Pool {
         self.wake.notify_all();
     }
 
+    /// Memory of the solved spots ready now.
+    pub fn memory_bytes(&self) -> u64 {
+        self.inner.lock().unwrap().ready.iter().map(|e| e.memory_bytes).sum()
+    }
+
     /// A ready spot of `table`s with `hero_seat` in it (if fixed), complete trees and
     /// fresh spots first.
     pub fn take(&self, tables: &[TableKey], hero_seat: Option<usize>, rng: &mut impl Rng) -> Option<Taken> {
@@ -351,7 +361,8 @@ impl Pool {
         );
         let secs = start.elapsed().as_secs_f64();
         match result {
-            Ok(solution) => {
+            Ok(mut solution) => {
+                self.lookup.save(table, &scenario, &mut solution, &settings);
                 let memory = solution.summary.memory_bytes;
                 self.inner.lock().unwrap().times.push(secs);
                 self.add(generation, table, scenario, flop, Box::new(solution), memory, report);

@@ -1,10 +1,13 @@
 <script lang="ts">
+  import { usePageHead } from "../ui/page.svelte";
   import { onMount } from "svelte";
   import ClientLock from "../app/ClientLock.svelte";
   import { libraryApi, onLibraryStatus } from "./api";
   import BackgroundMode from "./BackgroundMode.svelte";
-  import { cards, depthOf, firstOf, situationOf, storyOf, suit, titleOf } from "./labels";
+  import { cards, depthOf, firstOf, flopName, MARK_NAME, markOf, markText, type Mark, situationOf, storyOf, suit, titleOf } from "./labels";
   import { openInSolver } from "./open";
+  import RunControl from "./RunControl.svelte";
+  import ShareMark from "./ShareMark.svelte";
   import type { LibraryMode, LibraryOverview, LibraryScenario, WorkerStatus } from "./types";
 
   /** Switches to the solver page once a spot is loaded there. */
@@ -33,7 +36,7 @@
     const sub = onLibraryStatus((s) => {
       const before = worker;
       worker = s;
-      if (!before || before.solved !== s.solved || before.fetched !== s.fetched) load();
+      if (!before || before.solved !== s.solved || before.fetched !== s.fetched || before.shared !== s.shared) load();
     });
     const timer = setInterval(load, 20_000);
     return () => {
@@ -70,11 +73,25 @@
     const cloud = all.reduce((n, s) => n + count(s, "cloud"), 0);
     const spots = all.reduce((n, s) => n + s.status.length, 0);
     const started = all.filter((s) => s.status.some(Boolean)).length;
-    return { local, cloud, spots, done: local + cloud, started, situations: all.length };
+    const marks = all.flatMap((s) => s.status.flatMap((st, i) => (st === "local" ? [markOf(s.shared[i])] : [])));
+    const n = (m: Mark) => marks.filter((x) => x === m).length;
+    const verified = n("verified");
+    const contributed = verified + n("submitted");
+    return {
+      local,
+      cloud,
+      spots,
+      done: local + cloud,
+      started,
+      situations: all.length,
+      contributed,
+      verified,
+      rejected: n("rejected"),
+      waiting: n("only_here") + n("failed"),
+    };
   });
   const stacks = $derived([...new Set((data?.scenarios ?? []).map((s) => s.stack_bb))]);
   const current = $derived(data?.scenarios.find((s) => s.id === selected) ?? null);
-  const working = $derived(data?.scenarios.find((s) => s.id === worker?.scenario) ?? null);
 
   type Texture = "Rainbow" | "Zweifarbig" | "Monoton" | "Gepaart" | "Drilling";
   const TEXTURE_HINT: Record<Texture, string> = {
@@ -108,56 +125,13 @@
   const num = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   const mb = (b: number) =>
     b >= 1e9 ? `${(b / 1e9).toLocaleString("de-DE", { maximumFractionDigits: 1 })} GB` : `${Math.round(b / 1e6).toLocaleString("de-DE")} MB`;
-  const flopName = (f: string) =>
-    cards(f)
-      .map(([r, s]) => r + suit(s))
-      .join(" ");
+  const MARKS: Mark[] = ["only_here", "submitted", "verified", "rejected", "failed"];
 
-  const WAITING: Record<string, string> = {
-    "PokerStars läuft": "Pausiert, solange PokerStars läuft.",
-    "wartet auf Leerlauf": "Wartet, bis du ein paar Minuten nicht am PC bist.",
-    "Leerlauf nur unter Windows erkennbar": "Wartet: Ob der PC frei ist, erkennt Ringside nur unter Windows.",
-    "du benutzt die App": "Pausiert, während du Ringside benutzt.",
-    ausgeschaltet: "Mitrechnen ist aus.",
-  };
-  const sentence = $derived.by(() => {
-    if (!worker) return "";
-    switch (worker.state) {
-      case "off":
-        return "Mitrechnen ist aus.";
-      case "waiting":
-        return WAITING[worker.reason ?? ""] ?? "Pausiert.";
-      case "packs":
-        return "Lädt fertige Spots herunter.";
-      case "cloud":
-        return "Schaut nach, ob jemand diesen Spot schon gerechnet hat.";
-      case "solving":
-        return "Dein PC rechnet gerade:";
-      case "done":
-        return "Fertig: Alle Spots der Bibliothek sind gelöst.";
-      default:
-        return "Startet …";
-    }
-  });
-  const active = $derived(worker?.state === "solving" || worker?.state === "cloud" || worker?.state === "packs");
-  const progress = $derived.by(() => {
-    if (!worker || worker.state !== "solving" || !data || worker.iteration === 0) return null;
-    // The error falls roughly geometrically, so the bar follows its logarithm.
-    const start = 20;
-    const done = Math.log(start / Math.max(worker.exploitability_pct, data.target_pct)) / Math.log(start / data.target_pct);
-    return Math.max(0.03, Math.min(1, done));
-  });
+  usePageHead(() => ({ sub: "Fertig gelöste Spots für die häufigsten Turnier-Situationen – gerechnet hier oder geladen aus Ringside Cloud." }));
 </script>
 
 <ClientLock feature="Die Bibliothek">
   <div class="page library">
-    <div class="page-head">
-      <div>
-        <h1>Bibliothek</h1>
-        <p>Fertig gelöste Spots für die Situationen, die im Turnier am häufigsten vorkommen.</p>
-      </div>
-    </div>
-
     {#if error}<p class="err">{error}</p>{/if}
 
     {#if data && worker}
@@ -180,35 +154,46 @@
               In {totals.started} von {totals.situations} Situationen kannst du schon nachsehen.
               {#if totals.local > 0}{totals.local} davon hat dein PC selbst gerechnet.{/if}
             </p>
-            <div class="legend">
-              <span><i class="dot cloud"></i>Heruntergeladen</span>
-              <span><i class="dot local"></i>Auf deinem PC gerechnet</span>
-              <span><i class="dot open"></i>Noch offen</span>
-            </div>
+          </div>
+          <div class="contrib">
+            {#if data.share || totals.contributed > 0}
+              <p class="lead">
+                <b class="num">{totals.contributed}</b> von dir beigetragen, <b class="num">{totals.verified}</b> geprüft
+              </p>
+              <div class="cbar" aria-hidden="true">
+                <i class="ok" style="flex:{totals.verified}"></i>
+                <i class="wait" style="flex:{totals.contributed - totals.verified}"></i>
+                <i class="rest" style="flex:{totals.contributed ? 0 : 1}"></i>
+              </div>
+              <p class="faint">
+                {#if totals.contributed === 0}
+                  Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.
+                {:else if totals.contributed > totals.verified}
+                  {totals.contributed - totals.verified} warten noch auf die Prüfung; der Prüfer rechnet einmal pro Stunde nach.
+                {:else}
+                  Alles, was du beigetragen hast, ist geprüft und für alle verfügbar.
+                {/if}
+                {#if totals.waiting > 0}{totals.waiting} noch nicht hochgeladen, das holt Ringside nach.{/if}
+                {#if totals.rejected > 0}{totals.rejected} abgelehnt (Grund im Tooltip der Kachel).{/if}
+              </p>
+            {:else}
+              <p class="faint">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Ändern kannst du das in den Einstellungen unter Ringside Cloud.</p>
+            {/if}
           </div>
         </section>
 
         <section class="panel worker" aria-label="Mitrechnen">
           <div class="panel-head"><h2 class="panel-title">Mitrechnen</h2></div>
           <div class="wbody">
-            <p class="state" class:active>
-              <i class="pulse" aria-hidden="true"></i>
-              <span>
-                {sentence}
-                {#if worker.state === "solving" && working && worker.flop}
-                  <b>{titleOf(working)}</b>, {situationOf(working)}, Flop <b>{flopName(worker.flop)}</b>
-                {/if}
-              </span>
-            </p>
-            {#if progress !== null}
-              <div class="track" aria-label="Fortschritt dieses Spots"><i style="width:{progress * 100}%"></i></div>
-            {/if}
+            <RunControl {data} {worker} onChange={load} />
+            <div class="auto">
+              <span class="label">Automatik</span>
+              <BackgroundMode mode={data.mode} onChange={setMode} />
+            </div>
             <p class="why">
-              Die Bibliothek wächst, weil Ringside-PCs Spots rechnen, wenn sie gerade frei sind, und sie teilen. Geteilt wird nur
-              der Spot und seine Lösung, nichts über dich.
-              {#if worker.solved > 0}Dein PC hat seit dem Start {worker.solved} Spots beigetragen.{/if}
+              Die Bibliothek wächst, weil Ringside-PCs Spots rechnen und teilen. Geteilt wird nur der Spot und seine Lösung,
+              nichts über dich.
             </p>
-            <BackgroundMode mode={data.mode} onChange={setMode} />
             <details>
               <summary>Details für Experten</summary>
               <dl>
@@ -221,7 +206,7 @@
                   <dd class="num">{worker.threads}</dd>
                 {/if}
                 <dt>Seit dem Start</dt>
-                <dd>{worker.solved} gerechnet, {worker.fetched} geladen, {worker.shared} geteilt</dd>
+                <dd>{worker.solved} gerechnet, {worker.fetched} geladen, {worker.shared} hochgeladen</dd>
                 <dt>Auf der Festplatte</dt>
                 <dd class="num">{mb(data.disk_bytes)}</dd>
                 {#if worker.last_error}<dt>Zuletzt</dt><dd class="warn">{worker.last_error}</dd>{/if}
@@ -270,6 +255,20 @@
                 {/if}
               </p>
             </div>
+            <div class="legend" aria-label="Legende">
+              <div>
+                <h4>Flop-Kachel</h4>
+                <span><i class="dot cloud"></i>Heruntergeladen, fertig zum Ansehen</span>
+                <span><i class="dot local"></i>Auf deinem PC gerechnet</span>
+                <span><i class="dot open"></i>Noch offen</span>
+              </div>
+              <div>
+                <h4>Symbol an deinen Spots</h4>
+                {#each MARKS as m (m)}
+                  <span><ShareMark mark={m} />{m === "only_here" && !data.share ? "Nur auf deinem PC, Teilen ist aus" : MARK_NAME[m]}</span>
+                {/each}
+              </div>
+            </div>
             {#each groups as g (g.name)}
               <h3>{g.name} <span class="faint">– {TEXTURE_HINT[g.name]}</span></h3>
               <div class="grid">
@@ -281,15 +280,16 @@
                     class:busy
                     disabled={!st || opening !== null}
                     title={st === "local"
-                      ? "Auf deinem PC gerechnet – ansehen"
+                      ? `${markText(current.shared[i], data.share)} Klick zum Ansehen.`
                       : st === "cloud"
-                        ? "Heruntergeladen – ansehen"
+                        ? "Heruntergeladen – klick zum Ansehen."
                         : busy
                           ? "Wird gerade gerechnet"
                           : "Noch nicht gelöst"}
                     onclick={() => open(current, flop)}
                   >
                     {#each cards(flop) as [r, s], k (k)}<span class="card {s}">{r}<small>{suit(s)}</small></span>{/each}
+                    {#if st === "local"}<span class="badge"><ShareMark mark={markOf(current.shared[i])} /></span>{/if}
                   </button>
                 {/each}
               </div>
@@ -375,10 +375,43 @@
     align-items: start;
   }
   .overview {
-    display: flex;
-    gap: 18px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 16px 18px;
     align-items: center;
     padding: 18px;
+  }
+  .contrib {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+  }
+  .contrib p {
+    margin: 0;
+    font-size: 12.5px;
+    line-height: 1.45;
+  }
+  .contrib .lead {
+    font-size: 14px;
+  }
+  .cbar {
+    display: flex;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 99px;
+    background: var(--surface-3);
+  }
+  .cbar i {
+    display: block;
+  }
+  .cbar .ok {
+    background: var(--pos);
+  }
+  .cbar .wait {
+    background: var(--amber);
   }
   .ring {
     --p: 0;
@@ -413,10 +446,27 @@
   .legend {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px 12px;
-    margin-top: 2px;
-    font-size: 12px;
+    gap: 10px 36px;
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    border: 1px solid var(--line);
+    font-size: 12.5px;
     color: var(--text-2);
+  }
+  .legend div {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+  }
+  .legend h4 {
+    flex-basis: 100%;
+    margin: 0;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text-3);
   }
   .legend span {
     display: inline-flex;
@@ -444,46 +494,22 @@
   .wbody {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 10px 18px 16px;
+    gap: 16px;
+    padding: 14px 18px 16px;
   }
-  .state {
-    display: flex;
-    align-items: baseline;
-    gap: 9px;
-    margin: 0;
-    font-size: 14px;
-    line-height: 1.45;
+  .auto {
+    display: grid;
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
   }
-  .pulse {
-    position: relative;
-    top: -1px;
-    width: 8px;
-    height: 8px;
-    flex: none;
-    border-radius: 50%;
-    background: var(--text-3);
-  }
-  .state.active .pulse {
-    background: var(--pos);
-    animation: pulse 1.6s ease-in-out infinite;
-  }
-  @keyframes pulse {
-    50% {
-      opacity: 0.35;
-    }
-  }
-  .track {
-    height: 6px;
-    overflow: hidden;
-    border-radius: 99px;
-    background: var(--surface-3);
-  }
-  .track i {
-    display: block;
-    height: 100%;
-    background: var(--pos);
-    transition: width 0.4s;
+  .auto .label {
+    padding-top: 6px;
+    color: var(--text-2);
+    font-size: 12.5px;
+    font-weight: 600;
   }
   .why {
     margin: 0;
@@ -621,6 +647,7 @@
     gap: 6px;
   }
   .flop {
+    position: relative;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -658,6 +685,17 @@
     border-style: dashed;
     border-color: var(--pos);
   }
+  .badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--bg);
+  }
   .card small {
     font-size: 11px;
     margin-left: 1px;
@@ -683,6 +721,26 @@
     font-size: 12.5px;
     line-height: 1.55;
     max-width: 90ch;
+  }
+  /* Very wide windows: the flop grid gets the room; reading text keeps its own measure. */
+  @container (min-width: 1800px) {
+    .library {
+      max-width: 1760px;
+    }
+    /* Power and automatic sit beside the button instead of under it. */
+    .wbody {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      gap: 16px 32px;
+    }
+    .wbody > :global(.run) {
+      grid-row: span 2;
+      align-self: start;
+    }
+    .wbody > .why,
+    .wbody > details {
+      grid-column: 1 / -1;
+    }
   }
   @media (max-width: 980px) {
     .how,

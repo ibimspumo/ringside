@@ -16,7 +16,9 @@ use crate::tournament::{BuyIn, Summary, TournamentRow};
 pub use rusqlite::Error;
 
 mod analysis;
+mod ranges;
 mod solutions;
+pub use ranges::{RangeCounts, RangeFilter, RangeGroup};
 pub use solutions::{NewSolution, SavedSolution, SolutionSource};
 pub use analysis::{
     AnalysisCounts, AnalysisSummary, Choice, CostlyDecision, Decision, DecisionBrief, DecisionFilter, HandAnalysis, Rating,
@@ -24,7 +26,7 @@ pub use analysis::{
 };
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 6;
+const SCHEMA_VERSION: i32 = 7;
 
 pub struct Db {
     conn: Connection,
@@ -66,6 +68,9 @@ pub struct HandQuery {
     /// Costliest decision first instead of newest first.
     #[serde(default)]
     pub sort_by_loss: bool,
+    /// Hands with a matching preflop decision of the hero.
+    #[serde(default)]
+    pub range: Option<RangeFilter>,
     pub limit: usize,
     pub offset: usize,
 }
@@ -321,6 +326,7 @@ impl Db {
         ))?;
         conn.execute_batch(analysis::SCHEMA)?;
         conn.execute_batch(solutions::SCHEMA)?;
+        conn.execute_batch(ranges::SCHEMA)?;
         let added: &[(&str, &str, &str)] = &[
             ("hands", "hero_position", "TEXT"),
             ("hands", "hero_class", "TEXT"),
@@ -729,6 +735,7 @@ impl Db {
         };
         let decisions = q.decisions.clone().unwrap_or_default();
         let decision_sql = if decisions.is_empty() { String::new() } else { decisions.hands_sql() };
+        let range_sql = q.range.as_ref().map(RangeFilter::hands_sql).unwrap_or_default();
         let order = match (q.sort_by_loss, decisions.is_empty()) {
             (false, _) => "h.played_at DESC, h.id DESC".to_string(),
             (true, true) => "(SELECT a.worst_loss_bb FROM hand_analysis a WHERE a.hand_id = h.id) DESC NULLS LAST, h.id DESC".into(),
@@ -749,6 +756,7 @@ impl Db {
                AND (?7 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?7)
                {spot}
                {decision_sql}
+               {range_sql}
              ORDER BY {order} LIMIT ?8 OFFSET ?9"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
@@ -1110,6 +1118,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
     if let Some(tid) = hand.tournament_id {
         write_tournament(tx, tid, hand)?;
     }
+    ranges::write(tx, hand)?;
 
     let placeholders = vec!["?"; Counters::FIELDS.len() + 8].join(", ");
     let mut stmt = tx.prepare_cached(&format!(

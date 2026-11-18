@@ -1,193 +1,326 @@
 <script lang="ts">
   import PlayingCard from "../PlayingCard.svelte";
-  import { GRADE, choiceShort, num } from "./labels";
-  import type { HandView } from "./types";
+  import OvalFelt from "../table/OvalFelt.svelte";
+  import { fit, minHeight, placeOf } from "../table/seats";
+  import MiniCard from "../ui/MiniCard.svelte";
+  import { num } from "./labels";
+  import type { Choice, HandView } from "./types";
 
-  /** The table at one moment of the hand: `at` indexes `view.snapshots`. */
-  let { view, at, final }: { view: HandView; at: number; final: boolean } = $props();
+  /**
+   * The table at one step of the hand (`at` indexes `view.snapshots`): you at the bottom,
+   * the others clockwise in the order they act. Per seat the last action of the street as a
+   * badge and the chips in front on the line to the middle; chips slide in from the seat and
+   * into the pot when the street ends. `ms` is the length of one step (0: no motion).
+   */
+  let { view, at, final, ms }: { view: HandView; at: number; final: boolean; ms: number } = $props();
 
   const snap = $derived(view.snapshots[Math.min(at, view.snapshots.length - 1)]);
   const n = $derived(view.players);
-  const button = $derived(n - 3);
+  const button = $derived(n === 2 ? 0 : n - 3);
 
-  /** Seats clockwise from the hero at the bottom, in % of the stage. */
-  function place(seat: number, r = 1) {
-    const rel = (seat - view.hero + n) % n;
-    const a = Math.PI / 2 + (rel * 2 * Math.PI) / n;
-    return { x: 50 + 43 * r * Math.cos(a), y: 50 + 39 * r * Math.sin(a) };
-  }
+  let w = $state(900);
+  let vh = $state(900);
+  const small = $derived(w < 860);
+  const SEAT = $derived(small ? { w: 84, h: 66 } : { w: 104, h: 74 });
+  const ME = $derived(small ? { w: 116, h: 96 } : { w: 136, h: 108 });
+  const SIZES = $derived({
+    seat: SEAT,
+    me: ME,
+    badge: small ? { w: 56, h: 20 } : { w: 72, h: 22 },
+    // Narrow tables stack the chip above the amount: lines to the middle stay short.
+    bet: small ? { w: 56, h: 36 } : { w: 92, h: 26 },
+    dealer: small ? 20 : 22,
+    gap: small ? 4 : 5,
+    onEdge: true,
+  });
+  // Board above, pot below, symmetric round the centre.
+  const MIDDLE = $derived(
+    small
+      ? [
+          { box: { w: 5 * 36 + 24, h: 50 }, dy: -16 },
+          { box: { w: 104, h: 26 }, dy: 28 },
+        ]
+      : [
+          { box: { w: 5 * 48 + 24, h: 67 }, dy: -18 },
+          { box: { w: 116, h: 28 }, dy: 37.5 },
+        ],
+  );
+  const heightFor = (vw: number) => Math.round(Math.max(minHeight(SIZES, MIDDLE), Math.min(vw * 0.62, vh * 0.52)));
+  const fitted = $derived(fit(n, w, heightFor, SIZES, MIDDLE, placeOf(button, view.hero, n)));
+  const geo = $derived(fitted.geo);
+  const scale = $derived(fitted.scale);
+  const h = $derived(geo.h);
+  const at_ = (seat: number) => geo.places[placeOf(seat, view.hero, n)];
 
-  /** Each seat's last move on the street shown, with the grade of a hero move. */
-  const last = $derived.by(() => {
-    const out: ({ text: string; grade: string | null } | null)[] = new Array(n).fill(null);
+  type Kind = Choice["kind"] | "made";
+  /** Each seat's last action on the street shown; folds stay for the rest of the hand. */
+  const badges = $derived.by(() => {
+    const out: ({ text: string; kind: Kind } | null)[] = new Array(n).fill(null);
     for (const e of view.events) {
       if (e.snapshot > at) break;
-      if (e.type === "board") out.fill(null);
-      else if (e.street === snap.street || e.choice.kind === "fold") {
-        const v = e.verdict !== null ? view.verdicts[e.verdict] : null;
-        out[e.seat] = { text: choiceShort(e.choice), grade: v?.judgement ? GRADE[v.judgement.grade].color : null };
+      if (e.type === "board") {
+        for (let s = 0; s < n; s++) if (out[s]?.kind !== "fold") out[s] = null;
+      } else {
+        out[e.seat] = { text: badgeText(e.choice), kind: e.choice.kind };
       }
+    }
+    if (final && view.outcome) {
+      view.outcome.made.forEach((m, s) => {
+        if (m) out[s] = { text: m, kind: "made" };
+      });
     }
     return out;
   });
 
-  const middle = $derived(snap.pot - snap.bets.reduce((a, b) => a + b, 0));
-  const shown = $derived(final && view.outcome ? view.outcome.shown : []);
-  const winners = $derived(final && view.outcome ? view.outcome.winners : []);
+  /** The chips in front show the amount, so the badge names the action alone. */
+  const BADGE: Record<Choice["kind"], string> = { fold: "Fold", check: "Check", call: "Call", limp: "Limp", bet: "Bet", raise: "Raise", all_in: "All-in" };
+  const badgeText = (c: Choice) => BADGE[c.kind];
+
+  /** The seat whose action this step shows. */
+  const actor = $derived.by(() => {
+    const e = view.events.find((x) => x.snapshot === at);
+    return e?.type === "action" ? e.seat : null;
+  });
+
+  const outcome = $derived(final ? view.outcome : null);
+  const winners = $derived(outcome?.winners ?? []);
+  /** Cards turned up at the end: only players still in the hand show theirs. */
+  const shown = (s: number) => (outcome?.reason === "showdown" && !snap.folded[s] ? outcome.shown[s] : null);
+  /** Hands of folded opponents the hand reveals for learning, apart from their seats. */
+  const revealed = $derived(
+    outcome ? outcome.shown.map((c, s) => ({ c, s })).filter((x) => x.c && (snap.folded[x.s] || outcome.reason !== "showdown")) : [],
+  );
+  /** At the end the whole pot slides to a single winner. */
+  const payout = $derived(outcome && winners.length === 1 && outcome.reason !== "left_line" ? `${num(snap.pot)} BB` : "");
+
+  /** Slides an element from `from` to its place, or from its place to `to` when it leaves. */
+  function slide(_: Element, { dx, dy, out = false }: { dx: number; dy: number; out?: boolean }) {
+    return {
+      duration: ms ? Math.min(420, ms * 0.8) : 0,
+      // Cubic ease-out (fast start, soft landing), close to --ease-enter; never linear.
+      css: (t: number) => {
+        const k = (1 - t) ** 3;
+        return `transform: translate(-50%, -50%) translate(${dx * k}px, ${dy * k}px); opacity: ${Math.min(1, t * (out ? 2 : 2.5))}`;
+      },
+    };
+  }
+
+  const seats = $derived(Array.from({ length: n }, (_, s) => s));
+  const KIND_NAME: Record<Kind, string> = { fold: "k-fold", check: "k-check", call: "k-call", limp: "k-call", bet: "k-bet", raise: "k-bet", all_in: "k-allin", made: "k-made" };
 </script>
 
-<div class="stage" aria-label="Pokertisch">
-  <div class="rail"><div class="cloth"></div></div>
+<svelte:window bind:innerHeight={vh} />
 
-  <div class="center">
-    <div class="board" aria-label="Board">
+<div class="wrap" bind:clientWidth={w}>
+  <div class="frame" style="height:{h * scale}px">
+  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 11.5 : 12.5}px" aria-label="Pokertisch">
+    <OvalFelt felt={geo.felt} />
+
+    <div class="board" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y + MIDDLE[0].dy}px" aria-label="Board">
       {#each [0, 1, 2, 3, 4] as i (i)}
         {#if snap.board[i]}
-          <span class="deal"><PlayingCard card={snap.board[i]} size={50} /></span>
+          <span class="deal" style:--d="{(i < 3 ? i : 0) * 60}ms"><PlayingCard card={snap.board[i]} size={small ? 36 : 48} /></span>
         {:else}
-          <span class="slot"></span>
+          <span class="slot" class:sm={small}></span>
         {/if}
       {/each}
     </div>
-    <div class="pot num">Pot {num(middle)} BB</div>
+    <div class="pot num" data-part="middle" class:gone={!!payout} style="left:{geo.center.x}px; top:{geo.center.y + MIDDLE[1].dy}px" aria-live="polite">
+      Pot <b>{num(snap.pot)} BB</b>
+    </div>
+
+    {#each seats as s (s)}
+      {@const p = at_(s)}
+      {#if snap.bets[s] > 0 && !payout}
+        {#key `${s}-${snap.street}`}
+          <div
+            class="bet num"
+            class:stack={small}
+            data-part="bet"
+            data-seat={s}
+            style="left:{p.bet.x}px; top:{p.bet.y}px"
+            in:slide|global={{ dx: p.seat.x - p.bet.x, dy: p.seat.y - p.bet.y }}
+            out:slide|global={{ dx: geo.center.x - p.bet.x, dy: geo.center.y - p.bet.y, out: true }}
+          >
+            <span class="chip" aria-hidden="true"></span>{num(snap.bets[s])} BB
+          </div>
+        {/key}
+      {/if}
+      {#if s === button}
+        <span class="dealer" data-part="dealer" style="left:{p.dealer.x}px; top:{p.dealer.y}px" title="Dealer-Button">D</span>
+      {/if}
+      {#if badges[s]}
+        {@const b = badges[s]!}
+        {#key `${b.text}-${s}`}
+          <span class="badge {KIND_NAME[b.kind]}" data-part="badge" data-seat={s} style="left:{p.badge.x}px; top:{p.badge.y}px" in:slide|global={{ dx: 0, dy: 0 }}>{b.text}</span>
+        {/key}
+      {/if}
+    {/each}
+
+    {#if payout}
+      {@const p = at_(winners[0])}
+      <div class="bet win num" data-part="bet" style="left:{p.bet.x}px; top:{p.bet.y}px" in:slide|global={{ dx: geo.center.x - p.bet.x, dy: geo.center.y - p.bet.y }}>
+        <span class="chip" aria-hidden="true"></span>{payout}
+      </div>
+    {/if}
+
+    {#each seats as s (s)}
+      {@const p = at_(s)}
+      {@const me = s === view.hero}
+      {@const out = snap.folded[s]}
+      <div
+        class="seat"
+        class:me
+        class:out
+        class:acting={snap.to_act === s && !final}
+        class:just={actor === s}
+        class:won={winners.includes(s)}
+        data-part="seat"
+        data-seat={s}
+        style="left:{p.seat.x}px; top:{p.seat.y}px; width:{p.box.w}px; height:{p.box.h}px"
+      >
+        <div class="hole" class:big={me}>
+          {#if me}
+            {#key view.seed}
+              <span class="deal" style:--d="0ms"><PlayingCard card={view.hero_cards[0]} size={small ? 46 : 54} /></span>
+              <span class="deal" style:--d="60ms"><PlayingCard card={view.hero_cards[1]} size={small ? 46 : 54} /></span>
+            {/key}
+          {:else if !out}
+            {@const c = shown(s)}
+            <span class:flip={!!c}><PlayingCard card={c?.[0]} hidden={!c} size={small ? 26 : 30} /></span>
+            <span class:flip={!!c}><PlayingCard card={c?.[1]} hidden={!c} size={small ? 26 : 30} /></span>
+          {/if}
+        </div>
+        <div class="plate">
+          <b>{me ? `Du · ${view.positions[s]}` : view.positions[s]}</b>
+          <span class="num">{num(snap.stacks[s])} BB</span>
+        </div>
+      </div>
+    {/each}
+  </div>
   </div>
 
-  {#each Array.from({ length: n }, (_, s) => s) as s (s)}
-    {@const p = place(s)}
-    {@const b = place(s, s === view.hero ? 0.36 : 0.58)}
-    {@const hero = s === view.hero}
-    {@const out = snap.folded[s]}
-    {#if snap.bets[s] > 0}
-      <div class="bet num" style="left:{b.x}%; top:{b.y}%">
-        <span class="chip" aria-hidden="true"></span>{num(snap.bets[s])}
-      </div>
-    {/if}
-    {#if s === button}
-      {@const d = place(s, 0.7)}
-      <span class="dealer" style="left:{d.x + (s === view.hero ? 11 : 5)}%; top:{d.y}%" aria-label="Dealer-Button">D</span>
-    {/if}
-    <div class="seat" class:hero class:out class:acting={snap.to_act === s} class:won={winners.includes(s)} style="left:{p.x}%; top:{p.y}%">
-      {#if hero}
-        <div class="hole big">
-          <PlayingCard card={view.hero_cards[0]} size={58} />
-          <PlayingCard card={view.hero_cards[1]} size={58} />
-        </div>
-      {:else if !out || shown[s]}
-        <div class="hole">
-          <PlayingCard card={shown[s]?.[0]} hidden={!shown[s]} size={26} />
-          <PlayingCard card={shown[s]?.[1]} hidden={!shown[s]} size={26} />
-        </div>
-      {/if}
-      <div class="plate">
-        <b>{view.positions[s]}{hero ? " · Du" : ""}</b>
-        <span class="num">{num(snap.stacks[s])} BB</span>
-      </div>
-      {#if last[s]}
-        <span class="move" style:--g={last[s]?.grade ?? "transparent"} class:graded={!!last[s]?.grade}>{last[s]?.text}</span>
-      {/if}
-      {#if final && view.outcome?.made[s]}
-        <span class="made">{view.outcome.made[s]}</span>
-      {/if}
-    </div>
-  {/each}
+  {#if revealed.length}
+    <p class="reveal">
+      {#each revealed as r (r.s)}
+        <span>Das hatte {view.positions[r.s]}: {#each r.c ?? [] as c (c)}<MiniCard card={c} />{/each}</span>
+      {/each}
+    </p>
+  {/if}
 </div>
 
 <style>
-  .stage {
+  .wrap {
+    width: 100%;
+    min-width: 0;
+  }
+  .frame {
+    /* Motion of the table: things that appear enter on the theme's curve, never linear. */
+    --ease-move: var(--ease-enter);
     position: relative;
     width: 100%;
-    aspect-ratio: 16 / 8.6;
-    min-height: 330px;
-    max-height: 56vh;
-    margin: 0 auto;
-    container-type: inline-size;
   }
-  .rail {
+  .stage {
     position: absolute;
-    inset: 11% 9%;
-    border-radius: 999px;
-    padding: 1.1%;
-    background: #1c1f24;
-    box-shadow:
-      inset 0 0 0 1px rgba(236, 235, 231, 0.06),
-      0 22px 50px rgba(0, 0, 0, 0.5);
-  }
-  .cloth {
-    height: 100%;
-    border-radius: 999px;
-    background: radial-gradient(ellipse at 50% 40%, #26372f 0%, #1c2925 60%, #16201d 100%);
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45), inset 0 0 60px rgba(0, 0, 0, 0.35);
-  }
-  .center {
-    position: absolute;
-    left: 50%;
-    top: 46%;
-    transform: translate(-50%, -50%);
-    display: grid;
-    justify-items: center;
-    gap: 10px;
+    left: 0;
+    top: 0;
+    transform-origin: 0 0;
   }
   .board {
+    position: absolute;
+    transform: translate(-50%, -50%);
     display: flex;
     gap: 6px;
   }
   .slot {
-    width: 50px;
-    height: 70px;
+    width: 48px;
+    height: 67px;
     border-radius: 6px;
-    border: 1px dashed rgba(236, 235, 231, 0.1);
+    border: 1px dashed var(--line-2);
+  }
+  .slot.sm {
+    width: 36px;
+    height: 50px;
   }
   .deal {
-    animation: deal 0.28s ease-out;
+    display: inline-flex;
+    animation: deal calc(var(--ms) * 0.7) var(--ease-move) both;
+    animation-delay: var(--d, 0ms);
   }
   @keyframes deal {
     from {
       opacity: 0;
-      transform: translateY(-6px);
+      transform: translateY(-10px) scale(0.96);
     }
   }
   .pot {
-    font-size: 15px;
-    color: var(--text);
-    background: rgba(10, 12, 14, 0.55);
+    position: absolute;
+    transform: translate(-50%, -50%);
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--text-2);
+    background: rgba(10, 12, 14, 0.6);
     padding: 3px 12px;
     border-radius: 999px;
+  }
+  .pot.gone {
+    visibility: hidden;
+  }
+  .pot b {
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 600;
   }
   .seat {
     position: absolute;
     transform: translate(-50%, -50%);
-    display: grid;
-    justify-items: center;
-    gap: 4px;
-    transition: opacity 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    transition: opacity calc(var(--ms) * 0.6) var(--ease-move);
+    z-index: 2;
   }
   .seat.out {
-    opacity: 0.42;
+    opacity: 0.45;
   }
   .hole {
     display: flex;
     gap: 3px;
-    margin-bottom: -10px;
-    z-index: 0;
+    margin-bottom: -12px;
   }
   .hole.big {
     gap: 5px;
     margin-bottom: -14px;
+  }
+  .flip {
+    display: inline-flex;
+    animation: flip calc(var(--ms) + 150ms) var(--ease-move) both;
+  }
+  @keyframes flip {
+    from {
+      transform: rotateY(90deg);
+    }
   }
   .plate {
     position: relative;
     z-index: 1;
     display: grid;
     justify-items: center;
-    min-width: 96px;
-    padding: 5px 12px;
+    width: 100%;
+    padding: 5px 8px;
     border-radius: 9px;
     background: var(--plate);
     box-shadow:
       inset 0 0 0 1px var(--plate-edge),
       0 6px 16px rgba(0, 0, 0, 0.4);
-    font-size: 12px;
+    font-size: 12.5px;
     line-height: 1.3;
+    transition: box-shadow calc(var(--ms) * 0.4) var(--ease-move);
   }
   .plate b {
     font-weight: 600;
@@ -197,60 +330,116 @@
     color: var(--text-2);
     font-size: 13px;
   }
-  .hero .plate {
-    min-width: 128px;
-    background: #31353d;
+  .me .plate {
+    background: var(--surface-3);
   }
   .acting .plate {
     box-shadow:
-      inset 0 0 0 1.5px var(--focus),
-      0 0 0 4px color-mix(in srgb, var(--focus) 18%, transparent),
+      inset 0 0 0 2px var(--focus),
+      0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent),
       0 6px 16px rgba(0, 0, 0, 0.4);
+  }
+  .just .plate {
+    animation: pulse calc(var(--ms) * 1.2) var(--ease-move);
+  }
+  @keyframes pulse {
+    from {
+      box-shadow:
+        inset 0 0 0 2px var(--text-2),
+        0 6px 16px rgba(0, 0, 0, 0.4);
+    }
   }
   .won .plate {
     box-shadow:
-      inset 0 0 0 1.5px var(--pos),
+      inset 0 0 0 2px var(--pos),
       0 6px 16px rgba(0, 0, 0, 0.4);
   }
-  .move {
-    font-size: 11.5px;
-    padding: 1px 8px;
+  .badge {
+    --k: var(--text-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    position: absolute;
+    z-index: 3;
+    transform: translate(-50%, -50%);
+    max-width: var(--bw);
+    height: var(--bh);
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
     border-radius: 999px;
-    background: rgba(10, 12, 14, 0.7);
-    color: var(--text-2);
+    font-size: calc(var(--fs) - 0.5px);
+    font-weight: 600;
+    line-height: 1;
     white-space: nowrap;
-  }
-  .move.graded {
     color: var(--text);
-    box-shadow: inset 0 0 0 1.5px var(--g);
+    background: color-mix(in srgb, var(--k) 26%, var(--bg));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--k) 70%, transparent);
   }
-  .made {
-    font-size: 11px;
-    color: var(--amber);
+  .badge.k-fold {
+    --k: var(--act-fold);
+  }
+  .badge.k-check {
+    --k: var(--act-check);
+  }
+  .badge.k-call {
+    --k: var(--act-call);
+  }
+  .badge.k-bet {
+    --k: var(--act-bet-1);
+  }
+  .badge.k-allin {
+    --k: var(--act-allin);
+  }
+  .badge.k-made {
+    --k: var(--text-2);
+    max-width: none;
   }
   .bet {
     position: absolute;
+    z-index: 2;
     transform: translate(-50%, -50%);
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 13px;
-    padding: 2px 8px 2px 4px;
+    height: var(--th);
+    padding: 0 9px 0 4px;
+    font-size: var(--fs);
+    font-weight: 600;
+    white-space: nowrap;
     border-radius: 999px;
-    background: rgba(10, 12, 14, 0.6);
+    background: rgba(10, 12, 14, 0.62);
+    color: var(--text);
+  }
+  .bet.stack {
+    flex-direction: column;
+    justify-content: center;
+    gap: 1px;
+    height: var(--th);
+    min-width: 0;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 11px;
+  }
+  .bet.stack .chip {
+    width: 13px;
+    height: 13px;
+  }
+  .bet.win {
+    color: var(--pos);
   }
   .chip {
-    width: 14px;
-    height: 14px;
+    width: 16px;
+    height: 16px;
     border-radius: 50%;
-    background: radial-gradient(circle, #f2b12e 0 38%, #c6831a 40% 62%, #f2b12e 64%);
+    background: radial-gradient(circle, var(--amber) 0 36%, color-mix(in srgb, var(--amber) 70%, #000) 38% 62%, var(--amber) 64%);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
   }
   .dealer {
     position: absolute;
+    z-index: 3;
     transform: translate(-50%, -50%);
-    width: 20px;
-    height: 20px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background: var(--text);
     color: var(--bg);
@@ -258,15 +447,21 @@
     font-weight: 700;
     display: grid;
     place-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
-  @container (max-width: 640px) {
-    .plate {
-      min-width: 76px;
-      padding: 4px 8px;
-    }
+  .reveal {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 18px;
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--text-2);
   }
   @media (prefers-reduced-motion: reduce) {
-    .deal {
+    .deal,
+    .flip,
+    .just .plate {
       animation: none;
     }
     .seat {

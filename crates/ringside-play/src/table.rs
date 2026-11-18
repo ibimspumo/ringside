@@ -132,6 +132,13 @@ pub fn deep(key: TableKey) -> Option<Arc<Deep>> {
     Some(table)
 }
 
+/// Drops the decoded tables (e.g. when the practice page is left); hands still holding
+/// one keep it.
+pub fn release() {
+    DEEP.lock().unwrap().clear();
+    SHORT.lock().unwrap().clear();
+}
+
 pub fn short(key: TableKey) -> Option<Arc<Short>> {
     if let Some(t) = SHORT.lock().unwrap().get(&key.bits()) {
         return Some(t.clone());

@@ -12,6 +12,7 @@
   import Trainer from "./Trainer.svelte";
   import Wissen from "./wissen/Wissen.svelte";
   import { preview } from "./preview";
+  import { usePageHead } from "../ui/page.svelte";
 
   let {
     hud = null,
@@ -25,12 +26,16 @@
   } = $props();
 
   type Section = "today" | "path" | "own" | "trainer" | "wissen";
-  const SECTIONS: { id: Section; label: string; icon: string }[] = [
-    { id: "today", label: "Heute", icon: "M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z" },
-    { id: "path", label: "Lernpfad", icon: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 17h6a3 3 0 0 0 0-6h-4a3 3 0 0 1 0-6h6" },
-    { id: "own", label: "Deine Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
-    { id: "trainer", label: "Trainer", icon: "M4 12h3l2-6 4 12 2-6h5" },
-    { id: "wissen", label: "Wissen", icon: "M5 5.5A1.5 1.5 0 0 1 6.5 4H19v14H6.5A1.5 1.5 0 0 0 5 19.5zM5 19.5A1.5 1.5 0 0 0 6.5 21H19" },
+  const SECTIONS: { id: Section; label: string; sub?: string }[] = [
+    { id: "today", label: "Heute" },
+    { id: "path", label: "Lernpfad", sub: "Elf Einheiten, aufeinander aufgebaut. Spring ruhig dorthin, wo du stehst – nichts ist gesperrt." },
+    {
+      id: "own",
+      label: "Deine Hände",
+      sub: "Deine All-ins und Push/Fold-Spots. Der Replayer hält vor deiner Entscheidung an, das Ergebnis bleibt verdeckt, bis du geantwortet hast.",
+    },
+    { id: "trainer", label: "Trainer" },
+    { id: "wissen", label: "Wissen", sub: "Kurze Seiten mit Bild statt Textwand. Eine Idee pro Seite, in einer Minute gelesen." },
   ];
   const STORE = "ringside.learn.section";
 
@@ -108,33 +113,16 @@
     onOpened();
   });
 
-  function tabKey(e: KeyboardEvent) {
-    const i = SECTIONS.findIndex((s) => s.id === section);
-    const d = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (!d) return;
-    e.preventDefault();
-    const next = SECTIONS[(i + d + SECTIONS.length) % SECTIONS.length];
-    go(next.id);
-    (e.currentTarget as HTMLElement).querySelector<HTMLElement>(`[data-id="${next.id}"]`)?.focus();
-  }
+  usePageHead(() => ({
+    sub: SECTIONS.find((x) => x.id === section)?.sub,
+    label: "Lernbereich",
+    value: section,
+    tabs: SECTIONS.map(({ id, label }) => ({ id, label })),
+    onchange: (id) => go(id as Section),
+  }));
 </script>
 
 <div class="learn page" bind:this={top}>
-  <div class="tabs" role="tablist" aria-label="Lernbereich" tabindex="-1" onkeydown={tabKey}>
-    {#each SECTIONS as s (s.id)}
-      <button
-        role="tab"
-        data-id={s.id}
-        aria-selected={section === s.id}
-        tabindex={section === s.id ? 0 : -1}
-        class:on={section === s.id}
-        onclick={() => go(s.id)}
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d={s.icon} /></svg>
-        {s.label}
-      </button>
-    {/each}
-  </div>
 
   {#if loadError}
     <p class="error" role="alert">{loadError}</p>
@@ -168,48 +156,6 @@
     gap: 22px;
     scroll-margin-top: 0;
   }
-  .tabs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 3px;
-    border-radius: 10px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    justify-self: start;
-    max-width: 100%;
-  }
-  .tabs button {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    height: 34px;
-    padding: 0 14px;
-    border: 0;
-    border-radius: 7px;
-    background: transparent;
-    color: var(--text-2);
-    font-size: 13.5px;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-      background 0.12s,
-      color 0.12s;
-  }
-  .tabs button:hover {
-    color: var(--text);
-  }
-  .tabs button.on {
-    background: var(--surface-3);
-    color: var(--text);
-  }
-  .tabs svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
   .error {
     margin: 0;
     padding: 10px 14px;
@@ -226,9 +172,6 @@
   @container (max-width: 560px) {
     .learn {
       padding: 18px 16px 40px;
-    }
-    .tabs button {
-      padding: 0 10px;
     }
   }
 </style>

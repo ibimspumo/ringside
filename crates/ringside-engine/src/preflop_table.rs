@@ -27,8 +27,10 @@
 //! little-endian.
 
 use std::collections::HashMap;
-use std::sync::LazyLock;
+use std::sync::Arc;
+use std::time::Duration;
 
+use crate::idle::Idle;
 use crate::preflop::{Action, Kind, Node, Params, Realized, Solution, Step, own_history, skeleton, taken};
 pub use crate::pushfold_table::Ante;
 use crate::range::NUM_CLASSES;
@@ -100,14 +102,14 @@ static BYTES: [[&[u8]; 3]; 3] = [
 ];
 
 /// Inflated on first use, one file at a time.
-static TABLES: [[LazyLock<Table>; 3]; 3] = {
+static TABLES: [[Idle<Table>; 3]; 3] = {
     fn at<const A: usize, const N: usize>() -> Table {
         load(Ante::ALL[A], PLAYERS[N], BYTES[A][N])
     }
     [
-        [LazyLock::new(at::<0, 0>), LazyLock::new(at::<0, 1>), LazyLock::new(at::<0, 2>)],
-        [LazyLock::new(at::<1, 0>), LazyLock::new(at::<1, 1>), LazyLock::new(at::<1, 2>)],
-        [LazyLock::new(at::<2, 0>), LazyLock::new(at::<2, 1>), LazyLock::new(at::<2, 2>)],
+        [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>)],
+        [Idle::new(at::<1, 0>), Idle::new(at::<1, 1>), Idle::new(at::<1, 2>)],
+        [Idle::new(at::<2, 0>), Idle::new(at::<2, 1>), Idle::new(at::<2, 2>)],
     ]
 };
 
@@ -127,8 +129,13 @@ fn slot(players: usize) -> Option<usize> {
     PLAYERS.iter().position(|&n| n == players)
 }
 
-fn table(ante: Ante, players: usize) -> Option<&'static Table> {
-    slot(players).map(|i| &*TABLES[ante.code() as usize][i])
+fn table(ante: Ante, players: usize) -> Option<Arc<Table>> {
+    slot(players).map(|i| TABLES[ante.code() as usize][i].get())
+}
+
+/// Drops the inflated tables unused for `idle`.
+pub(crate) fn release(idle: Duration) -> usize {
+    TABLES.iter().flatten().filter(|t| t.release(idle)).count()
 }
 
 /// The embedded file of an ante structure and player count (for the generator and tests).

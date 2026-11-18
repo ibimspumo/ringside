@@ -4,6 +4,11 @@
   import { explain, fmtBB, fmtPct, parseRange } from "./catalog";
   import SeatRing from "./SeatRing.svelte";
   import Matrix from "./wissen/blocks/Matrix.svelte";
+  import { score } from "./wissen/poker";
+  import Badge from "../ui/Badge.svelte";
+  import BestHand from "../ui/BestHand.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
+  import Kbd from "../ui/Kbd.svelte";
 
   /** The picture of an exercise. Showdown hands and seats double as the answer input. */
   let {
@@ -136,26 +141,47 @@
     />
     {#if prompt.dead_button}<p class="note dim">Toter Button: Der Button liegt auf einem leeren Sitz.</p>{/if}
   {:else if prompt.type === "showdown"}
+    {@const scores = prompt.players.map((h) => score([...h, ...prompt.board]))}
+    {@const top = Math.max(...scores)}
+    {@const split = scores.filter((x) => x === top).length > 1}
     <div class="felt">
-      <div class="board" aria-label="Board">
-        {#each prompt.board as c (c)}<PlayingCard card={c} size={big} />{/each}
-      </div>
-      <div class="players" role="group" aria-label="Wer gewinnt?">
-        {#each prompt.players as hand, i (i)}
-          {@const id = `p${i}`}
-          <button
-            class="player"
-            class:on={choice === id}
-            class:win={truthChoice === id}
-            class:miss={truthChoice !== null && choice === id && truthChoice !== id}
-            disabled={!onChoose}
-            onclick={() => onChoose?.(id)}
-          >
-            <span class="who">Spieler {i + 1} <kbd>{i + 1}</kbd></span>
-            <span class="cards">{#each hand as c (c)}<PlayingCard card={c} size={mid} />{/each}</span>
-          </button>
-        {/each}
-      </div>
+      {#if truthChoice === null}
+        <div class="board" aria-label="Board">
+          {#each prompt.board as c (c)}<PlayingCard card={c} size={big} />{/each}
+        </div>
+        <div class="players" role="group" aria-label="Wer gewinnt?">
+          {#each prompt.players as hand, i (i)}
+            {@const id = `p${i}`}
+            <button class="player" class:on={choice === id} disabled={!onChoose} onclick={() => onChoose?.(id)}>
+              <span class="who">Spieler {i + 1} <Kbd keys={String(i + 1)} /></span>
+              <span class="cards">{#each hand as c (c)}<PlayingCard card={c} size={mid} />{/each}</span>
+            </button>
+          {/each}
+        </div>
+      {:else}
+        {@const right = choice === truthChoice}
+        <ol class="results" aria-label="Auflösung">
+          {#each prompt.players as hand, i (i)}
+            {@const won = scores[i] === top}
+            {@const mine = choice === `p${i}` || (choice === "split" && won && split)}
+            <li class="result" class:won>
+              <div class="result-head">
+                <b>Spieler {i + 1}</b>
+                {#if won}<Badge tone="good">{split ? "Split – teilt den Pot" : "Gewinnt den Pot"}</Badge>{/if}
+                {#if mine}
+                  <span class="mine" class:right>
+                    <GradeIcon grade={right ? "best" : "mistake"} size={16} />Deine Wahl – {right ? "richtig" : "falsch"}
+                  </span>
+                {/if}
+              </div>
+              <BestHand hole={hand} board={prompt.board} winner={won} size={mid} reveal />
+            </li>
+          {/each}
+        </ol>
+        {#if choice === "split" && !split}
+          <p class="split-miss"><GradeIcon grade="mistake" size={16} />Deine Wahl „Split“ ist falsch – eine Hand ist klar besser.</p>
+        {/if}
+      {/if}
     </div>
   {:else if prompt.type === "equity_range"}
     <div class="vs">
@@ -430,21 +456,50 @@
     border-color: var(--text);
     background: rgba(236, 235, 231, 0.08);
   }
-  .player.win {
-    border-color: var(--pos);
-    box-shadow: 0 0 0 3px rgba(120, 193, 66, 0.25);
+  .results {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
-  .player.miss {
-    border-color: var(--neg);
-  }
-  kbd {
-    margin-left: 4px;
-    padding: 0 5px;
-    border-radius: 4px;
+  .result {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    border-radius: var(--r-md);
     border: 1px solid var(--line-2);
-    font-family: var(--font-num);
-    font-size: 11px;
-    color: var(--text-3);
+    background: color-mix(in srgb, var(--bg) 45%, transparent);
+  }
+  .result.won {
+    border-color: color-mix(in srgb, var(--pos) 60%, transparent);
+    background: color-mix(in srgb, var(--pos) 9%, color-mix(in srgb, var(--bg) 45%, transparent));
+  }
+  .result-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-md);
+  }
+  .mine,
+  .split-miss {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+    color: var(--danger-text);
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
+  }
+  .mine.right {
+    color: var(--pos);
+  }
+  .split-miss {
+    margin: 0;
   }
 
   .vs {

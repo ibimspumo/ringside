@@ -8,21 +8,29 @@
 //! which stays queued. Like the trainer and the solver, everything is locked while
 //! PokerStars runs; a running solve stops within an iteration and resumes later.
 //!
+//! A spot solved before, on the solver page or by an earlier analysis, is rated from the
+//! saved solution when every decision of the hand lies in its saved part; every spot
+//! solved here is saved under "Meine Lösungen", with the hand it came from.
+//!
 //! The worker runs whatever page is open. Every change goes out through [`report`] as
 //! `analysis-status` (all details) and `analysis-progress` ([`JobProgress`]: title,
 //! share, time left and state), the one place an app-wide task list hooks in.
 //! `analysis_cancel` stops everything, `analysis_cancel_hand` one hand.
 
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use ringside_analysis::postflop::JobError;
-use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets, solve_job};
-use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, Status};
+use ringside_analysis::postflop::{JobError, TARGET_PCT, rate, settings, solve_spot};
+use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets};
+use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, SolutionSource, Status};
+use ringside_solver::Solution;
+use ringside_solver::saved::NOT_STORED;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
+use crate::solutions::{self, SaveInfo};
 use crate::{AppState, CmdResult, blocking, err, jobs};
 
 const ENABLED_KEY: &str = "analysis_enabled";
@@ -340,12 +348,42 @@ fn preflop_batch(app: &AppHandle) -> bool {
     saved.is_ok()
 }
 
-/// Rated decisions for `job` from a solution computed before (spot library, saved
-/// solver solutions), so the queue never solves a spot twice. Neither store can be
-/// searched by an arbitrary spot yet: the library holds only its catalog spots, whose
-/// ranges (nine players, big-blind ante) differ from those of most hands.
-fn stored_solution(_app: &AppHandle, _job: &PostflopJob) -> Option<Vec<Decision>> {
-    None
+/// How a spot of the analysis is listed in "Meine Lösungen".
+fn save_info(job: &PostflopJob) -> SaveInfo {
+    let [oop, ip] = job.positions.clone();
+    let notes: Vec<&str> = job.range_notes.iter().map(String::as_str).filter(|n| !n.is_empty()).collect();
+    SaveInfo {
+        title: format!("{ip} gegen {oop}"),
+        oop,
+        ip,
+        ranges: if notes.is_empty() { "aus dem Preflop-Modell".into() } else { notes.join(" · ") },
+        source: Some(SolutionSource::Hand),
+        hand_id: Some(job.hand_id),
+    }
+}
+
+/// Rates `job` from a saved solution of its spot as exact as a queued solve, if every
+/// decision lies in its saved part; otherwise solves with `solve` and saves the solution
+/// in `dir`. The flag is true when nothing was solved. The spot library is not searched:
+/// its catalog spots (nine players, big-blind ante, fixed depths) match no hand's pot,
+/// stack and ranges exactly.
+fn rate_job(
+    dir: &Path,
+    state: &AppState,
+    job: &PostflopJob,
+    solve: impl FnOnce() -> Result<Solution, JobError>,
+) -> Result<(Vec<Decision>, bool), JobError> {
+    if let Some((id, snapshot)) = solutions::find(dir, state, &job.spot, TARGET_PCT)
+        && let Ok(decisions) = rate(job, &snapshot.meta.summary, Some(id), |path| snapshot.node(path))
+    {
+        return Ok((decisions, true));
+    }
+    let mut solution = solve()?;
+    let saved = solutions::store(dir, state, &mut solution, &settings(threads()), &save_info(job));
+    // Not saved only costs the reuse; the rating stands either way.
+    let saved = saved.inspect_err(|e| eprintln!("saving the analysis solve of hand {}: {e}", job.hand_id)).ok();
+    let summary = solution.summary.clone();
+    rate(job, &summary, saved, |path| solution.node(path)).map(|d| (d, false))
 }
 
 /// Solves the next queued spot (only marked ones while the bulk run is off); false when
@@ -361,48 +399,52 @@ fn solve_next(app: &AppHandle, bulk: bool) -> bool {
     }
     state.preempt.store(false, Ordering::SeqCst);
     let job: Result<PostflopJob, _> = serde_json::from_str(&json);
-    let result = match job {
-        Ok(job) if let Some(decisions) = stored_solution(app, &job) => Ok(decisions),
-        Ok(job) => {
+    let result = match (job, solutions::dir(app)) {
+        (Ok(job), Ok(dir)) => {
             let started = Instant::now();
             let mut last: Option<Instant> = None;
             let progress_app = app.clone();
-            let result = solve_job(
-                &job,
-                threads(),
-                crate::solver::memory_limit() / 2,
-                move |p| {
-                    if last.is_none_or(|t| t.elapsed() >= PROGRESS_EVERY) {
-                        last = Some(Instant::now());
-                        let solving = Solving {
-                            hand_id,
-                            iteration: p.iteration,
-                            max_iterations: p.max_iterations,
-                            exploitability_pct: p.exploitability_pct,
-                            elapsed_ms: p.elapsed_ms,
-                        };
-                        let state = progress_app.state::<AnalysisState>();
-                        let mut status = state.status.lock().unwrap();
-                        status.state = "postflop";
-                        status.solving = Some(solving);
-                        report(&progress_app, &mut status);
-                    }
-                },
-                || client_running(app) || state.preempt.load(Ordering::Relaxed),
-            );
-            if result.is_ok() {
+            let solve = || {
+                solve_spot(
+                    &job,
+                    threads(),
+                    crate::solver::memory_limit() / 2,
+                    move |p| {
+                        if last.is_none_or(|t| t.elapsed() >= PROGRESS_EVERY) {
+                            last = Some(Instant::now());
+                            let solving = Solving {
+                                hand_id,
+                                iteration: p.iteration,
+                                max_iterations: p.max_iterations,
+                                exploitability_pct: p.exploitability_pct,
+                                elapsed_ms: p.elapsed_ms,
+                            };
+                            let state = progress_app.state::<AnalysisState>();
+                            let mut status = state.status.lock().unwrap();
+                            status.state = "postflop";
+                            status.solving = Some(solving);
+                            report(&progress_app, &mut status);
+                        }
+                    },
+                    || client_running(app) || state.preempt.load(Ordering::Relaxed),
+                )
+            };
+            let result = rate_job(&dir, &main, &job, solve);
+            if let Ok((_, false)) = result {
                 let mut solved = state.solved.lock().unwrap();
                 solved.0 += started.elapsed().as_secs_f64();
                 solved.1 += 1;
             }
-            result
+            result.map(|(decisions, _)| decisions)
         }
-        Err(e) => Err(JobError::Failed(format!("Gespeicherter Spot unlesbar: {e}"))),
+        (Err(e), _) => Err(JobError::Failed(format!("Gespeicherter Spot unlesbar: {e}"))),
+        (_, Err(e)) => Err(JobError::Failed(e)),
     };
     let decisions = match result {
         Ok(decisions) => decisions,
         Err(JobError::Cancelled) => return true,
         Err(JobError::Failed(reason)) => failed(&main, hand_id, &reason),
+        Err(JobError::NotStored) => failed(&main, hand_id, NOT_STORED),
     };
     let saved = main.db.lock().unwrap().finish_postflop(hand_id, &decisions);
     publish(app, true, |s| {
@@ -591,4 +633,229 @@ pub async fn analysis_chart_target(hand_id: u64, action_index: usize, app: AppHa
 #[tauri::command]
 pub async fn analysis_summary(filter: Filter, app: AppHandle) -> CmdResult<AnalysisSummary> {
     blocking(app, move |state| state.db.lock().unwrap().analysis_summary(&filter, ENGINE, 5).map_err(err)).await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::Cell;
+
+    use ringside_analysis::postflop::JobAction;
+    use ringside_core::db::SpotType;
+    use ringside_core::model::{ActionKind, Street};
+    use ringside_solver::{Settings, Spot, StreetSizes, solve};
+
+    use super::*;
+    use crate::solutions::test_state;
+
+    /// The hero on the button with AhKh against the big blind; tiny ranges and stacks so a
+    /// solve takes milliseconds.
+    fn job(hand_id: u64, board: &[&str], actions: &[(Street, bool, ActionKind, f64, Option<SpotType>)]) -> PostflopJob {
+        let sizes = StreetSizes { bet: vec![50.0], raise: vec![] };
+        PostflopJob {
+            hand_id,
+            spot: Spot {
+                oop_range: "QQ,77,KJs".into(),
+                ip_range: "AA,AKs,T9s".into(),
+                board: "Kd7s2c".into(),
+                pot: 10.0,
+                stack: 10.0,
+                sizes: [sizes.clone(), sizes.clone(), sizes],
+                allin_threshold: 150.0,
+            },
+            hero_oop: false,
+            hero_combo: "AhKh".into(),
+            board: board.iter().map(|c| c.to_string()).collect(),
+            actions: actions
+                .iter()
+                .enumerate()
+                .map(|(index, &(street, oop, kind, to_bb, hero))| JobAction {
+                    index,
+                    street,
+                    oop,
+                    kind,
+                    to_bb,
+                    all_in: false,
+                    hero: hero.map(|s| (s, format!("{kind:?}"))),
+                })
+                .collect(),
+            positions: ["BB".into(), "BTN".into()],
+            range_notes: ["BB: Call".into(), "BTN: Open".into()],
+            players: 6,
+            note: String::new(),
+            pot_bb: 20.0,
+        }
+    }
+
+    fn flop_cbet(hand_id: u64) -> PostflopJob {
+        job(
+            hand_id,
+            &["Kd", "7s", "2c"],
+            &[(Street::Flop, true, ActionKind::Check, 0.0, None), (Street::Flop, false, ActionKind::Bet, 5.0, Some(SpotType::CBet))],
+        )
+    }
+
+    fn folder(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("ringside-analysis-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        dir
+    }
+
+    fn fresh(job: &PostflopJob, calls: &Cell<u32>) -> Result<Solution, JobError> {
+        calls.set(calls.get() + 1);
+        solve(&job.spot, &settings(1), 1 << 30, |_| {}, || false).map_err(|e| JobError::Failed(e.to_string()))
+    }
+
+    fn link(d: &Decision) -> serde_json::Value {
+        serde_json::from_str(d.solver.as_deref().expect("rated decisions link the solver")).unwrap()
+    }
+
+    #[test]
+    fn a_spot_solved_on_the_solver_page_is_rated_without_solving() {
+        let (dir, state) = (folder("reuse"), test_state());
+        let job = flop_cbet(1);
+        // As the solver page saves it: stricter than the queue, from the user's own setup.
+        let page = Settings { target_pct: 0.5, max_iterations: 1000, threads: 1 };
+        let mut solution = solve(&job.spot, &page, 1 << 30, |_| {}, || false).unwrap();
+        let info = SaveInfo { source: Some(SolutionSource::Own), ..Default::default() };
+        let id = solutions::store(&dir, &state, &mut solution, &page, &info).unwrap();
+
+        let (decisions, reused) = rate_job(&dir, &state, &job, || panic!("the saved solution is used, nothing is solved")).unwrap();
+        assert!(reused);
+        let [d] = decisions.as_slice() else { panic!("{decisions:?}") };
+        assert_eq!(d.status, Status::Rated, "{d:?}");
+        assert_eq!(link(d)["saved"], id);
+        assert_eq!(state.db.lock().unwrap().solutions().unwrap().len(), 1, "reusing saves nothing new");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn an_analysis_spot_lands_in_my_solutions_and_is_reused_next_time() {
+        let (dir, state) = (folder("save"), test_state());
+        let calls = Cell::new(0);
+        let job = flop_cbet(42);
+        let (first, reused) = rate_job(&dir, &state, &job, || fresh(&job, &calls)).unwrap();
+        assert!(!reused);
+        assert_eq!(calls.get(), 1);
+
+        let saved = state.db.lock().unwrap().solutions().unwrap();
+        let [row] = saved.as_slice() else { panic!("{saved:?}") };
+        assert_eq!((row.info.source, row.info.hand_id), (SolutionSource::Hand, Some(42)));
+        assert_eq!((row.info.title.as_str(), row.info.oop.as_str(), row.info.ip.as_str()), ("BTN gegen BB", "BB", "BTN"));
+        assert_eq!(link(&first[0])["saved"], row.id);
+
+        let (again, reused) = rate_job(&dir, &state, &job, || fresh(&job, &calls)).unwrap();
+        assert!(reused && calls.get() == 1);
+        assert_eq!(again[0].strategy.len(), first[0].strategy.len());
+        assert_eq!(again[0].best, first[0].best);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_decision_past_the_saved_part_is_solved_again() {
+        let (dir, state) = (folder("deeper"), test_state());
+        let calls = Cell::new(0);
+        let first = flop_cbet(7);
+        rate_job(&dir, &state, &first, || fresh(&first, &calls)).unwrap();
+        // Same spot, but the hero acts after the big blind on the turn: the snapshot keeps
+        // only the turn's first decision.
+        let turn = job(
+            8,
+            &["Kd", "7s", "2c", "3h"],
+            &[
+                (Street::Flop, true, ActionKind::Check, 0.0, None),
+                (Street::Flop, false, ActionKind::Check, 0.0, Some(SpotType::Flop)),
+                (Street::Turn, true, ActionKind::Check, 0.0, None),
+                (Street::Turn, false, ActionKind::Bet, 5.0, Some(SpotType::Turn)),
+            ],
+        );
+        let (_, snapshot) = solutions::find(&dir, &state, &turn.spot, TARGET_PCT).expect("the flop spot is saved");
+        let from_snapshot = rate(&turn, &snapshot.meta.summary, None, |path| snapshot.node(path));
+        assert!(matches!(from_snapshot, Err(JobError::NotStored)), "{from_snapshot:?}");
+        let (decisions, reused) = rate_job(&dir, &state, &turn, || fresh(&turn, &calls)).unwrap();
+        assert!(!reused);
+        assert_eq!(calls.get(), 2);
+        assert!(decisions.iter().all(|d| d.status == Status::Rated), "{decisions:?}");
+        let path = &link(&decisions[1])["path"];
+        assert_eq!(path.as_array().unwrap().len(), 4, "{path}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Two analysis runs over the user's own hand histories, kept outside the repository:
+    /// `RINGSIDE_REAL_HH=/path/to/HandHistory/<name> cargo test --release -p ringside --lib real_second_run -- --ignored --nocapture`.
+    /// The first run solves the spots estimated below `RINGSIDE_REAL_MAX_SECS` (default
+    /// 60), the second reuses what it saved. Also says how close the library comes.
+    #[test]
+    #[ignore = "needs RINGSIDE_REAL_HH"]
+    fn real_second_run() {
+        use ringside_solver::library::catalog::catalog;
+        use ringside_solver::saved::spot_key;
+        let hh = std::env::var("RINGSIDE_REAL_HH").expect("RINGSIDE_REAL_HH");
+        let max_secs: f64 = std::env::var("RINGSIDE_REAL_MAX_SECS").ok().and_then(|v| v.parse().ok()).unwrap_or(60.0);
+        let mut jobs: Vec<PostflopJob> = Vec::new();
+        for entry in std::fs::read_dir(&hh).unwrap() {
+            let text = String::from_utf8_lossy(&std::fs::read(entry.unwrap().path()).unwrap()).into_owned();
+            for hand in ringside_core::split_hands(&text).into_iter().filter_map(|raw| ringside_core::parse_hand(raw).ok()) {
+                if let Some((_, json)) = analyze_hand(&hand).job {
+                    jobs.push(serde_json::from_str(&json).unwrap());
+                }
+            }
+        }
+        // Stored: the flop, and on the turn only its first action.
+        let in_saved_part = |j: &PostflopJob| {
+            j.actions.iter().filter(|a| a.hero.is_some()).all(|a| match a.street {
+                Street::Flop => true,
+                Street::Turn => j.actions.iter().find(|x| x.street == Street::Turn).is_some_and(|x| x.index == a.index),
+                _ => false,
+            })
+        };
+        let fits = jobs.iter().filter(|j| in_saved_part(j)).count();
+        println!("{} Spots, {fits} mit allen Entscheidungen im gespeicherten Teil (Flop + Turn-Einstieg)", jobs.len());
+
+        let lib = catalog();
+        let same = |a: f64, b: f64| (a - b).abs() < 0.005;
+        let (mut depth, mut sizes, mut ranges) = (0, 0, 0);
+        for j in &jobs {
+            let near: Vec<_> = lib.scenarios.iter().filter(|s| same(s.pot, j.spot.pot) && same(s.stack, j.spot.stack)).collect();
+            depth += usize::from(!near.is_empty());
+            sizes += usize::from(lib.scenarios.iter().any(|s| s.sizes == j.spot.sizes && same(s.allin_threshold, j.spot.allin_threshold)));
+            let key = |o: &str, i: &str| {
+                spot_key(&Spot { oop_range: o.into(), ip_range: i.into(), pot: 1.0, stack: 1.0, ..j.spot.clone() }).ok()
+            };
+            let mine = key(&j.spot.oop_range, &j.spot.ip_range);
+            ranges += usize::from(lib.scenarios.iter().any(|s| key(&s.oop_range, &s.ip_range) == mine));
+        }
+        println!("Bibliothek: Pot+Stack gleich {depth}, Größen gleich {sizes}, Ranges gleich {ranges} von {}", jobs.len());
+
+        let threads = threads();
+        let small: Vec<&PostflopJob> = jobs
+            .iter()
+            .filter(|j| ringside_solver::estimate(&j.spot, 8 << 30, threads).is_ok_and(|e| e.fits && e.seconds <= max_secs))
+            .collect();
+        let (dir, state) = (folder("real"), test_state());
+        let calls = Cell::new(0);
+        for run in 1..=2 {
+            let t = Instant::now();
+            let before = calls.get();
+            let mut reused = 0;
+            for j in &small {
+                let solve = || {
+                    calls.set(calls.get() + 1);
+                    solve_spot(j, threads, 8 << 30, |_| {}, || false)
+                };
+                if let Ok((_, true)) = rate_job(&dir, &state, j, solve) {
+                    reused += 1;
+                }
+            }
+            println!(
+                "Lauf {run}: {} Spots (Schätzung bis {max_secs} s), {reused} wiederverwendet, {} gelöst, {:.1} s mit {threads} Threads",
+                small.len(),
+                calls.get() - before,
+                t.elapsed().as_secs_f64()
+            );
+        }
+        let bytes = state.db.lock().unwrap().solutions_bytes().unwrap();
+        println!("Gespeichert: {:.1} MB", bytes as f64 / 1e6);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
 }

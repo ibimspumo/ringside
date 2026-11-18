@@ -2,6 +2,11 @@
 //! the solved tree node by node. Locked while the PokerStars client runs, like the learning
 //! area; a running solve stops as soon as the client starts. Every solve is a task in the
 //! task center and is saved when done; a spot saved before opens instead of solving again.
+//!
+//! A solved tree takes gigabytes, its saved snapshot about a megabyte. The tree stays only
+//! while it is used: once no node was asked for in [`IDLE`], or the page has been closed
+//! for [`AWAY`], the snapshot replaces it (`solver-released`). The page looks the same; past
+//! the next street's first decision it offers to solve again.
 
 use std::sync::atomic::Ordering;
 use std::sync::{LazyLock, Mutex};
@@ -27,7 +32,7 @@ pub(crate) fn memory_limit() -> u64 {
 }
 
 #[cfg(windows)]
-fn installed_memory() -> Option<u64> {
+pub(crate) fn installed_memory() -> Option<u64> {
     use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
     let mut status = MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
     unsafe { GlobalMemoryStatusEx(&mut status) }.ok()?;
@@ -35,28 +40,88 @@ fn installed_memory() -> Option<u64> {
 }
 
 #[cfg(target_os = "macos")]
-fn installed_memory() -> Option<u64> {
+pub(crate) fn installed_memory() -> Option<u64> {
     let out = std::process::Command::new("sysctl").args(["-n", "hw.memsize"]).output().ok()?;
     String::from_utf8(out.stdout).ok()?.trim().parse().ok()
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
-fn installed_memory() -> Option<u64> {
+pub(crate) fn installed_memory() -> Option<u64> {
     None
 }
 const PROGRESS_EVERY: Duration = Duration::from_millis(150);
+const IDLE: Duration = Duration::from_secs(180);
+/// Long enough for a quick look at another page.
+const AWAY: Duration = Duration::from_secs(30);
 
-#[derive(Default)]
-struct SolverState {
-    job: Mutex<Option<Job>>,
-    solution: Mutex<Option<Solution>>,
-    /// A spot from the library, shown instead of a solution.
-    stored: Mutex<Option<Stored>>,
-    /// A saved solution, shown instead of a solution.
-    saved: Mutex<Option<Snapshot>>,
+/// What the solver page browses.
+enum Shown {
+    None,
+    /// A solve in memory and the exploitability it aimed for.
+    Live(Box<Solution>, f64),
+    /// A spot from the library.
+    Stored(Stored),
+    /// A saved solution, or a solve that was not used for a while.
+    Saved(Box<Snapshot>),
 }
 
-static SOLVER: LazyLock<SolverState> = LazyLock::new(SolverState::default);
+struct Use {
+    last: Instant,
+    /// Since when the page is closed.
+    away: Option<Instant>,
+}
+
+struct SolverState {
+    job: Mutex<Option<Job>>,
+    shown: Mutex<Shown>,
+    used: Mutex<Use>,
+}
+
+static SOLVER: LazyLock<SolverState> = LazyLock::new(|| SolverState {
+    job: Mutex::new(None),
+    shown: Mutex::new(Shown::None),
+    used: Mutex::new(Use { last: Instant::now(), away: None }),
+});
+
+fn show(shown: Shown) {
+    touch();
+    *SOLVER.shown.lock().unwrap() = shown;
+}
+
+fn touch() {
+    let mut used = SOLVER.used.lock().unwrap();
+    used.last = Instant::now();
+    used.away = None;
+}
+
+/// Whether a solve in memory makes room for its snapshot, given the time since the last
+/// node was asked for and since the page closed.
+fn due(idle: Duration, away: Option<Duration>) -> bool {
+    idle >= IDLE || (idle >= AWAY && away.is_some_and(|a| a >= AWAY))
+}
+
+/// Replaces a solve nobody uses by its snapshot. Called by the housekeeping thread.
+pub(crate) fn tick(app: &AppHandle) {
+    let (idle, away) = {
+        let used = SOLVER.used.lock().unwrap();
+        (used.last.elapsed(), used.away.map(|t| t.elapsed()))
+    };
+    if !due(idle, away) {
+        return;
+    }
+    let mut shown = SOLVER.shown.lock().unwrap();
+    let Shown::Live(solution, target_pct) = &mut *shown else { return };
+    let settings = Settings { target_pct: *target_pct, max_iterations: 0, threads: 1 };
+    *shown = match Snapshot::take(solution, &settings) {
+        Ok(snapshot) => Shown::Saved(Box::new(snapshot)),
+        Err(e) => {
+            eprintln!("snapshot of the solution: {e}");
+            Shown::None
+        }
+    };
+    drop(shown);
+    let _ = app.emit("solver-released", ());
+}
 
 #[derive(Clone, Serialize)]
 struct ProgressEvent {
@@ -118,13 +183,11 @@ pub async fn solver_start(
             old.cancel();
             old.wait();
         }
-        *SOLVER.solution.lock().unwrap() = None;
-        *SOLVER.stored.lock().unwrap() = None;
-        *SOLVER.saved.lock().unwrap() = None;
+        show(Shown::None);
 
         if !fresh && let Some((id, snapshot)) = solutions::lookup(&app, &spot, settings.target_pct) {
             let summary = snapshot.meta.summary.clone();
-            *SOLVER.saved.lock().unwrap() = Some(snapshot);
+            show(Shown::Saved(Box::new(snapshot)));
             let _ = app.emit("solver-done", DoneEvent::Solved { run, summary, saved: Some(id), reused: true });
             return Ok(());
         }
@@ -170,7 +233,7 @@ pub async fn solver_start(
                             None
                         }
                     };
-                    *SOLVER.solution.lock().unwrap() = Some(solution);
+                    show(Shown::Live(Box::new(solution), solve_settings.target_pct));
                     task.detail(format!("Fertig · {} % ausbeutbar", decimal(summary.exploitability_pct)));
                     task.target(Target::to("solver", saved));
                     task.finish();
@@ -204,45 +267,60 @@ pub fn solver_cancel() {
 /// Frees the last solution; trees can take gigabytes.
 #[tauri::command]
 pub fn solver_clear() {
-    *SOLVER.solution.lock().unwrap() = None;
-    *SOLVER.stored.lock().unwrap() = None;
-    *SOLVER.saved.lock().unwrap() = None;
+    show(Shown::None);
+}
+
+/// The solver page opened or closed; a solve in memory goes [`AWAY`] after it closed.
+#[tauri::command]
+pub fn solver_page(open: bool) {
+    if open {
+        touch();
+    } else {
+        SOLVER.used.lock().unwrap().away.get_or_insert_with(Instant::now);
+    }
 }
 
 /// Shows a library spot on the solver page in place of the last solution.
 pub(crate) fn show_stored(stored: Stored) {
-    *SOLVER.solution.lock().unwrap() = None;
-    *SOLVER.saved.lock().unwrap() = None;
-    *SOLVER.stored.lock().unwrap() = Some(stored);
+    show(Shown::Stored(stored));
 }
 
 /// Shows a saved solution on the solver page in place of the last solution.
 pub(crate) fn show_saved(snapshot: Snapshot) {
-    *SOLVER.solution.lock().unwrap() = None;
-    *SOLVER.stored.lock().unwrap() = None;
-    *SOLVER.saved.lock().unwrap() = Some(snapshot);
+    show(Shown::Saved(Box::new(snapshot)));
 }
 
-/// Shows a solve made elsewhere (a practice hand's spot) on the solver page.
-pub(crate) fn show_solution(solution: Solution) {
-    *SOLVER.stored.lock().unwrap() = None;
-    *SOLVER.saved.lock().unwrap() = None;
-    *SOLVER.solution.lock().unwrap() = Some(solution);
+/// Shows a solve made elsewhere (a practice hand's spot, solved to `target_pct`).
+pub(crate) fn show_solution(solution: Solution, target_pct: f64) {
+    show(Shown::Live(Box::new(solution), target_pct));
 }
 
 /// A node of the last solution (or library spot), reached from the root by `path`.
 #[tauri::command]
 pub async fn solver_node(path: Vec<Step>, app: AppHandle) -> CmdResult<Node> {
     blocking(app, move |_| {
-        if let Some(stored) = SOLVER.stored.lock().unwrap().as_ref() {
-            return View::new(stored, catalog()).and_then(|v| v.node(&path)).map_err(err);
+        touch();
+        match &mut *SOLVER.shown.lock().unwrap() {
+            Shown::None => Err("Noch keine Lösung vorhanden.".into()),
+            Shown::Live(solution, _) => solution.node(&path).map_err(err),
+            Shown::Stored(stored) => View::new(stored, catalog()).and_then(|v| v.node(&path)).map_err(err),
+            Shown::Saved(saved) => saved.node(&path).map_err(err),
         }
-        if let Some(saved) = SOLVER.saved.lock().unwrap().as_ref() {
-            return saved.node(&path).map_err(err);
-        }
-        let mut solution = SOLVER.solution.lock().unwrap();
-        let solution = solution.as_mut().ok_or("Noch keine Lösung vorhanden.")?;
-        solution.node(&path).map_err(err)
     })
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_solve_goes_when_idle_or_soon_after_the_page_closed() {
+        let secs = Duration::from_secs;
+        assert!(!due(secs(60), None));
+        assert!(due(secs(181), None));
+        assert!(due(secs(40), Some(secs(31))));
+        assert!(!due(secs(40), Some(secs(10))));
+        assert!(!due(secs(5), Some(secs(300))), "a solve that just finished stays a moment");
+    }
 }

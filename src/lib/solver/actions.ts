@@ -22,9 +22,9 @@ export function actionLabel(a: SolverAction, pot: number): string {
   }
 }
 
-const PASSIVE: Record<string, string> = { fold: "#4f8fca", check: "#5fae45", call: "#5fae45" };
-/** Light to dark: small bets amber, big bets and all-ins deep red. */
-const AGGRESSIVE = ["#f2b12e", "#ec8a2f", "#e5603a", "#d23f32", "#a92c25"];
+const PASSIVE: Record<string, string> = { fold: "var(--act-fold)", check: "var(--act-check)", call: "var(--act-call)" };
+/** Light to dark: small bets amber, big bets and all-ins deep red (tokens in theme.css). */
+const AGGRESSIVE = ["var(--act-bet-1)", "var(--act-bet-2)", "var(--act-bet-3)", "var(--act-bet-4)", "var(--act-allin)"];
 
 export function actionColors(actions: SolverAction[]): string[] {
   const aggressive = actions.filter((a) => !(a.kind in PASSIVE)).length;

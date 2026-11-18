@@ -48,6 +48,7 @@
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::{Arc, LazyLock, Mutex, RwLock};
+use std::time::{Duration, Instant};
 
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -805,19 +806,31 @@ pub(crate) fn simulate_triple(sorted: &[u8], samples: u32) -> TripleRow {
 
 type TripleTable = Arc<RwLock<Vec<TripleRow>>>;
 
-/// Simulated triples per sample count, shared by all solves of the process: a row of
+/// Simulated triples per sample count, shared by the solves of the process: a row of
 /// zeros is not simulated yet. Results don't depend on what is cached because each
-/// row is a function of the triple and the sample count alone.
-static TRIPLE_TABLES: Mutex<Vec<(u32, TripleTable)>> = Mutex::new(Vec::new());
+/// row is a function of the triple and the sample count alone. Each table is about
+/// 21 MB, so only the latest [`KEPT_TRIPLE_TABLES`] stay, until unused for a while.
+static TRIPLE_TABLES: Mutex<Vec<(u32, TripleTable, Instant)>> = Mutex::new(Vec::new());
+const KEPT_TRIPLE_TABLES: usize = 2;
 
 fn triple_table(samples: u32) -> TripleTable {
     let mut tables = TRIPLE_TABLES.lock().expect("triple table lock");
-    if let Some((_, t)) = tables.iter().find(|(s, _)| *s == samples) {
-        return t.clone();
-    }
-    let table = Arc::new(RwLock::new(vec![[0u16; WEAK3]; TRIPLES]));
-    tables.push((samples, table.clone()));
+    let i = tables.iter().position(|(s, _, _)| *s == samples);
+    let (_, table, _) = match i {
+        Some(i) => tables.remove(i),
+        None => (samples, Arc::new(RwLock::new(vec![[0u16; WEAK3]; TRIPLES])), Instant::now()),
+    };
+    tables.insert(0, (samples, table.clone(), Instant::now()));
+    tables.truncate(KEPT_TRIPLE_TABLES);
     table
+}
+
+/// Drops the three-way tables unused for `idle`; a solve still running keeps its own.
+pub(crate) fn release_triples(idle: Duration) -> usize {
+    let mut tables = TRIPLE_TABLES.lock().expect("triple table lock");
+    let before = tables.len();
+    tables.retain(|(_, _, used)| used.elapsed() < idle);
+    before - tables.len()
 }
 
 /// Read access to the showdown outcome distributions.

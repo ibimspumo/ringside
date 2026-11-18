@@ -6,8 +6,10 @@ mod gpu;
 mod importer;
 mod jobs;
 mod library;
+mod memory;
 mod overlay;
 mod play;
+mod ranges;
 mod settings;
 mod solutions;
 mod solver;
@@ -650,6 +652,7 @@ pub fn run() {
             analysis::spawn(app.handle().clone());
             library::spawn(app.handle().clone());
             jobs::spawn(app.handle().clone());
+            memory::spawn(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -683,6 +686,8 @@ pub fn run() {
             dashboard,
             reports,
             leaks,
+            ranges::range_groups,
+            ranges::range_chart,
             tournaments,
             player_note,
             notes_sources,
@@ -715,6 +720,7 @@ pub fn run() {
             solver::solver_cancel,
             solver::solver_clear,
             solver::solver_node,
+            solver::solver_page,
             solutions::solutions_list,
             solutions::solutions_open,
             solutions::solutions_pin,
@@ -746,6 +752,8 @@ pub fn run() {
             cloud::cloud_send_report,
             library::library_overview,
             library::library_set_mode,
+            library::library_set_power,
+            library::library_run,
             library::library_open,
             play::play_prepare,
             play::play_next,
@@ -755,6 +763,7 @@ pub fn run() {
             play::play_hint,
             play::play_pool_status,
             play::play_pool_cancel,
+            play::play_away,
             play::play_open_solver,
             play::play_history,
         ])
