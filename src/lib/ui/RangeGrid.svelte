@@ -99,6 +99,12 @@
   let pinAt = $state<Anchor | null>(null);
 
   function nav(e: KeyboardEvent, i: number) {
+    // The pinned card closes from the grid too: after a click the focus stays on the cell.
+    if (e.key === "Escape" && card && selected >= 0) {
+      e.preventDefault();
+      close();
+      return;
+    }
     const step: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -13, ArrowDown: 13 };
     const d = step[e.key];
     if (d === undefined) return;
