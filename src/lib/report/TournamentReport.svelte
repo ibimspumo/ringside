@@ -211,8 +211,7 @@
     {#if preliminary}
       <p class="note" role="status">
         <Badge tone="warn" dot>Vorläufig</Badge>
-        {#if report.pending}{report.pending === 1 ? "1 Flop-Spot wird" : `${int(report.pending)} Flop-Spots werden`} noch gerechnet{/if}{#if report.pending && report.unanalyzed},
-        {/if}{#if report.unanalyzed}{report.unanalyzed === 1 ? "1 Hand ist" : `${int(report.unanalyzed)} Hände sind`} noch nicht bewertet{/if}. Der Bericht
+        {#if report.pending}{report.pending === 1 ? "1 Flop-Spot wird" : `${int(report.pending)} Flop-Spots werden`} noch gerechnet{/if}{#if report.pending && report.unanalyzed}{", "}{/if}{#if report.unanalyzed}{report.unanalyzed === 1 ? "1 Hand ist" : `${int(report.unanalyzed)} Hände sind`} noch nicht bewertet{/if}. Der Bericht
         aktualisiert sich danach von selbst.
       </p>
     {/if}
@@ -286,8 +285,7 @@
                 <span class="g-bar" aria-hidden="true"><i style:width="{(g.loss_bb / maxLoss) * 100}%"></i></span>
                 <span class="g-cost num">{g.loss_bb > 0 ? bb(-g.loss_bb, { sign: true }) : "0 BB"}</span>
                 <span class="g-meta">
-                  {int(g.decisions)}× · {g.flawed ? `${int(g.flawed)} ungenau oder schlechter` : "alles gut"}{#if g.unsure}
-                    · <span class="unsure" title="Mehr als die Hälfte dieses Verlusts stammt aus Ringsides Einschätzung (Equity und Pot Odds), nicht aus Solver oder Modell.">vor allem Einschätzung</span>{/if}
+                  {int(g.decisions)}× · {g.flawed ? `${int(g.flawed)} ungenau oder schlechter` : "alles gut"}{#if g.unsure}{" · "}<span class="unsure" title="Mehr als die Hälfte dieses Verlusts stammt aus Ringsides Einschätzung (Equity und Pot Odds), nicht aus Solver oder Modell.">vor allem Einschätzung</span>{/if}
                 </span>
               </li>
             {/each}
