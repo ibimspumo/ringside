@@ -202,8 +202,11 @@
     {#if view.board.length}
       <p class="board-line"><span>{view.street}</span><CardText text={view.board.join(" ")} /></p>
     {/if}
-    {#if !result && facing}
-      <p class="brief num">Call {bb(view.toCallBB)} · Pot {bb(view.potBB)} · du brauchst {pct(view.toCallBB / (view.potBB + view.toCallBB))} Equity</p>
+    {#if !result}
+      <p class="brief num">
+        {#if facing}Call {bb(view.toCallBB)} · Pot {bb(view.potBB)} · du brauchst {pct(view.toCallBB / (view.potBB + view.toCallBB))} Equity
+        {:else}Pot {bb(view.potBB)} · dein Stack {bb(view.behindBB)} · {view.unopened ? "noch niemand eröffnet" : "niemand hat gesetzt"}{/if}
+      </p>
     {/if}
 
     {#if !result}
@@ -422,6 +425,15 @@
     margin-bottom: calc(-1 * var(--sp-4));
     border-top: 1px solid var(--line);
     background: var(--surface);
+  }
+  /* A fade above the bar says that the verdict goes on below it. */
+  .next::before {
+    content: "";
+    position: absolute;
+    inset: auto 0 100% 0;
+    height: var(--sp-6);
+    background: linear-gradient(to bottom, transparent, var(--surface));
+    pointer-events: none;
   }
   .then {
     display: flex;

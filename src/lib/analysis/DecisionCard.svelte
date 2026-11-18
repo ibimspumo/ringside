@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { LearnTarget } from "../app/Leaks.svelte";
   import ChartsButton from "../charts/ChartsButton.svelte";
-  import { mixText, playsLine, type MoveKind, type Who } from "../play/words";
+  import { mixText, often, playsLine, type MoveKind, type Who } from "../play/words";
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import Button from "../ui/Button.svelte";
@@ -48,7 +48,7 @@
   const mainBelowTop = $derived.by(() => {
     const top = d.strategy.reduce<Choice | null>((a, c) => (c.ev_bb !== null && (!a || c.ev_bb > (a.ev_bb ?? -Infinity)) ? c : a), null);
     if (!main || !top || top === main || main.ev_bb === null || d.source === "estimate") return null;
-    return `„${main.label}“ ist der Hauptzug; „${top.label}“ bringt rechnerisch ${bb(bestEv - main.ev_bb, 2)} mehr, wird aber nur in ${pct(top.freq)} der Fälle gespielt.`;
+    return `Darum zählt „${main.label}“ als Empfehlung: Das spielt es ${often(main.freq)}. „${top.label}“ bringt rechnerisch ${bb(bestEv - main.ev_bb, 2)} mehr, kommt aber nur in ${pct(top.freq)} der Fälle vor – beides ist hier richtig.`;
   });
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
 
@@ -83,6 +83,7 @@
     if (c.kind === "fold") return "fold";
     if (c.kind === "all_in") return "allin";
     if (c.kind === "bet" || c.kind === "raise") return "raise";
+    if (c.kind === "limp") return "limp";
     return "passive";
   }
 
@@ -109,7 +110,7 @@
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       source={quiet && kit ? kit : undefined}
     >
-      <p>{reason}</p>
+      <p>{reason}{#if mainBelowTop}{" "}{mainBelowTop}{/if}</p>
       {#snippet actions()}
         {#if onLearn && grade !== "best" && grade !== "mix"}
           {#each LEARN[d.spot] as l (l.label)}
@@ -157,7 +158,6 @@
     <p class="legend">
       {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if}
       {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
-      {#if mainBelowTop}{mainBelowTop}{/if}
     </p>
 
     {#if kit && !quiet}
@@ -247,6 +247,9 @@
   }
   .fold {
     background: var(--act-fold);
+  }
+  .limp {
+    background: var(--act-limp);
   }
   .passive {
     background: var(--act-call);

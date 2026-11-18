@@ -9,8 +9,8 @@
   let { pot, call }: { /** In big blinds, already holding the bet you face. */ pot: number; /** In big blinds. */ call: number } = $props();
 
   const need = $derived(call > 0 ? call / (pot + call) : 0);
-  /** "4 von 10" reads easier than a percentage; small shares as "jedes 12. Mal". */
-  const often = $derived(need >= 0.15 ? `etwa ${Math.round(need * 10)} von 10 Mal` : `etwa jedes ${Math.max(2, Math.round(1 / need))}. Mal`);
+  /** "23 von 100" says the same threshold as the percentage, in words of counting. */
+  const often = $derived(`${Math.max(1, Math.round(need * 100))} von 100 Fällen`);
 </script>
 
 <div class="ui-potodds">
@@ -26,7 +26,7 @@
     <span><i class="pot"></i>Pot {bb(pot)}</span>
     <span><i class="call"></i>dein Call {bb(call)}</span>
   </div>
-  <p class="meaning">Gewinnst du öfter als {often}, bringt der Call auf Dauer mehr, als er kostet.</p>
+  <p class="meaning">Gewinnst du in mehr als {often}, bringt der Call auf Dauer mehr, als er kostet.</p>
 </div>
 
 <style>
