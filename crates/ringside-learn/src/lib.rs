@@ -66,11 +66,13 @@ pub enum Kind {
     HudRead,
     /// A decision of the playing profile decided again: a real one or a variation of it.
     OwnDecision,
+    /// Open or fold at a table of two to five players (heads-up the button opens).
+    OpenFoldShort,
 }
 
 impl Kind {
     /// New kinds go at the end: the position seeds each kind's random stream.
-    pub const ALL: [Kind; 21] = [
+    pub const ALL: [Kind; 22] = [
         Kind::Outs,
         Kind::PotOdds,
         Kind::Probability,
@@ -92,6 +94,7 @@ impl Kind {
         Kind::StackDepth,
         Kind::HudRead,
         Kind::OwnDecision,
+        Kind::OpenFoldShort,
     ];
 
     /// The snake_case id used in JSON and in the database.
@@ -118,6 +121,7 @@ impl Kind {
             Kind::StackDepth => "stack_depth",
             Kind::HudRead => "hud_read",
             Kind::OwnDecision => "own_decision",
+            Kind::OpenFoldShort => "open_fold_short",
         }
     }
 
@@ -148,6 +152,7 @@ impl Kind {
             Kind::StackDepth => "Stacktiefe und M-Zahl",
             Kind::HudRead => "Gegner lesen mit HUD-Werten",
             Kind::OwnDecision => "Aus deinem Spiel",
+            Kind::OpenFoldShort => "Öffnen am kurzen Tisch",
         }
     }
 
@@ -569,7 +574,8 @@ pub fn generate(kind: Kind, level: u8, seed: u64) -> Result<Exercise, String> {
         Kind::OwnDecision => return Err("Diese Spots kommen aus deinem Spielprofil".into()),
         Kind::BountyOdds => bounty::generate(level, &mut rng),
         Kind::IcmCall => icm::generate(level, &mut rng)?,
-        Kind::OpenFold => open::generate(level, &mut rng)?,
+        Kind::OpenFold => open::generate(level, false, &mut rng)?,
+        Kind::OpenFoldShort => open::generate(level, true, &mut rng)?,
         Kind::RiverBet => river::generate(level, &mut rng)?,
         Kind::StackDepth => stack::generate(level, &mut rng),
         Kind::HudRead => hud::generate(level, &mut rng),

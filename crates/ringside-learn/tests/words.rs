@@ -8,12 +8,12 @@ fn seeds(kind: Kind, level: u8) -> u64 {
     match (kind, level) {
         (Kind::IcmCall, 2 | 3) => 1,
         (Kind::RiverBet, _) => 6,
-        (Kind::OpenFold, _) => 15,
+        (Kind::OpenFold | Kind::OpenFoldShort, _) => 15,
         _ => 60,
     }
 }
 
-const KINDS: [Kind; 6] = [Kind::BountyOdds, Kind::IcmCall, Kind::OpenFold, Kind::RiverBet, Kind::StackDepth, Kind::HudRead];
+const KINDS: [Kind; 7] = [Kind::BountyOdds, Kind::IcmCall, Kind::OpenFold, Kind::OpenFoldShort, Kind::RiverBet, Kind::StackDepth, Kind::HudRead];
 
 /// A dot between digits is a thousands separator ("10.000"), never a decimal point.
 fn decimal_dot(s: &str) -> bool {

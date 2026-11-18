@@ -38,6 +38,7 @@ const NAMES: Record<LearnKind, string> = {
   bounty_odds: "Pot Odds mit Kopfgeld",
   icm_call: "ICM und Bubble-Calls",
   open_fold: "Öffnen oder folden",
+  open_fold_short: "Öffnen am kurzen Tisch",
   river_bet: "Bet oder Check am River",
   stack_depth: "Stacktiefe und M-Zahl",
   hud_read: "Gegner lesen mit HUD-Werten",
@@ -795,7 +796,7 @@ const SPOTS: OwnSpot[] = SPOT_SEEDS.map(makeSpot);
 /* Kinds solved by the engine: real exercises written by crates/ringside-learn/tests/demo.rs. --------- */
 
 type Drill = { exercise: Exercise; feedback: Record<string, Feedback> };
-const DRILLS: ReadonlySet<LearnKind> = new Set(["bounty_odds", "icm_call", "open_fold", "river_bet", "stack_depth", "hud_read"]);
+const DRILLS: ReadonlySet<LearnKind> = new Set(["bounty_odds", "icm_call", "open_fold", "open_fold_short", "river_bet", "stack_depth", "hud_read"]);
 let drills: Promise<Record<string, Drill[][]>> | null = null;
 
 async function drill(kind: LearnKind, level: number, seed: number): Promise<Drill> {
@@ -911,33 +912,38 @@ const g = (x: DemoGroup): SpotGroup => {
 
 const DEMO_GROUPS: SpotGroup[] = [
   g({
-    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River gegen Bet", detail: "ab 40 BB · 3–6 Spieler",
+    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler",
     decisions: 23, flawed: 9, loss_bb: 14.6, open: 2, sources: [["estimate", 15], ["solver", 8]], computed: 8, estimate_loss: 9.9,
     estimate_reliability: 0.73, rank: 1, last_played_at: "2026/11/17 22:41:05", change: null,
   }),
   g({
-    key: "vs_limp|SB|3|6", lage: "vs_limp", seat: "SB", band: 3, table: "short", title: "Gegen Limper im Small Blind", detail: "ab 40 BB · 3–6 Spieler",
+    key: "vs_limp|SB|3|6", lage: "vs_limp", seat: "SB", band: 3, table: "short", title: "Gegen Limper im Small Blind", detail: "ab 40 BB · 6 Spieler",
     decisions: 31, flawed: 9, loss_bb: 11.2, open: 0, sources: [["model", 31]], computed: 31, estimate_loss: 0,
     estimate_reliability: null, rank: 2, last_played_at: "2026/11/17 21:12:44",
     change: { before: 21, before_error_pct: 38, after: 10, after_error_pct: 20 },
   }),
   g({
-    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 3–6 Spieler",
+    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler",
     decisions: 44, flawed: 6, loss_bb: 8.4, open: 0, sources: [["equilibrium", 44]], computed: 44, estimate_loss: 0,
     estimate_reliability: null, rank: 3, last_played_at: "2026/11/16 23:02:10", change: null,
   }),
   g({
-    key: "turn_bet|-|3|6", lage: "turn_bet", seat: null, band: 3, table: "short", title: "Turn: setzen oder checken", detail: "ab 40 BB · 3–6 Spieler",
+    key: "turn_bet|-|3|6", lage: "turn_bet", seat: null, band: 3, table: "short", title: "Turn: setzen oder checken", detail: "ab 40 BB · 6 Spieler",
     decisions: 19, flawed: 5, loss_bb: 6.1, open: 3, sources: [["solver", 12], ["estimate", 7]], computed: 12, estimate_loss: 2.5,
     estimate_reliability: 0.71, rank: 4, last_played_at: "2026/11/17 20:55:31", change: null,
   }),
   g({
-    key: "first_in|CO|3|6", lage: "first_in", seat: "CO", band: 3, table: "short", title: "Eröffnen im Cutoff", detail: "ab 40 BB · 3–6 Spieler",
+    key: "first_in|CO|3|6", lage: "first_in", seat: "CO", band: 3, table: "short", title: "Eröffnen im Cutoff", detail: "ab 40 BB · 6 Spieler",
     decisions: 52, flawed: 3, loss_bb: 2.3, open: 0, sources: [["model", 52]], computed: 52, estimate_loss: 0,
     estimate_reliability: null, rank: 5, last_played_at: "2026/11/17 22:10:00", change: null,
   }),
   g({
-    key: "vs_three_bet|BTN|3|6", lage: "vs_three_bet", seat: "BTN", band: 3, table: "short", title: "Gegen 3-Bet am Button", detail: "ab 40 BB · 3–6 Spieler",
+    key: "first_in|BTN|3|5", lage: "first_in", seat: "BTN", band: 3, table: "few", title: "Eröffnen am Button", detail: "ab 40 BB · 3–5 Spieler",
+    decisions: 14, flawed: 4, loss_bb: 2.8, open: 0, sources: [["model", 14]], computed: 14, estimate_loss: 0,
+    estimate_reliability: null, rank: null, last_played_at: "2026/11/17 23:05:00", change: null,
+  }),
+  g({
+    key: "vs_three_bet|BTN|3|6", lage: "vs_three_bet", seat: "BTN", band: 3, table: "short", title: "Gegen 3-Bet am Button", detail: "ab 40 BB · 6 Spieler",
     decisions: 6, flawed: 2, loss_bb: 1.9, open: 0, sources: [["model", 6]], computed: 6, estimate_loss: 0,
     estimate_reliability: null, rank: null, last_played_at: "2026/11/15 19:40:00", change: null,
   }),
