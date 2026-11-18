@@ -190,6 +190,9 @@ async function click(sel, text = null, opts) {
   const el = await find(sel, text, opts);
   // Like a user scrolling to it: sticky bars may cover elements at the window edge.
   await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, el);
+  // The scroll event comes with the next frame, before its animation callbacks. Arriving after
+  // the click, it would hide the popover the click opened (ui/floating.ts).
+  await s.execAsync(`const done = arguments[0]; requestAnimationFrame(() => done());`);
   await s.click(el);
 }
 
