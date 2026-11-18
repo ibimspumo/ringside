@@ -277,3 +277,57 @@ fn chart_targets_hit_existing_tables() {
     }
     assert!(seen.0 >= 2 && seen.1 >= 2, "{seen:?}");
 }
+
+/// The profile reads from the database what the practice derives from the hand, so a
+/// variation lands in the group of its hand; the hand filter of a group lists exactly the
+/// hands with such a decision, and the first practice is kept.
+#[test]
+fn profile_rows_match_the_hands_and_filter_them() {
+    use ringside_analysis::drill;
+    use ringside_core::profile::{kind_of, profile};
+
+    let text = include_str!("fixtures/hands.txt");
+    let hands: Vec<(Hand, String)> = ringside_core::split_hands(text)
+        .into_iter()
+        .filter_map(|raw| parse_hand(raw).ok().map(|h| (h, raw.to_string())))
+        .collect();
+    let mut db = Db::open_in_memory().unwrap();
+    db.insert_hands(&hands).unwrap();
+    let analyses: Vec<_> = hands.iter().map(|(h, _)| analyze_hand(h)).collect();
+    db.save_analysis(&analyses).unwrap();
+
+    let stored = db.profile_rows(&Default::default()).unwrap();
+    let mut derived: Vec<_> = hands
+        .iter()
+        .zip(&analyses)
+        .flat_map(|((h, _), a)| a.decisions.iter().filter(|d| d.status != Status::Forced).map(|d| drill::row(h, d)))
+        .collect();
+    derived.sort_by_key(|r| (r.hand_id, r.action_index));
+    assert_eq!(stored.len(), derived.len());
+    for (s, d) in stored.iter().zip(&derived) {
+        assert_eq!(kind_of(s), kind_of(d), "hand {} @{}", s.hand_id, s.action_index);
+        assert_eq!((s.hand_id, s.action_index, s.status, s.rating), (d.hand_id, d.action_index, d.status, d.rating));
+    }
+
+    let p = profile(&stored, &[]);
+    assert!(p.decisions > 0);
+    for g in &p.groups {
+        let want: std::collections::BTreeSet<u64> =
+            stored.iter().filter(|r| kind_of(r).is_some_and(|k| k.key() == g.key)).map(|r| r.hand_id).collect();
+        let got: std::collections::BTreeSet<u64> = db
+            .hands(&HandQuery { profile: Some(g.key.clone()), limit: 100, ..Default::default() })
+            .unwrap()
+            .into_iter()
+            .map(|h| h.id)
+            .collect();
+        assert_eq!(got, want, "{}", g.key);
+    }
+    let none = HandQuery { profile: Some("river_bet|-|0|2".into()), limit: 10, ..Default::default() };
+    assert!(db.hands(&none).unwrap().is_empty() || p.groups.iter().any(|g| g.key == "river_bet|-|0|2"));
+
+    let key = &p.groups[0].key;
+    db.mark_spot_practiced(key, 100).unwrap();
+    db.mark_spot_practiced(key, 200).unwrap();
+    let newest = hands.iter().map(|(h, _)| h.id).max().unwrap();
+    assert_eq!(db.spot_practice().unwrap(), vec![(key.clone(), newest)]);
+}
