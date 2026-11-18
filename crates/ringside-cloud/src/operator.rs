@@ -11,7 +11,9 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD_NO_PAD;
 use serde_json::{Value, json};
 
-use crate::kinds::{self, KindEntry, Verdict};
+use crate::canonical::canonicalize;
+use crate::kinds::pushfold_mw::POOL_PPM;
+use crate::kinds::{self, Kind, KindEntry, Postflop, PostflopInput, PushFoldMw, PushFoldMwInput, Verdict};
 
 /// Largest decompressed result the verifier reads.
 const MAX_RESULT: u64 = 1 << 20;
@@ -366,6 +368,8 @@ pub struct Pruned {
     pub rate_limits: u64,
     pub reports: u64,
     pub submissions: u64,
+    /// Queue entries whose solution is verified.
+    pub work: u64,
 }
 
 /// Deletes rate-limit counters nobody looks at any more, and parser reports and
@@ -376,8 +380,140 @@ pub fn prune(db: &Db) -> Result<Pruned, String> {
         ("DELETE FROM rate_limits WHERE window_start < ?", vec![(t - KEEP_RATE_LIMITS_S).into()]),
         ("DELETE FROM reports WHERE received_at < ?", vec![(t - KEEP_LOGS_S).into()]),
         ("DELETE FROM submissions WHERE received_at < ?", vec![(t - KEEP_LOGS_S).into()]),
+        ("DELETE FROM work WHERE key IN (SELECT key FROM solutions WHERE status = 'verified')", vec![]),
     ])?;
-    Ok(Pruned { rate_limits: r[0].affected, reports: r[1].affected, submissions: r[2].affected })
+    Ok(Pruned { rate_limits: r[0].affected, reports: r[1].affected, submissions: r[2].affected, work: r[3].affected })
+}
+
+// -----------------------------------------------------------------------------------
+// The community queue ("Mitrechnen").
+
+/// A spot the operator puts into the queue.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Seed {
+    pub key: String,
+    pub kind: &'static str,
+    pub engine_version: u32,
+    /// Canonical JSON.
+    pub input: String,
+    /// "catalog" or "preflop".
+    pub source: &'static str,
+}
+
+fn seed<K: Kind>(input: &K::Input, source: &'static str) -> Result<Seed, String> {
+    K::check_input(input)?;
+    let value = serde_json::to_value(input).map_err(|e| e.to_string())?;
+    let canonical = canonicalize(&value).map_err(|e| e.to_string())?;
+    Ok(Seed { key: K::key(input).map_err(|e| e.to_string())?, kind: K::NAME, engine_version: K::ENGINE_VERSION, input: canonical, source })
+}
+
+/// Final-table prize shares of a nine-handed table, first place first, in percent.
+const FINAL_TABLE: [u32; 9] = [2500, 1700, 1250, 950, 750, 600, 450, 450, 350];
+/// Average stacks of the push/fold grid, BB, and how unequal the stacks are: the
+/// shortest at `1 - spread`, the deepest at `1 + spread` times the average.
+const DEPTHS: [(u32, u32); 8] = [(5, 0), (8, 0), (10, 0), (12, 0), (15, 0), (20, 0), (10, 50), (15, 50)];
+
+/// Shares of `weights` as parts of the ICM pool, rounding left over in first place.
+fn ppm(weights: &[u32]) -> Vec<u32> {
+    let total: u64 = weights.iter().map(|&w| w as u64).sum();
+    let mut out: Vec<u32> = weights.iter().map(|&w| (w as u64 * POOL_PPM as u64 / total) as u32).collect();
+    out[0] += POOL_PPM - out.iter().sum::<u32>();
+    out
+}
+
+/// Push/fold spots the app does not ship (its tables are chip EV): ICM at final tables
+/// (3 to 9 players left, the final-table payouts of those places) and on the bubble
+/// (one place fewer paid than players left), at common depths with equal and unequal
+/// stacks, big-blind ante and classic ante.
+pub fn preflop_seeds() -> Result<Vec<Seed>, String> {
+    let mut out = Vec::new();
+    for n in 3..=9usize {
+        let final_table = ppm(&FINAL_TABLE[..n]);
+        let bubble = ppm(&(1..n as u32).rev().collect::<Vec<_>>());
+        for (ante_mbb, bb_ante_mbb) in [(0, 1000), (125, 0)] {
+            for (avg, spread) in DEPTHS {
+                let stacks_mbb = (0..n)
+                    .map(|i| {
+                        let f = if n == 1 { 0 } else { (2 * i as i64 - (n as i64 - 1)) * spread as i64 / (n as i64 - 1) };
+                        (avg as i64 * (1000 + 10 * f)) as u32
+                    })
+                    .collect::<Vec<u32>>();
+                for payouts_ppm in [final_table.clone(), bubble.clone()] {
+                    let input = PushFoldMwInput {
+                        stacks_mbb: stacks_mbb.clone(),
+                        sb_mbb: 500,
+                        ante_mbb,
+                        bb_ante_mbb,
+                        dead_mbb: 0,
+                        max_all_in: 2,
+                        payouts_ppm,
+                    };
+                    out.push(seed::<PushFoldMw>(&input, "preflop")?);
+                }
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Every spot of the library catalog.
+pub fn catalog_seeds() -> Result<Vec<Seed>, String> {
+    let c = ringside_solver::library::catalog();
+    c.ids()
+        .map(|id| seed::<Postflop>(&PostflopInput::new(&c.scenarios[id.scenario].id, &c.flops[id.flop]), "catalog"))
+        .collect()
+}
+
+/// Rows per request when seeding; the SQL API takes a pipeline of statements.
+const SEED_BATCH: usize = 200;
+
+/// Puts `seeds` into the queue; seeds already queued keep their row. Returns how many
+/// are new.
+pub fn seed_work(db: &Db, seeds: &[Seed]) -> Result<u64, String> {
+    let t = now();
+    let mut added = 0;
+    for chunk in seeds.chunks(SEED_BATCH) {
+        let stmts: Vec<(&str, Vec<SqlValue>)> = chunk
+            .iter()
+            .map(|s| {
+                (
+                    "INSERT INTO work (key, kind, engine_version, input, source, priority, created_at) \
+                     SELECT ?, ?, ?, ?, ?, 0, ? WHERE NOT EXISTS \
+                     (SELECT 1 FROM solutions WHERE key = ? AND status = 'verified') ON CONFLICT (key) DO NOTHING",
+                    vec![
+                        s.key.as_str().into(),
+                        s.kind.into(),
+                        (s.engine_version as i64).into(),
+                        s.input.as_str().into(),
+                        s.source.into(),
+                        t.into(),
+                        s.key.as_str().into(),
+                    ],
+                )
+            })
+            .collect();
+        added += db.execute(&stmts)?.iter().map(|r| r.affected).sum::<u64>();
+    }
+    Ok(added)
+}
+
+/// Open entries of the queue by kind and source: (kind, source, rows, leased now).
+pub fn queue_counts(db: &Db) -> Result<Vec<(String, String, i64, i64)>, String> {
+    let [rows] = <[Rows; 1]>::try_from(db.execute(&[(
+        "SELECT kind, source, COUNT(*) AS n, SUM(lease_until > ?) AS leased FROM work GROUP BY kind, source ORDER BY kind, source",
+        vec![now().into()],
+    )])?)
+    .map_err(|_| "one result expected")?;
+    Ok((0..rows.rows.len())
+        .map(|i| {
+            (
+                rows.col(i, "kind").as_str().unwrap_or_default().to_string(),
+                rows.col(i, "source").as_str().unwrap_or_default().to_string(),
+                rows.col(i, "n").as_i64().unwrap_or(0),
+                rows.col(i, "leased").as_i64().unwrap_or(0),
+            )
+        })
+        .collect())
 }
 
 #[cfg(test)]
@@ -398,6 +534,23 @@ mod tests {
         }
         let padded = json!({"type": "blob", "base64": "AP8H"});
         assert_eq!(SqlValue::from_wire(&padded).unwrap(), SqlValue::Blob(vec![0, 255, 7]));
+    }
+
+    #[test]
+    fn seeds_are_valid_unique_and_cover_the_gaps() {
+        let pre = preflop_seeds().unwrap();
+        let cat = catalog_seeds().unwrap();
+        assert_eq!(pre.len(), 7 * 2 * DEPTHS.len() * 2);
+        assert_eq!(cat.len(), ringside_solver::library::catalog().len());
+        let mut keys: Vec<&str> = pre.iter().chain(&cat).map(|s| s.key.as_str()).collect();
+        keys.sort();
+        keys.dedup();
+        assert_eq!(keys.len(), pre.len() + cat.len(), "no spot twice");
+        for s in &pre {
+            let input: PushFoldMwInput = serde_json::from_str(&s.input).unwrap();
+            assert_eq!(input.payouts_ppm.iter().sum::<u32>(), POOL_PPM);
+            assert!(input.payouts_ppm.len() < input.stacks_mbb.len() || input.payouts_ppm.len() == input.stacks_mbb.len());
+        }
     }
 
     #[test]

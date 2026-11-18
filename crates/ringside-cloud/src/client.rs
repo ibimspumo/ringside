@@ -122,6 +122,28 @@ fn jitter() -> f64 {
     (nanos % 1000) as f64 / 1000.0
 }
 
+/// A spot of the community queue this computer may solve until `lease_until`.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Work {
+    pub key: String,
+    pub kind: String,
+    pub engine_version: u32,
+    pub input: Value,
+    /// Unix seconds; afterwards the server hands the spot to someone else.
+    pub lease_until: u64,
+}
+
+#[derive(Deserialize)]
+struct NextWork {
+    work: Option<Work>,
+}
+
+#[derive(Deserialize)]
+struct Requested {
+    key: String,
+    status: String,
+}
+
 pub struct Client {
     base: String,
     agent: ureq::Agent,
@@ -232,6 +254,49 @@ impl Client {
                 Ok((k.clone(), status))
             })
             .collect()
+    }
+
+    /// The next spot of the community queue among `kinds` (name and engine version),
+    /// leased to this computer, or `None` when nothing is open.
+    pub fn next_work(&self, kinds: &[(&str, u32)]) -> Result<Option<Work>, Error> {
+        let mut map = serde_json::Map::new();
+        for (name, version) in kinds {
+            let entry = map.entry(name.to_string()).or_insert_with(|| Value::Array(Vec::new()));
+            if let Value::Array(v) = entry {
+                v.push((*version).into());
+            }
+        }
+        let body = serde_json::json!({ "kinds": map }).to_string();
+        let url = format!("{}/v1/work/next", self.base);
+        let (_, text) = self
+            .send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), false)?
+            .ok_or_else(|| Error::Protocol("404 on work".into()))?;
+        let r: NextWork = serde_json::from_str(&text).map_err(|e| Error::Protocol(e.to_string()))?;
+        if let Some(w) = &r.work {
+            let key = crate::canonical::canonicalize(&w.input)
+                .map(|c| crate::canonical::solution_key(&w.kind, w.engine_version, &c))
+                .map_err(|e| Error::Protocol(e.to_string()))?;
+            if key != w.key {
+                return Err(Error::Protocol("work key does not match its input".into()));
+            }
+        }
+        Ok(r.work)
+    }
+
+    /// Asks the community to solve `input`, which the cloud does not have; only with the
+    /// user's consent to share. Returns the server's status: "queued", "submitted" or "verified".
+    pub fn request_work<K: Kind>(&self, input: &K::Input) -> Result<String, Error> {
+        let key = K::key(input).map_err(|e| Error::Protocol(e.to_string()))?;
+        let body = serde_json::json!({ "kind": K::NAME, "engine_version": K::ENGINE_VERSION, "input": input }).to_string();
+        let url = format!("{}/v1/work/request", self.base);
+        let (_, text) = self
+            .send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), false)?
+            .ok_or_else(|| Error::Protocol("404 on request".into()))?;
+        let r: Requested = serde_json::from_str(&text).map_err(|e| Error::Protocol(e.to_string()))?;
+        if r.key != key {
+            return Err(Error::Protocol("server computed a different key".into()));
+        }
+        Ok(r.status)
     }
 
     pub fn report(&self, report: &Report) -> Result<(), Error> {

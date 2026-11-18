@@ -3503,6 +3503,7 @@ dependencies = [
  "flate2",
  "ring",
  "ringside-engine",
+ "ringside-play",
  "ringside-solver",
  "serde",
  "serde_json",

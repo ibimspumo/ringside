@@ -10,6 +10,7 @@ base64 = "0.22"
 flate2 = "1"
 ring = "0.17"
 ringside-engine = { path = "../ringside-engine" }
+ringside-play = { path = "../ringside-play" }
 ringside-solver = { path = "../ringside-solver" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

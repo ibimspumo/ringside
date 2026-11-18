@@ -15,7 +15,7 @@ use ringside_cloud::operator::{Db, VerifyOptions, load_env, prune, verify_pendin
 use serde::{Deserialize, Serialize};
 
 const HELP: &str = "\
-Usage: ringside-verify [--limit N] [--max-seconds S] [--budget-seconds S] [--dry-run] [--env-file PATH]
+Usage: ringside-verify [--limit N] [--max-slow N] [--max-seconds S] [--budget-seconds S] [--dry-run] [--env-file PATH]
 
 Checks pending solutions in Ringside Cloud, oldest first, and sets each to verified or
 rejected. Reads BUNNY_DATABASE_URL and BUNNY_DATABASE_AUTH_TOKEN from .env (searched from
@@ -23,6 +23,8 @@ the working directory upwards) or the environment. Also deletes rate-limit count
 than two days and parser reports and submission log entries older than 90 days.
 
   --limit N           check at most N solutions (default 50)
+  --max-slow N        check at most N postflop spots (catalog or shared, each several
+                      solves); the rest waits for the next run (default 4)
   --max-seconds S     reject a solution whose check takes longer (default: the kind's
                       own limit, 120 s for push/fold, 900 s for postflop)
   --budget-seconds S  start no check that could end after S seconds; the rest waits
@@ -32,6 +34,9 @@ than two days and parser reports and submission log entries older than 90 days.
   --help              this text
 
 Exit code 0 when the run completed (rejections included), 1 on errors.";
+
+/// Kinds whose check may take longer than this count against `--max-slow`.
+const SLOW_SECONDS: u64 = 120;
 
 /// Internal: check one row read from stdin and print the verdict; used for the child.
 const CHECK_ONE: &str = "--check-one";
@@ -53,6 +58,7 @@ fn number<T: std::str::FromStr>(args: &mut impl Iterator<Item = String>, flag: &
 
 fn run() -> Result<(), String> {
     let mut limit = 50u32;
+    let mut max_slow = 4u32;
     let mut max_seconds: Option<u64> = None;
     let mut budget_seconds = 2400u64;
     let mut dry_run = false;
@@ -61,6 +67,7 @@ fn run() -> Result<(), String> {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--limit" => limit = number(&mut args, "--limit")?,
+            "--max-slow" => max_slow = number(&mut args, "--max-slow")?,
             "--max-seconds" => max_seconds = Some(number(&mut args, "--max-seconds")?),
             "--budget-seconds" => budget_seconds = number(&mut args, "--budget-seconds")?,
             "--dry-run" => dry_run = true,
@@ -78,12 +85,20 @@ fn run() -> Result<(), String> {
 
     let exe = std::env::current_exe().map_err(|e| format!("own executable: {e}"))?;
     let deadline = Instant::now() + Duration::from_secs(budget_seconds);
+    let slow_started = std::cell::Cell::new(0u32);
     let check = |entry: &KindEntry, key: &str, input: &str, result: &str| {
+        let slow = entry.check_seconds > SLOW_SECONDS;
+        if slow && slow_started.get() >= max_slow {
+            return None;
+        }
         let limit = Duration::from_secs(max_seconds.unwrap_or(entry.check_seconds));
         // A slow kind starts only if its check can end within the budget; the row stays
         // pending for the next run.
         if Instant::now() + limit > deadline + Duration::from_secs(budget_slack(budget_seconds)) {
             return None;
+        }
+        if slow {
+            slow_started.set(slow_started.get() + 1);
         }
         let started = Instant::now();
         let verdict = in_child(&exe, entry, key, input, result, limit);
@@ -105,7 +120,7 @@ fn run() -> Result<(), String> {
             }
             None => {
                 skipped += 1;
-                println!("skipped  {} {} (unknown kind or engine version, or no time left)", c.kind, c.key);
+                println!("skipped  {} {} (unknown kind or engine version, no time left or slow checks used up)", c.kind, c.key);
             }
         }
     }
@@ -116,8 +131,8 @@ fn run() -> Result<(), String> {
     if !dry_run {
         let p = prune(&db)?;
         println!(
-            "deleted {} rate-limit counters, {} reports and {} submission log entries",
-            p.rate_limits, p.reports, p.submissions
+            "deleted {} rate-limit counters, {} reports, {} submission log entries and {} solved queue entries",
+            p.rate_limits, p.reports, p.submissions, p.work
         );
     }
     Ok(())

@@ -1,0 +1,161 @@
+{
+  "flops": [
+    [
+      "Kh7c2h",
+      "Ks7h2s"
+    ],
+    [
+      "2cKc7s",
+      "Ks7h2s"
+    ],
+    [
+      "AhAd5c",
+      "AsAh5d"
+    ],
+    [
+      "9d8d3c",
+      "9s8s3h"
+    ],
+    [
+      "JcJdJh",
+      "JsJhJd"
+    ],
+    [
+      "Th9h8h",
+      "Ts9s8s"
+    ],
+    [
+      "4s3d2c",
+      "4s3h2d"
+    ]
+  ],
+  "keys": [
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"big_blind\",\"board\":\"Ks7h2s\",\"line\":[[5,\"raise\",2200],[8,\"call\",2200]],\"model\":1,\"players\":9,\"pot_cbb\":590,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":40,\"stack_cbb\":3680}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "big_blind",
+        "board": "Ks7h2s",
+        "line": [
+          [
+            5,
+            "raise",
+            2200
+          ],
+          [
+            8,
+            "call",
+            2200
+          ]
+        ],
+        "model": 1,
+        "players": 9,
+        "pot_cbb": 590,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 40,
+        "stack_cbb": 3680
+      },
+      "key": "308c8352e5040947ed825251dc5938a19f4a2e95867dbcb40e4243b75678e2ac"
+    },
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"classic\",\"board\":\"9s8s3h\",\"line\":[[3,\"raise\",2200],[5,\"call\",2200]],\"model\":1,\"players\":6,\"pot_cbb\":565,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":25,\"stack_cbb\":2268}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "classic",
+        "board": "9s8s3h",
+        "line": [
+          [
+            3,
+            "raise",
+            2200
+          ],
+          [
+            5,
+            "call",
+            2200
+          ]
+        ],
+        "model": 1,
+        "players": 6,
+        "pot_cbb": 565,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 25,
+        "stack_cbb": 2268
+      },
+      "key": "5a95a771c58ba6e1d0e1654648b8a2b8778683edcff325ac9a14287f2daae002"
+    },
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"none\",\"board\":\"AsAh5d\",\"line\":[[5,\"raise\",2500],[7,\"call\",2500]],\"model\":1,\"players\":8,\"pot_cbb\":550,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":100,\"stack_cbb\":9750}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "none",
+        "board": "AsAh5d",
+        "line": [
+          [
+            5,
+            "raise",
+            2500
+          ],
+          [
+            7,
+            "call",
+            2500
+          ]
+        ],
+        "model": 1,
+        "players": 8,
+        "pot_cbb": 550,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 100,
+        "stack_cbb": 9750
+      },
+      "key": "9861fa8183bcf6dda3161b242f8b98f34c09c52fc782b2cdcf0b2ad273f97248"
+    }
+  ],
+  "model_tables_sha256": "2d099e880d4de6fce493017ff3cdfafea3e8a23a6bc8de9c3d1aa4aed9c7aaa9"
+}
