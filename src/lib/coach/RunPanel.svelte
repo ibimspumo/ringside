@@ -493,6 +493,7 @@
     border-top: 1px solid var(--line);
     border-radius: 0 0 var(--r-md) var(--r-md);
     background: var(--surface-2);
+    box-shadow: 0 -12px 20px -8px color-mix(in srgb, var(--bg) 85%, transparent);
   }
   .bar-note {
     font-size: var(--fs-md);

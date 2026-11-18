@@ -64,6 +64,8 @@ export function scene(hand: Hand, index: number) {
     board: hand.board.slice(0, BOARD_SIZE[s.street]),
     pot: bb(s.pot),
     facing: s.facing && s.bettor ? `${s.bettor} setzt ${bb(s.bet)}` : s.facing ? `${bb(s.toCall)} zu zahlen` : "Niemand hat gesetzt",
+    /** The pot already holds the bet the hero faces. */
+    betIn: s.facing,
   };
 }
 
