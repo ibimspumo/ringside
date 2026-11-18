@@ -249,6 +249,28 @@ pub(crate) fn test_state() -> AppState {
     }
 }
 
+/// An app state with the fixture hands, stored and analysed.
+#[cfg(test)]
+pub(crate) fn analysed_state() -> AppState {
+    let state = test_state();
+    let dir = format!("{}/../crates/ringside-core/tests/fixtures", env!("CARGO_MANIFEST_DIR"));
+    let texts: Vec<String> = ["cash.txt", "knockout.txt", "tournament.txt"]
+        .iter()
+        .map(|f| std::fs::read_to_string(format!("{dir}/{f}")).unwrap())
+        .collect();
+    let hands: Vec<_> = texts
+        .iter()
+        .flat_map(|t| ringside_core::split_hands(t))
+        .map(|raw| (ringside_core::parse_hand(raw).unwrap(), raw.to_string()))
+        .collect();
+    let mut db = state.db.lock().unwrap();
+    db.insert_hands(&hands).unwrap();
+    let analysis: Vec<_> = hands.iter().map(|(h, _)| ringside_analysis::analyze_hand(h)).collect();
+    db.save_analysis(&analysis).unwrap();
+    drop(db);
+    state
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
