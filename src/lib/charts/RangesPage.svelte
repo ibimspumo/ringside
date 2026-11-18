@@ -676,7 +676,7 @@
               {:else if spot && node && node.id === spot.id}
                 <PreflopChart {node} actions={spot.actions} line={spot.line} {pin} {only} />
               {:else}
-                <div class="placeholder" class:short={loading && !onGrid} aria-hidden="true"></div>
+                <div class="placeholder" class:short={(loading && !onGrid) || !!error} aria-hidden="true"></div>
               {/if}
             </div>
             {#if !error && onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
@@ -700,7 +700,7 @@
                 <dt>Antes</dt>
                 <dd>{anteInfo ? anteText(anteInfo) : ""}</dd>
                 <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
-                <dd>in <span class="num">{pct(pfNode.reach * 100)} %</span> der Hände</dd>
+                <dd>in <span class="num">{one(pfNode.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
                 <dd>{#if pf.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
               </dl>
@@ -730,7 +730,7 @@
                 <dt>Antes</dt>
                 <dd>{anteText(spots)}</dd>
                 <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
-                <dd>in <span class="num">{pct(spot.reach * 100, 2)} %</span> der Hände</dd>
+                <dd>in <span class="num">{one(spot.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
                 <dd>{#if spots.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
                 <dt><Tooltip text={TERM.exploit}><span class="term">Ausnutzbar</span></Tooltip></dt>

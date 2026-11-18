@@ -127,7 +127,13 @@
       : [],
   );
 
-  const ticks = $derived(TICKS.filter((t) => t >= (stacks[0] ?? 0) && t <= (stacks[stacks.length - 1] ?? 0)));
+  // The deepest stack always gets its label, also off the round numbers (e.g. 25 BB).
+  const ticks = $derived.by(() => {
+    const last = stacks[stacks.length - 1] ?? 0;
+    const t = TICKS.filter((v) => v >= (stacks[0] ?? 0) && v <= last);
+    if (last && !t.includes(last)) t.push(last);
+    return t;
+  });
   const onGrid = $derived(stacks.includes(value));
   const parsed = $derived.by(() => {
     const v = Number(typed.replace(",", "."));
@@ -370,7 +376,7 @@
   }
   .end {
     font-family: var(--font-num);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     fill: var(--text-2);
   }
   .end.mine {
