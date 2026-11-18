@@ -431,7 +431,8 @@ step("Bibliothek: Mitrechnen startet von Hand, steht in den Aufgaben und hält a
     await click("#jobs-panel button.close");
   }
   await click("main button.go", "Anhalten");
-  await waitText("Angehalten", 60_000);
+  // The headline depends on the automatic mode ("Angehalten", or "Aus" when it is off).
+  await find("main button.go", "Jetzt mitrechnen", { timeout: 60_000 });
 });
 
 step("Hände spielen: eine Hand startet", async () => {
