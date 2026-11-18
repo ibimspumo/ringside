@@ -38,6 +38,7 @@ use ringside_engine::{Card, CardSet, Combo, HandClass, Range};
 use serde::{Deserialize, Serialize};
 
 use crate::library::format::quantize;
+use crate::suits;
 use crate::node::{ActionInfo, ActionKind, ClassInfo, HandInfo, Node, NodeKind, Player, PlayerSummary, Step, Street};
 use crate::solve::{Settings, Solution, Summary};
 use crate::spot::{Spot, bb, chips, parse_board};
@@ -60,6 +61,7 @@ pub struct Meta {
     pub target_pct: f64,
 }
 
+#[derive(Clone)]
 struct SavedHands {
     k: usize,
     scale: f32,
@@ -72,6 +74,7 @@ struct SavedHands {
     classes: Vec<(u8, u16, i16)>,
 }
 
+#[derive(Clone)]
 struct SavedNode {
     path: Vec<Step>,
     kind: NodeKind,
@@ -314,6 +317,47 @@ impl Snapshot {
     fn from_parts(meta: Meta, combos: [Vec<(u8, u8)>; 2], nodes: Vec<SavedNode>) -> Snapshot {
         let by_path = nodes.iter().enumerate().map(|(i, n)| (n.path.clone(), i)).collect();
         Snapshot { meta, combos, nodes, by_path }
+    }
+
+    /// The same spot on `board`, a suit renaming of this one's board: hands, board and
+    /// dealt cards move, nothing is recomputed. Both ranges must weigh every live hand
+    /// like its renamed hand (class ranges do); otherwise the strategies would belong to
+    /// other hands.
+    pub fn renamed(&self, board: &str) -> Result<Snapshot, Error> {
+        let from = parse_board(&self.meta.spot.board)?;
+        let to = parse_board(board)?;
+        let perm = suits::between(&from, &to).ok_or_else(|| invalid("the boards are no suit renaming of each other"))?;
+        let rename = |c: Card| suits::rename(c, &perm);
+        let rename_index = |i: u8| rename(Card::from_index(i)).index();
+        let dead = CardSet::from_cards(&from);
+        for text in [&self.meta.spot.oop_range, &self.meta.spot.ip_range] {
+            let range = Range::parse(text).map_err(|e| invalid(format!("Range: {e}")))?;
+            if !suits::keeps(&range, dead, &perm) {
+                return Err(invalid("the ranges treat suits differently"));
+            }
+        }
+        let combos = self.combos.clone().map(|list| {
+            list.into_iter()
+                .map(|(a, b)| {
+                    let (a, b) = (rename_index(a), rename_index(b));
+                    (a.min(b), a.max(b))
+                })
+                .collect()
+        });
+        let mut nodes = Vec::with_capacity(self.nodes.len());
+        for n in &self.nodes {
+            let mut n = n.clone();
+            for s in &mut n.path {
+                if let Step::Card(c) = s {
+                    *c = rename(c.parse::<Card>().map_err(|_| invalid("Karte"))?).to_string();
+                }
+            }
+            n.board.iter_mut().for_each(|c| *c = rename_index(*c));
+            n.cards = (0..52u8).filter(|c| n.cards & (1u64 << c) != 0).fold(0, |m, c| m | 1u64 << rename_index(c));
+            nodes.push(n);
+        }
+        let meta = Meta { spot: Spot { board: board.to_string(), ..self.meta.spot.clone() }, ..self.meta.clone() };
+        Ok(Snapshot::from_parts(meta, combos, nodes))
     }
 
     /// Whether every node of the tree is stored (spots that start on the river).

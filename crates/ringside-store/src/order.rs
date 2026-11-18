@@ -41,8 +41,8 @@ pub struct Policy {
     pub fetch: bool,
     /// The cloud may be asked now (notice seen, reachable).
     pub may_talk: bool,
-    /// Spots others solved count (library packs, the cloud). Off for "nur eigene, frisch
-    /// gegebene Spots": only what this computer solved.
+    /// Spots others solved count (library packs, the cloud). Off for practice with "Üben
+    /// mit fertigen Spots anderer" off: only what this computer solved.
     pub others: bool,
     /// The caller solves when nothing is found.
     pub solve: bool,

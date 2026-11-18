@@ -106,6 +106,91 @@ fn a_saved_solution_navigates_like_the_solved_one() {
     assert!(Snapshot::from_bytes(&bytes[..bytes.len() - 10]).is_err());
 }
 
+/// Hearts become spades, diamonds hearts, clubs diamonds.
+fn renamed_card(c: &str) -> String {
+    let suit = match &c[1..] {
+        "h" => "s",
+        "d" => "h",
+        "c" => "d",
+        _ => "c",
+    };
+    format!("{}{suit}", &c[..1])
+}
+
+/// The two cards of a combo, in either order.
+fn same_combo(a: &str, b: &str) -> bool {
+    a.len() == 4 && b.len() == 4 && (a == b || (a[..2] == b[2..] && a[2..] == b[..2]))
+}
+
+fn renamed_combo(combo: &str) -> String {
+    format!("{}{}", renamed_card(&combo[..2]), renamed_card(&combo[2..]))
+}
+
+/// A saved solve read on a suit renaming of its board: every stored node holds the same
+/// strategy, equity and EV for the renamed hand, and no card shows up twice.
+#[test]
+fn a_renamed_snapshot_keeps_every_strategy() {
+    let spot = small_flop();
+    let settings = Settings { target_pct: 1.0, max_iterations: 300, threads: 2 };
+    let mut solution = solve(&spot, &settings, LIMIT, |_| {}, || false).unwrap();
+    let original = Snapshot::take(&mut solution, &settings).unwrap();
+    let renamed = Snapshot::from_bytes(&original.renamed("As 8h 3d").unwrap().to_bytes()).unwrap();
+    assert_eq!(renamed.meta.spot.board, "As 8h 3d");
+    assert_eq!(spot_key(&renamed.meta.spot).unwrap(), spot_key(&Spot { board: "8h As 3d".into(), ..spot.clone() }).unwrap());
+
+    let mut queue = vec![Vec::<Step>::new()];
+    let mut compared = 0;
+    while let Some(path) = queue.pop() {
+        let a = original.node(&path).unwrap();
+        let moved: Vec<Step> = path.iter().map(|s| match s {
+            Step::Card(c) => Step::Card(renamed_card(c)),
+            s => s.clone(),
+        }).collect();
+        let b = renamed.node(&moved).unwrap();
+        assert_eq!(b.board, a.board.iter().map(|c| renamed_card(c)).collect::<Vec<_>>());
+        let mut cards = b.board.clone();
+        cards.sort();
+        cards.dedup();
+        assert_eq!(cards.len(), b.board.len(), "a card twice on the board at {moved:?}");
+        let mut dealt: Vec<String> = a.cards.iter().map(|c| renamed_card(c)).collect();
+        dealt.sort();
+        let mut got = b.cards.clone();
+        got.sort();
+        assert_eq!(got, dealt, "{moved:?}");
+        assert!(got.iter().all(|c| !b.board.contains(c)), "a dealt card on the board at {moved:?}");
+        assert_eq!((a.kind, a.player, a.hands.len()), (b.kind, b.player, b.hands.len()));
+        for h in &a.hands {
+            let combo = renamed_combo(&h.combo);
+            let r = b.hands.iter().find(|x| same_combo(&x.combo, &combo)).unwrap_or_else(|| panic!("{combo} missing at {moved:?}"));
+            assert!(!b.board.iter().any(|c| combo.contains(c.as_str())), "{combo} holds a board card");
+            assert_eq!((&r.strategy, r.equity, r.ev, &r.evs, r.weight), (&h.strategy, h.equity, h.ev, &h.evs, h.weight), "{combo} at {moved:?}");
+            compared += 1;
+        }
+        for (x, y) in a.actions.iter().zip(&b.actions) {
+            assert_eq!((x.kind, x.amount), (y.kind, y.amount));
+            assert!((x.frequency - y.frequency).abs() < 1e-9);
+        }
+        if path.iter().any(|s| matches!(s, Step::Card(_))) {
+            continue;
+        }
+        match a.kind {
+            NodeKind::Action => queue.extend((0..a.actions.len()).map(|i| [path.clone(), vec![Step::Action(i)]].concat())),
+            NodeKind::Chance => queue.extend(a.cards.iter().map(|c| [path.clone(), vec![Step::Card(c.clone())]].concat())),
+            NodeKind::Terminal => {}
+        }
+    }
+    assert!(compared > 1000, "only {compared} hands compared");
+
+    // Only a suit renaming of the board, and only ranges that weigh suits alike.
+    assert!(original.renamed("As 8h 4d").is_err());
+    assert!(original.renamed("As 8s 3d").is_err());
+    let one_suit = Spot { oop_range: "AA,KK,QQ,JJ,AK,AQs,T9s,KhJh".into(), ..spot.clone() };
+    let mut solution = solve(&one_suit, &settings, LIMIT, |_| {}, || false).unwrap();
+    let lopsided = Snapshot::take(&mut solution, &settings).unwrap();
+    assert!(lopsided.renamed("As 8h 3d").is_err(), "KhJh would become KsJs");
+    assert!(lopsided.renamed("Ah 8c 3d").is_ok(), "hearts stay hearts");
+}
+
 #[test]
 fn equal_spots_share_a_key_and_reuse_needs_the_same_precision() {
     let a = small_flop();
