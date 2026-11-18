@@ -125,7 +125,7 @@
         </div>
         {#if t.table}
           <span class="facts">
-            <Badge size="sm" tone={t.table.game === "tournament" ? "info" : "neutral"}>{stakes(t.table)}</Badge>
+            <Badge size="sm">{stakes(t.table)}</Badge>
             <span><span class="num">{t.table.seats.length}</span> Spieler</span>
             <span class="faint" title="Die Werte stehen auf dem Stand nach dieser Hand">zuletzt gelesen: Hand <span class="num">#{t.table.hand_id}</span></span>
           </span>

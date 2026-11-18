@@ -99,7 +99,7 @@ export function sampleNote(s: StatValue | undefined, short = false): string {
   if (!s || !s.opp) return "noch keine Gelegenheit";
   const perHand = s.id === "vpip" || s.id === "pfr";
   const what = perHand ? (s.opp === 1 ? "Hand" : "Händen") : s.opp === 1 ? "Gelegenheit" : "Gelegenheiten";
-  return `aus ${s.opp.toLocaleString("de-DE")}\u00a0${what}${!short && s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
+  return `aus\u00a0${s.opp.toLocaleString("de-DE")}\u00a0${what}${!short && s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
 }
 
 

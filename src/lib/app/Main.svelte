@@ -106,7 +106,7 @@
     tournaments: "Klick auf ein Turnier öffnet seinen Bericht: Ergebnis, Glück, deine Fehler und was du als Nächstes übst.",
     reports: "Starthände, Positionen und Sessions über den gewählten Zeitraum.",
     players: "Ein Klick auf einen Gegner zeigt Typ, Gegenzug und Bedeutung.",
-    live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
+    live: "Deine Gegner an den offenen Tischen. Ein Klick zeigt alle Werte mit Bedeutung.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
