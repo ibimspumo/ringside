@@ -287,8 +287,9 @@ export async function on<T>(event: string, handler: (payload: T) => void): Promi
 
 /** Browser preview: `?windows=0` no PokerStars window, `?windows=many` a busy evening with lobbies. */
 function demoWindows(): ClientWindow[] {
-  const shown = new URLSearchParams(window.location.search).get("windows");
-  if (shown === "0") return [];
+  const q = new URLSearchParams(window.location.search);
+  const shown = q.get("windows");
+  if (shown === "0" || q.get("tables") === "0") return [];
   const table = (title: string, key: string, has_hands = true): ClientWindow => ({ title, class: "PokerStarsTableFrameClass", table_key: key, has_hands });
   const lobby = (title: string): ClientWindow => ({ title, class: "PokerStarsLobbyClass", table_key: null, has_hands: false });
   const first = table("$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10 - Eingeloggt als Hero", "t:4046789300:10");

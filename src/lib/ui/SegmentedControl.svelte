@@ -66,6 +66,7 @@
   button {
     height: 26px;
     padding: 0 var(--sp-3);
+    white-space: nowrap;
     border: 0;
     border-radius: var(--r-sm);
     background: transparent;

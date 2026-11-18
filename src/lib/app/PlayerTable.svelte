@@ -48,6 +48,7 @@
     sort,
     label,
     maxHeight,
+    more = $bindable(false),
   }: {
     rows: PlayerRow[];
     hud: HudConfig;
@@ -62,6 +63,8 @@
     label: string;
     /** Scrolls vertically beyond this height, header stays. */
     maxHeight?: string;
+    /** Out: more columns to the right than fit; the page says so next to its tools. */
+    more?: boolean;
   } = $props();
 
   const SHORT: Partial<Record<StatId, string>> = { pfr: "PFR", three_bet: "3-Bet", af: "AF" };
@@ -71,8 +74,6 @@
   const reads = $derived(new Map(rows.map((r) => [r.key, read(r.stats)])));
   let body = $state<HTMLElement>();
   let scroller = $state<HTMLElement>();
-  /** More columns to the right than fit: say so instead of cutting them silently. */
-  let more = $state(false);
 
   function measure() {
     if (scroller) more = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;
@@ -98,7 +99,7 @@
 </script>
 
 {#snippet head(id: StatId | "name", text: string)}
-  <SortHeader term active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
+  <SortHeader term={id !== "name"} active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
 {/snippet}
 
 <div class="frame" class:more>
@@ -107,13 +108,13 @@
   <thead>
     <tr>
       <th class="name" aria-sort={ariaSort("name")}>{@render head("name", "Spieler")}</th>
-      {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Ein hohler Ring heißt: noch zu wenig Hände für ein sicheres Urteil." side="bottom"><SortHeader term>Typ</SortHeader></Tooltip></th>{/if}
+      {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Gestrichelt heißt: noch zu wenig Hände für ein sicheres Urteil." side="bottom"><SortHeader term>Typ</SortHeader></Tooltip></th>{/if}
       {#each before as c (c.key)}<th class="extra" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="bottom"><SortHeader term>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
       <th class="hands" aria-sort={ariaSort("hands")}>
         <Tooltip text={STAT_META.hands.help} side="bottom">{@render head("hands", "Hände")}</Tooltip>
       </th>
       {#each cols as id (id)}
-        <th class:core={columns === "core"} aria-sort={ariaSort(id)}>
+        <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
           <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="bottom">
             {@render head(id, columns === "core" ? (SHORT[id] ?? STAT_META[id].name) : STAT_META[id].short)}
           </Tooltip>
@@ -141,7 +142,7 @@
               <span class="q">–</span>
             {:else if r?.type}
               <span class="t" title={`${TYPE[r.type].long} – ${r.note}`}>
-                <Badge size="sm">{TYPE[r.type].name}</Badge>{#if r.sure !== "sure"}<i class="unsure" aria-label={r.note}></i>{/if}
+                <Badge size="sm" dashed={r.sure !== "sure"}>{TYPE[r.type].name}</Badge>
               </span>
             {:else}
               <span class="q" title="Die Werte passen zu keinem der vier Typen.">kein klarer Typ</span>
@@ -159,7 +160,6 @@
   </tbody>
 </table>
 </div>
-{#if more}<span class="more-hint" aria-hidden="true">Weitere Werte →</span>{/if}
 </div>
 
 <style>
@@ -178,21 +178,6 @@
     bottom: 0;
     width: 28px;
     background: linear-gradient(to left, var(--shadow-edge), transparent);
-    pointer-events: none;
-  }
-  .more-hint {
-    position: absolute;
-    z-index: var(--z-sticky);
-    top: 6px;
-    right: var(--sp-2);
-    padding: 3px var(--sp-2);
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-pill);
-    background: var(--surface-3);
-    color: var(--text);
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-medium);
-    box-shadow: var(--shadow-2);
     pointer-events: none;
   }
   table {
@@ -217,6 +202,10 @@
     th.core {
       width: auto;
     }
+  }
+  /* Numbers carry room for the "unsure" ring after them; titles line up with the numbers. */
+  th.ringed {
+    padding-right: calc(var(--sp-2) + 10px);
   }
   th.name,
   th.type,
@@ -274,13 +263,6 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-  }
-  .unsure {
-    flex-shrink: 0;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 2px var(--text-2);
   }
   .q {
     color: var(--text-3);

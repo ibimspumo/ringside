@@ -409,7 +409,7 @@
   dt small {
     display: block;
     margin-top: 1px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
   }
   dd {

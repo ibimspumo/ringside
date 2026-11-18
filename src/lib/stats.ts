@@ -8,7 +8,7 @@ export const STAT_META: Record<StatId, { short: string; name: string; plain: str
   hands: { short: "H", name: "Hände", plain: "Hände", help: "Gemeinsame Hände – je mehr, desto verlässlicher die Werte." },
   vpip: { short: "VPIP", name: "VPIP", plain: "spielt", help: "Wie oft freiwillig Geld in den Pot gelegt wird. Hoch = spielt viele Hände (loose)." },
   pfr: { short: "PFR", name: "Preflop-Raise", plain: "erhöht", help: "Wie oft vor dem Flop erhöht wird. Nah an VPIP = aggressiv, weit darunter = passiv." },
-  three_bet: { short: "3B", name: "3-Bet", plain: "3-bettet", help: "Re-Raise gegen einen Open-Raise." },
+  three_bet: { short: "3B", name: "3-Bet", plain: "3-bettet", help: "Erhöht noch einmal, nachdem vor ihm schon jemand erhöht hat (Re-Raise)." },
   fold_to_three_bet: { short: "F3B", name: "Fold auf 3-Bet", plain: "gibt auf Re-Raise auf", help: "Wie oft nach eigenem Raise auf ein Re-Raise gefoldet wird." },
   steal: { short: "ST", name: "Steal", plain: "klaut Blinds", help: "Open-Raise aus Cutoff, Button oder Small Blind, wenn alle davor gefoldet haben." },
   fold_to_steal: { short: "FST", name: "Fold auf Steal", plain: "gibt Blinds her", help: "Wie oft die Blinds gegen einen Steal folden." },

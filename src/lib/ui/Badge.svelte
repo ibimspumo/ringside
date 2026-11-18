@@ -6,6 +6,7 @@
     tone = "neutral",
     size = "md",
     dot = false,
+    dashed = false,
     title,
     children,
   }: {
@@ -13,12 +14,14 @@
     size?: "sm" | "md";
     /** A leading dot, e.g. for "live". */
     dot?: boolean;
+    /** Dashed edge: a judgement that is not settled yet. */
+    dashed?: boolean;
     title?: string;
     children: Snippet;
   } = $props();
 </script>
 
-<span class="ui-badge {tone} {size}" {title}>
+<span class="ui-badge {tone} {size}" class:dashed {title}>
   {#if dot}<i aria-hidden="true"></i>{/if}{@render children()}
 </span>
 
@@ -44,6 +47,11 @@
     height: 18px;
     padding: 0 6px;
     font-size: var(--fs-xs);
+  }
+  .dashed {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--c) 60%, transparent);
+    background: transparent;
   }
   .info {
     --c: var(--info);

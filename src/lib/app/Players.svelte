@@ -11,6 +11,7 @@
   import { pokerClient, watchPokerClient } from "./client.svelte";
   import { int } from "./format";
   import MeterLegend from "./MeterLegend.svelte";
+  import MoreColumns from "./MoreColumns.svelte";
   import PlayerDetail from "./PlayerDetail.svelte";
   import PlayerTable from "./PlayerTable.svelte";
   import { preview } from "../learn/preview";
@@ -40,6 +41,7 @@
   let picked = $state<string | null>(preview("player"));
   let columns = $state<"core" | "all">(preview("cols") === "all" ? "all" : "core");
   let width = $state(0);
+  let more = $state(false);
   /** Your own names: your row gets "du" and no player type. */
   let heroes = $state<string[]>([]);
 
@@ -109,6 +111,7 @@
         <span class="count">
           {#if loaded}{rows.length >= LIMIT ? `Die ${int(LIMIT)} mit den meisten Händen` : `${int(rows.length)} Spieler`}{/if}
         </span>
+        {#if more}<MoreColumns />{/if}
         <SegmentedControl
           label="Spalten"
           size="sm"
@@ -137,8 +140,9 @@
             onPick={(k) => (picked = k)}
             sort={{ by: sortBy, asc, on: sortOn }}
             maxHeight="calc(100vh - 290px)"
+            bind:more
           />
-        <div class="foot"><MeterLegend meters={columns === "core"} /></div>
+        <div class="foot"><MeterLegend meters={columns === "core"} types={advice} /></div>
       {:else if loaded}
         <EmptyState
           title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in dieser Auswahl"}

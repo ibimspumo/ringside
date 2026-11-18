@@ -2,7 +2,7 @@
   import { SMALL_SAMPLE } from "./reads";
 
   /** `meters`: the list shows scales; without, only numbers. */
-  let { meters = true }: { meters?: boolean } = $props();
+  let { meters = true, types = false }: { meters?: boolean; types?: boolean } = $props();
 </script>
 
 <p class="legend" class:meters>
@@ -13,6 +13,7 @@
     <span class="item">Alle Werte in %, Aggression (AF) als Faktor ×. Fahr über einen Spaltenkopf für die Erklärung.</span>
   {/if}
   <span class="item"><i class="dot hollow" aria-hidden="true"></i>hohl: unter {SMALL_SAMPLE} Gelegenheiten, noch unsicher</span>
+  {#if types}<span class="item"><i class="dashed" aria-hidden="true"></i>gestrichelter Typ: noch zu wenig Hände für ein sicheres Urteil</span>{/if}
 </p>
 
 <style>
@@ -22,7 +23,7 @@
     align-items: center;
     gap: var(--sp-1) var(--sp-5);
     margin: 0;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
   }
   /* Without the scales (narrow list) there is nothing to explain. */
@@ -50,6 +51,12 @@
     height: 8px;
     border-radius: 50%;
     background: var(--text-2);
+  }
+  .dashed {
+    width: 18px;
+    height: 10px;
+    border: 1px dashed var(--text-2);
+    border-radius: var(--r-pill);
   }
   .hollow {
     background: none;

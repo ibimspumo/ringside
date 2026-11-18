@@ -9,6 +9,7 @@
   import { pokerClient, watchPokerClient } from "./client.svelte";
   import { int } from "./format";
   import MeterLegend from "./MeterLegend.svelte";
+  import MoreColumns from "./MoreColumns.svelte";
   import PlayerDetail from "./PlayerDetail.svelte";
   import PlayerTable, { type ExtraColumn, type PlayerRow } from "./PlayerTable.svelte";
   import { preview } from "../learn/preview";
@@ -19,6 +20,8 @@
   let loaded = $state(false);
   // Browser demo: `cols=all` all values, `player=<name>` opens that player at the first table.
   let columns = $state<"core" | "all">(preview("cols") === "all" ? "all" : "core");
+  /** Tables whose columns do not fit, by key. */
+  let more = $state<Record<string, boolean>>({});
   let selected = $state<{ key: string; player: PlayerView; table: TableView; hero: boolean } | null>(null);
 
   function load() {
@@ -99,6 +102,7 @@
             <span><span class="num">{t.table.seats.length}</span> Spieler</span>
             <span class="faint num">Hand #{t.table.hand_id}</span>
           </span>
+          {#if more[t.table_key]}<span class="more"><MoreColumns /></span>{/if}
         {/if}
       </header>
       {#if t.table}
@@ -111,6 +115,7 @@
             extra={extraOf(table)}
             selected={selected?.key ?? null}
             onPick={(k) => pick(table, k)}
+            bind:more={more[t.table_key]}
           />
       {:else}
         <div class="wait"><EmptyState inline tone="loading" title="Warte auf die erste Hand" text="Die Werte erscheinen, sobald Ringside die erste Hand von diesem Tisch gelesen hat." /></div>
@@ -146,9 +151,16 @@
   }
   .tools {
     display: flex;
+    flex-wrap: wrap-reverse;
     align-items: center;
     justify-content: space-between;
-    gap: var(--sp-4);
+    gap: var(--sp-3) var(--sp-4);
+  }
+  .tools > :global(.ui-seg) {
+    margin-left: auto;
+  }
+  .more {
+    margin-left: auto;
   }
   .table-card {
     border: 1px solid var(--line);
