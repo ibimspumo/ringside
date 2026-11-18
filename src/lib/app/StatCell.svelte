@@ -38,9 +38,15 @@
     gap: var(--sp-2);
     width: 100%;
   }
+  /* The scale stays a scale: on wide screens it stops growing and the cell keeps its left edge. */
+  .meter {
+    justify-content: flex-start;
+    gap: var(--sp-3);
+  }
   .meter > :global(.ui-meter) {
     flex: 1;
     min-width: 36px;
+    max-width: 140px;
   }
   /* With a scale the hollow mark sits on it; a narrow list drops the scale and keeps the ring. */
   .meter > .ring {
@@ -52,6 +58,10 @@
     }
     .meter > .ring {
       display: block;
+    }
+    .meter {
+      justify-content: flex-end;
+      gap: var(--sp-2);
     }
   }
   .val {

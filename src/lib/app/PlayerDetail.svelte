@@ -145,7 +145,7 @@
             {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
-                <Term tip={STAT_META[id].help} side="bottom">{STAT_META[id].name}</Term>
+                <Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="bottom">{STAT_META[id].name}</Term>
                 <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
               </dt>
               <dd>
@@ -280,13 +280,15 @@
     border-radius: 50%;
     background: var(--c);
   }
+  /* The fade at the bottom says the list goes on under the footer. */
   .body {
     flex: 1;
     overflow: auto;
+    mask-image: linear-gradient(to bottom, var(--surface) calc(100% - 28px), transparent);
     display: flex;
     flex-direction: column;
     gap: var(--sp-5);
-    padding: var(--sp-4) var(--sp-5) var(--sp-5);
+    padding: var(--sp-4) var(--sp-5) var(--sp-8);
   }
   .kicker {
     color: var(--text-3);

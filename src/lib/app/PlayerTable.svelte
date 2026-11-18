@@ -129,7 +129,7 @@
     <tr>
       <th class="name" aria-sort={ariaSort("name")}>{@render head("name", "Spieler")}</th>
       {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Gestrichelt heißt: noch zu wenig Hände für ein sicheres Urteil." side="bottom"><SortHeader term>Typ</SortHeader></Tooltip></th>{/if}
-      {#each before as c (c.key)}<th class="extra" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="bottom"><SortHeader term>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
+      {#each before as c (c.key)}<th class="extra narrow-off" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="bottom"><SortHeader term>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
       <th class="hands" aria-sort={ariaSort("hands")}>
         <Tooltip text={STAT_META.hands.help} side="bottom">{@render head("hands", "Hände")}</Tooltip>
       </th>
@@ -147,6 +147,7 @@
     {#each rows as p, i (p.key)}
       {@const r = reads.get(p.key)}
       {@const hands = stat(p.stats, "hands")?.value ?? 0}
+      {@const sub = [...before.map((c) => `${c.text(p)}${c.unit ? ` ${c.unit}` : ""}`), p.note].filter(Boolean).join(" · ")}
       <tr class:on={selected === p.key} onclick={() => onPick(p.key)}>
         <td class="name">
           <CellButton current={selected === p.key} onclick={(e) => (e.stopPropagation(), onPick(p.key))} onkeydown={(e) => key(e, i)}>
@@ -157,7 +158,7 @@
                 {#if p.label}<i class="dot" style="--c:{p.label.color}" title={p.label.name || "Label aus PokerStars"}></i>{/if}
                 {#if p.hero}<Badge size="sm">du</Badge>{/if}
               </span>
-              {#if p.note}<span class="note-line" title={p.note}>{p.note}</span>{/if}
+              {#if sub}<span class="note-line" title={sub}>{sub}</span>{/if}
             </span>
           </CellButton>
         </td>
@@ -174,7 +175,7 @@
             {/if}
           </td>
         {/if}
-        {#each before as c (c.key)}<td class="extra num" class:wide={c.wide}>{c.text(p)}{#if c.unit}<span class="unit">{c.unit}</span>{/if}</td>{/each}
+        {#each before as c (c.key)}<td class="extra num narrow-off" class:wide={c.wide}>{c.text(p)}{#if c.unit}<span class="unit">{c.unit}</span>{/if}</td>{/each}
         <td class="hands num" class:thin={hands < SMALL_SAMPLE}>{int(hands)}</td>
         {#each cols as id (id)}
           <td><StatCell stats={p.stats} {id} {hud} meter={columns === "core"} /></td>
@@ -301,7 +302,8 @@
   .note-line {
       display: block;
     }
-    .note-col {
+    .note-col,
+    .narrow-off {
       display: none;
     }
   }
