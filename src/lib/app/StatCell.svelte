@@ -42,7 +42,7 @@
     min-width: 36px;
   }
   /* A narrow list keeps the numbers and drops the scale. */
-  @container player-list (max-width: 820px) {
+  @container player-list (max-width: 760px) {
     .meter > :global(.ui-meter) {
       display: none;
     }
@@ -54,6 +54,6 @@
     font-variant-numeric: tabular-nums;
   }
   .thin .val {
-    opacity: 0.5;
+    opacity: 0.72;
   }
 </style>

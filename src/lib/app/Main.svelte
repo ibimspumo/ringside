@@ -105,6 +105,7 @@
   const NOTES: Partial<Record<Tab, string>> = {
     tournaments: "Klick auf ein Turnier öffnet seinen Bericht: Ergebnis, Glück, deine Fehler und was du als Nächstes übst.",
     reports: "Starthände, Positionen und Sessions über den gewählten Zeitraum.",
+    players: "Ein Klick auf einen Gegner zeigt Typ, Gegenzug und Bedeutung.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:

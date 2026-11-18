@@ -122,7 +122,7 @@
               <span class="q">–</span>
             {:else if r?.type}
               <span class="t" title={`${TYPE[r.type].long} – ${r.note}`}>
-                <Badge size="sm">{TYPE[r.type].name}</Badge>{#if r.sure !== "sure"}<span class="q">{r.sure === "maybe" ? "knapp" : "unsicher"}</span>{/if}
+                <Badge size="sm">{TYPE[r.type].name}</Badge>{#if r.sure !== "sure"}<i class="unsure" aria-label={r.note}></i>{/if}
               </span>
             {:else}
               <span class="q" title="Die Werte passen zu keinem der vier Typen.">kein klarer Typ</span>
@@ -163,7 +163,7 @@
   th.core {
     width: 120px;
   }
-  @container player-list (max-width: 820px) {
+  @container player-list (max-width: 760px) {
     th.core {
       width: auto;
     }
@@ -224,6 +224,13 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+  }
+  .unsure {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px var(--text-2);
   }
   .q {
     color: var(--text-3);

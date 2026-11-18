@@ -186,8 +186,12 @@
     font-size: var(--fs-md);
     white-space: nowrap;
   }
+  /* A shadow at the right edge says that more columns are hidden. */
   .scroll {
     overflow-x: auto;
+    background:
+      linear-gradient(to left, var(--surface) 40%, transparent) right / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--shadow-edge), transparent) right / 16px 100% no-repeat scroll;
   }
   .wait {
     padding: var(--sp-3) var(--sp-4);

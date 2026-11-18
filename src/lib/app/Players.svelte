@@ -3,6 +3,7 @@
   import { api } from "../api";
   import { stat } from "../stats";
   import type { Filter, HudConfig, PlayerView, StatId } from "../types";
+  import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import SearchField from "../ui/SearchField.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
@@ -45,7 +46,8 @@
   onMount(watchPokerClient);
   /** Type and counter only while PokerStars is closed: advice during a session breaks its rules. */
   const advice = $derived(pokerClient.running === false);
-  const docked = $derived(width >= DOCK_FROM);
+  /** All twelve values need the full width; the detail then slides in. */
+  const docked = $derived(width >= DOCK_FROM && columns === "core");
 
   $effect(() => {
     void refresh;
@@ -140,9 +142,11 @@
         {#if columns === "core"}<div class="foot"><MeterLegend /></div>{/if}
       {:else if loaded}
         <EmptyState
-          title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in diesem Zeitraum"}
-          text={search ? "Prüf die Schreibweise oder wähle oben einen längeren Zeitraum." : "Spiel ein paar Hände oder wähle oben einen längeren Zeitraum."}
-        />
+          title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in dieser Auswahl"}
+          text={search ? "Prüf die Schreibweise. Gesucht wird in der Auswahl oben rechts." : "Spiel ein paar Hände oder wähle oben rechts einen längeren Zeitraum."}
+        >
+          {#snippet action()}{#if search}<Button size="sm" onclick={() => (search = "")}>Suche löschen</Button>{/if}{/snippet}
+        </EmptyState>
       {:else}
         <EmptyState tone="loading" title="Spieler werden geladen" />
       {/if}
@@ -195,9 +199,13 @@
   .lock {
     padding: var(--sp-3) var(--sp-4) 0;
   }
+  /* Shadows at the edges say that more columns or rows are hidden. */
   .scroll {
     overflow: auto;
     max-height: calc(100vh - 260px);
+    background:
+      linear-gradient(to left, var(--surface) 40%, transparent) right / 32px 100% no-repeat local,
+      linear-gradient(to left, var(--shadow-edge), transparent) right / 16px 100% no-repeat scroll;
   }
   .foot {
     padding: var(--sp-3) var(--sp-4);

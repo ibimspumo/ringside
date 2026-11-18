@@ -482,6 +482,8 @@ input[type="range"] {
   --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-2: 0 8px 24px rgba(0, 0, 0, 0.45);
   --shadow-3: 0 14px 40px rgba(0, 0, 0, 0.55);
+  /* Edge of a scroll area with more content beyond it. */
+  --shadow-edge: rgba(0, 0, 0, 0.45);
 
   --z-raised: 1;
   --z-sticky: 10;

@@ -22,7 +22,7 @@
     gap: var(--sp-2);
     width: 100%;
     min-width: 150px;
-    max-width: 260px;
+    max-width: 220px;
     height: 40px;
     padding: 0 var(--sp-3) 0 var(--sp-4);
     border: 0;

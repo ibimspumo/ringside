@@ -4,8 +4,8 @@
 
 <p class="legend">
   <span class="item"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>
-  <span class="item"><i class="dot" aria-hidden="true"></i>Wert, Farbe wie im HUD</span>
-  <span class="item"><i class="dot hollow" aria-hidden="true"></i>unter {SMALL_SAMPLE} Gelegenheiten: noch unsicher</span>
+  <span class="item"><i class="dot" aria-hidden="true"></i>Wert; die Farbe sagt niedrig, mittel oder hoch wie im HUD – keine Note</span>
+  <span class="item"><i class="dot hollow" aria-hidden="true"></i>hohl: unter {SMALL_SAMPLE} Gelegenheiten, noch unsicher</span>
 </p>
 
 <style>
@@ -19,7 +19,7 @@
     font-size: var(--fs-sm);
   }
   /* Without the scales (narrow list) there is nothing to explain. */
-  @container player-list (max-width: 820px) {
+  @container player-list (max-width: 760px) {
     .legend {
       display: none;
     }

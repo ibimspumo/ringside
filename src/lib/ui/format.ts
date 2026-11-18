@@ -30,8 +30,10 @@ export function pct(fraction: number, digits = 0): string {
   return `${num(fraction * 100, digits)} %`;
 }
 
-/** "1,2k" and "12k" for tight spaces. */
+/** "1,2k", "12k" and "1,2M" for tight spaces. */
 export function compact(n: number): string {
+  if (n >= 9_999_500) return `${Math.round(n / 1_000_000)}M`;
+  if (n >= 999_500) return `${num(n / 1_000_000, 1)}M`;
   if (n >= 10000) return `${Math.round(n / 1000)}k`;
   if (n >= 1000) return `${num(n / 1000, 1)}k`;
   return Math.round(n).toString();
