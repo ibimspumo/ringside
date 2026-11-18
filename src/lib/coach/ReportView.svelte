@@ -22,7 +22,6 @@
   import { conceptName } from "./concepts";
   import type { Choice } from "./drill";
   import { COACH_GRADES, VERDICTS, money, shortModel, toPractise, verdictOf, say } from "./meaning";
-  import { rise } from "./motion";
   import SpotCard from "./SpotCard.svelte";
   import type { CoachReport } from "./types";
 
@@ -221,8 +220,8 @@
   </div>
 
   <div class="spots">
-    {#each shown as s, i (s.n)}
-      <div in:rise={{ delay: Math.min(i, 6) * 40 }}>
+    {#each shown as s (s.n)}
+      <div>
         <SpotCard
           spot={s.spot}
           index={s.n}
