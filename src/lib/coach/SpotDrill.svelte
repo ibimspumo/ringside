@@ -78,7 +78,7 @@
       {#if failed}
         <p class="msg" role="alert">{failed}</p>
       {:else if hand && at !== null}
-        <Replayer {hand} upTo={answer ? null : at} quiz={!answer}>
+        <Replayer {hand} upTo={answer ? null : at} quiz={!answer} inBigBlinds>
           <div class="hand-title">
             {#if answer}
               <span class="stop done">Aufgelöst: so ging die Hand weiter</span>
@@ -252,7 +252,7 @@
   }
   .stage {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);
+    grid-template-columns: minmax(0, 1fr) minmax(300px, min(440px, 34%));
     gap: 16px;
     align-items: start;
   }

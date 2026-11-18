@@ -116,7 +116,8 @@
     <header class="top">
       <div class="titles">
         <h2 id="report-title" title={title}>{name.main}</h2>
-        <p class="sub">{#if name.extra}{name.extra} · {/if}Besprochen am {created}</p>
+        {#if name.extra}<p class="sub extra">{name.extra}</p>{/if}
+        <p class="sub">Besprochen am <span class="nowrap">{created}</span></p>
       </div>
       <div class="buttons">
         {#if confirmDelete}
@@ -308,6 +309,13 @@
   .titles {
     flex: 1 1 360px;
     min-width: 0;
+  }
+  .extra {
+    margin-bottom: 2px;
+    color: var(--text);
+  }
+  .nowrap {
+    white-space: nowrap;
   }
   h2 {
     margin: 0 0 2px;

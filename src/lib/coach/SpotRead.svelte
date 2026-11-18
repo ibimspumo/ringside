@@ -75,7 +75,7 @@
         {#if spot.better}<p class="better"><span>Besser</span><b><CardText text={spot.better} /></b></p>{/if}
         {#if spot.numbers.length}
           <p class="lead">
-            Deine Zahlen aus diesem Spot. Die Beispiele im Artikel unten sind allgemein – vergleiche sie mit deinen:
+            Deine Zahlen aus diesem Spot. Der Artikel unten rechnet mit eigenen Beispielen – vergleiche sie mit deinen:
           </p>
           <Figures numbers={spot.numbers} />
         {/if}
@@ -96,6 +96,7 @@
   </section>
 
   {#if article}
+    <p class="divider"><span>Allgemeine Erklärung mit eigenen Beispielen</span></p>
     <ArticleView {article} read={read.has(article.id)} onToggleRead={() => toggleRead(article.id)} onOpen={open} />
   {/if}
 </div>
@@ -212,6 +213,22 @@
     align-items: center;
     gap: 10px;
     margin-top: 4px;
+  }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 -4px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .divider::before,
+  .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--line-2);
   }
 
   @container (max-width: 700px) {

@@ -14,7 +14,8 @@
    * `marks` colours actions (by index into `actions`) on the log and the timeline; clicking one
    * calls `onMark`. A new `jumpTo` moves the replay to just before its action. `aside` sits
    * above the action log. `quiz` is for practising the hand: while the answer is open, the
-   * solver hand-off is hidden and the play button stays quiet.
+   * solver hand-off is hidden and the play button stays quiet. `inBigBlinds` starts the amounts
+   * in big blinds instead of chips.
    */
   let {
     hand: full,
@@ -25,6 +26,7 @@
     children,
     aside,
     quiz = false,
+    inBigBlinds = false,
   }: {
     hand: Hand;
     upTo?: number | null;
@@ -34,6 +36,7 @@
     children?: Snippet;
     aside?: Snippet;
     quiz?: boolean;
+    inBigBlinds?: boolean;
   } = $props();
 
   type Event =
@@ -80,7 +83,7 @@
 
   let step = $state(0);
   let playing = $state(false);
-  let inBB = $state(false);
+  let inBB = $state(untrack(() => inBigBlinds));
   let stageWidth = $state(860);
   let logEl = $state<HTMLElement>();
   /** The stage keeps its shape, so seats, board and bets simply scale with its width. */

@@ -37,7 +37,7 @@
   <div class="visual" aria-label="Deine Karten {street}">
     <Felt>
       <span class="chip pos" title={positionHint(spot.position)}>{spot.position ?? "–"}</span>
-      <span class="chip stack num" title="Dein Stack in Big Blinds, als du entschieden hast">{stack} bb</span>
+      <span class="chip stack num" title="Dein Stack in Big Blinds zu Beginn der Hand">{stack} BB</span>
       {#if spot.board.length}
         <div class="board">
           {#each spot.board as c (c)}<PlayingCard card={c} size={26} />{/each}

@@ -37,6 +37,7 @@
     display: flex;
     flex-direction: column;
     gap: 10px;
+    container-type: inline-size;
   }
   .figures {
     display: flex;
@@ -94,6 +95,18 @@
     background: none;
     border: 1px dashed var(--line-2);
     color: var(--text-2);
+  }
+
+  @container (max-width: 460px) {
+    .fig {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    dd {
+      max-width: none;
+      justify-content: space-between;
+      text-align: left;
+    }
   }
 
   .terms {

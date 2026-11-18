@@ -168,7 +168,7 @@
         </ul>
         <p class="never">
           Nie dabei: Spielernamen, Hand- und Turniernummern, Dateipfade. Empfänger ist OpenRouter mit dem Modell
-          <b class="num">{shortModel(e.model)}</b>
+          <b class="num nowrap">{shortModel(e.model)}</b>
           <button class="link" onclick={onSettings}>Modell ändern</button>
         </p>
       </div>
@@ -223,7 +223,7 @@
               {#each used as t (t)}<span in:pop class="tool" class:now={p?.stage === "tool" && p.tool === t}>{TOOLS[t] ?? t}</span>{/each}
             </span>
           {:else}
-            <span class="note">Das Modell fragt jede Zahl bei Ringside ab.</span>
+            <span class="note">Jede Zahl rechnet Ringside nach.</span>
           {/if}
         </div>
       </div>
@@ -500,6 +500,9 @@
   }
   .never b {
     color: var(--text);
+  }
+  .nowrap {
+    white-space: nowrap;
   }
   .link {
     margin-left: 6px;
