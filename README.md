@@ -22,7 +22,7 @@
 - Turniere: Buy-ins, Preisgeld, Bounties, ROI und ITM je Währung. Ein Klick filtert alle Ansichten auf ein Turnier.
 - Live-Tische: deine Gegner an allen offenen Tischen mit HUD-Werten und PokerStars-Notizen.
 - Spieler mit Detailansicht und allen Händen, die sie gezeigt haben.
-- Hände mit Filtern und Replayer. *Hand-Analyse:* ein Klick bewertet deine ganze Historie oder eine einzelne Hand – jede deiner Entscheidungen bekommt eine Stufe von „beste Wahl“ bis „grober Fehler“, den EV-Verlust in BB und einen Satz zum Warum. Die Liste startet mit deinen teuersten Fehlern; im Replayer markiert die Zeitleiste jede Entscheidung.
+- Hände mit Filtern und Replayer. *Hand-Analyse:* ein Klick bewertet deine ganze Historie oder eine einzelne Hand – jede deiner Entscheidungen bekommt eine Stufe von „beste Wahl“ bis „grober Fehler“ (dieselben Stufen wie in „Hände spielen“), den EV-Verlust in BB und einen Satz zum Warum. Jede Bewertung nennt ihre Quelle: Gleichgewicht, Solver, Modell (auch Limps und Tische mit 2–5 Spielern) oder – für Multiway-Pots und alles andere – eine *Einschätzung* mit gemessener Verlässlichkeit. Die Liste startet mit deinen teuersten Fehlern; im Replayer markiert die Zeitleiste jede Entscheidung.
 - Aufgaben-Zentrale: alles, was länger rechnet (Solver, Analyse, Bibliothek, Coach), läuft im Hintergrund weiter, zeigt Fortschritt und Restzeit und lässt sich jederzeit abbrechen.
 - HUD-Editor: Panels direkt auf einem eigenen PokerStars-Screenshot ausrichten, Profile als JSON exportieren und importieren.
 

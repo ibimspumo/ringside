@@ -12,9 +12,12 @@
   const running = $derived(worker.manual || worker.state === "solving" || worker.state === "cloud");
   const done = $derived(worker.state === "done");
   const spot = $derived.by(() => {
+    if (worker.community) return worker.community;
     const s = data.scenarios.find((x) => x.id === worker.scenario);
     return s && worker.flop ? `${titleOf(s)}, Flop ${flopName(worker.flop)}` : null;
   });
+  /** The library is complete; with sharing on, a run solves what other users need. */
+  const forOthers = $derived(done && data.share);
   const pct = $derived(worker.state === "solving" && worker.progress !== null ? Math.round(worker.progress * 100) : null);
 
   /** Headline and the sentence under it. */
@@ -24,13 +27,23 @@
       : "Die Automatik rechnet, solange du die App nicht benutzt.";
     switch (worker.state) {
       case "solving":
-        return ["Rechnet gerade:", how];
+        return worker.community
+          ? [
+              "Rechnet für andere Ringside-Nutzer:",
+              "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen, und lädt sie hoch. Ein Prüfer rechnet jeden nach, bevor ihn alle bekommen.",
+            ]
+          : ["Rechnet gerade:", how];
       case "cloud":
         return ["Schaut in der Cloud nach:", "Hat schon jemand diesen Spot gerechnet? Dann lädt Ringside ihn, statt selbst zu rechnen."];
       case "packs":
         return ["Lädt fertige Spots herunter", "Das kostet deinen PC keine Rechenzeit."];
       case "done":
-        return ["Fertig", "Alle Spots der Bibliothek sind gelöst. Danke fürs Mitrechnen!"];
+        return forOthers
+          ? [
+              "Bibliothek komplett",
+              `Alle Spots sind gelöst. Mit „Für andere mitrechnen“ löst dein PC Spots, die andere Ringside-Nutzer noch brauchen${worker.community_done ? ` – ${worker.community_done} hat dein PC seit dem Start schon beigetragen` : ""}. Danke!`,
+            ]
+          : ["Fertig", "Alle Spots der Bibliothek sind gelöst. Danke fürs Mitrechnen!"];
       case "off":
         return ["Aus", "Die Automatik ist aus. Mit „Jetzt mitrechnen“ startest du selbst."];
     }
@@ -80,7 +93,7 @@
     class="go"
     class:running
     style="--p:{running ? (worker.progress ?? 0) : 0}"
-    disabled={busy || (done && !running)}
+    disabled={busy || (done && !running && !forOthers)}
     aria-pressed={running}
     onclick={toggle}
   >
@@ -93,7 +106,7 @@
           <path d="M8 5.2v13.6a.8.8 0 0 0 1.2.7l10.6-6.8a.8.8 0 0 0 0-1.4L9.2 4.5A.8.8 0 0 0 8 5.2z" fill="currentColor" />
         {/if}
       </svg>
-      <b>{running ? "Anhalten" : done ? "Alles fertig" : "Jetzt mitrechnen"}</b>
+      <b>{running ? "Anhalten" : forOthers ? "Für andere mitrechnen" : done ? "Alles fertig" : "Jetzt mitrechnen"}</b>
     </span>
   </button>
 

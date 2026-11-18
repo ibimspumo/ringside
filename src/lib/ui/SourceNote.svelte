@@ -10,14 +10,14 @@
   let {
     kind,
     variant = "inline",
-    children,
     hint,
+    children,
   }: {
     kind: Source;
     variant?: "inline" | "block";
-    children?: Snippet;
-    /** The inline mark's explanation, when the caller knows it more exactly than the general one. */
+    /** Hover text of the inline mark when the caller knows more than the general line. */
     hint?: string;
+    children?: Snippet;
   } = $props();
 
   const s = $derived(SOURCE[kind]);

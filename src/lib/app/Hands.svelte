@@ -1,9 +1,8 @@
 <script lang="ts">
   import { tick, untrack } from "svelte";
   import AnalyzeStatus from "../analysis/AnalyzeStatus.svelte";
-  import { gradeOf } from "../analysis/grade";
   import HandPanel from "../analysis/HandPanel.svelte";
-  import { RATING, SOURCE, SPOT, SPOT_GROUPS, SPOT_HINT, bb } from "../analysis/labels";
+  import { FILTER_SOURCES, GRADE_OF, RATING, SOURCE, SPOT, SPOT_GROUPS, SPOT_HINT, bb, reliabilityText } from "../analysis/labels";
   import { analysis, watchAnalysis } from "../analysis/store.svelte";
   import Summary from "../analysis/Summary.svelte";
   import type { Decision, DecisionBrief, DecisionFilter, Rating, Source, SpotType } from "../analysis/types";
@@ -19,6 +18,7 @@
   import { usePageHead } from "../ui/page.svelte";
   import PlayingCard from "../ui/PlayingCard.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import type { Grade } from "../ui/poker";
   import Tag from "../ui/Tag.svelte";
   import type { Filter, Hand, HandQuery, HandSummary, SpotFilter, Street } from "../types";
   import type { RangeFilter } from "../ranges/types";
@@ -93,6 +93,8 @@
   const current = $derived(decisions?.find((d) => d.action_index === chosen) ?? null);
   let jumpTo = $state<{ action: number } | null>(null);
   let busy = $state(false);
+  /** The hand analysed last, so an empty result reads as "nothing to rate". */
+  let analyzedId = $state<number | null>(null);
   let tournamentBusy = $state(false);
 
   function readSummary(): boolean {
@@ -226,6 +228,7 @@
     busy = true;
     try {
       const d = await api.analysisHands([id]);
+      analyzedId = id;
       if (selected?.id === id) {
         decisions = d;
         chosen = worstOf(d);
@@ -295,10 +298,16 @@
 
   const marks = $derived.by(() => {
     if (!decisions?.length || locked) return null;
-    const m = new Map<number, { grade: ReturnType<typeof gradeOf> | null; label: string }>();
+    const m = new Map<number, { grade: Grade | null; label: string }>();
     for (const d of decisions) {
-      const label = d.rating ? `${RATING[d.rating].label}: ${d.played}` : d.status === "pending" ? `Wird gerechnet: ${d.played}` : `Nicht bewertet: ${d.played}`;
-      m.set(d.action_index, { grade: d.rating ? gradeOf(d.rating) : null, label });
+      const label = d.rating
+        ? `${RATING[d.rating].label}: ${d.played}`
+        : d.status === "pending"
+          ? `Wird gerechnet: ${d.played}`
+          : d.status === "forced"
+            ? `Keine Entscheidung: ${d.played}`
+            : `Nicht bewertet: ${d.played}`;
+      m.set(d.action_index, { grade: d.rating ? GRADE_OF[d.rating] : null, label });
     }
     return m;
   });
@@ -307,11 +316,19 @@
   const netBb = (h: HandSummary) => (h.hero_net !== null && h.big_blind > 0 ? h.hero_net / h.big_blind : null);
   const costly = (w: DecisionBrief | null | undefined) => !!w?.rating && w.rating !== "best" && w.rating !== "good" && (w.ev_loss_bb ?? 0) >= 0.05;
 
+  /** Where the verdict comes from, in one line; the estimate with its measured reliability. */
+  function sourceHint(w: DecisionBrief): string {
+    if (!w.source) return "";
+    const s = `Quelle: ${SOURCE[w.source].label}`;
+    return w.source === "estimate" && w.reliability !== null ? `${s} – ${reliabilityText(w.reliability, w.street)}` : s;
+  }
+
   /** The worst decision of a row in a few words: what was better first. */
   function verdict(w: DecisionBrief): { lead: string; rest: string } {
     const played = w.played.split(" ")[0];
     if (w.status === "pending") return { lead: played, rest: "wird gerechnet" };
     if (w.status === "unrated") return { lead: "", rest: "nicht bewertet" };
+    if (w.status === "forced") return { lead: "", rest: "keine Entscheidung" };
     if (!w.rating || w.rating === "best" || w.rating === "good" || !w.best) return { lead: played, rest: w.rating ? RATING[w.rating].label : SPOT[w.spot] };
     return { lead: `Besser ${w.best.split(" ")[0]}`, rest: `statt ${played}` };
   }
@@ -387,7 +404,7 @@
     {#if locked}
       <p class="quiet">Die Analyse pausiert, solange PokerStars läuft – Nachspielen geht weiter.</p>
     {:else if current?.rating}
-      {@const g = gradeOf(current.rating)}
+      {@const g = GRADE_OF[current.rating]}
       <GradeIcon grade={g} size={18} />
       <p>
         <b style:color="color-mix(in srgb, var(--grade-{g}) 60%, var(--text))">{RATING[current.rating].label}</b>
@@ -409,7 +426,7 @@
 {/snippet}
 
 {#snippet panel()}
-  <HandPanel {decisions} selected={chosen} {busy} {locked} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} main={started} />
+  <HandPanel {decisions} selected={chosen} {busy} {locked} analyzed={analyzedId === selected?.id} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} main={started} />
 {/snippet}
 
 {#snippet close()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>{/snippet}
@@ -501,10 +518,10 @@
         <SegmentedControl
           size="sm"
           label="Quelle"
-          options={[{ value: "all", label: "Alle" }, ...(["equilibrium", "model", "solver"] as const).map((s) => ({ value: s, label: SOURCE[s].label, hint: SOURCE[s].explain }))]}
+          options={[{ value: "all", label: "Alle" }, ...FILTER_SOURCES.map((s) => ({ value: s, label: SOURCE[s].label, hint: SOURCE[s].explain }))]}
           bind:value={() => source ?? "all", (v) => (source = v === "all" ? null : (v as Source))}
         />
-        <p class="note">Woher die Bewertung kommt: Gleichgewicht für All-in oder Fold, Modell für die übrigen Entscheidungen vor dem Flop, Solver nach dem Flop.</p>
+        <p class="note">Woher die Bewertung kommt. Zeig auf eine Quelle, um zu lesen, wie sie rechnet.</p>
       </div>
       <div class="group">
         <span class="title">Hand</span>
@@ -592,8 +609,8 @@
 
             </span>
             {#if w && v && !locked}
-              <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""}` : (w.reason ?? "")}>
-                {#if w.rating}<GradeIcon grade={gradeOf(w.rating)} size={14} />{:else}<i class:wait={w.status === "pending"}></i>{/if}
+              <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""} · ${sourceHint(w)}` : (w.reason ?? "")}>
+                {#if w.rating}<GradeIcon grade={GRADE_OF[w.rating]} size={14} />{:else}<i class:wait={w.status === "pending"}></i>{/if}
                 {#if v.lead}<b>{v.lead}</b>{/if}<span>{v.rest}</span>
               </span>
             {:else if !locked}
@@ -601,12 +618,12 @@
             {/if}
           </span>
           {#if rail && w?.rating && !locked}
-            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
+            <span class="rail-verdict"><GradeIcon grade={GRADE_OF[w.rating]} size={12} />{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
           {/if}
           <span class="end">
 
             {#if view === "mistakes" && costly(w) && !locked}
-              <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{fmtBb(w!.ev_loss_bb!, { digits: 2 })}</span>
+              <span class="loss num" style:color="var(--grade-{GRADE_OF[w!.rating!]})" title="Was diese Entscheidung im Schnitt kostet">−{fmtBb(w!.ev_loss_bb!, { digits: 2 })}</span>
             {:else}
               <span class="net num {sign(net)}" title="Was du in dieser Hand gewonnen oder verloren hast"
                 >{net === null ? "–" : signed(net, Math.abs(net) >= 10 ? 0 : 1)}<span class="bb-unit">BB</span></span

@@ -18,6 +18,7 @@
     context,
     source,
     sourceHint,
+    lead,
     children,
     actions,
   }: {
@@ -35,6 +36,8 @@
     source?: Source;
     /** What exactly the source computed here, shown on hover instead of the general line. */
     sourceHint?: string;
+    /** Replaces the grade's standard line when the strategy is not a solution's. */
+    lead?: string;
     /** The reason in one or two sentences. */
     children?: Snippet;
     actions?: Snippet;
@@ -68,7 +71,7 @@
       </p>
     {:else}
       <p class="lead">
-        <b>{played}</b> – {g.lead}
+        <b>{played}</b> – {lead ?? g.lead}
         {#if better && !g.bad && grade !== "best"}
           Am meisten bringt <b>{better}</b>.
         {/if}

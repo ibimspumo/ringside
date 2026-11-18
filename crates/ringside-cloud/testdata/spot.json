@@ -1,0 +1,207 @@
+{
+  "flops": [
+    [
+      "Kh7c2h",
+      "Ks7h2s"
+    ],
+    [
+      "2cKc7s",
+      "Ks7h2s"
+    ],
+    [
+      "AhAd5c",
+      "AsAh5d"
+    ],
+    [
+      "9d8d3c",
+      "9s8s3h"
+    ],
+    [
+      "JcJdJh",
+      "JsJhJd"
+    ],
+    [
+      "Th9h8h",
+      "Ts9s8s"
+    ],
+    [
+      "4s3d2c",
+      "4s3h2d"
+    ]
+  ],
+  "keys": [
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"big_blind\",\"board\":\"Ks7h2s\",\"family\":\"plain\",\"line\":[[5,\"raise\",2200],[8,\"call\",2200]],\"model\":2,\"players\":9,\"pot_cbb\":590,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":40,\"stack_cbb\":3680}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "big_blind",
+        "board": "Ks7h2s",
+        "family": "plain",
+        "line": [
+          [
+            5,
+            "raise",
+            2200
+          ],
+          [
+            8,
+            "call",
+            2200
+          ]
+        ],
+        "model": 2,
+        "players": 9,
+        "pot_cbb": 590,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 40,
+        "stack_cbb": 3680
+      },
+      "key": "18dcdd8a690a579f8bb3b1084529ef03e52275de2c171e002cae5aeab79b11a9"
+    },
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"big_blind\",\"board\":\"Ks7h2s\",\"family\":\"limps\",\"line\":[[5,\"raise\",2200],[8,\"call\",2200]],\"model\":2,\"players\":9,\"pot_cbb\":590,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":40,\"stack_cbb\":3680}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "big_blind",
+        "board": "Ks7h2s",
+        "family": "limps",
+        "line": [
+          [
+            5,
+            "raise",
+            2200
+          ],
+          [
+            8,
+            "call",
+            2200
+          ]
+        ],
+        "model": 2,
+        "players": 9,
+        "pot_cbb": 590,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 40,
+        "stack_cbb": 3680
+      },
+      "key": "781f962aad88b2698942cc9d9690ac63d1986f932442940e5ee06cbbd4034106"
+    },
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"classic\",\"board\":\"9s8s3h\",\"family\":\"plain\",\"line\":[[3,\"raise\",2200],[5,\"call\",2200]],\"model\":2,\"players\":6,\"pot_cbb\":565,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":25,\"stack_cbb\":2268}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "classic",
+        "board": "9s8s3h",
+        "family": "plain",
+        "line": [
+          [
+            3,
+            "raise",
+            2200
+          ],
+          [
+            5,
+            "call",
+            2200
+          ]
+        ],
+        "model": 2,
+        "players": 6,
+        "pot_cbb": 565,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 25,
+        "stack_cbb": 2268
+      },
+      "key": "5fb1f2348ab44f4b5173ce65884a533d40fbe18cef7b3c8232cac4cd0df084b2"
+    },
+    {
+      "canonical": "{\"allin_pct\":150,\"ante\":\"none\",\"board\":\"AsAh5d\",\"family\":\"limps\",\"line\":[[1,\"raise\",2500],[3,\"call\",2500]],\"model\":2,\"players\":4,\"pot_cbb\":550,\"sizes\":[[33],[60],[75],[],[75],[]],\"stack_bb\":100,\"stack_cbb\":9750}",
+      "input": {
+        "allin_pct": 150,
+        "ante": "none",
+        "board": "AsAh5d",
+        "family": "limps",
+        "line": [
+          [
+            1,
+            "raise",
+            2500
+          ],
+          [
+            3,
+            "call",
+            2500
+          ]
+        ],
+        "model": 2,
+        "players": 4,
+        "pot_cbb": 550,
+        "sizes": [
+          [
+            33
+          ],
+          [
+            60
+          ],
+          [
+            75
+          ],
+          [],
+          [
+            75
+          ],
+          []
+        ],
+        "stack_bb": 100,
+        "stack_cbb": 9750
+      },
+      "key": "3ddad6d6790a26debcd833e32377905055ad6e0d4ddb6c169207b22cadf8611b"
+    }
+  ],
+  "model_tables_sha256": "53da52431d2e4a5a9d54298d252975a717d2dff13e0718e66afedb2262e229fd"
+}

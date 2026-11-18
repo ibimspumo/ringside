@@ -6,8 +6,7 @@
   import GradeIcon from "../ui/GradeIcon.svelte";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import DecisionCard from "./DecisionCard.svelte";
-  import { gradeOf } from "./grade";
-  import { RATING } from "./labels";
+  import { GRADE_OF, RATING, SOURCE } from "./labels";
   import { analysis } from "./store.svelte";
   import type { Decision } from "./types";
 
@@ -17,6 +16,7 @@
     selected,
     busy,
     locked,
+    analyzed = false,
     onAnalyze,
     onSelect,
     onLearn,
@@ -27,6 +27,8 @@
     selected: number | null;
     busy: boolean;
     locked: boolean;
+    /** Analysed just now and nothing came out: no decision of the hero to rate. */
+    analyzed?: boolean;
     onAnalyze: () => void;
     onSelect: (action: number) => void;
     onLearn?: (target: LearnTarget) => void;
@@ -47,6 +49,10 @@
   <p class="paused">Die Analyse pausiert, bis du PokerStars schließt. Nachspielen geht weiter.</p>
 {:else if decisions === null}
   <EmptyState compact tone="loading" title="Lädt die Bewertung …" />
+{:else if decisions.length === 0 && analyzed}
+  <div class="cta">
+    <p>In dieser Hand gibt es nichts zu bewerten: Du hast nicht selbst gehandelt, oder es ist kein No-Limit Hold'em.</p>
+  </div>
 {:else if decisions.length === 0}
   <div class="cta">
     <strong>Wie gut hast du diese Hand gespielt?</strong>
@@ -85,16 +91,22 @@
     {/if}
     <div class="steps" role="tablist" aria-label="Deine Entscheidungen in dieser Hand">
       {#each decisions as d (d.action_index)}
-        {@const label = d.rating ? RATING[d.rating].label : d.status === "pending" ? "Wird gerechnet" : "Nicht bewertet"}
+        {@const label = d.rating
+          ? `${RATING[d.rating].label} · ${SOURCE[d.source ?? "model"].label}`
+          : d.status === "pending"
+            ? "Wird gerechnet"
+            : d.status === "forced"
+              ? "Keine Entscheidung"
+              : "Nicht bewertet"}
         <button
           role="tab"
           aria-selected={d.action_index === selected}
           class:on={d.action_index === selected}
-          style:--c={d.rating ? `var(--grade-${gradeOf(d.rating)})` : "var(--text-3)"}
+          style:--c={d.rating ? `var(--grade-${GRADE_OF[d.rating]})` : "var(--text-3)"}
           onclick={() => onSelect(d.action_index)}
           title="{STREET[d.street]}: {d.played} · {label}"
         >
-          {#if d.rating}<GradeIcon grade={gradeOf(d.rating)} size={15} />{:else}<i class:wait={d.status === "pending"}></i>{/if}
+          {#if d.rating}<GradeIcon grade={GRADE_OF[d.rating]} size={15} />{:else}<i class:wait={d.status === "pending"}></i>{/if}
           <span class="street">{STREET[d.street]}</span>
           <b>{d.played.split(" ")[0]}</b>
         </button>

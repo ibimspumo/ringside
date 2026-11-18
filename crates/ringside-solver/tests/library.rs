@@ -83,3 +83,46 @@ fn unconverged_flop_strategies_fail_the_check() {
     println!("tiny bad: {:.3} % after {} iterations", r.exploitability_pct, r.iterations);
     assert!(r.exploitability_pct > 3.0, "{}", r.exploitability_pct);
 }
+
+#[test]
+fn a_renamed_spot_is_the_same_spot_with_other_suits() {
+    use ringside_solver::library::format::{View, suit_map};
+    let (mut c, id) = tiny();
+    let flop = c.flops[id.flop].clone();
+    // Ks9h4d with spades and diamonds swapped.
+    let other = "Kd9h4s".to_string();
+    c.flops.push(other.clone());
+    let threads = std::thread::available_parallelism().map_or(4, |n| n.get()).min(8);
+    let stored = solve_spot(&c, id, threads, MEMORY, |_| {}, || false).unwrap();
+    let scenario = &c.scenarios[0];
+    let renamed = stored.renamed(scenario, &other).unwrap();
+    assert_eq!(renamed.flop, other);
+    assert_eq!(Stored::from_bytes(&renamed.to_bytes(), &c).unwrap(), renamed, "the renamed spot reads back");
+    assert_eq!(renamed.renamed(scenario, &flop).unwrap(), stored, "renaming back gives the original");
+
+    let parse = |s: &str| -> Vec<ringside_engine::Card> { (0..s.len() / 2).map(|i| s[2 * i..2 * i + 2].parse().unwrap()).collect() };
+    let perm = suit_map(&parse(&flop), &parse(&other)).unwrap();
+    let swap = |text: &str| -> String {
+        parse(text).iter().map(|c| ringside_engine::Card::new(c.rank(), perm[c.suit() as usize]).to_string()).collect()
+    };
+    let a = View::new(&stored, &c).unwrap();
+    let b = View::new(&renamed, &c).unwrap();
+    let path = [Step::Action(0)];
+    let (na, nb) = (a.node(&path).unwrap(), b.node(&path).unwrap());
+    assert_eq!(na.hands.len(), nb.hands.len());
+    for h in &na.hands {
+        let mapped = swap(&h.combo);
+        let twin = nb.hands.iter().find(|x| parse(&x.combo).iter().all(|c| parse(&mapped).contains(c))).unwrap();
+        assert_eq!(twin.strategy, h.strategy, "{} vs {}", h.combo, twin.combo);
+        assert_eq!(twin.ev, h.ev);
+    }
+    let checks = a.node(&[Step::Action(0), Step::Action(0)]).unwrap();
+    let card = checks.cards[5].clone();
+    let ta = a.node(&[Step::Action(0), Step::Action(0), Step::Card(card.clone())]).unwrap();
+    let tb = b.node(&[Step::Action(0), Step::Action(0), Step::Card(swap(&card))]).unwrap();
+    assert_eq!(ta.classes.len(), tb.classes.len());
+    for (x, y) in ta.classes.iter().zip(&tb.classes) {
+        assert_eq!((x.class, &x.strategy), (y.class, &y.strategy));
+    }
+    assert!(stored.renamed(scenario, "AsKh2d").is_err(), "another flop is no renaming");
+}

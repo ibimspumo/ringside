@@ -5,6 +5,7 @@
 pub mod postflop;
 mod pushfold_hu;
 pub mod pushfold_mw;
+pub mod spot;
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -15,6 +16,7 @@ use crate::canonical::{CanonicalError, canonicalize, solution_key};
 pub use postflop::{Postflop, PostflopInput, PostflopSolution};
 pub use pushfold_hu::{PushFoldHu, PushFoldHuInput, PushFoldHuSolution};
 pub use pushfold_mw::{PushFoldMw, PushFoldMwInput, PushFoldMwSolution};
+pub use spot::{ModelLine, SpotInput, SpotKind, SpotSolution};
 
 pub trait Kind: Sized {
     /// Name in URLs and the database, e.g. `pushfold-hu`.
@@ -77,7 +79,8 @@ pub struct KindEntry {
     pub check: fn(&str, &str, &str) -> Verdict,
 }
 
-pub const KINDS: &[KindEntry] = &[entry::<PushFoldHu>(), entry::<PushFoldMw>(), entry::<Postflop>()];
+pub const KINDS: &[KindEntry] =
+    &[entry::<PushFoldHu>(), entry::<PushFoldMw>(), entry::<Postflop>(), entry::<SpotKind>()];
 
 pub fn find(name: &str, engine_version: u32) -> Option<&'static KindEntry> {
     KINDS
@@ -137,7 +140,7 @@ pub fn verdict<K: Kind>(input: &K::Input, solution: &K::Solution) -> Verdict {
 }
 
 /// The JSON body a client submits for `K`.
-pub(crate) fn submission<K: Kind>(input: &K::Input, solution: &K::Solution) -> Value {
+pub fn submission<K: Kind>(input: &K::Input, solution: &K::Solution) -> Value {
     serde_json::json!({
         "kind": K::NAME,
         "engine_version": K::ENGINE_VERSION,

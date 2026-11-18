@@ -10,6 +10,7 @@ pub mod client;
 pub mod kinds;
 pub mod operator;
 pub mod packs;
+pub mod privacy;
 
-pub use client::{Client, Error, KeyStatus, Report, SubmitStatus};
-pub use kinds::{Kind, Postflop, PushFoldHu, PushFoldMw};
+pub use client::{Client, Error, KeyStatus, Report, SubmitStatus, Work};
+pub use kinds::{Kind, Postflop, PushFoldHu, PushFoldMw, SpotKind};

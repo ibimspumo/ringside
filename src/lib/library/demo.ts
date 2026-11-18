@@ -90,6 +90,8 @@ export function overview(): LibraryOverview {
       solved: 23,
       fetched: 104,
       shared: 21,
+      community: null,
+      community_done: 0,
       last_error: null,
     },
   };

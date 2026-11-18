@@ -16,6 +16,8 @@ use ringside_solver::{
 use serde::{Deserialize, Serialize};
 
 use crate::fmt::{bb, num};
+use ringside_engine::preflop_table::ModelLine;
+
 use crate::preflop::Flop;
 use crate::seats::hero_combo;
 use crate::{Source, base, hero_actions, is_raise, score};
@@ -55,6 +57,9 @@ pub struct PostflopJob {
     pub note: String,
     /// Final pot in BB: big pots are solved first.
     pub pot_bb: f64,
+    /// Where the ranges come from; jobs stored before it was recorded have none.
+    #[serde(default)]
+    pub model: Option<ModelLine>,
 }
 
 /// Spot type of a hero action after the flop.
@@ -252,6 +257,7 @@ pub(crate) fn prepare(hand: &Hand, hero: &str, flop: Result<&Flop, &str>) -> (Ve
         players: hand.active_players().count(),
         note,
         pot_bb: hand.total_pot as f64 / big,
+        model: Some(flop.model.clone()),
     };
     let decisions = indices.iter().map(|&i| pending(hand, i, spot_type(hand, i, hero))).collect();
     (decisions, Some(job))
@@ -275,6 +281,17 @@ fn combo_of(text: &str) -> Option<Combo> {
     let a: Card = t[..2].parse().ok()?;
     let b: Card = t[2..].parse().ok()?;
     Some(Combo::new(a, b))
+}
+
+fn tree_key(kind: TreeAction) -> &'static str {
+    match kind {
+        TreeAction::Fold => "fold",
+        TreeAction::Check => "check",
+        TreeAction::Call => "call",
+        TreeAction::Bet => "bet",
+        TreeAction::Raise => "raise",
+        TreeAction::AllIn => "all_in",
+    }
 }
 
 fn label(kind: TreeAction, amount: f64) -> String {
@@ -434,6 +451,7 @@ pub fn rate(
                                                 freq: h.strategy[k],
                                                 ev_bb: h.evs.get(k).copied(),
                                                 played: k == i,
+                                                kind: tree_key(x.kind).into(),
                                             })
                                             .collect();
                                         let mut note = job.note.clone();
@@ -442,13 +460,10 @@ pub fn rate(
                                         }
                                         note.push_str(&accuracy);
                                         let equity = h.equity;
-                                        let mut d = score(d, Source::Solver, strategy, note, |d| {
-                                            let best = d.strategy.iter().max_by(|x, y| x.freq.total_cmp(&y.freq));
+                                        let mut d = score(d, Source::Solver, strategy, node.pot, note, |_| {
                                             format!(
-                                                "Deine Hand hat hier gegen die Range des Gegners etwa {} % Equity; der Solver spielt sie zu {} % {}.",
-                                                (equity * 100.0).round(),
-                                                best.map_or(0.0, |b| (b.freq * 100.0).round()),
-                                                best.map_or("?", |b| b.label.as_str())
+                                                "Deine Hand hat hier gegen die Range des Gegners etwa {} % Equity.",
+                                                (equity * 100.0).round()
                                             )
                                         });
                                         d.solver = Some(solver_link(job, &path, saved));

@@ -1,11 +1,12 @@
 {
   "rules": {
     "color-literal": {
-      "total": 190,
+      "total": 203,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
         "app/PlayerDetail.svelte": 2,
+        "app/Replayer.svelte": 13,
         "app/Reports.svelte": 1,
         "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 1,
@@ -56,12 +57,15 @@
       }
     },
     "font-size": {
-      "total": 264,
+      "total": 283,
       "files": {
+        "analysis/HandPanel.svelte": 2,
         "app/ClientLock.svelte": 1,
+        "app/Hands.svelte": 7,
         "app/LiveTables.svelte": 3,
         "app/PlayerDetail.svelte": 9,
         "app/Players.svelte": 2,
+        "app/Replayer.svelte": 10,
         "app/Reports.svelte": 3,
         "app/SettingsView.svelte": 5,
         "app/TournamentPicker.svelte": 1,
@@ -124,11 +128,11 @@
       }
     },
     "button-style": {
-      "total": 154,
+      "total": 160,
       "files": {
-        "analysis/HandPanel.svelte": 2,
+        "analysis/HandPanel.svelte": 4,
         "analysis/Summary.svelte": 2,
-        "app/Hands.svelte": 1,
+        "app/Hands.svelte": 5,
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 4,
         "app/PlayerDetail.svelte": 1,
@@ -173,8 +177,9 @@
       }
     },
     "global-class-override": {
-      "total": 112,
+      "total": 114,
       "files": {
+        "analysis/DecisionCard.svelte": 2,
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
         "app/Main.svelte": 3,
@@ -225,8 +230,10 @@
       "files": {}
     },
     "motion": {
-      "total": 55,
+      "total": 58,
       "files": {
+        "analysis/HandPanel.svelte": 1,
+        "app/Replayer.svelte": 2,
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
         "jobs/ChipRing.svelte": 2,

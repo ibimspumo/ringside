@@ -33,6 +33,9 @@ export interface WorkerStatus {
   solved: number;
   fetched: number;
   shared: number;
+  /** The community queue's spot solved now for other users, in words; how many went up this session. */
+  community: string | null;
+  community_done: number;
   last_error: string | null;
 }
 

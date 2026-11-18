@@ -39,8 +39,11 @@
           Eigene Lösungen teilen
           <small>
             Selbst gerechnete Lösungen gehen im Hintergrund an die Cloud: die Rechen-Eingabe (Stacks, Blinds, Antes,
-            Auszahlungen; bei Bibliothek-Spots Board, Ranges und Größen) und das Ergebnis. Ein Prüfer misst jede, bevor andere
-            sie bekommen.
+            Auszahlungen; bei Bibliothek-Spots Board, Ranges und Größen) und das Ergebnis. Flop-Spots aus der Handanalyse und aus
+            „Hände spielen“ werden nur geteilt, wenn ihre Ranges aus dem Preflop-Modell stammen: dann gehen Flop, Pot, Stack,
+            Größen und die Modell-Linie, aus der die Ranges folgen, hoch – nie deine Karten, die Hand oder wann du sie gespielt
+            hast. Ein Prüfer misst jede Lösung, bevor andere sie bekommen. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots,
+            die andere noch brauchen.
           </small>
         </span>
       </label>
