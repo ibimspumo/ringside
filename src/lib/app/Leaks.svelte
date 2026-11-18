@@ -12,6 +12,9 @@
   import { STAT_META } from "../stats";
   import type { Filter, LeakCheck, LeakReport, SpotFilter } from "../types";
   import { int, sign, signed } from "./format";
+  import Term from "./Term.svelte";
+  import { slide } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
 
   let {
     filter,
@@ -106,6 +109,24 @@
     },
   };
 
+  /** Under 10 BB a steal is an all-in, and defending means calling one. */
+  const SHORT: Partial<Record<StatId, { what: string; high: string; low: string; tryHigh: string; tryLow: string }>> = {
+    steal: {
+      what: "Wie oft du mit unter 10 BB all-in gehst, wenn alle vor dir gefoldet haben. So kurz gibt es meist nur All-in oder Fold.",
+      high: "Du gehst mit zu vielen Händen all-in. Die Blinds callen dann mit besseren Händen.",
+      low: "Du foldest zu oft. Mit so wenig Chips verlierst du durch die Blinds und Antes mehr, als ein All-in riskiert.",
+      tryHigh: "Die schwächsten All-ins weglassen; die Push/Fold-Tabellen zeigen die Grenze je Position.",
+      tryLow: "Öfter all-in gehen, vor allem aus Small Blind und Button – die Push/Fold-Tabellen zeigen, mit welchen Händen.",
+    },
+    fold_to_steal: {
+      what: "Wie oft du im Small oder Big Blind foldest, wenn jemand mit unter 10 BB all-in geht.",
+      high: "Du foldest zu oft gegen kurze All-ins. Gegner gewinnen die Blinds dann fast umsonst.",
+      low: "Du callst All-ins zu breit, auch mit Händen, die meist hinten liegen.",
+      tryHigh: "Gegen kurze All-ins mit mehr Händen callen; die Pot Odds sind oft gut.",
+      tryLow: "Nur mit Händen callen, die gegen eine All-in-Range vorne liegen.",
+    },
+  };
+
   const ARTICLE: Partial<Record<StatId, string>> = {
     vpip: "vpip",
     pfr: "pfr",
@@ -121,19 +142,28 @@
   };
 
   /** Exercises that train the decision behind a leak, where Ringside has one. */
-  function exercise(l: LeakCheck): { kind: LearnKind; level: number } | null {
+  function exercise(l: LeakCheck): { kind: LearnKind; level: number; why: string } | null {
     const short = l.game === "tournament" && l.band <= 1;
-    if (short && (l.stat === "steal" || l.stat === "pfr" || l.stat === "vpip")) return { kind: "push_fold_open", level: 1 };
-    if (short && l.stat === "fold_to_steal") return { kind: "push_fold_call", level: 1 };
-    if (l.stat === "fold_to_cbet" || l.stat === "wtsd") return { kind: "pot_odds", level: 3 };
+    const deep = l.band === 1 ? "Mit 10–20 BB" : "So kurz";
+    if (short && (l.stat === "steal" || l.stat === "pfr" || l.stat === "vpip"))
+      return { kind: "push_fold_open", level: 1, why: `${deep} heißt Eröffnen oft All-in – die Übung trainiert genau diese Wahl.` };
+    if (short && l.stat === "fold_to_steal")
+      return { kind: "push_fold_call", level: 1, why: `${deep} kommt der Steal oft als All-in – die Übung trainiert, wann du callen solltest.` };
+    if (l.stat === "fold_to_cbet" || l.stat === "wtsd")
+      return { kind: "pot_odds", level: 3, why: "Ob ein Call sich lohnt, entscheiden die Pot Odds – die Übung trainiert das Rechnen." };
     return null;
   }
 
   let data = $state<LeakReport | null>(null);
   let failed = $state(false);
+  let retry = $state(0);
+  let howOpen = $state(false);
+  /** Null until the user toggles it: short lists start open. */
+  let fineOpen = $state<boolean | null>(null);
 
   $effect(() => {
     void refresh;
+    void retry;
     const f = { ...filter };
     let live = true;
     api
@@ -150,21 +180,31 @@
   const sure = $derived(data ? data.leaks.filter((l) => !l.uncertain) : []);
   const unsure = $derived(data ? data.leaks.filter((l) => l.uncertain) : []);
   const sources = $derived(new Map((data?.sources ?? []).map((s) => [s.id, s])));
+  const first = $derived(sure[0] ?? null);
 
   const ratio = (l: LeakCheck) => !!STAT_META[l.stat].ratio;
   const num = (x: number, d = 1) => x.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
-  const val = (l: LeakCheck, x: number) => (ratio(l) ? num(x, 2) : `${num(x)} %`);
-  const range = (l: LeakCheck) => (ratio(l) ? `${num(l.low)}–${num(l.high)}` : `${num(l.low, 0)}–${num(l.high, 0)} %`);
+  const val = (l: LeakCheck, x: number) => (ratio(l) ? num(x, 2) : `${num(x)}\u00a0%`);
+  const range = (l: LeakCheck) => (ratio(l) ? `${num(l.low)}–${num(l.high)}` : `${num(l.low, 0)}–${num(l.high, 0)}\u00a0%`);
   const gap = (l: LeakCheck) => (ratio(l) ? num(l.deviation, 2) : `${num(l.deviation)} Punkte`);
   const where = (l: LeakCheck) => (l.positions.length ? l.positions.join(", ") : "alle Positionen");
   const game = (l: LeakCheck) => (l.game === "tournament" ? "Turnier" : "Cash");
-  const pct = (x: number) => (x >= 0.995 ? "über 99 %" : `${Math.round(x * 100)} %`);
+  const pct = (x: number) => (x >= 0.995 ? "über 99\u00a0%" : `${Math.round(x * 100)}\u00a0%`);
+  const key = (l: LeakCheck) => `${l.stat}|${l.game}|${l.positions.join()}|${l.band}`;
+
+  const BAND_HELP = "Dein effektiver Stack in der Hand, in Big Blinds: der kleinere der Stacks von dir und deinem Gegner. Turnier und Cash werden getrennt geprüft.";
+  const SURE_HELP =
+    "Wie sicher dein wahrer Wert außerhalb des Richtwerts liegt (aus dem Wilson-Intervall). Ab 90 % lohnt es sich, daran zu arbeiten.";
+  const COST_HELP =
+    "Grob: dein Ergebnis in diesem Spot gegenüber deinem Schnitt auf denselben Positionen über alle Stacktiefen. Das zeigt, was der Spot gekostet hat, nicht sicher, dass dieser eine Wert die Ursache ist.";
 
   /** Position on the bar from 0 to 1: percentages on 0–100, AF on 0–6 or wider. */
   function scale(l: LeakCheck) {
     const max = ratio(l) ? Math.max(6, Math.ceil(Math.min(l.ci_high, 20))) : 100;
-    return (x: number) => Math.min(1, Math.max(0, x / max));
+    return { max, x: (x: number) => Math.min(1, Math.max(0, x / max)) };
   }
+  /** Keeps a label above or below the bar inside the bar at both ends. */
+  const edge = (x: number) => (x < 0.12 ? "start" : x > 0.88 ? "end" : "mid");
 
   function hands(l: LeakCheck) {
     const made = l.direction === null ? null : l.direction === "too_high";
@@ -183,181 +223,256 @@
   }
 </script>
 
-{#snippet bar(l: LeakCheck)}
-  {@const x = scale(l)}
-  <div class="bar" aria-hidden="true">
-    <span class="ref" style="left:{x(l.low) * 100}%; width:{(x(l.high) - x(l.low)) * 100}%"></span>
-    <span class="ci" style="left:{x(l.ci_low) * 100}%; width:{Math.max(0.4, (x(l.ci_high) - x(l.ci_low)) * 100)}%"></span>
-    <span class="dot" class:off={l.direction !== null} style="left:{x(l.value) * 100}%"></span>
+{#snippet bar(l: LeakCheck, small = false)}
+  {@const sc = scale(l)}
+  {@const x = sc.x}
+  {@const mid = (x(l.low) + x(l.high)) / 2}
+  <div class="meter" class:small>
+    {#if !small}<span class="end num">0{ratio(l) ? "" : " %"}</span>{/if}
+    <div class="track-wrap">
+      {#if !small}
+        <span class="lab top {edge(mid)}" style="left:{mid * 100}%">Richtwert <b class="num">{range(l)}</b></span>
+      {/if}
+      <div class="track" aria-hidden="true">
+        <span class="ref" style="left:{x(l.low) * 100}%; width:{(x(l.high) - x(l.low)) * 100}%"></span>
+        <span class="ci" style="left:{x(l.ci_low) * 100}%; width:{Math.max(0.4, (x(l.ci_high) - x(l.ci_low)) * 100)}%"></span>
+        <span class="dot" class:off={l.direction !== null} style="left:{x(l.value) * 100}%"></span>
+      </div>
+      {#if !small}
+        <span class="lab bottom {edge(x(l.value))}" class:off={l.direction !== null} style="left:{x(l.value) * 100}%"
+          >Du <b class="num">{val(l, l.value)}</b></span
+        >
+      {/if}
+    </div>
+    {#if !small}<span class="end num">{ratio(l) ? sc.max : "100 %"}</span>{/if}
   </div>
 {/snippet}
 
-{#snippet leak(l: LeakCheck)}
+{#snippet leak(l: LeakCheck, rank: number | null)}
   {@const article = ARTICLE[l.stat]}
   {@const title = article ? ARTICLES.find((a) => a.id === article)?.title : undefined}
   {@const ex = exercise(l)}
-  {@const explain = EXPLAIN[l.stat]}
+  {@const explain = (l.game === "tournament" && l.band === 0 ? SHORT[l.stat] : undefined) ?? EXPLAIN[l.stat]}
+  {@const high = l.direction === "too_high"}
   <article class="leak panel" class:unsure={l.uncertain}>
     <header>
-      <h3>
-        {STAT_META[l.stat].name}
-        <span class:hi={l.direction === "too_high"} class="dir">{l.direction === "too_high" ? "zu hoch" : "zu niedrig"}</span>
-      </h3>
+      <div class="name">
+        {#if rank !== null}<span class="rank num">{rank}</span>{/if}
+        <h3>{STAT_META[l.stat].name}</h3>
+        <span class="dir" class:hi={high}>{high ? "zu hoch" : "zu niedrig"}</span>
+      </div>
       <div class="tags">
         <span>{where(l)}</span>
-        <span>{data?.bands[l.band]}</span>
+        <span><Term tip={BAND_HELP}>{data?.bands[l.band]}</Term></span>
         <span>{game(l)}</span>
         {#if l.uncertain}
-          <span class="warn" title="Unter 30 Gelegenheiten oder weniger als 90 % sicher. Spiel mehr Hände, bevor du daran arbeitest.">noch unsicher</span>
+          <span class="warn"><Term tip="Unter 30 Gelegenheiten oder weniger als 90 % sicher. Spiel mehr Hände, bevor du daran arbeitest.">noch unsicher</Term></span>
         {/if}
       </div>
     </header>
 
-    <div class="figures">
-      <div class="fig">
-        <span class="label">Du</span>
-        <b class="num">{val(l, l.value)}</b>
-        <small class="num"
-          >{ratio(l) ? `${int(l.made)} Bets/Raises zu ${int(l.opp)} Calls` : `${int(l.made)} von ${int(l.opp)}`}</small
-        >
-      </div>
-      <div class="fig">
-        <span class="label">Richtwert</span>
-        <b class="num">{range(l)}</b>
-        <small>{gap(l)} {l.direction === "too_high" ? "darüber" : "darunter"}</small>
-      </div>
-      <div class="fig" title="Wahrscheinlichkeit, dass dein wahrer Wert auf dieser Seite außerhalb des Richtbereichs liegt (aus dem Wilson-Intervall). Dazu das 95-%-Intervall deines Werts.">
-        <span class="label">Sicherheit</span>
-        <b class="num">{pct(l.confidence)}</b>
-        <small class="num">95 %: {val(l, l.ci_low)} – {val(l, l.ci_high)}</small>
-      </div>
-      {#if l.cost}
-        <div
-          class="fig"
-          title="Grob: dein Ergebnis in diesen {int(l.cost.hands)} Händen gegenüber deinem Schnitt auf {where(l)} über alle Stacktiefen. Das zeigt, was der Spot gekostet hat, nicht sicher, dass dieser eine Wert die Ursache ist. Gilt für den ganzen Spot, nicht nur für diesen Wert."
-        >
-          <span class="label">Kosten grob</span>
-          <b class="num neg">≈ {int(Math.round(l.cost.total_bb))} BB</b>
-          <small class="num"
-            ><span class={sign(l.cost.spot_bb100)}>{signed(l.cost.spot_bb100)}</span> statt
-            <span class={sign(l.cost.base_bb100)}>{signed(l.cost.base_bb100)}</span> BB/100</small
-          >
+    <div class="body">
+      <div class="measure">
+        {@render bar(l)}
+        <div class="figures">
+          <div class="fig">
+            <span class="label">Abstand zum Richtwert</span>
+            <b class="num">{gap(l)}</b>
+            <small class="num"
+              >{high ? "darüber" : "darunter"} · {ratio(l)
+                ? `${int(l.made)} Bets/Raises zu ${int(l.opp)} Calls`
+                : `${int(l.made)} von ${int(l.opp)} Gelegenheiten`}</small
+            >
+          </div>
+          <div class="fig">
+            <span class="label"><Term tip={SURE_HELP}>Sicherheit</Term></span>
+            <b class="num">{pct(l.confidence)}</b>
+            <small class="num"
+              ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
+                >wahrscheinlich zwischen {val(l, l.ci_low)} und {val(l, l.ci_high)}</Term
+              ></small
+            >
+          </div>
+          {#if !l.cost}
+            <div class="fig">
+              <span class="label">Kosten grob</span>
+              <b class="num faint">–</b>
+              <small>für diesen Spot nicht schätzbar</small>
+            </div>
+          {:else}
+            <div class="fig">
+              <span class="label"><Term tip="{COST_HELP} Gilt für den ganzen Spot ({int(l.cost.hands)} Hände), nicht nur für diesen Wert.">Kosten grob</Term></span>
+              <b class="num neg">≈ {int(Math.round(l.cost.total_bb))} BB</b>
+              <small class="num"
+                ><span class={sign(l.cost.spot_bb100)}>{signed(l.cost.spot_bb100)}</span> statt
+                <span class={sign(l.cost.base_bb100)}>{signed(l.cost.base_bb100)}</span> BB/100</small
+              >
+            </div>
+          {/if}
         </div>
-      {/if}
+        <footer class="cites">
+          {#each l.cites as c (c.source)}
+            {@const s = sources.get(c.source)}
+            <span>Quelle: {#if s?.scope}<Term tip={s.scope}>{s.publisher}</Term>{:else}{s?.publisher ?? c.source}{/if} – „{c.says}“</span>
+          {/each}
+          {#if l.note}<span>{l.note}</span>{/if}
+        </footer>
+      </div>
+
+      <div class="advice">
+        {#if explain}
+          <p class="what"><b>Was ist das?</b> {explain.what}</p>
+          <p class="mean"><b>{high ? "Zu hoch heißt meist:" : "Zu niedrig heißt meist:"}</b> {high ? explain.high : explain.low}</p>
+          {#if l.uncertain}
+            <p class="todo wait"><b>Jetzt:</b> Mehr Gelegenheiten sammeln und noch nichts umstellen.</p>
+            <p class="later"><b>Falls es so bleibt:</b> {high ? explain.tryHigh : explain.tryLow}</p>
+          {:else}
+            <p class="todo"><b>Was du tun kannst:</b> {high ? explain.tryHigh : explain.tryLow}</p>
+          {/if}
+        {/if}
+        {#if ex}<p class="why">{ex.why}</p>{/if}
+        <div class="links">
+          {#if ex}
+            <button class="btn" class:ghost={l.uncertain} onclick={() => onLearn(ex)}>Übung: {SKILLS[ex.kind].short}</button>
+          {/if}
+          {#if article}
+            <button class="btn" class:ghost={!!ex || l.uncertain} onclick={() => onLearn({ article })}>Wissen: {title ?? STAT_META[l.stat].name}</button>
+          {/if}
+          <button class="btn" class:ghost={!l.uncertain && (!!ex || !!article)} onclick={() => hands(l)}>Hände ansehen</button>
+        </div>
+      </div>
     </div>
-
-    {@render bar(l)}
-
-    {#if explain}
-      <div class="explain">
-        <p><b>Was ist das?</b> {explain.what}</p>
-        <p>
-          <b>{l.direction === "too_high" ? "Zu hoch heißt meist:" : "Zu niedrig heißt meist:"}</b>
-          {l.direction === "too_high" ? explain.high : explain.low}
-        </p>
-        <p><b>Ansatz:</b> {l.direction === "too_high" ? explain.tryHigh : explain.tryLow}</p>
-      </div>
-    {/if}
-
-    <footer>
-      <div class="cites">
-        {#each l.cites as c (c.source)}
-          {@const s = sources.get(c.source)}
-          <span title={s?.scope}>{s?.publisher ?? c.source}: „{c.says}“</span>
-        {/each}
-        {#if l.note}<span class="faint">{l.note}</span>{/if}
-      </div>
-      <div class="links">
-        <button class="btn" onclick={() => hands(l)}>Hände ansehen</button>
-        {#if article}
-          <button class="btn ghost" onclick={() => onLearn({ article })}>Wissen: {title ?? STAT_META[l.stat].name}</button>
-        {/if}
-        {#if ex}
-          <button class="btn ghost" onclick={() => onLearn(ex)}>Übung: {SKILLS[ex.kind].short}</button>
-        {/if}
-      </div>
-    </footer>
   </article>
 {/snippet}
 
 <div class="page leaks">
   {#if failed}
-    <div class="panel empty-state">Die Daten konnten nicht geladen werden. Starte Ringside neu, falls das so bleibt.</div>
+    <div class="panel state">
+      <b>Die Leaks konnten nicht geladen werden.</b>
+      <span>Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu.</span>
+      <button class="btn primary" onclick={() => retry++}>Erneut laden</button>
+    </div>
   {:else if data}
-    <section class="panel intro">
-      <div class="kpi">
-        <span class="label">Leaks</span>
-        <strong class="num" class:neg={sure.length > 0}>{int(sure.length)}</strong>
-        <small>sicher genug zum Arbeiten</small>
-      </div>
-      <div class="kpi">
-        <span class="label">Noch unsicher</span>
-        <strong class="num">{int(unsure.length)}</strong>
-        <small>zu wenig Hände für ein Urteil</small>
-      </div>
-      <div class="kpi">
-        <span class="label">Im Richtbereich</span>
-        <strong class="num pos">{int(data.fine.length)}</strong>
-        <small>{int(data.too_small)} Spots unter 10 Gelegenheiten</small>
-      </div>
-      <div class="about">
-        <p>
-          Ringside vergleicht deine Werte je Position und Stacktiefe mit veröffentlichten Richtwerten. Das sind Orientierungen
-          aus den unten genannten Quellen, keine „richtige“ Strategie. Sortiert nach Sicherheit × Abweichung.
+    <section class="panel verdict" class:bare={!data.leaks.length && !data.fine.length}>
+      <div class="answer">
+        {#if first}
+          <h2>{sure.length === 1 ? "1 Leak gefunden" : `${int(sure.length)} Leaks gefunden`}</h2>
+          <p>
+            Fang oben an: Dein Wert <b>{STAT_META[first.stat].name}</b> ist {first.direction === "too_high" ? "zu hoch" : "zu niedrig"}
+            ({where(first)}, {data.bands[first.band]}{first.cost ? `, kostet grob ${int(Math.round(first.cost.total_bb))} BB` : ""}). Die
+            Karten unten sind nach Sicherheit × Abweichung sortiert.
+          </p>
+        {:else if unsure.length}
+          <h2>Noch kein sicherer Leak</h2>
+          <p>
+            {unsure.length === 1 ? "Ein Wert weicht" : `${int(unsure.length)} Werte weichen`} vom Richtwert ab, aber es gibt noch zu wenig Hände
+            für ein sicheres Urteil. Spiel weiter; Ringside prüft bei jedem Import neu.
+          </p>
+        {:else if data.fine.length}
+          <h2>Kein Leak gefunden</h2>
+          <p>Alle geprüften Werte liegen im Richtbereich. Mehr Hände machen die Prüfung genauer.</p>
+        {:else}
+          <h2>Noch zu wenig Hände</h2>
+          <p>
+            Ringside vergleicht jeden Wert getrennt nach Position und Stacktiefe – erst wenn ein solcher Spot 10 Gelegenheiten hat,
+            zählt er. Deine gespeicherten Hände reichen dafür in dieser Auswahl noch nicht. Spiel ein paar Hände{filter.since !== null ||
+            filter.game !== null
+              ? " oder wähle oben „Alles“ und „Alle“"
+              : "; Ringside prüft bei jedem Import neu"}.
+          </p>
+        {/if}
+        <p class="honest">
+          Richtwerte stammen aus veröffentlichten Quellen (unten) – eine Orientierung, keine „richtige“ Strategie. Die teuersten
+          Einzelentscheidungen aus der Hand-Analyse zeigt die Übersicht.
         </p>
-        <dl class="legend">
+      </div>
+      {#if data.leaks.length || data.fine.length}
+      <ul class="counts">
+        <li class:hot={sure.length > 0}>
+          <b class="num">{int(sure.length)}</b>
+          <span><strong>{sure.length === 1 ? "Leak" : "Leaks"}</strong>sicher genug zum Arbeiten</span>
+        </li>
+        <li>
+          <b class="num">{int(unsure.length)}</b>
+          <span><strong>Noch unsicher</strong>zu wenig Hände für ein Urteil</span>
+        </li>
+        <li class="ok">
+          <b class="num">{int(data.fine.length)}</b>
+          <span><strong>Im Richtbereich</strong>hier passt es</span>
+        </li>
+        <li class="na">
+          <b class="num">{int(data.too_small)}</b>
+          <span><strong>Nicht bewertbar</strong>unter 10 Gelegenheiten</span>
+        </li>
+      </ul>
+      <div class="how">
+        <button class="toggle" aria-expanded={howOpen} onclick={() => (howOpen = !howOpen)}>
+          <svg class:open={howOpen} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+          So liest du die Balken
+        </button>
+        {#if howOpen}
+        <dl class="legend" transition:slide={{ duration: 220, easing: cubicOut }}>
           <div><dt><span class="key ref"></span>Grüner Bereich</dt><dd>der Richtwert aus den Quellen</dd></div>
           <div><dt><span class="key dot"></span>Punkt</dt><dd>dein Wert</dd></div>
-          <div>
-            <dt><span class="key ci"></span>Linie</dt>
-            <dd>wo dein wahrer Wert mit 95 % liegt. Je weniger Hände, desto länger die Linie.</dd>
-          </div>
-          <div>
-            <dt>Sicherheit</dt>
-            <dd>wie sicher dein wahrer Wert außerhalb des Richtwerts liegt. Ab 90 % lohnt es sich, daran zu arbeiten.</dd>
-          </div>
+          <div><dt><span class="key ci"></span>Linie</dt><dd>wo dein wahrer Wert mit 95 % liegt. Je weniger Hände, desto länger die Linie.</dd></div>
+          <div><dt>Sicherheit</dt><dd>wie sicher dein wahrer Wert außerhalb des Richtwerts liegt. Ab 90 % lohnt es sich, daran zu arbeiten.</dd></div>
           <div><dt>20–40 BB …</dt><dd>dein effektiver Stack in der Hand; Turnier und Cash werden getrennt geprüft.</dd></div>
         </dl>
+        {/if}
       </div>
+      {/if}
     </section>
 
-    {#if data.leaks.length === 0}
-      <div class="panel empty-state">
-        {data.fine.length
-          ? "Kein Wert liegt außerhalb seines Richtbereichs."
-          : "Noch zu wenig Hände in dieser Auswahl. Ab 10 Gelegenheiten je Spot vergleicht Ringside deine Werte."}
-      </div>
-    {:else}
+    {#if data.leaks.length}
       <div class="list">
-        {#each data.leaks as l (`${l.stat}|${l.game}|${l.positions.join()}|${l.band}`)}
-          {@render leak(l)}
+        {#each sure as l, i (key(l))}
+          {@render leak(l, i + 1)}
         {/each}
+        {#if unsure.length}
+          <h2 class="group">Noch unsicher <span>– beobachten, noch nicht daran arbeiten</span></h2>
+          {#each unsure as l (key(l))}
+            {@render leak(l, null)}
+          {/each}
+        {/if}
       </div>
     {/if}
 
     {#if data.fine.length}
-      <details class="panel fine">
-        <summary>Im Richtbereich ({int(data.fine.length)})</summary>
-        <table class="table">
-          <thead>
-            <tr><th>Wert</th><th>Wo</th><th>Tiefe</th><th class="r">Du</th><th class="r">Richtwert</th><th class="r">Gelegenheiten</th></tr>
-          </thead>
-          <tbody>
-            {#each data.fine as l (`${l.stat}|${l.game}|${l.positions.join()}|${l.band}`)}
-              <tr>
-                <td>{STAT_META[l.stat].name}</td>
-                <td>{where(l)} · {game(l)}</td>
-                <td>{data.bands[l.band]}</td>
-                <td class="r num">{val(l, l.value)}</td>
-                <td class="r num">{range(l)}</td>
-                <td class="r num">{int(l.opp)}</td>
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </details>
+      {@const shown = fineOpen ?? data.fine.length <= 8}
+      <section class="panel fine">
+        <button class="toggle head" aria-expanded={shown} onclick={() => (fineOpen = !shown)}>
+          <svg class:open={shown} viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+          Im Richtbereich <span class="faint">({int(data.fine.length)}) – hier passt es</span>
+        </button>
+        {#if shown}
+        <ul transition:slide={{ duration: 260, easing: cubicOut }}>
+          {#each data.fine as l (key(l))}
+            <li>
+              <div class="fine-head">
+                <b class="ok-name">
+                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+                  <Term tip="{STAT_META[l.stat].name}: {STAT_META[l.stat].help}">{STAT_META[l.stat].name}</Term>
+                </b>
+                <span class="faint">{where(l)} · {game(l)} · {data.bands[l.band]}</span>
+              </div>
+              {@render bar(l, true)}
+              <div class="fine-nums num">
+                <span>Du <b>{val(l, l.value)}</b></span>
+                <span>Richtwert {range(l)}</span>
+                <span class="faint">{int(l.opp)} Gelegenheiten</span>
+              </div>
+            </li>
+          {/each}
+        </ul>
+        {/if}
+      </section>
     {/if}
 
+    {#if !data.leaks.length && !data.fine.length}
+      <p class="sources-line">
+        Richtwerte aus: {#each data.sources as s, i (s.id)}{#if i}{", "}{/if}<Term tip="{s.title} – {s.scope}">{s.publisher}</Term>{/each}
+      </p>
+    {:else}
     <section class="panel sources">
       <h2 class="panel-title">Quellen der Richtwerte</h2>
       <ul>
@@ -373,62 +488,150 @@
         {/each}
       </ul>
     </section>
+    {/if}
   {/if}
 </div>
 
 <style>
   .leaks {
+    padding-inline: 24px;
     display: flex;
     flex-direction: column;
     gap: 14px;
     padding-top: 20px;
   }
-  .intro {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-  .kpi {
+  .state {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    padding: 14px 18px 15px;
-    border-left: 1px solid var(--line);
-    min-width: 0;
-  }
-  .kpi:first-child {
-    border-left: 0;
-  }
-  .label {
-    font-size: 12.5px;
+    align-items: center;
+    gap: 8px;
+    padding: 48px 24px;
+    text-align: center;
     color: var(--text-2);
   }
-  .kpi strong {
+  .state b {
+    color: var(--text);
+    font-size: 15px;
+  }
+  .state span {
+    max-width: 520px;
+  }
+  .state .btn {
+    margin-top: 8px;
+  }
+
+  /* The answer: how many leaks, where to start. */
+  .verdict {
+    contain: paint;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 16px 28px;
+    padding: 20px 22px;
+  }
+  .verdict.bare {
+    grid-template-columns: 1fr;
+    max-width: 820px;
+  }
+  .answer h2 {
+    margin: 0;
+    font-family: var(--font-num);
     font-size: 26px;
     font-weight: 600;
     line-height: 1.15;
   }
-  .kpi small {
-    font-size: 12px;
-    color: var(--text-3);
+  .answer p {
+    margin: 6px 0 0;
+    max-width: 720px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--text);
   }
-  .about {
-    grid-column: 1 / -1;
-    margin: 0;
-    padding: 11px 18px 13px;
-    border-top: 1px solid var(--line);
+  .answer .honest {
+    margin-top: 8px;
     font-size: 13px;
     color: var(--text-2);
-    line-height: 1.5;
   }
-  .about p {
+  .counts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(190px, 1fr));
+    gap: 8px;
     margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .counts li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 170px;
+    padding: 10px 14px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+  }
+  .counts b {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text);
+  }
+  .counts li.hot b {
+    color: var(--neg);
+  }
+  .counts li.ok b {
+    color: var(--pos);
+  }
+  .counts li.na b {
+    color: var(--text-3);
+  }
+  .counts span {
+    display: flex;
+    flex-direction: column;
+    font-size: 12.5px;
+    line-height: 1.35;
+    color: var(--text-2);
+  }
+  .counts strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .how {
+    grid-column: 1 / -1;
+    margin: -4px 0 0;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font: inherit;
+    cursor: pointer;
+  }
+  .toggle svg.open {
+    transform: rotate(90deg);
+  }
+  .toggle:hover {
+    color: var(--text);
+  }
+  .toggle svg {
+    transition: transform var(--dur) var(--ease-out);
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
   .legend {
     display: flex;
     flex-wrap: wrap;
     gap: 6px 22px;
     margin: 10px 0 0;
-    font-size: 12.5px;
   }
   .legend div {
     display: flex;
@@ -468,34 +671,31 @@
     height: 2px;
     background: var(--text-2);
   }
-  .explain {
-    display: grid;
-    gap: 4px;
-    margin-top: 12px;
-    padding: 10px 12px;
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    font-size: 13px;
-    line-height: 1.5;
-    color: var(--text-2);
-  }
-  .explain p {
-    margin: 0;
-  }
-  .explain b {
-    color: var(--text);
-    font-weight: 600;
-  }
+
   .list {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
+  .group {
+    margin: 10px 0 0;
+    font-family: var(--font-num);
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .group span {
+    font-family: var(--font-ui);
+    font-size: 13.5px;
+    font-weight: 400;
+    color: var(--text-2);
+  }
+
+  /* One leak: what it is, how far off, what to do. */
   .leak {
-    padding: 14px 18px 14px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 16px;
+    padding: 16px 20px 14px;
   }
   .leak.unsure {
     background: transparent;
@@ -504,21 +704,40 @@
   .leak header {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 6px 14px;
   }
+  .name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .rank {
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    font-size: 13px;
+    font-weight: 600;
+  }
   h3 {
     margin: 0;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 600;
   }
   .dir {
-    margin-left: 6px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--sd) 16%, transparent);
     color: var(--sd);
+    font-size: 12.5px;
     font-weight: 600;
   }
   .dir.hi {
+    background: color-mix(in srgb, var(--amber) 16%, transparent);
     color: var(--amber);
   }
   .tags {
@@ -526,22 +745,31 @@
     flex-wrap: wrap;
     gap: 6px;
   }
-  .tags span {
-    padding: 2px 8px;
+  .tags > span {
+    padding: 2px 9px;
     border-radius: 999px;
     background: var(--surface-2);
     color: var(--text-2);
-    font-size: 12px;
+    font-size: 12.5px;
   }
   .tags .warn {
-    background: transparent;
-    border: 1px solid var(--amber);
+    background: color-mix(in srgb, var(--amber) 14%, transparent);
     color: var(--amber);
-    cursor: help;
+  }
+  .body {
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+    gap: 18px 32px;
+  }
+  .measure {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
   }
   .figures {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px 18px;
   }
   .fig {
@@ -550,24 +778,49 @@
     gap: 2px;
     min-width: 0;
   }
-  .fig[title] {
-    cursor: help;
+  .label {
+    font-size: 13px;
+    color: var(--text-2);
   }
   .fig b {
     font-size: 20px;
     font-weight: 600;
   }
   .fig small {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--text-2);
   }
-  .bar {
+
+  /* The bar, labelled in place. */
+  .meter {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px;
+    padding: 22px 0 22px;
+  }
+  .meter.small {
+    display: block;
+    padding: 0;
+  }
+  .end {
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .track-wrap {
+    position: relative;
+  }
+  .track {
     position: relative;
     height: 14px;
     border-radius: 3px;
     background: var(--surface-2);
   }
-  .bar .ref {
+  .small .track {
+    height: 8px;
+  }
+  .ref {
     position: absolute;
     top: 0;
     bottom: 0;
@@ -575,13 +828,16 @@
     border-left: 1px solid var(--pos);
     border-right: 1px solid var(--pos);
   }
-  .bar .ci {
+  .ci {
     position: absolute;
     top: 6px;
     height: 2px;
     background: var(--text-2);
   }
-  .bar .dot {
+  .small .ci {
+    top: 3px;
+  }
+  .dot {
     position: absolute;
     top: 2px;
     width: 10px;
@@ -591,59 +847,179 @@
     background: var(--text);
     box-shadow: 0 0 0 2px var(--surface);
   }
-  .bar .dot.off {
+  .small .dot {
+    top: 0;
+    width: 8px;
+    height: 8px;
+    margin-left: -4px;
+  }
+  .dot.off {
     background: var(--amber);
   }
-  footer {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px 16px;
+  .lab {
+    position: absolute;
+    font-size: 12.5px;
+    color: var(--text-2);
+    white-space: nowrap;
+    transform: translateX(-50%);
   }
-  .cites {
+  .lab b {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .lab.top {
+    bottom: calc(100% + 5px);
+  }
+  .lab.bottom {
+    top: calc(100% + 5px);
+  }
+  .lab.bottom.off b {
+    color: var(--amber);
+  }
+  .lab.start {
+    transform: none;
+  }
+  .lab.end {
+    transform: translateX(-100%);
+  }
+
+  .advice {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    font-size: 12px;
+    gap: 7px;
+    padding: 14px 16px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    font-size: 13.5px;
+    line-height: 1.5;
     color: var(--text-2);
-    min-width: 0;
   }
-  .cites span[title] {
-    cursor: help;
+  .advice p {
+    margin: 0;
+  }
+  .advice b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .advice .todo {
+    padding-left: 10px;
+    border-left: 2px solid var(--pos);
+    color: var(--text);
+  }
+  .advice .why {
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .advice .todo.wait {
+    border-left-color: var(--amber);
   }
   .links {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
+    margin-top: auto;
+    padding-top: 6px;
   }
-  .fine summary {
-    padding: 13px 18px;
-    cursor: pointer;
-    font-size: 13px;
+  .links .btn {
+    color: var(--text);
+  }
+  .links .btn:not(.ghost) {
+    border-color: color-mix(in srgb, var(--text) 30%, transparent);
+    background: var(--surface-3);
     font-weight: 600;
   }
-  .fine .table {
-    margin-bottom: 6px;
+  .cites {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--text-2);
   }
-  .fine td,
-  .fine th {
-    padding: 7px 18px;
+
+  .fine .head {
+    width: 100%;
+    padding: 14px 20px;
+    color: var(--text);
+    font-size: 13.5px;
+    font-weight: 600;
+    text-align: left;
   }
-  .r {
-    text-align: right;
+  .fine .head .faint {
+    font-weight: 400;
+    color: var(--text-2);
   }
-  .sources {
-    padding: 14px 18px 12px;
-  }
-  .sources ul {
-    margin: 10px 0 0;
-    padding: 0;
+  .fine ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0 20px 18px;
     list-style: none;
+  }
+  .fine li {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    padding: 12px 14px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+  }
+  .fine-head {
+    display: flex;
+    flex-direction: column;
+    font-size: 13.5px;
+  }
+  .ok-name {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ok-name svg {
+    fill: none;
+    stroke: var(--pos);
+    stroke-width: 2.4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .fine-head .faint {
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .fine .small .track {
+    background: var(--surface-3);
+  }
+  .fine-nums {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 14px;
     font-size: 13px;
+    color: var(--text-2);
+  }
+  .fine-nums b {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .sources {
+    padding: 14px 20px 14px;
+  }
+  .sources-line {
+    margin: 0;
+    padding: 0 4px;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .sources ul {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 10px 28px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13.5px;
   }
   .sources li {
     display: flex;
@@ -654,27 +1030,37 @@
     color: var(--text);
   }
   .sources small {
-    font-size: 12px;
+    font-size: 12.5px;
+    color: var(--text-2);
   }
 
-  @media (max-width: 720px) {
-    .intro {
+  @container (min-width: 1900px) {
+    .leaks {
+      max-width: none;
+    }
+  }
+  @container (max-width: 1080px) {
+    .verdict {
       grid-template-columns: 1fr;
     }
-    .kpi {
-      border-left: 0;
-      border-top: 1px solid var(--line);
+    .verdict {
+      gap: 12px;
+      padding: 16px 18px;
     }
-    .kpi:first-child {
-      border-top: 0;
+    .counts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .fine .table th:nth-child(6),
-    .fine .table td:nth-child(6) {
-      display: none;
+    .counts li {
+      min-width: 0;
+      padding: 8px 12px;
     }
-    .fine td,
-    .fine th {
-      padding: 7px 10px;
+    .counts b {
+      font-size: 22px;
+    }
+  }
+  @container (max-width: 900px) {
+    .body {
+      grid-template-columns: 1fr;
     }
   }
 </style>
