@@ -32,7 +32,7 @@ export interface SpotGroup {
   lage: Lage;
   seat: "EP" | "MP" | "CO" | "BTN" | "SB" | "BB" | null;
   band: number | null;
-  table: "heads_up" | "short" | "full";
+  table: "heads_up" | "few" | "short" | "full";
   /** "Gegen Open im Big Blind". */
   title: string;
   /** "10–20 BB · 7–10 Spieler". */
