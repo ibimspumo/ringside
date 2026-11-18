@@ -8,7 +8,7 @@ use ringside_core::db::{Choice, Decision, Source, SpotType};
 use ringside_core::model::{Action, ActionKind, Hand, Street};
 use ringside_core::stats::position_labels;
 use ringside_engine::preflop::{Kind, Solution, Step, taken};
-use ringside_engine::preflop_table::{self, Ante, PLAYERS, STACKS};
+use ringside_engine::preflop_table::{self, Ante, Family, LIMP_PLAYERS, STACKS};
 use ringside_engine::pushfold_table::{BB_ANTE_BB, CLASSIC_ANTE_BB};
 use ringside_engine::range::NUM_CLASSES;
 
@@ -17,16 +17,21 @@ use crate::replay::FlopRanges;
 use crate::seats::{Table, ante_name, nearest, table};
 use crate::{ChartKind, ChartTarget, base_at, hero_actions, pot_before, pushfold, score, unrated};
 
-type Key = (Ante, usize, u64);
+type Key = (Family, Ante, usize, u64);
 const CACHE_LIMIT: usize = 24;
 static CACHE: Mutex<Vec<(Key, Option<Arc<Solution>>)>> = Mutex::new(Vec::new());
 
+/// The plain table, as the charts and the range comparison show it.
 pub(crate) fn model(ante: Ante, players: usize, stack: f64) -> Option<Arc<Solution>> {
-    let key = (ante, players, stack.to_bits());
+    cached(Family::Plain, ante, players, stack)
+}
+
+fn cached(family: Family, ante: Ante, players: usize, stack: f64) -> Option<Arc<Solution>> {
+    let key = (family, ante, players, stack.to_bits());
     if let Some((_, hit)) = CACHE.lock().unwrap_or_else(PoisonError::into_inner).iter().find(|(k, _)| *k == key) {
         return hit.clone();
     }
-    let sol = preflop_table::chart(ante, players, stack).map(Arc::new);
+    let sol = preflop_table::lookup(&family.params(ante, players, stack)).map(Arc::new);
     let mut cache = CACHE.lock().unwrap_or_else(PoisonError::into_inner);
     if !cache.iter().any(|(k, _)| *k == key) {
         cache.push((key, sol.clone()));
@@ -156,7 +161,7 @@ fn spot_type(line: &[Step], played: Kind, hero_position: &str) -> SpotType {
 
 fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
     let n = t.players();
-    let Some(&players) = PLAYERS.iter().find(|&&p| p >= n) else {
+    let Some(&players) = LIMP_PLAYERS.iter().find(|&&p| p >= n) else {
         return unrated_all(hand, indices, "Für diese Tischgröße gibt es kein Preflop-Modell.");
     };
     // Equal stacks: the hero's stack against the deepest opponent dealt in.
@@ -167,7 +172,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
         return unrated_all(hand, indices, "Zu wenig Chips für das Preflop-Modell und kein reiner Push/Fold-Spot.");
     }
     let stack = nearest(&STACKS, effective);
-    let Some(sol) = model(t.ante, players, stack) else {
+    let Some(sol) = cached(Family::Limps, t.ante, players, stack) else {
         return unrated_all(hand, indices, "Diese Modell-Konfiguration ist nicht vorgerechnet.");
     };
 
@@ -271,8 +276,13 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                 }
                 note.push('.');
                 let pos = position(&a.player);
-                // The charts offer the full tables only; smaller ones stay out of sight there.
-                if preflop_table::OFFERED.contains(&players) {
+                // The charts show the plain tables: the same spot there, if the line has one.
+                if let Some(node) = preflop_table::PLAYERS
+                    .contains(&players)
+                    .then(|| cached(Family::Plain, t.ante, players, stack))
+                    .flatten()
+                    .and_then(|plain| plain.node(seat, &line))
+                {
                     targets.push(ChartTarget {
                         action_index: index,
                         kind: ChartKind::Preflop,
@@ -282,7 +292,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                         seat,
                         shover: None,
                         callers: Vec::new(),
-                        node: Some(v),
+                        node: Some(node),
                         hand: t.class().to_string(),
                     });
                 }

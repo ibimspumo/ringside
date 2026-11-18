@@ -1,6 +1,6 @@
 use ringside_engine::multiway;
 use ringside_engine::preflop::{Kind, Params, Solution, Step, solve};
-use ringside_engine::preflop_table::{self, Ante, PLAYERS, STACKS, TARGET_EXPLOITABILITY};
+use ringside_engine::preflop_table::{self, Ante, Family, PLAYERS, STACKS, TARGET_EXPLOITABILITY};
 
 fn open_pct(s: &Solution, seat: usize) -> f64 {
     s.play_pct(s.open_node(seat).unwrap())
@@ -66,16 +66,17 @@ fn ante_widens_opening_ranges() {
 /// equity in the range published for an opener in position against the big blind.
 #[test]
 fn embedded_tables() {
-    for (ante, &n) in Ante::ALL.into_iter().flat_map(|a| PLAYERS.iter().map(move |n| (a, n))) {
-        let entries = preflop_table::embedded_entries(ante, n);
-        let file = format!("{} {n} players", ante.key());
+    let all = Family::ALL.into_iter().flat_map(|f| Ante::ALL.into_iter().flat_map(move |a| f.players().iter().map(move |&n| (f, a, n))));
+    for (family, ante, n) in all {
+        let entries = preflop_table::embedded_entries(family, ante, n);
+        let file = format!("{}{} {n} players", family.key(), ante.key());
         assert_eq!(entries.len(), STACKS.len(), "{file}");
-        let info = preflop_table::file_info(preflop_table::embedded_file(ante, n).unwrap()).unwrap();
+        let info = preflop_table::file_info(preflop_table::embedded_file(family, ante, n).unwrap()).unwrap();
         assert_eq!((info.ante, info.players, info.entries), (ante, n, STACKS.len()));
         let mut jams = Vec::new();
         for ((p, s), &stack) in entries.iter().zip(&STACKS) {
             let what = format!("{file} {stack} BB");
-            assert_eq!(*p, preflop_table::params(ante, n, stack), "{what}");
+            assert_eq!(*p, family.params(ante, n, stack), "{what}");
             assert!(s.converged && s.exploitability < TARGET_EXPLOITABILITY, "{what}: {}", s.exploitability);
             // Later seats open wider: the button (n − 3) wider than the first seat, at full
             // tables half as wide again, and no seat much narrower than the one before.

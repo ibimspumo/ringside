@@ -14,7 +14,7 @@ use crate::scenario::{Scenario, scenarios};
 
 /// From here down every decision is shove or fold.
 pub const PUSH_FOLD_MAX_BB: f64 = 20.0;
-pub const PLAYERS: [usize; 3] = preflop_table::OFFERED;
+pub const PLAYERS: [usize; 3] = preflop_table::PLAYERS;
 /// Stacks of the push/fold mode when they are mixed.
 pub const SHORT_STACKS: [f64; 8] = [6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0];
 

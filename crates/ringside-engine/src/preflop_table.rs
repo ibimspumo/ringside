@@ -1,16 +1,22 @@
 //! Precomputed solutions of the [`preflop`](crate::preflop) model, shipped with the
-//! app: chip EV, equal stacks, 2 to 6, 8 and 9 players ([`PLAYERS`]), each of the
-//! three ante structures of [`Ante`] on a fixed stack grid ([`STACKS`]), with limps
-//! from every seat ([`OPEN_LIMPS`]).
+//! app: chip EV, equal stacks, each of the three ante structures of [`Ante`] on a fixed
+//! stack grid ([`STACKS`]), in two families ([`Family`]):
+//!
+//! - **plain**: 6, 8 and 9 players ([`PLAYERS`]), limps from the small blind only, as
+//!   the practice, the charts, the lessons and the spot library use them;
+//! - **limps**: 2 to 6, 8 and 9 players ([`LIMP_PLAYERS`]) with limps from every seat
+//!   ([`OPEN_LIMPS`]), for the hand analysis. Limping changes every range a little, so
+//!   the plain family stays as it is for what is built on its exact ranges (the
+//!   library's spots).
 //!
 //! A lookup only hits when the parameters equal the ones the table was solved with
-//! ([`params`]). Frequencies are stored in 1/255 steps and action EVs in
-//! [`EV_STEP_BB`] steps, so a hit differs from a fresh [`solve`](crate::preflop::solve)
+//! ([`params`], [`limp_params`]). Frequencies are stored in 1/255 steps and action EVs
+//! in [`EV_STEP_BB`] steps, so a hit differs from a fresh [`solve`](crate::preflop::solve)
 //! by at most half a step.
 //!
 //! # File format
-//! One file per ante structure and player count, regenerated with
-//! `cargo run --release -p ringside-engine --bin gen-preflop-tables`:
+//! One file per family, ante structure and player count, regenerated with
+//! `cargo run --release -p ringside-engine --bin gen-preflop-tables [-- --limps]`:
 //!
 //! ```text
 //! header  magic "RSPR", format u32, ante u8, players u8, engine version (u8 length +
@@ -43,23 +49,66 @@ pub const EV_STEP_BB: f64 = 0.01;
 /// NashConv target of the tables, BB per hand summed over all players.
 pub const TARGET_EXPLOITABILITY: f64 = 0.001;
 pub const MAX_ITERATIONS: u32 = 4000;
-/// Minimum limp share of the tables, times [`limp_shape`](crate::preflop::limp_shape):
+/// Minimum limp share of the limp family, times [`limp_shape`](crate::preflop::limp_shape):
 /// enough hands reach every spot behind a limp for its strategy to mean something.
 pub const OPEN_LIMPS: f64 = 0.03;
-pub const PLAYERS: [usize; 7] = [2, 3, 4, 5, 6, 8, 9];
-/// Table sizes the practice, the charts and the range comparison offer so far.
-pub const OFFERED: [usize; 3] = [6, 8, 9];
+pub const PLAYERS: [usize; 3] = [6, 8, 9];
+pub const LIMP_PLAYERS: [usize; 7] = [2, 3, 4, 5, 6, 8, 9];
 /// Stack depths in BB.
 pub const STACKS: [f64; 8] = [15.0, 20.0, 25.0, 30.0, 40.0, 50.0, 75.0, 100.0];
 const C: usize = NUM_CLASSES;
 const STALE: &str = "run `cargo run --release -p ringside-engine --bin gen-preflop-tables`";
 
-/// The parameters a table entry was solved with.
+/// A set of tables, see the module docs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Family {
+    Plain,
+    Limps,
+}
+
+impl Family {
+    pub const ALL: [Family; 2] = [Family::Plain, Family::Limps];
+
+    pub fn players(self) -> &'static [usize] {
+        match self {
+            Family::Plain => &PLAYERS,
+            Family::Limps => &LIMP_PLAYERS,
+        }
+    }
+
+    /// Prefix of the family's file names after "preflop_".
+    pub fn key(self) -> &'static str {
+        match self {
+            Family::Plain => "",
+            Family::Limps => "limps_",
+        }
+    }
+
+    fn of(p: &Params) -> Family {
+        if p.open_limps > 0.0 { Family::Limps } else { Family::Plain }
+    }
+
+    /// The parameters an entry of this family was solved with.
+    pub fn params(self, ante: Ante, players: usize, stack_bb: f64) -> Params {
+        match self {
+            Family::Plain => params(ante, players, stack_bb),
+            Family::Limps => limp_params(ante, players, stack_bb),
+        }
+    }
+}
+
+/// The parameters a plain table entry was solved with.
 pub fn params(ante: Ante, players: usize, stack_bb: f64) -> Params {
     let mut p = Params::new(players, stack_bb);
     (p.ante_bb, p.bb_ante_bb) = ante.amounts();
     p.target_exploitability = TARGET_EXPLOITABILITY;
     p.max_iterations = MAX_ITERATIONS;
+    p
+}
+
+/// The parameters a table entry with limps from every seat was solved with.
+pub fn limp_params(ante: Ante, players: usize, stack_bb: f64) -> Params {
+    let mut p = params(ante, players, stack_bb);
     p.open_limps = OPEN_LIMPS;
     p
 }
@@ -71,15 +120,21 @@ fn ante_of(p: &Params) -> Option<Ante> {
 /// The precomputed solution for exactly these parameters.
 pub fn lookup(p: &Params) -> Option<Solution> {
     let ante = ante_of(p)?;
-    let table = table(ante, p.players)?;
+    let family = Family::of(p);
+    let table = table(family, ante, p.players)?;
     let bytes = table.index.get(&p.stack_bb.to_bits())?;
-    let entry = decode_entry(bytes).unwrap_or_else(|e| panic!("preflop table {} {}: {e}; {STALE}", ante.key(), p.players));
+    let entry = decode_entry(bytes).unwrap_or_else(|e| panic!("preflop table {}{} {}: {e}; {STALE}", family.key(), ante.key(), p.players));
     (entry.params == *p).then_some(entry.solution)
 }
 
-/// The table solution at `players` × `stack_bb` with `ante`.
+/// The plain table solution at `players` × `stack_bb` with `ante`.
 pub fn chart(ante: Ante, players: usize, stack_bb: f64) -> Option<Solution> {
     lookup(&params(ante, players, stack_bb))
+}
+
+/// The table solution with limps from every seat.
+pub fn limp_chart(ante: Ante, players: usize, stack_bb: f64) -> Option<Solution> {
+    lookup(&limp_params(ante, players, stack_bb))
 }
 
 // ---------------------------------------------------------------------------------
@@ -90,40 +145,70 @@ struct Table {
 }
 
 /// By ante code, then player count as in [`PLAYERS`].
-static BYTES: [[&[u8]; 7]; 3] = [
+static PLAIN_BYTES: [[&[u8]; 3]; 3] = [
     [
-        include_bytes!("../data/preflop_none_2max.bin"),
-        include_bytes!("../data/preflop_none_3max.bin"),
-        include_bytes!("../data/preflop_none_4max.bin"),
-        include_bytes!("../data/preflop_none_5max.bin"),
         include_bytes!("../data/preflop_none_6max.bin"),
         include_bytes!("../data/preflop_none_8max.bin"),
         include_bytes!("../data/preflop_none_9max.bin"),
     ],
     [
-        include_bytes!("../data/preflop_classic_2max.bin"),
-        include_bytes!("../data/preflop_classic_3max.bin"),
-        include_bytes!("../data/preflop_classic_4max.bin"),
-        include_bytes!("../data/preflop_classic_5max.bin"),
         include_bytes!("../data/preflop_classic_6max.bin"),
         include_bytes!("../data/preflop_classic_8max.bin"),
         include_bytes!("../data/preflop_classic_9max.bin"),
     ],
     [
-        include_bytes!("../data/preflop_big_blind_2max.bin"),
-        include_bytes!("../data/preflop_big_blind_3max.bin"),
-        include_bytes!("../data/preflop_big_blind_4max.bin"),
-        include_bytes!("../data/preflop_big_blind_5max.bin"),
         include_bytes!("../data/preflop_big_blind_6max.bin"),
         include_bytes!("../data/preflop_big_blind_8max.bin"),
         include_bytes!("../data/preflop_big_blind_9max.bin"),
     ],
 ];
 
+/// By ante code, then player count as in [`LIMP_PLAYERS`].
+static LIMP_BYTES: [[&[u8]; 7]; 3] = [
+    [
+        include_bytes!("../data/preflop_limps_none_2max.bin"),
+        include_bytes!("../data/preflop_limps_none_3max.bin"),
+        include_bytes!("../data/preflop_limps_none_4max.bin"),
+        include_bytes!("../data/preflop_limps_none_5max.bin"),
+        include_bytes!("../data/preflop_limps_none_6max.bin"),
+        include_bytes!("../data/preflop_limps_none_8max.bin"),
+        include_bytes!("../data/preflop_limps_none_9max.bin"),
+    ],
+    [
+        include_bytes!("../data/preflop_limps_classic_2max.bin"),
+        include_bytes!("../data/preflop_limps_classic_3max.bin"),
+        include_bytes!("../data/preflop_limps_classic_4max.bin"),
+        include_bytes!("../data/preflop_limps_classic_5max.bin"),
+        include_bytes!("../data/preflop_limps_classic_6max.bin"),
+        include_bytes!("../data/preflop_limps_classic_8max.bin"),
+        include_bytes!("../data/preflop_limps_classic_9max.bin"),
+    ],
+    [
+        include_bytes!("../data/preflop_limps_big_blind_2max.bin"),
+        include_bytes!("../data/preflop_limps_big_blind_3max.bin"),
+        include_bytes!("../data/preflop_limps_big_blind_4max.bin"),
+        include_bytes!("../data/preflop_limps_big_blind_5max.bin"),
+        include_bytes!("../data/preflop_limps_big_blind_6max.bin"),
+        include_bytes!("../data/preflop_limps_big_blind_8max.bin"),
+        include_bytes!("../data/preflop_limps_big_blind_9max.bin"),
+    ],
+];
+
 /// Inflated on first use, one file at a time.
-static TABLES: [[Idle<Table>; 7]; 3] = {
+static PLAIN_TABLES: [[Idle<Table>; 3]; 3] = {
     fn at<const A: usize, const N: usize>() -> Table {
-        load(Ante::ALL[A], PLAYERS[N], BYTES[A][N])
+        load(Ante::ALL[A], PLAYERS[N], PLAIN_BYTES[A][N])
+    }
+    [
+        [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>)],
+        [Idle::new(at::<1, 0>), Idle::new(at::<1, 1>), Idle::new(at::<1, 2>)],
+        [Idle::new(at::<2, 0>), Idle::new(at::<2, 1>), Idle::new(at::<2, 2>)],
+    ]
+};
+
+static LIMP_TABLES: [[Idle<Table>; 7]; 3] = {
+    fn at<const A: usize, const N: usize>() -> Table {
+        load(Ante::ALL[A], LIMP_PLAYERS[N], LIMP_BYTES[A][N])
     }
     [
         [Idle::new(at::<0, 0>), Idle::new(at::<0, 1>), Idle::new(at::<0, 2>), Idle::new(at::<0, 3>), Idle::new(at::<0, 4>), Idle::new(at::<0, 5>), Idle::new(at::<0, 6>)],
@@ -144,27 +229,35 @@ fn load(ante: Ante, players: usize, bytes: &[u8]) -> Table {
     Table { index }
 }
 
-fn slot(players: usize) -> Option<usize> {
-    PLAYERS.iter().position(|&n| n == players)
+fn slot(family: Family, players: usize) -> Option<usize> {
+    family.players().iter().position(|&n| n == players)
 }
 
-fn table(ante: Ante, players: usize) -> Option<Arc<Table>> {
-    slot(players).map(|i| TABLES[ante.code() as usize][i].get())
+fn table(family: Family, ante: Ante, players: usize) -> Option<Arc<Table>> {
+    let a = ante.code() as usize;
+    slot(family, players).map(|i| match family {
+        Family::Plain => PLAIN_TABLES[a][i].get(),
+        Family::Limps => LIMP_TABLES[a][i].get(),
+    })
 }
 
 /// Drops the inflated tables unused for `idle`.
 pub(crate) fn release(idle: Duration) -> usize {
-    TABLES.iter().flatten().filter(|t| t.release(idle)).count()
+    PLAIN_TABLES.iter().flatten().chain(LIMP_TABLES.iter().flatten()).filter(|t| t.release(idle)).count()
 }
 
-/// The embedded file of an ante structure and player count (for the generator and tests).
-pub fn embedded_file(ante: Ante, players: usize) -> Option<&'static [u8]> {
-    slot(players).map(|i| BYTES[ante.code() as usize][i])
+/// The embedded file of a family, ante structure and player count (for the generator and tests).
+pub fn embedded_file(family: Family, ante: Ante, players: usize) -> Option<&'static [u8]> {
+    let a = ante.code() as usize;
+    slot(family, players).map(|i| match family {
+        Family::Plain => PLAIN_BYTES[a][i],
+        Family::Limps => LIMP_BYTES[a][i],
+    })
 }
 
-/// Every entry of an ante structure and player count, by stack.
-pub fn embedded_entries(ante: Ante, players: usize) -> Vec<(Params, Solution)> {
-    let Some(table) = table(ante, players) else { return Vec::new() };
+/// Every entry of a family, ante structure and player count, by stack.
+pub fn embedded_entries(family: Family, ante: Ante, players: usize) -> Vec<(Params, Solution)> {
+    let Some(table) = table(family, ante, players) else { return Vec::new() };
     let mut out: Vec<(Params, Solution)> = table
         .index
         .values()

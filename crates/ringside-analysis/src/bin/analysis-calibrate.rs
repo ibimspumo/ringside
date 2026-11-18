@@ -400,7 +400,7 @@ fn main() {
     let mut post: Vec<Case> = Vec::new();
     let mut post_spots = 0;
     for (players, stack) in tables {
-        let params = preflop_table::params(Ante::BigBlind, players, stack);
+        let params = preflop_table::limp_params(Ante::BigBlind, players, stack);
         let Some(sol) = preflop_table::lookup(&params) else { continue };
         for sc in ringside_play::scenario::scenarios(&sol, &params).into_iter().take(3) {
             for _ in 0..flops {
