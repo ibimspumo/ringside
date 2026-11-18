@@ -4,14 +4,17 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use ringside_cloud::operator::{Db, catalog_seeds, load_env, preflop_seeds, queue_counts, seed_work};
+use ringside_cloud::operator::{
+    Db, catalog_seeds, load_env, preflop_seeds, queue_counts, seed_work, shipped_scenarios, unseed_shipped,
+};
 
 const HELP: &str = "\
 Usage: ringside-queue [--seed catalog|preflop|all] [--dry-run] [--env-file PATH]
 
 Shows the open spots of Ringside Cloud's community queue by kind and source. With
 --seed, first adds the library catalog's spots, the push/fold ICM gaps, or both; spots
-already queued or verified are left alone. Reads BUNNY_DATABASE_URL and
+already queued or verified are left alone, and catalog scenarios a signed library pack
+ships are taken out. Reads BUNNY_DATABASE_URL and
 BUNNY_DATABASE_AUTH_TOKEN from .env (searched from the working directory upwards) or the
 environment.
 
@@ -47,22 +50,30 @@ fn run() -> Result<(), String> {
             other => return Err(format!("unknown argument {other}; see --help")),
         }
     }
+    let catalog = matches!(which.as_deref(), Some("catalog" | "all"));
+    let shipped = if catalog { shipped_scenarios()? } else { Vec::new() };
     let mut seeds = Vec::new();
     match which.as_deref() {
         None => {}
-        Some("catalog") => seeds = catalog_seeds()?,
+        Some("catalog") => seeds = catalog_seeds(&shipped)?,
         Some("preflop") => seeds = preflop_seeds()?,
         Some("all") => {
-            seeds = catalog_seeds()?;
+            seeds = catalog_seeds(&shipped)?;
             seeds.extend(preflop_seeds()?);
         }
         Some(other) => return Err(format!("--seed {other}: use catalog, preflop or all")),
+    }
+    if catalog {
+        println!("shipped in packs, not queued: {}", if shipped.is_empty() { "none".into() } else { shipped.join(", ") });
     }
     if dry_run {
         println!("{} seeds (dry run, nothing stored)", seeds.len());
         return Ok(());
     }
     let db = Db::from_env(&load_env(env_file.as_deref())?)?;
+    if catalog {
+        println!("took {} shipped catalog spots out", unseed_shipped(&db, &shipped)?);
+    }
     if !seeds.is_empty() {
         println!("added {} of {} seeds", seed_work(&db, &seeds)?, seeds.len());
     }

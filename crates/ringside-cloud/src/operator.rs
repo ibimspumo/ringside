@@ -456,12 +456,36 @@ pub fn preflop_seeds() -> Result<Vec<Seed>, String> {
     Ok(out)
 }
 
-/// Every spot of the library catalog.
-pub fn catalog_seeds() -> Result<Vec<Seed>, String> {
+/// Every spot of the library catalog whose scenario no pack ships (`shipped`: scenario ids).
+pub fn catalog_seeds(shipped: &[String]) -> Result<Vec<Seed>, String> {
     let c = ringside_solver::library::catalog();
     c.ids()
+        .filter(|id| !shipped.contains(&c.scenarios[id.scenario].id))
         .map(|id| seed::<Postflop>(&PostflopInput::new(&c.scenarios[id.scenario].id, &c.flops[id.flop]), "catalog"))
         .collect()
+}
+
+/// Scenario ids of the library packs in the signed index (`library-v1-<scenario>`).
+pub fn shipped_scenarios() -> Result<Vec<String>, String> {
+    let index = crate::packs::Packs::new(crate::packs::DEFAULT_BASE_URL).index(0)?;
+    Ok(index.packs.keys().filter_map(|n| n.strip_prefix("library-v1-")).map(str::to_string).collect())
+}
+
+/// Takes the catalog spots of `shipped` scenarios out of the queue; returns how many.
+pub fn unseed_shipped(db: &Db, shipped: &[String]) -> Result<u64, String> {
+    let stmts: Vec<(&str, Vec<SqlValue>)> = shipped
+        .iter()
+        .map(|s| {
+            (
+                "DELETE FROM work WHERE kind = 'postflop' AND source = 'catalog' AND json_extract(input, '$.scenario') = ?",
+                vec![s.as_str().into()],
+            )
+        })
+        .collect();
+    if stmts.is_empty() {
+        return Ok(0);
+    }
+    Ok(db.execute(&stmts)?.iter().map(|r| r.affected).sum())
 }
 
 /// Rows per request when seeding; the SQL API takes a pipeline of statements.
@@ -539,9 +563,12 @@ mod tests {
     #[test]
     fn seeds_are_valid_unique_and_cover_the_gaps() {
         let pre = preflop_seeds().unwrap();
-        let cat = catalog_seeds().unwrap();
+        let cat = catalog_seeds(&[]).unwrap();
         assert_eq!(pre.len(), 7 * 2 * DEPTHS.len() * 2);
         assert_eq!(cat.len(), ringside_solver::library::catalog().len());
+        let c = ringside_solver::library::catalog();
+        let without = catalog_seeds(&["srp-btn-bb-40".into()]).unwrap();
+        assert_eq!(without.len(), cat.len() - c.flops.len(), "a shipped scenario is not open");
         let mut keys: Vec<&str> = pre.iter().chain(&cat).map(|s| s.key.as_str()).collect();
         keys.sort();
         keys.dedup();
