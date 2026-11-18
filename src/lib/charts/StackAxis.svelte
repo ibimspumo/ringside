@@ -41,7 +41,7 @@
 
   let width = $state(600);
   // Lower on narrow windows, so table and grid still come into view.
-  const H = $derived(width < 760 ? 120 : 168);
+  const H = $derived(width < 760 ? 108 : 168);
   let hover = $state<{ stack: number; seat: number; anchor: Anchor } | null>(null);
   let open = $state(false);
   let typed = $state("");
@@ -396,7 +396,7 @@
     padding: 0 3px;
     border: 0;
     background: none;
-    color: var(--text-3);
+    color: var(--text-2);
     font-family: var(--font-num);
     font-size: 11.5px;
     cursor: pointer;
@@ -450,8 +450,8 @@
     margin: 0;
   }
   .table-view summary {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
     cursor: pointer;
   }
   .table-view summary:hover {

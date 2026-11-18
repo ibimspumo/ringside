@@ -1115,7 +1115,6 @@
     display: block;
     height: 100%;
     background: var(--text);
-    transition: width var(--dur-slow) var(--ease-out);
   }
   .spin {
     width: 16px;
@@ -1214,7 +1213,7 @@
     .setup {
       display: grid;
       grid-template-columns: 340px minmax(0, 1fr);
-      grid-template-areas: "table situ" "rail situ" "note situ";
+      grid-template-areas: "table situ" "table rail" "note note";
       gap: 10px 22px;
       align-items: start;
     }
@@ -1226,6 +1225,10 @@
     }
     .rail {
       grid-area: rail;
+      justify-content: flex-start;
+    }
+    .intro p {
+      display: none;
     }
     .only-pf {
       grid-area: note;

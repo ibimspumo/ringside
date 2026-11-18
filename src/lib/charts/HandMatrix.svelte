@@ -247,7 +247,7 @@
   .cell.out {
     background: transparent;
     box-shadow: inset 0 0 0 1px var(--line-2);
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .cell.dim {
     opacity: 0.18;
