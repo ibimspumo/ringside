@@ -661,16 +661,16 @@ impl Db {
 
     /// Totals for the hands of `filter`: loss per spot type and the costliest decisions.
     pub fn analysis_summary(&self, filter: &Filter, engine: &str, top: usize) -> Result<AnalysisSummary, Error> {
-        let args = params![filter.game(), filter.since, filter.tournament(), engine];
+        let args = params![filter.game(), filter.since, filter.tournament(), filter.until, engine];
         let mut out = AnalysisSummary { ratings: vec![0; Rating::ALL.len()], ..Default::default() };
         (out.hands, out.analyzed) = self.conn.prepare_cached(&format!(
-            "SELECT COUNT(*), COALESCE(SUM(a.engine = ?4), 0) FROM hands h LEFT JOIN hand_analysis a ON a.hand_id = h.id
+            "SELECT COUNT(*), COALESCE(SUM(a.engine = ?5), 0) FROM hands h LEFT JOIN hand_analysis a ON a.hand_id = h.id
              WHERE h.hero IS NOT NULL AND {FILTER_SQL}"
         ))?
         .query_row(args, |r| Ok((r.get(0)?, r.get(1)?)))?;
 
         let from = format!(
-            "FROM hero_decisions d JOIN hands h ON h.id = d.hand_id WHERE {FILTER_SQL} AND ?4 IS NOT NULL AND d.status <> 'forced'"
+            "FROM hero_decisions d JOIN hands h ON h.id = d.hand_id WHERE {FILTER_SQL} AND ?5 IS NOT NULL AND d.status <> 'forced'"
         );
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT d.spot, COUNT(*), COALESCE(SUM(d.status = 'rated'), 0), COALESCE(SUM(d.rating >= {FLAWED}), 0),
@@ -737,7 +737,7 @@ impl Db {
              WHERE {FILTER_SQL} AND d.status <> 'forced'
              ORDER BY d.hand_id, d.action_index"
         ))?;
-        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |r| {
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             let strategy: Vec<Choice> = serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default();
             Ok(ProfileRow {
                 hand_id: r.get::<_, i64>(0)? as u64,

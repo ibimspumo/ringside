@@ -187,7 +187,7 @@ impl Seat {
         }
     }
 
-    fn phrase(self) -> &'static str {
+    pub(crate) fn phrase(self) -> &'static str {
         match self {
             Seat::Early => "aus früher Position",
             Seat::Middle => "aus mittlerer Position",

@@ -167,7 +167,7 @@ fn million_hands() {
     let cell = RangeFilter { class: Some(0), ..common };
     timed("hands page (range cell)", || db.hands(&HandQuery { range: Some(cell), limit: 100, ..Default::default() }).unwrap());
     timed("report by starting hand", || db.hero_groups(&all, true).unwrap());
-    timed("sessions", || db.sessions(&all, 30.0).unwrap());
+    timed("sessions", || db.sessions(&all).unwrap());
     timed("hands page (newest 100)", || db.hands(&HandQuery { limit: 100, ..Default::default() }).unwrap());
     timed("hands page (one player)", || {
         db.hands(&HandQuery { player: Some("P42".into()), limit: 100, ..Default::default() }).unwrap()

@@ -369,7 +369,7 @@ fn band(d: &ReportDecision) -> (String, String) {
 }
 
 /// What the played action gained over the best other action, by the strategy's EVs.
-fn margin(d: &ReportDecision) -> Option<(f64, String)> {
+pub(crate) fn margin(d: &ReportDecision) -> Option<(f64, String)> {
     let played = d.strategy.iter().find(|c| c.played)?.ev_bb?;
     let other = d
         .strategy

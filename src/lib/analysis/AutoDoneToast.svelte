@@ -7,8 +7,8 @@
 
   const SHOW_MS = 12000;
 
-  /** Opens the report of the finished tournament, or else "Meine teuersten Fehler" on the hands page. */
-  let { onView }: { onView: (tournament: number | null) => void } = $props();
+  /** Opens the session review. */
+  let { onView }: { onView: () => void } = $props();
 
   let done = $state<AutoDone | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -39,13 +39,12 @@
   <Toast
     tone="good"
     title={hands(done.hands)}
-    text="{mistakes(done.mistakes)} · {done.tournament !== null ? 'dein Turnier-Bericht ist fertig' : 'gerechnet, nachdem du PokerStars geschlossen hast'}"
+    text="{mistakes(done.mistakes)} · dein Session-Rückblick ist fertig"
     action={{
-      label: done.tournament !== null ? "Bericht ansehen" : "Ansehen",
+      label: "Rückblick ansehen",
       onclick: () => {
-        const tournament = done?.tournament ?? null;
         close();
-        onView(tournament);
+        onView();
       },
     }}
     onclose={close}

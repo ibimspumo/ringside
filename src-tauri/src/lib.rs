@@ -444,7 +444,7 @@ async fn reports(filter: Filter, state: State<'_, AppState>) -> CmdResult<Report
     Ok(Reports {
         positions: view(db.hero_groups(&filter, false).map_err(err)?),
         starting_hands: view(db.hero_groups(&filter, true).map_err(err)?),
-        sessions: db.sessions(&filter, 30.0).map_err(err)?,
+        sessions: db.sessions(&filter).map_err(err)?,
     })
 }
 
@@ -728,6 +728,7 @@ pub fn run() {
             analysis::analysis_summary,
             analysis::analysis_set_auto,
             report::tournament_report,
+            report::session_review,
             solver::solver_estimate,
             solver::solver_start,
             solver::solver_model_spot,

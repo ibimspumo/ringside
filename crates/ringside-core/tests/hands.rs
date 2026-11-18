@@ -344,7 +344,7 @@ fn reports_by_position_hand_and_session() {
     let ko = db.hero_results(&Filter { game: Some(GameKind::Tournament), ..Default::default() }, 100).unwrap();
     assert_eq!(ko.bounties, std::collections::BTreeMap::from([("USD".to_string(), 95)]));
 
-    let sessions = db.sessions(&Filter::default(), 30.0).unwrap();
+    let sessions = db.sessions(&Filter::default()).unwrap();
     assert_eq!(sessions.len(), 2, "2024 cash and 2026 knockout are separate sessions");
     assert_eq!((sessions[1].hands, sessions[1].net), (2, 107 - 1000));
 

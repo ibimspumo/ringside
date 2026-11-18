@@ -34,10 +34,10 @@ pub(super) const SCHEMA: &str = "
     );
     CREATE INDEX IF NOT EXISTS hero_preflop_spot ON hero_preflop(history, position, class, stack_bb);";
 
-/// Global filter over `hero_preflop p`; binds ?1 game, ?2 since, ?3 tournament id like
-/// `FILTER_SQL` does for `hands h`.
-const PREFLOP_FILTER_SQL: &str =
-    "(?1 IS NULL OR p.game = ?1) AND (?2 IS NULL OR p.played_at >= ?2) AND (?3 IS NULL OR p.tournament_id = ?3)";
+/// Global filter over `hero_preflop p`; binds ?1 game, ?2 since, ?3 tournament id, ?4 until
+/// like `FILTER_SQL` does for `hands h`.
+pub(super) const PREFLOP_FILTER_SQL: &str = "(?1 IS NULL OR p.game = ?1) AND (?2 IS NULL OR p.played_at >= ?2) AND (?3 IS NULL OR p.tournament_id = ?3)
+     AND (?4 IS NULL OR p.played_at <= ?4)";
 
 /// Position labels a filter may name; anything else matches nothing.
 const POSITIONS: [&str; 11] = ["UTG", "UTG+1", "UTG+2", "UTG+3", "UTG+4", "LJ", "HJ", "CO", "BTN", "SB", "BB"];
@@ -192,7 +192,7 @@ impl Db {
             BEHIND_EDGES[0], BEHIND_EDGES[1]
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |r| {
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             Ok((r.get::<_, String>(0)?, RangeGroup {
                 history: History::Unopened,
                 position: r.get(1)?,
@@ -223,7 +223,7 @@ impl Db {
             range.predicate()
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament()])?;
+        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament(), filter.until])?;
         let mut out = RangeCounts { cells: vec![[0; 4]; ringside_engine::range::NUM_CLASSES], ..Default::default() };
         let (mut players, mut antes, mut lines) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
         let mut stacks: Vec<(i64, i64)> = Vec::new();
