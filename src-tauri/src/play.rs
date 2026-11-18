@@ -268,68 +268,79 @@ fn practice_ready(app: &AppHandle) -> bool {
     app.state::<AppState>().settings.lock().unwrap().cloud.practice_ready
 }
 
-/// The ready flops of a line, kept for a while: the cloud is asked at most every
+/// The ready flops of a line in the cloud, kept for a while: asked at most every
 /// [`CLOUD_EVERY`] per line, and not more often than [`STATUS_GAP`] in all.
 type ReadyCache = std::collections::HashMap<String, (Instant, Vec<String>)>;
 static READY: LazyLock<Mutex<ReadyCache>> = LazyLock::new(Default::default);
 static LAST_STATUS: Mutex<Option<Instant>> = Mutex::new(None);
 const CLOUD_EVERY: Duration = Duration::from_secs(30 * 60);
 const STATUS_GAP: Duration = Duration::from_secs(5);
+/// Every flop of a line with its key (`ringside_store::key::line_flops`), worked out once.
+type LineFlops = std::collections::HashMap<String, Arc<Vec<(String, String)>>>;
+static LINES: LazyLock<Mutex<LineFlops>> = LazyLock::new(Default::default);
 
-/// Flops of the scenario's line at `table` that are solved already: in the store (own,
-/// library, other players' downloads) and, with `cloud.fetch`, served by the cloud.
-/// The candidates are the library's representative flops.
+/// Flops of the scenario's line at `table` that are solved already, one per suit class:
+/// in the store (own solves; with "Üben mit fertigen Spots anderer" also the library and
+/// other players' downloads) and, with `cloud.fetch`, served by the cloud. Nothing while
+/// PokerStars runs.
 fn ready_flops(app: &AppHandle, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario) -> Vec<String> {
-    let c = catalog();
+    let policy = crate::store::policy(app, practice_ready(app), false);
+    if policy.locked {
+        return Vec::new();
+    }
     let model = model_line(table, &scenario.line);
-    let Some(base) = c.flops.first().and_then(|f| ringside_cloud::kinds::SpotInput::from_model(&model, &scenario.spot(f)).ok()) else {
-        // Not shareable: only the library's own catalog spots can be ready.
-        let keys: Vec<(String, String)> = c
-            .flops
-            .iter()
-            .filter_map(|f| ringside_store::key::catalog_id(&scenario.spot(f)).map(|id| (ringside_store::key::catalog_key(id), f.clone())))
-            .collect();
-        return crate::store::ready_flops(&app.state::<AppState>(), &keys, true);
-    };
-    let keys: Vec<(String, String)> = c
-        .flops
-        .iter()
-        .filter_map(|f| match ringside_store::key::catalog_id(&scenario.spot(f)) {
-            Some(id) => Some((ringside_store::key::catalog_key(id), f.clone())),
-            None => Some((crate::store::model_key(&ringside_store::key::on_flop(&base, f).ok()?)?, f.clone())),
-        })
-        .collect();
-    let mut ready = crate::store::ready_flops(&app.state::<AppState>(), &keys, true);
-    let line_key = format!("{:?}", model);
-    let cached = READY.lock().unwrap().get(&line_key).filter(|(at, _)| at.elapsed() < CLOUD_EVERY).map(|(_, f)| f.clone());
-    let in_cloud = match cached {
-        Some(flops) => flops,
-        None => {
-            let mut last = LAST_STATUS.lock().unwrap();
-            if last.is_some_and(|t| t.elapsed() < STATUS_GAP) {
-                Vec::new()
-            } else {
-                *last = Some(Instant::now());
-                drop(last);
-                let spot_keys: Vec<String> =
-                    keys.iter().filter_map(|(k, _)| k.strip_prefix("spot:").map(str::to_string)).collect();
-                let served = crate::cloud::served(app, &spot_keys);
-                let flops: Vec<String> = keys
-                    .iter()
-                    .filter(|(k, _)| k.strip_prefix("spot:").is_some_and(|h| served.iter().any(|v| v == h)))
-                    .map(|(_, f)| f.clone())
-                    .collect();
-                READY.lock().unwrap().insert(line_key, (Instant::now(), flops.clone()));
-                flops
-            }
+    let line_key = format!("{model:?}");
+    let known = LINES.lock().unwrap().get(&line_key).cloned();
+    let flops = known.unwrap_or_else(|| {
+        let flops = Arc::new(ringside_store::key::line_flops(&scenario.spot(&catalog().flops[0]), Some(&model)));
+        LINES.lock().unwrap().insert(line_key.clone(), flops.clone());
+        flops
+    });
+    let state = app.state::<AppState>();
+    ringside_store::ready::ready_flops(
+        &policy,
+        |others| crate::store::ready_flops(&state, &flops, others),
+        || cloud_flops(app, &model, scenario, &flops, &line_key),
+    )
+}
+
+/// The flops of a line the cloud serves: the model flops of the line on every flop in one
+/// request, the catalog's spots of a catalog line by their status. A server without the
+/// flops request is asked for the status of the line's model flops on the catalog's flops.
+fn cloud_flops(
+    app: &AppHandle,
+    model: &ModelLine,
+    scenario: &ringside_play::scenario::Scenario,
+    flops: &[(String, String)],
+    line_key: &str,
+) -> Vec<String> {
+    if let Some((_, f)) = READY.lock().unwrap().get(line_key).filter(|(at, _)| at.elapsed() < CLOUD_EVERY) {
+        return f.clone();
+    }
+    {
+        let mut last = LAST_STATUS.lock().unwrap();
+        if last.is_some_and(|t| t.elapsed() < STATUS_GAP) {
+            return Vec::new();
         }
-    };
-    for f in in_cloud {
-        if !ready.contains(&f) {
-            ready.push(f);
+        *last = Some(Instant::now());
+    }
+    let c = catalog();
+    let base = ringside_cloud::kinds::SpotInput::from_model(model, &scenario.spot(&c.flops[0])).ok();
+    let listed = base.as_ref().and_then(|b| crate::cloud::served_flops(app, b));
+    let asked: Vec<&(String, String)> = flops
+        .iter()
+        .filter(|(k, f)| k.starts_with("postflop:") || (listed.is_none() && k.starts_with("spot:") && c.flop(f).is_some()))
+        .collect();
+    let hashes: Vec<String> = asked.iter().filter_map(|(k, _)| k.split_once(':').map(|(_, h)| h.to_string())).collect();
+    let served = crate::cloud::served(app, &hashes);
+    let mut out = listed.unwrap_or_default();
+    for (k, f) in asked {
+        if k.split_once(':').is_some_and(|(_, h)| served.iter().any(|s| s == h)) && !out.contains(f) {
+            out.push(f.clone());
         }
     }
-    ready
+    READY.lock().unwrap().insert(line_key.to_string(), (Instant::now(), out.clone()));
+    out
 }
 
 /// The right to solve a practice spot: its key and a ticket of the store's gate.
@@ -358,10 +369,6 @@ impl Lookup for AppLookup {
     }
 
     fn flops(&self, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario) -> Vec<String> {
-        // "Nur eigene, frisch gegebene Spots": random flops, solved here.
-        if !practice_ready(&self.0) {
-            return Vec::new();
-        }
         ready_flops(&self.0, table, scenario)
     }
 

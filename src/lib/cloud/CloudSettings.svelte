@@ -83,7 +83,7 @@
 
 <SettingRow
   title="Üben mit fertigen Spots anderer"
-  sub="„Hände spielen“ nimmt zuerst Spots, die schon gerechnet sind – auch von anderen Spielern. So wartest du nicht."
+  sub="„Hände spielen“ nimmt zuerst Spots, die schon gerechnet sind – auch von anderen Spielern, jedes Mal in anderen Farben. So wartest du nicht."
 >
   {#snippet control()}
     {#if cloud}<Switch
@@ -94,8 +94,8 @@
   {/snippet}
   {#snippet more()}
     <p>
-      Aus: nur eigene, frisch gegebene Spots. Dann kommen die Flops zufällig, und dein PC rechnet jeden Spot selbst – das
-      dauert länger.
+      Aus: nur Spots, die dein PC schon selbst gerechnet hat. Alle anderen Flops kommen zufällig, und dein PC rechnet sie
+      selbst – das dauert länger.
     </p>
     <p>Geteilt wird in beiden Fällen, wenn „Eigene Lösungen teilen“ an ist.</p>
   {/snippet}

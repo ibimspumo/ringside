@@ -705,7 +705,9 @@ pub(crate) fn offer(app: &AppHandle, id: SpotId, solution: &mut ringside_solver:
     if status_of(&root, id).is_some() || solution.summary.exploitability_pct > c.target_pct + 1e-6 {
         return;
     }
-    let stored = match encode(solution, c, &c.scenarios[id.scenario], &c.flops[id.flop]) {
+    // A solve on a suit renaming of the catalog flop is kept on the catalog flop.
+    let scenario = &c.scenarios[id.scenario];
+    let stored = match encode(solution, c, scenario, &solution.spot.board.clone()).and_then(|s| s.renamed(scenario, &c.flops[id.flop])) {
         Ok(s) => s,
         Err(e) => return eprintln!("library: keeping {}: {e}", shared_key(id)),
     };

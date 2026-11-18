@@ -576,7 +576,7 @@ fn rate_job(data: &Path, state: &AppState, job: &PostflopJob, app: Option<&AppHa
     let flop_only = job.actions.iter().filter(|a| a.hero.is_some()).all(|a| a.street == Street::Flop);
     let use_found = |found: Found| -> Option<Rated> {
         let note = match found.origin() {
-            Origin::Own if found.saved_id().is_some() => None,
+            Origin::Own if matches!(found, Found::Snapshot { .. }) => None,
             Origin::Cloud => Some(" Lösung aus Ringside Cloud, von der Community gerechnet; ohne EV je Aktion, bewertet nach Häufigkeit."),
             _ => Some(" Lösung aus der Spot-Bibliothek; ohne EV je Aktion, bewertet nach Häufigkeit."),
         };

@@ -86,7 +86,8 @@ fn unconverged_flop_strategies_fail_the_check() {
 
 #[test]
 fn a_renamed_spot_is_the_same_spot_with_other_suits() {
-    use ringside_solver::library::format::{View, suit_map};
+    use ringside_solver::library::format::View;
+    use ringside_solver::suits::between as suit_map;
     let (mut c, id) = tiny();
     let flop = c.flops[id.flop].clone();
     // Ks9h4d with spades and diamonds swapped.
