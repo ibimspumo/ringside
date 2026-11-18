@@ -115,7 +115,7 @@
             extra={extraOf(table)}
             selected={selected?.key ?? null}
             onPick={(k) => pick(table, k)}
-            bind:more={more[t.table_key]}
+            onMore={(m) => (more[t.table_key] = m)}
           />
       {:else}
         <div class="wait"><EmptyState inline tone="loading" title="Warte auf die erste Hand" text="Die Werte erscheinen, sobald Ringside die erste Hand von diesem Tisch gelesen hat." /></div>

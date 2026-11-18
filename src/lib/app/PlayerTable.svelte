@@ -48,7 +48,7 @@
     sort,
     label,
     maxHeight,
-    more = $bindable(false),
+    onMore,
   }: {
     rows: PlayerRow[];
     hud: HudConfig;
@@ -63,8 +63,8 @@
     label: string;
     /** Scrolls vertically beyond this height, header stays. */
     maxHeight?: string;
-    /** Out: more columns to the right than fit; the page says so next to its tools. */
-    more?: boolean;
+    /** Told whether more columns sit to the right than fit; the page says so next to its tools. */
+    onMore?: (more: boolean) => void;
   } = $props();
 
   const SHORT: Partial<Record<StatId, string>> = { pfr: "PFR", three_bet: "3-Bet", af: "AF" };
@@ -74,6 +74,8 @@
   const reads = $derived(new Map(rows.map((r) => [r.key, read(r.stats)])));
   let body = $state<HTMLElement>();
   let scroller = $state<HTMLElement>();
+  let more = $state(false);
+  $effect(() => onMore?.(more));
 
   function measure() {
     if (scroller) more = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;

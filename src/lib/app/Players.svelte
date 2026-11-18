@@ -140,7 +140,7 @@
             onPick={(k) => (picked = k)}
             sort={{ by: sortBy, asc, on: sortOn }}
             maxHeight="calc(100vh - 290px)"
-            bind:more
+            onMore={(m) => (more = m)}
           />
         <div class="foot"><MeterLegend meters={columns === "core"} types={advice} /></div>
       {:else if loaded}
