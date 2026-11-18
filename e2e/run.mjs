@@ -193,16 +193,19 @@ async function click(sel, text = null, opts) {
   // The scroll event comes with the next frame, before its animation callbacks. Arriving after
   // the click, it would hide the popover the click opened (ui/floating.ts).
   await s.execAsync(`const done = arguments[0]; requestAnimationFrame(() => done());`);
-  // A toast in the top corner may cover the target; a user closes it first.
-  const covered = await s.exec(
-    `const r = arguments[0].getBoundingClientRect();
-     const toast = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2)?.closest(".ui-toast, .toast");
-     toast?.querySelector("button[aria-label='Schließen'], button[aria-label='Meldung schließen']")?.click();
-     return !!toast;`,
-    el,
-  );
-  if (covered) await sleep(400);
-  await s.click(el);
+  await clickEl(el);
+}
+
+async function clickEl(el) {
+  try {
+    await s.click(el);
+  } catch (e) {
+    // A toast in the top corner may slide over the target; a user closes it and clicks again.
+    if (!/intercepted.*toast/s.test(String(e))) throw e;
+    await s.exec(`for (const b of document.querySelectorAll(".ui-toast button[aria-label='Schließen'], .toast button[aria-label='Meldung schließen']")) b.click();`);
+    await sleep(400);
+    await s.click(el);
+  }
 }
 
 /** Antes sum up in one line of the replayer's log, never one row per player. Returns that line. */
@@ -500,7 +503,7 @@ step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", as
       `return [...document.querySelectorAll("main [role='option']")].find((o) => o.querySelector("[aria-label='A Herz']") && o.querySelector("[aria-label='Q Karo']")) ?? null`,
     );
     await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, hand);
-    await s.click(hand);
+    await clickEl(hand);
     await click("main .steps button[title^='Turn: Check']");
     await find("main .decision", "Solver", { exact: false });
     await click("main article.ui-verdict button", "Im Solver öffnen");
@@ -530,7 +533,7 @@ step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", as
   if (!(await s.exec(`return arguments[0].disabled`, reset))) throw new Error("reset is enabled before any filter changed");
   await click("main .situation button.tile:not(.on):not([disabled])");
   await waitFor("reset enabled", `return arguments[0].disabled ? null : true`, [reset]);
-  await s.click(reset);
+  await clickEl(reset);
   await waitFor("reset disabled again", `return arguments[0].disabled ? true : null`, [reset]);
   const cell = await waitFor(
     "a visible cell with hands",
@@ -539,7 +542,7 @@ step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", as
   );
   const name = (await s.exec(`return arguments[0].querySelector(".k").textContent`, cell)).trim();
   await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, cell);
-  await s.click(cell);
+  await clickEl(cell);
   await find("main h1", "Hände");
   await find("main .chip-name", name, { exact: false });
 });
@@ -1003,7 +1006,7 @@ step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async
     `const b = [...document.querySelectorAll("main .actions button.act")];
      return b.find((x) => /Raise/.test(x.textContent)) ?? b.find((x) => /Call/.test(x.textContent)) ?? b[0] ?? null;`,
   );
-  await s.click(move);
+  await clickEl(move);
   await waitFor("your move in the history", `return document.querySelector("main nav.timeline button.move.hero") ?? null`);
   // Your next decision, a live solve of the flop or the end: everyone has acted preflop by then.
   await waitFor(
