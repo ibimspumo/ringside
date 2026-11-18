@@ -293,11 +293,36 @@ tauriOnly("Hand-Histories einlesen", async () => {
 });
 
 step("Übersicht", () => nav("Übersicht"));
-step("Berichte", () => nav("Berichte"));
+step("Statistik", () => nav("Statistik"));
 step("Turniere", async () => {
   await nav("Turniere");
   // The id sits in the name's tooltip; narrow windows hide the id column.
   if (TAURI) await find("main .gname[title*='#3500000001']");
+});
+
+step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async () => {
+  await click(TAURI ? "main tbody tr:has(.gname[title*='#3500000001'])" : "main tbody tr:has(.gname[title*='Sunday Million'])");
+  await waitText("Glück gegen All-in-EV");
+  await waitText("Deine Entscheidungen");
+  await click("main button", "Frag den Coach");
+  await waitText(/eigenen Key von OpenRouter|Kosten prüfen/);
+  if (!TAURI) {
+    // The demo has a key: the cost comes before anything is sent, the answer after.
+    await click("main section[aria-label='Frag den Coach'] button", "Was sagt mein Score?");
+    await waitText("Kostet etwa");
+    await click("main section[aria-label='Frag den Coach'] button", "Senden");
+    await waitText("Antwort von");
+  }
+  if (TAURI && !(await s.exec(`return !!document.querySelector("main .moment button")`))) {
+    // The fixture tournament may have no rated mistake: back to the list is enough here.
+    await click("main button", "Alle Turniere");
+    await find("main .gname[title*='#3500000001']");
+    return;
+  }
+  await click("main .moment.bad button", "Abspielen");
+  await find("main h1", "Hände");
+  await find(".replayer");
+  await click("main button[aria-label='Turnierfilter entfernen']");
 });
 
 step("Hände: Replayer öffnet eine Hand", async () => {
@@ -696,8 +721,8 @@ step("Hände spielen: die Hand läuft bis zum Handende, auch über einen live ge
   }
 });
 
-step("Coach: ohne Key erscheint der Hinweis", async () => {
-  await nav("Coach");
+step("KI-Coach: ohne Key erscheint der Hinweis", async () => {
+  await nav("KI-Coach");
   if (TAURI) await waitText("Für den Coach brauchst du einen API-Key");
   if (hits.OpenRouter) throw new Error(`${hits.OpenRouter} connection(s) to OpenRouter`);
 });
