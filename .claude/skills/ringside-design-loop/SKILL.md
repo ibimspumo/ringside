@@ -27,6 +27,8 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
 - Ist ein Zustand nicht per URL erreichbar (Unterreiter, Dialog, Ergebnis), ergänze einen kleinen Vorschau-Parameter, der nur im Browser-Demo wirkt (wie `locked`), statt Zustände von Hand zu klicken.
 - Je Runde 2–8 Bilder deines Bereichs plus 1 Vergleichsbild eines schon guten Bereichs (z. B. Overlay grafisch oder Turniere). Ablage `/tmp/ringside-shots/<bereich>/r<n>/`. Selbst ansehen, bevor Prüfer sie bekommen.
 - **Zustände gehören dazu**, nicht nur die Ruhe-Ansicht: Hover und Tooltips (auch am rechten und unteren Fensterrand), Tastaturfokus, angeheftete Popups und Dialoge, leer (keine Daten), lädt, Fehler, gesperrt (`&locked=1`). Was per URL nicht erreichbar ist, bekommt einen Vorschau-Parameter (nur Browser-Demo). Für Hover-Zustände reicht ein kleines Skript mit dem lokalen ChromeDriver (`/tmp/chromedriver/chromedriver/unz/chromedriver-mac-arm64/chromedriver --port=<frei>`), das die Maus bewegt und ein Bild macht; Skripte bleiben in `/tmp`.
+- **Abläufe gehören dazu**, nicht nur Einzelbilder: Was in Schritten passiert (eine Hand am Tisch, ein Solve, eine Analyse), wird Schritt für Schritt fotografiert, als nummerierte Bildfolge an die Prüfer. Man muss in jedem Bild verstehen, was gerade passiert ist, wer noch dabei ist, wer dran ist und worauf sich eine Bewertung bezieht.
+- **Winzige Details zählen** (Nutzer: „wirklich auf die winzigen Details achten“): Chips und Einsätze liegen auf der Linie zwischen Platz und Tischmitte, gleich weit für alle Plätze, nie außerhalb des Filzes oder über Platz, Board und Pot; Aktions-Schilder sind für alle Spieler gleich; Zahlenformat (Komma, „BB“), Ausrichtung, Abstände und Schriftgrößen sind einheitlich. Positionen bei 6- und 9-Spieler-Tischen und in allen Breiten mit einem kleinen Skript nachmessen (Überlappungen, Symmetrie).
 - Prüfe bei jeder Runde selbst: kein horizontales Scrollen, nichts abgeschnitten, Popups bleiben im Fenster, bei 2400 px kein verlorener Leerraum.
 
 ## Ablauf je Runde
@@ -43,7 +45,7 @@ Alles auf Deutsch: Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht. U
 > Du bekommst Screenshots einer Desktop-App für Pokerspieler, die gerade besser werden (keine Profis); Pfade unten, je Ansicht in drei Fensterbreiten. Sieh dir alle Bilder an. Bewerte die Oberfläche in diesen 10 Kriterien jeweils mit einer Note von 0 bis 10 (Kommastellen erlaubt):
 > 1. Visuelle Hierarchie (was ist wichtig, was nicht)
 > 2. Lesbarkeit (Schriftgrößen, Kontrast, Zeilen)
-> 3. Klarheit für die Zielgruppe: Versteht ein Aufsteiger sofort, was er hier tun kann, was die Zahlen bedeuten und was er daraus machen soll?
+> 3. Klarheit für die Zielgruppe: Versteht ein Aufsteiger sofort, was er hier tun kann, was die Zahlen bedeuten und was er daraus machen soll – und bei Bildfolgen in jedem Schritt, was gerade passiert ist?
 > 4. Einheitliches Designsystem (gleiche Farben, Schriftrollen, Radien, Abstände wie im Vergleichsbild)
 > 5. Knopf- und Aktions-Hierarchie (Hauptaktion, Nebenaktionen, leise Aktionen, Gefahr klar unterscheidbar)
 > 6. Ordnung und Ausrichtung (Raster, Bündigkeit, Symmetrie)
