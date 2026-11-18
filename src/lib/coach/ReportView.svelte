@@ -1,12 +1,21 @@
+<script lang="ts" module>
+  import type { LearnTarget } from "../app/Leaks.svelte";
+
+  /** Where a concept leads in the learning area. */
+  export type Practice = { train: LearnTarget | null; article: { id: string; title: string } | null };
+</script>
+
 <script lang="ts">
-  import { cost, tokens } from "./api";
+  import { cost, duration, tokens } from "./api";
+  import { conceptName } from "./concepts";
+  import { VERDICTS, shortModel, toPractise } from "./meaning";
   import SpotCard from "./SpotCard.svelte";
-  import type { CoachReport, Verdict } from "./types";
+  import type { CoachReport } from "./types";
 
   let {
     report,
     title,
-    busy,
+    practice,
     onHand,
     onTraining,
     onReanalyze,
@@ -14,200 +23,480 @@
   }: {
     report: CoachReport;
     title: string;
-    busy: boolean;
+    practice: (concept: string) => Practice;
     onHand: (id: number) => void;
-    onTraining: () => void;
+    onTraining: (target: LearnTarget | null) => void;
     onReanalyze: () => void;
     onDelete: () => void;
   } = $props();
 
-  const ORDER: [Verdict, string][] = [
-    ["fehler", "Fehler"],
-    ["fraglich", "Fraglich"],
-    ["ok", "Okay"],
-    ["stark", "Stark"],
-  ];
-  const counts = $derived(ORDER.map(([v, label]) => ({ v, label, n: report.spots.filter((s) => s.verdict === v).length })));
+  type Show = "all" | "practise" | "good";
+  let show = $state<Show>("all");
+  let confirmDelete = $state(false);
+
+  const spots = $derived(report.spots.map((spot, i) => ({ spot, n: i + 1 })));
+  const weak = $derived(spots.filter((s) => toPractise(s.spot.verdict)));
+  const shown = $derived(
+    show === "all" ? spots : show === "practise" ? weak : spots.filter((s) => !toPractise(s.spot.verdict)),
+  );
+  const counts = $derived(VERDICTS.map((v) => ({ ...v, n: report.spots.filter((s) => s.verdict === v.id).length })));
   const created = $derived(
     new Date(report.meta.created_at * 1000).toLocaleString("de-DE", { dateStyle: "medium", timeStyle: "short" }),
   );
-  const minutes = $derived(Math.max(1, Math.round(report.meta.seconds / 60)));
-  let confirmDelete = $state(false);
+  /** The concept of the first spot to practise: the report's main lesson. */
+  const lesson = $derived(weak[0] ? { concept: weak[0].spot.concept, ...practice(weak[0].spot.concept) } : null);
+
+  function jump(n: number) {
+    show = "all";
+    requestAnimationFrame(() => document.getElementById(`spot-${n}`)?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 </script>
 
 <div class="report">
-  <section class="panel head">
-    <div class="titles">
-      <h2>{title}</h2>
-      <p class="meta">
-        Analysiert am {created} · <span class="num">{report.meta.model}</span> ·
-        <span class="num">{tokens(report.meta.prompt_tokens + report.meta.completion_tokens)}</span> Tokens ·
-        <span class="num">{cost(report.meta.cost_usd)}</span> · {minutes} Min.
-      </p>
-      <p class="meta">
-        {report.meta.hands_sent} von {report.meta.hands_total} Händen gesendet · {report.meta.tool_calls} Rechnungen von Ringside
-        {#if report.meta.downgraded}
-          · <span title="Das Modell hat diese Zahlen als berechnet ausgegeben, kein Werkzeug hat sie geliefert.">
-            {report.meta.downgraded} angebliche Rechnungen als Einschätzung markiert</span
-          >
+  <section class="panel hero" aria-labelledby="report-title">
+    <header class="top">
+      <div class="titles">
+        <h2 id="report-title">{title}</h2>
+        <p class="sub">Besprochen am {created}</p>
+      </div>
+      <div class="buttons">
+        {#if confirmDelete}
+          <span class="sub">Bericht löschen?</span>
+          <button class="btn danger" onclick={onDelete}>Ja, löschen</button>
+          <button class="btn ghost" onclick={() => (confirmDelete = false)}>Behalten</button>
+        {:else}
+          <button class="btn" onclick={onReanalyze}>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
+              ><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3M19.5 4.5v4h-4" /></svg
+            >
+            Neu analysieren
+          </button>
+          <button class="btn ghost" onclick={() => (confirmDelete = true)}>Löschen</button>
         {/if}
-      </p>
-    </div>
-    <div class="buttons">
-      <button class="btn" onclick={onReanalyze} disabled={busy}>Neu analysieren</button>
-      {#if confirmDelete}
-        <button class="btn danger" onclick={onDelete}>Wirklich löschen</button>
-        <button class="btn ghost" onclick={() => (confirmDelete = false)}>Behalten</button>
-      {:else}
-        <button class="btn ghost" onclick={() => (confirmDelete = true)} disabled={busy}>Löschen</button>
-      {/if}
+      </div>
+    </header>
+
+    <div class="answer">
+      <div class="say">
+        <p class="summary">{report.summary}</p>
+        <div class="next">
+          {#if lesson?.train}
+            <button class="btn primary" onclick={() => onTraining(lesson.train)}>
+              {conceptName(lesson.concept)} üben
+              <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+            </button>
+          {:else}
+            <button class="btn primary" onclick={() => onTraining(lesson?.article ? { article: lesson.article.id } : null)}>
+              {lesson?.article ? `Nachlesen: ${lesson.article.title}` : "Zum Training"}
+            </button>
+          {/if}
+          {#if lesson?.train && lesson.article}
+            <button class="link" onclick={() => onTraining({ article: lesson.article!.id })}>
+              Nachlesen: {lesson.article.title}
+            </button>
+          {/if}
+        </div>
+      </div>
+
+      <div class="score" aria-label="Urteile">
+        <p class="big">
+          {#if weak.length}
+            <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span>
+            {spots.length === 1 ? "Entscheidung" : "Entscheidungen"} zum Üben
+          {:else}
+            Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
+          {/if}
+        </p>
+        <div class="strip">
+          {#each spots as s (s.n)}
+            <button
+              class="cell v-{s.spot.verdict}"
+              title="{s.n}. {VERDICTS.find((v) => v.id === s.spot.verdict)?.name}: {s.spot.action}"
+              aria-label="Zur Entscheidung {s.n}"
+              onclick={() => jump(s.n)}
+            ></button>
+          {/each}
+        </div>
+        <ul class="legend">
+          {#each counts as c (c.id)}
+            <li class:zero={c.n === 0}>
+              <i class="v-{c.id}" aria-hidden="true"></i>
+              <b class="num">{c.n}</b>
+              <span><span class="vname">{c.name}</span> · {c.meaning}</span>
+            </li>
+          {/each}
+        </ul>
+      </div>
     </div>
   </section>
 
-  <div class="overview">
-    <section class="panel summary">
-      <h3>Gesamteindruck</h3>
-      <p>{report.summary}</p>
-      <div class="tally" aria-label="Urteile">
-        {#each counts as c (c.v)}
-          <span class="t v-{c.v}" class:zero={c.n === 0}><b class="num">{c.n}</b> {c.label}</span>
-        {/each}
+  {#if report.focus.length}
+    <section class="panel plan" aria-labelledby="plan-title">
+      <div class="plan-head">
+        <h3 id="plan-title">Woran du arbeiten solltest</h3>
+        <button class="btn ghost small" onclick={() => onTraining(null)}>Zum Training</button>
       </div>
-    </section>
-    <section class="panel focus">
-      <h3>Schwerpunkte</h3>
       <ol>
-        {#each report.focus as f, i (i)}<li>{f}</li>{/each}
+        {#each report.focus as f, i (i)}
+          <li><span class="rank num">{i + 1}</span><span>{f}</span></li>
+        {/each}
       </ol>
-      <button class="btn primary" onclick={onTraining}>Üben</button>
     </section>
+  {/if}
+
+  <div class="list-head">
+    <h3>Deine Entscheidungen</h3>
+    <div class="seg" role="radiogroup" aria-label="Entscheidungen filtern">
+      {#each [["all", "Alle", spots.length], ["practise", "Zum Üben", weak.length], ["good", "Gut gespielt", spots.length - weak.length]] as [id, label, n] (id)}
+        <button role="radio" aria-checked={show === id} class:on={show === id} onclick={() => (show = id as Show)}>
+          {label} <span class="num faint">{n}</span>
+        </button>
+      {/each}
+    </div>
   </div>
 
   <div class="spots">
-    {#each report.spots as spot, i (spot.hand_id + ":" + i)}
-      <SpotCard {spot} index={i + 1} {onHand} {onTraining} />
+    {#each shown as s (s.n)}
+      <SpotCard spot={s.spot} index={s.n} practice={practice(s.spot.concept)} {onHand} {onTraining} />
+    {:else}
+      <p class="none">Hier ist nichts. Alle Entscheidungen fallen unter den anderen Filter.</p>
     {/each}
   </div>
 
-  <p class="foot faint">
-    Zahlen mit „berechnet“ stammen aus Ringsides Rechenkern (Equity, Pot Odds, Push/Fold-Nash, ICM, Outs). Alles mit
-    „Einschätzung“ ist die Meinung des Sprachmodells, etwa über die Ranges deiner Gegner.
-  </p>
+  <footer class="panel how">
+    <h3>So ist der Bericht entstanden</h3>
+    <dl>
+      <div><dt>Modell</dt><dd class="num">{shortModel(report.meta.model)}</dd></div>
+      <div><dt>Kosten</dt><dd class="num">{cost(report.meta.cost_usd)}</dd></div>
+      <div><dt>Dauer</dt><dd class="num">{duration(report.meta.seconds)}</dd></div>
+      <div>
+        <dt>Gesendet</dt>
+        <dd><span class="num">{report.meta.hands_sent}</span> von <span class="num">{report.meta.hands_total}</span> Händen</dd>
+      </div>
+      <div><dt>Ringside hat gerechnet</dt><dd><span class="num">{report.meta.tool_calls}</span>-mal</dd></div>
+      <div>
+        <dt>Tokens</dt><dd class="num">{tokens(report.meta.prompt_tokens + report.meta.completion_tokens)}</dd>
+      </div>
+    </dl>
+    <p>
+      <span class="tag calc">berechnet</span> stammt aus Ringsides Rechenkern (Equity, Pot Odds, Push/Fold-Nash, ICM, Outs).
+      <span class="tag guess">Einschätzung</span> ist die Meinung des Sprachmodells, etwa über die Ranges deiner Gegner.
+      {#if report.meta.downgraded}
+        <b class="warn">
+          {report.meta.downgraded}
+          {report.meta.downgraded === 1 ? "Zahl hat" : "Zahlen hat"} das Modell als berechnet ausgegeben, ohne dass ein Werkzeug
+          sie geliefert hat; sie stehen hier als Einschätzung.
+        </b>
+      {/if}
+    </p>
+  </footer>
 </div>
 
 <style>
   .report {
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     min-width: 0;
   }
-  .head {
+  .sub {
+    margin: 0;
+    font-size: 12.5px;
+    color: var(--text-3);
+  }
+
+  .hero {
+    padding: 20px 24px 24px;
+  }
+  .top {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
-    gap: 12px 20px;
-    padding: 16px 18px;
+    gap: 10px 20px;
   }
   .titles {
     min-width: 0;
   }
   h2 {
-    margin: 0 0 4px;
+    margin: 0 0 2px;
     font-family: var(--font-num);
-    font-size: 19px;
+    font-size: 24px;
     font-weight: 600;
-  }
-  .meta {
-    margin: 0;
-    font-size: 12.5px;
-    color: var(--text-2);
-    line-height: 1.6;
+    line-height: 1.2;
   }
   .buttons {
     display: flex;
+    align-items: center;
     gap: 8px;
     flex-wrap: wrap;
   }
-  .overview {
-    display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
-    gap: 14px;
+  .buttons svg,
+  .next svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
-  .summary,
-  .focus {
+
+  .answer {
+    display: grid;
+    grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+    gap: 28px;
+    margin-top: 18px;
+  }
+  .say {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 16px 18px;
+    gap: 18px;
   }
+  .summary {
+    margin: 0;
+    font-size: 17px;
+    line-height: 1.6;
+    text-wrap: pretty;
+    max-width: 68ch;
+  }
+  .next {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 18px;
+    margin-top: auto;
+  }
+  .next .btn {
+    height: 36px;
+    padding: 0 16px;
+  }
+  .link {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--text-2);
+    font-size: 13px;
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .link:hover {
+    color: var(--text);
+  }
+
+  .score {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px 18px;
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    border: 1px solid var(--line);
+  }
+  .big {
+    margin: 0;
+    font-size: 14px;
+    color: var(--text-2);
+  }
+  .big b {
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--text);
+    margin-right: 2px;
+  }
+  .strip {
+    display: flex;
+    gap: 4px;
+    height: 14px;
+  }
+  .cell {
+    flex: 1;
+    min-width: 10px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: var(--c);
+    cursor: pointer;
+    transition: transform 0.12s;
+  }
+  .cell:hover {
+    transform: scaleY(1.35);
+  }
+  .v-fehler {
+    --c: var(--neg);
+  }
+  .v-fraglich {
+    --c: var(--amber);
+  }
+  .v-ok {
+    --c: var(--text-3);
+  }
+  .v-stark {
+    --c: var(--pos);
+  }
+  .legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13px;
+    color: var(--text-3);
+  }
+  .legend li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+  .legend i {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--c);
+    flex-shrink: 0;
+    transform: translateY(-1px);
+  }
+  .legend b {
+    min-width: 12px;
+    color: var(--text);
+    font-weight: 600;
+  }
+  .vname {
+    color: var(--text-2);
+  }
+  .legend li.zero {
+    opacity: 0.45;
+  }
+
   h3 {
     margin: 0;
     font-size: 13px;
     font-weight: 600;
-    color: var(--text-2);
+    color: var(--text);
   }
-  .summary p {
-    margin: 0;
-    font-size: 15px;
-    line-height: 1.55;
-    text-wrap: pretty;
+  .plan {
+    padding: 14px 18px 16px;
   }
-  .tally {
+  .plan-head {
     display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    margin-top: auto;
-    padding-top: 4px;
-    font-size: 13px;
-    color: var(--text-2);
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
   }
-  .t b {
-    font-size: 17px;
-    margin-right: 2px;
+  .small {
+    height: 28px;
+    font-size: 12.5px;
   }
-  .v-fehler b {
-    color: var(--neg);
+  .plan ol {
+    list-style: none;
+    margin: 10px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 8px;
   }
-  .v-fraglich b {
-    color: var(--amber);
-  }
-  .v-stark b {
-    color: var(--pos);
-  }
-  .t.zero {
-    opacity: 0.5;
-  }
-  .t.zero b {
-    color: var(--text-3);
-  }
-  ol {
-    margin: 0;
-    padding-left: 20px;
+  .plan li {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
+    gap: 10px;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
     line-height: 1.45;
   }
-  .focus .btn {
-    align-self: flex-start;
-    margin-top: auto;
+  .rank {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+  }
+  .list-head h3 {
+    font-size: 15px;
   }
   .spots {
     display: flex;
     flex-direction: column;
-    gap: 10px;
+    gap: 12px;
   }
-  .foot {
-    margin: 4px 2px 0;
-    font-size: 12.5px;
-    line-height: 1.5;
+  .none {
+    margin: 0;
+    padding: 24px;
+    text-align: center;
+    color: var(--text-2);
   }
 
-  @container (max-width: 760px) {
-    .overview {
+  .how {
+    padding: 14px 18px 16px;
+    margin-top: 4px;
+    background: transparent;
+  }
+  .how h3 {
+    color: var(--text-2);
+  }
+  dl {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 10px 16px;
+    margin: 12px 0 0;
+  }
+  dt {
+    font-size: 12px;
+    color: var(--text-3);
+  }
+  dd {
+    margin: 1px 0 0;
+    font-size: 13.5px;
+  }
+  .how p {
+    margin: 14px 0 0;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--text-3);
+  }
+  .tag {
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+  }
+  .tag.calc {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+  .tag.guess {
+    border: 1px dashed var(--line-2);
+    color: var(--text-2);
+  }
+  .warn {
+    display: block;
+    margin-top: 6px;
+    font-weight: 400;
+    color: var(--amber);
+  }
+
+  @container (max-width: 860px) {
+    .answer {
       grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cell {
+      transition: none;
     }
   }
 </style>

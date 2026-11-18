@@ -24,6 +24,15 @@ const [T1, T2] = demoTournaments()
 const hand = (tournament: number, n: number) => tournament * 1000 + 999 - n;
 
 let hasKey = param("coach") !== "nokey";
+
+/**
+ * Preview states that need clicks in the app: `?run=preparing|confirm|running|stalled|error` opens the
+ * analysis of the newest report in that state, `?coach=setup` opens the coach's settings.
+ */
+export const preview = {
+  run: param("run") as "preparing" | "confirm" | "running" | "stalled" | "error" | null,
+  setup: param("coach") === "setup",
+};
 let model = "openai/gpt-6.1-sol";
 let effort: Effort = "high";
 
@@ -181,7 +190,17 @@ export const models = (): ModelInfo[] => [
   { id: "tencent/hy4-flash", name: "Tencent: Hy4 flash", prompt_per_m: 0.035, completion_per_m: 0.14, context_length: 1048576, tools: true, reasoning: true },
 ];
 
-export function estimate(tournament: number): Estimate {
+/** Like `coach_prepare`: fails without a key, and follows the `?run=` preview. */
+export async function prepare(tournament: number): Promise<Estimate> {
+  if (preview.run === "preparing") return new Promise(() => {});
+  if (preview.run === "error")
+    throw "OpenRouter hat nicht geantwortet (Zeitüberschreitung nach 30 s). Prüf deine Internetverbindung und versuch es noch einmal.";
+  if (!hasKey) throw "Hinterleg zuerst in den Einstellungen einen OpenRouter-Key.";
+  await new Promise((r) => setTimeout(r, 300));
+  return estimate(tournament);
+}
+
+function estimate(tournament: number): Estimate {
   const m = models().find((x) => x.id === model);
   const price = (p: number, c: number) => (m?.prompt_per_m == null || m.completion_per_m == null ? null : (p * m.prompt_per_m + c * m.completion_per_m) / 1e6);
   const reasons = m?.reasoning ?? true;
@@ -245,7 +264,8 @@ const PHASES: Phase[] = [
 /** Plays a fake run with live progress; `?coach=slow` stays on the second step for minutes. */
 export async function run(tournament: number): Promise<CoachReport> {
   cancelled = false;
-  const slow = param("coach") === "slow";
+  const stalled = preview.run === "stalled";
+  const slow = param("coach") === "slow" || preview.run !== null;
   const started = Date.now();
   let tools = 0;
   let billed = { prompt: 0, completion: 0, reasoning: 0, cost: 0 };
@@ -280,7 +300,7 @@ export async function run(tournament: number): Promise<CoachReport> {
         live_output_tokens: Math.round(live.output),
         step_seconds: (Date.now() - stepStarted) / 1000,
         total_seconds: (Date.now() - started) / 1000,
-        idle_seconds: 0.3,
+        idle_seconds: stalled && ph.long ? (Date.now() - stepStarted) / 1000 + 38 : 0.3,
         idle_limit: 120,
       };
       listeners.forEach((f) => f(p));

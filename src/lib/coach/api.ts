@@ -23,7 +23,8 @@ export const coachApi = {
   setModel: (model: string) => call<void>("coach_set_model", { model }, () => demo.setModel(model)),
   setEffort: (effort: Effort) => call<void>("coach_set_effort", { effort }, () => demo.setEffort(effort)),
   /** Picks the hands and estimates the cost; nothing is sent. */
-  prepare: (tournamentId: number) => call<Estimate>("coach_prepare", { tournamentId }, () => demo.estimate(tournamentId)),
+  prepare: (tournamentId: number): Promise<Estimate> =>
+    inTauri ? invoke<Estimate>("coach_prepare", { tournamentId }) : demo.prepare(tournamentId),
   /** Sends the analysis of the estimate that carried `token`. */
   run: (token: string, tournamentId: number): Promise<CoachReport> =>
     inTauri ? invoke<CoachReport>("coach_run", { token }) : demo.run(tournamentId),
@@ -35,6 +36,9 @@ export const coachApi = {
   /** Concepts of all stored reports, weakest first ("Deine Schwachstellen"). */
   concepts: () => call<ConceptCount[]>("coach_concepts", {}, demo.concepts),
 };
+
+/** Browser demo only: states the screenshots open directly. */
+export const preview = inTauri ? { run: null, setup: false } : demo.preview;
 
 export async function onProgress(handler: (p: CoachProgress) => void): Promise<() => void> {
   return inTauri ? on<CoachProgress>("coach-progress", handler) : demo.onProgress(handler);

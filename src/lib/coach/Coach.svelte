@@ -1,12 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { api, inTauri } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
-  import { dateTime } from "../app/format";
-  import type { TournamentRow } from "../types";
-  import { coachApi, cost, errorText } from "./api";
-  import ReportView from "./ReportView.svelte";
+  import type { LearnTarget } from "../app/Leaks.svelte";
+  import { dateTime, dayShort } from "../app/format";
+  import { nextLevel, trainableKind } from "../learn/catalog";
+  import { ARTICLE_BY_ID } from "../learn/wissen/articles";
+  import type { LearnProgress, TournamentRow } from "../types";
+  import { coachApi, effortName, errorText, preview } from "./api";
+  import CoachSettings from "./CoachSettings.svelte";
+  import KeyForm from "./KeyForm.svelte";
+  import { notAnalyzable, shortModel } from "./meaning";
+  import ReportView, { type Practice } from "./ReportView.svelte";
   import RunPanel from "./RunPanel.svelte";
-  import type { CoachReport, CoachStatus, ReportListItem } from "./types";
+  import type { CoachReport, CoachStatus, ConceptCount, ReportListItem } from "./types";
 
   let {
     analyze,
@@ -14,15 +21,14 @@
     onAnalyzeHandled,
     onHand,
     onTraining,
-    onSettings,
   }: {
     /** A tournament to analyse, set from the tournaments page. */
     analyze: number | null;
     tournaments: TournamentRow[];
     onAnalyzeHandled: () => void;
     onHand: (tournament: number, hand: number) => void;
-    onTraining: () => void;
-    onSettings: () => void;
+    /** Opens the learning area, at an exercise or article when one fits. */
+    onTraining: (target: LearnTarget | null) => void;
   } = $props();
 
   let status = $state<CoachStatus | null>(null);
@@ -31,11 +37,36 @@
   let report = $state<CoachReport | null>(null);
   let runFor = $state<number | null>(null);
   let failed = $state<string | null>(null);
+  let setupOpen = $state(preview.setup);
+  let concepts = $state<ConceptCount[]>([]);
+  let progress = $state<LearnProgress | null>(null);
 
   const titleOf = (id: number, item?: { name: string | null; game: string }) => {
     const t = tournaments.find((x) => x.id === id);
     return item?.name || t?.name || item?.game || t?.game || `Turnier ${id}`;
   };
+
+  /** Newest finished tournaments the coach can analyse and has not yet. */
+  const suggestions = $derived(
+    list === null
+      ? []
+      : tournaments
+          .filter((t) => notAnalyzable(t) === null && !list!.some((r) => r.tournament_id === t.id))
+          .sort((a, b) => b.started_at.localeCompare(a.started_at))
+          .slice(0, 3),
+  );
+
+  /** Where to practise or read up on a concept of the reports. */
+  function practice(concept: string): Practice {
+    const c = concepts.find((x) => x.id === concept);
+    if (!c) return { train: null, article: null };
+    const kind = trainableKind(c);
+    const article = c.articles.map((a) => ARTICLE_BY_ID[a]).find(Boolean);
+    return {
+      train: kind ? { kind, level: nextLevel(progress?.skills.find((s) => s.id === kind)) } : null,
+      article: article ? { id: article.id, title: article.title } : null,
+    };
+  }
 
   async function loadList(select: number | null = selected) {
     try {
@@ -45,6 +76,10 @@
     } catch (e) {
       failed = errorText(e);
     }
+    coachApi.concepts().then(
+      (c) => (concepts = c),
+      () => {},
+    );
   }
 
   $effect(() => {
@@ -64,18 +99,39 @@
   $effect(() => {
     if (analyze === null) return;
     runFor = analyze;
+    setupOpen = false;
     onAnalyzeHandled();
   });
 
+  const loadStatus = () => coachApi.status().then((s) => (status = s));
+
   onMount(() => {
-    coachApi.status().then((s) => (status = s));
-    loadList();
+    loadStatus();
+    loadList().then(() => {
+      if (preview.run && list?.length) runFor = list[0].tournament_id;
+    });
+    api.learnProgress().then(
+      (p) => (progress = p),
+      () => {},
+    );
   });
+
+  function start(id: number) {
+    setupOpen = false;
+    runFor = id;
+  }
 
   function done(r: CoachReport) {
     runFor = null;
     report = r;
     loadList(r.tournament_id);
+  }
+
+  async function open(e: MouseEvent) {
+    if (!inTauri) return;
+    e.preventDefault();
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    openUrl((e.currentTarget as HTMLAnchorElement).href);
   }
 
   async function remove(id: number) {
@@ -85,81 +141,202 @@
   }
 </script>
 
+{#snippet bar(spots: number, mistakes: number)}
+  <span class="mini" aria-hidden="true">
+    <i class="bad" style="flex-grow:{mistakes}"></i><i class="good" style="flex-grow:{spots - mistakes}"></i>
+  </span>
+{/snippet}
+
 <ClientLock feature="Der Coach">
   <div class="page">
-    {#if status && !status.has_key}
-      <section class="panel banner">
-        <p>
-          Für den Coach brauchst du einen API-Key von OpenRouter. Damit zahlst du die Analysen direkt beim Anbieter, meist
-          wenige Cent je Turnier.
-        </p>
-        <button class="btn primary" onclick={onSettings}>Key in den Einstellungen hinterlegen</button>
-      </section>
-    {/if}
-
-    {#if runFor !== null}
-      {#key runFor}
-        <RunPanel
-          tournamentId={runFor}
-          title={titleOf(runFor)}
-          onDone={done}
-          onClose={() => (runFor = null)}
-          {onSettings}
-        />
-      {/key}
-    {/if}
-
-    {#if failed}
-      <div class="panel empty-state">{failed}</div>
-    {:else if list && list.length === 0}
-      <section class="panel intro">
-        <h2>So arbeitet der Coach</h2>
-        <ol>
-          <li>Wähl auf der Seite <b>Turniere</b> ein abgeschlossenes Turnier und klick auf <b>Analysieren</b>.</li>
-          <li>
-            Ringside sucht die Hände heraus, in denen du eine echte Entscheidung hattest, rechnet Push/Fold- und
-            All-in-Spots vor und zeigt dir vorher, was die Analyse ungefähr kostet.
-          </li>
-          <li>
-            Erst nach deiner Bestätigung gehen die Hände ohne Namen an das Sprachmodell. Es rechnet nichts selbst, sondern
-            fragt jede Zahl bei Ringside ab.
-          </li>
-          <li>Der Bericht bleibt hier gespeichert und zeigt dir, was du üben solltest.</li>
-        </ol>
-      </section>
-    {:else if list}
+    {#if list}
       <div class="layout">
-        <nav class="panel reports" aria-label="Gespeicherte Berichte">
-          <div class="panel-head"><h2 class="panel-title">Berichte</h2></div>
-          <ul>
-            {#each list as r (r.tournament_id)}
-              <li>
-                <button class:on={r.tournament_id === selected} onclick={() => (selected = r.tournament_id)}>
-                  <span class="name">{titleOf(r.tournament_id, r)}</span>
-                  <span class="sub">
-                    {r.started_at ? dateTime(r.started_at) : "–"} · {r.spots} Spots
-                    {#if r.mistakes}· <span class="warn">{r.mistakes} zum Üben</span>{/if}
-                  </span>
-                  <span class="sub num">{cost(r.cost_usd)}</span>
-                </button>
-              </li>
-            {/each}
-          </ul>
-        </nav>
+        <aside class="rail">
+          <section class="panel start" aria-labelledby="start-title">
+            <h2 id="start-title" class="panel-title">Turnier besprechen</h2>
+            {#if suggestions.length}
+              <ul>
+                {#each suggestions as t (t.id)}
+                  <li>
+                    <span class="what">
+                      <span class="name" title={titleOf(t.id)}>{titleOf(t.id)}</span>
+                      <span class="sub">{dayShort(t.started_at)} · <span class="num">{t.hands}</span> Hände</span>
+                    </span>
+                    <button
+                      class="btn go"
+                      disabled={runFor !== null || !status?.has_key}
+                      onclick={() => start(t.id)}
+                      title={status?.has_key
+                        ? "Vorher siehst du, was gesendet wird und was es kostet."
+                        : "Erst den Key von OpenRouter hinterlegen"}>Analysieren</button
+                    >
+                  </li>
+                {/each}
+              </ul>
+            {:else}
+              <p class="sub pad">Alle fertigen Hold'em-Turniere sind besprochen. Neue findest du nach dem nächsten Turnier hier.</p>
+            {/if}
+          </section>
+
+          {#if list.length}
+            <nav class="panel reports" aria-labelledby="reports-title">
+              <h2 id="reports-title" class="panel-title">Deine Berichte</h2>
+              <ul>
+                {#each list as r (r.tournament_id)}
+                  <li>
+                    <button
+                      class="item"
+                      class:on={r.tournament_id === selected && runFor === null}
+                      aria-current={r.tournament_id === selected ? "true" : undefined}
+                      onclick={() => {
+                        selected = r.tournament_id;
+                        runFor = null;
+                        setupOpen = false;
+                      }}
+                    >
+                      <span class="name">{titleOf(r.tournament_id, r)}</span>
+                      <span class="sub">{r.started_at ? dateTime(r.started_at) : "–"}</span>
+                      <span class="score">
+                        {@render bar(r.spots, r.mistakes)}
+                        <span class="sub">
+                          {#if r.mistakes}<b class="warn num">{r.mistakes}</b> von <span class="num">{r.spots}</span> zum Üben
+                          {:else}alle <span class="num">{r.spots}</span> gut gespielt{/if}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                {/each}
+              </ul>
+            </nav>
+          {/if}
+
+          {#if status?.has_key}
+            <button
+              class="panel setup-card"
+              class:on={setupOpen}
+              aria-expanded={setupOpen}
+              onclick={() => (setupOpen = !setupOpen)}
+              title="Modell, Gründlichkeit und Key ändern"
+            >
+              <span class="dot" aria-hidden="true"></span>
+              <span class="what">
+                <span class="name">Coach bereit</span>
+                <span class="sub"><span class="num">{shortModel(status.model)}</span> · {effortName(status.effort)}</span>
+              </span>
+              <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"
+                ><path d="M4 7h10M18 7h2M4 17h4M12 17h8M14 4.5v5M8 14.5v5" /></svg
+              >
+            </button>
+          {/if}
+        </aside>
 
         <div class="main">
-          {#if report && report.tournament_id === selected}
+          {#if status && !status.has_key}
+            <section class="panel onboard" aria-labelledby="key-title">
+              <div class="onboard-head">
+                <h2 id="key-title">Für den Coach brauchst du einen API-Key von OpenRouter</h2>
+                <p>
+                  Über OpenRouter zahlst du die Analysen direkt beim Anbieter, meist wenige Cent je Turnier. Ringside
+                  verdient daran nichts und schickt nie etwas ohne deine Bestätigung.
+                </p>
+              </div>
+              <ol class="steps">
+                <li>
+                  <span class="n num">1</span>
+                  <div>
+                    <b>Key bei OpenRouter erstellen</b>
+                    <p>
+                      Konto auf <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" onclick={open}
+                        >openrouter.ai/keys</a
+                      > anlegen, ein paar Dollar Guthaben laden und einen Key erzeugen.
+                    </p>
+                  </div>
+                </li>
+                <li>
+                  <span class="n num">2</span>
+                  <div>
+                    <b>Hier einfügen</b>
+                    <p>Ringside prüft ihn sofort und legt ihn im Schlüsselspeicher von Windows ab.</p>
+                    <div class="form"><KeyForm onSaved={loadStatus} /></div>
+                  </div>
+                </li>
+                <li>
+                  <span class="n num">3</span>
+                  <div>
+                    <b>Turnier besprechen</b>
+                    <p>Links ein Turnier wählen. Du siehst die Kosten, bevor etwas gesendet wird.</p>
+                  </div>
+                </li>
+              </ol>
+            </section>
+          {/if}
+
+          {#if setupOpen}
+            <CoachSettings
+              onClose={() => (setupOpen = false)}
+              onChange={(s) => {
+                status = s;
+                if (!s.has_key) setupOpen = false;
+              }}
+            />
+          {/if}
+
+          {#if runFor !== null}
+            {#key runFor}
+              <RunPanel
+                tournamentId={runFor}
+                title={titleOf(runFor)}
+                onDone={done}
+                onClose={() => (runFor = null)}
+                onSettings={() => (setupOpen = true)}
+              />
+            {/key}
+          {:else if failed}
+            <div class="panel failed" role="alert">
+              <b>Die Berichte lassen sich gerade nicht laden.</b>
+              <span>{failed}</span>
+              <button class="btn" onclick={() => loadList()}>Erneut laden</button>
+            </div>
+          {:else if list.length === 0 && status?.has_key}
+            <section class="panel intro" aria-labelledby="intro-title">
+              <h2 id="intro-title">Lass dein letztes Turnier besprechen</h2>
+              <p class="lead">
+                Der Coach sucht die Hände heraus, in denen du eine echte Entscheidung hattest, und sagt dir, was gut war und
+                was du üben solltest. Jede Zahl darin rechnet Ringside selbst.
+              </p>
+              <ol class="flow">
+                <li><b>Turnier wählen</b><span>Links stehen deine letzten fertigen Turniere.</span></li>
+                <li><b>Kosten sehen</b><span>Ringside schätzt vorher, was die Analyse kostet, meist wenige Cent.</span></li>
+                <li><b>Bestätigen</b><span>Erst dann gehen deine Hände ohne Namen an das Sprachmodell.</span></li>
+                <li><b>Bericht lesen und üben</b><span>Jede Entscheidung mit Urteil, Begründung und passender Übung.</span></li>
+              </ol>
+              {#if suggestions[0]}
+                <div class="cta">
+                  <button class="btn primary" onclick={() => start(suggestions[0].id)}>
+                    {titleOf(suggestions[0].id)} analysieren
+                  </button>
+                  <span class="sub">vom {dateTime(suggestions[0].started_at)}, {suggestions[0].hands} Hände</span>
+                </div>
+              {/if}
+            </section>
+          {:else if report && report.tournament_id === selected}
             <ReportView
               {report}
               title={titleOf(report.tournament_id, list.find((r) => r.tournament_id === report?.tournament_id))}
-              busy={runFor !== null}
+              {practice}
               onHand={(id) => report && onHand(report.tournament_id, id)}
               {onTraining}
-              onReanalyze={() => (runFor = report?.tournament_id ?? null)}
+              onReanalyze={() => report && start(report.tournament_id)}
               onDelete={() => report && remove(report.tournament_id)}
             />
           {/if}
         </div>
+      </div>
+    {:else if failed}
+      <div class="panel failed" role="alert">
+        <b>Die Berichte lassen sich gerade nicht laden.</b>
+        <span>{failed}</span>
+        <button class="btn" onclick={() => loadList()}>Erneut laden</button>
       </div>
     {/if}
   </div>
@@ -167,83 +344,35 @@
 
 <style>
   .page {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
     padding-top: 20px;
-  }
-  .banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 12px 20px;
-    padding: 14px 18px;
-  }
-  .banner p {
-    margin: 0;
-    max-width: 640px;
-    line-height: 1.5;
-  }
-  .intro {
-    max-width: 760px;
-    padding: 18px 22px 20px;
-  }
-  .intro h2 {
-    margin: 0 0 10px;
-    font-size: 16px;
-  }
-  .intro ol {
-    margin: 0;
-    padding-left: 20px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    color: var(--text-2);
-    line-height: 1.5;
-  }
-  .intro b {
-    color: var(--text);
   }
   .layout {
     display: grid;
-    grid-template-columns: 250px minmax(0, 1fr);
-    gap: 14px;
+    grid-template-columns: 264px minmax(0, 1fr);
+    gap: 16px;
     align-items: start;
   }
-  .reports {
+  .rail {
     position: sticky;
-    top: 0;
-    overflow: hidden;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
   }
-  .reports ul {
+  .rail .panel-title {
+    padding: 14px 16px 6px;
+  }
+  .rail ul {
     list-style: none;
-    margin: 8px 0 0;
+    margin: 0;
     padding: 0 6px 6px;
     display: flex;
     flex-direction: column;
     gap: 2px;
   }
-  .reports button {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    width: 100%;
-    padding: 8px 10px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    text-align: left;
-    cursor: pointer;
-  }
-  .reports button:hover {
-    background: var(--surface-2);
-  }
-  .reports button.on {
-    background: var(--surface-3);
-  }
   .name {
-    font-size: 13px;
+    font-size: 13.5px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -252,26 +381,282 @@
     font-size: 12px;
     color: var(--text-3);
   }
-  .warn {
-    color: var(--amber);
+  .pad {
+    margin: 0;
+    padding: 0 16px 14px;
+    line-height: 1.5;
   }
-  .main {
+  .what {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
     min-width: 0;
   }
 
+  .start li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 10px;
+    border-radius: var(--r-sm);
+  }
+  .start li:hover {
+    background: var(--surface-2);
+  }
+  .start .what {
+    flex: 1;
+  }
+  .go {
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+
+  .item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    width: 100%;
+    padding: 9px 10px 10px;
+    border: 0;
+    border-radius: var(--r-sm);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  .item:hover {
+    background: var(--surface-2);
+  }
+  .item.on {
+    background: var(--surface-3);
+    box-shadow: inset 2px 0 0 var(--text);
+  }
+  .score {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 5px;
+  }
+  .score .sub {
+    color: var(--text-2);
+  }
+  .warn {
+    color: var(--amber);
+    font-weight: 600;
+  }
+  .mini {
+    display: flex;
+    gap: 2px;
+    width: 54px;
+    height: 6px;
+    flex-shrink: 0;
+  }
+  .mini i {
+    flex-basis: 0;
+    border-radius: 2px;
+  }
+  .mini .bad {
+    background: var(--amber);
+  }
+  .mini .good {
+    background: var(--surface-3);
+  }
+  .item.on .mini .good {
+    background: rgba(236, 235, 231, 0.22);
+  }
+
+  .setup-card {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px 14px;
+    text-align: left;
+    cursor: pointer;
+    color: var(--text);
+  }
+  .setup-card:hover,
+  .setup-card.on {
+    background: var(--surface-2);
+    border-color: var(--line-2);
+  }
+  .setup-card .what {
+    flex: 1;
+  }
+  .setup-card svg {
+    fill: none;
+    stroke: var(--text-2);
+    stroke-width: 1.7;
+    stroke-linecap: round;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--pos);
+    flex-shrink: 0;
+  }
+
+  .main {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .onboard {
+    padding: 22px 24px 24px;
+    border-color: var(--line-2);
+  }
+  .onboard-head {
+    max-width: 720px;
+  }
+  .onboard h2,
+  .intro h2 {
+    margin: 0 0 6px;
+    font-family: var(--font-num);
+    font-size: 20px;
+    font-weight: 600;
+  }
+  .onboard-head p,
+  .lead {
+    margin: 0;
+    color: var(--text-2);
+    line-height: 1.55;
+    max-width: 720px;
+  }
+  .steps {
+    list-style: none;
+    margin: 20px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+    gap: 12px;
+  }
+  .steps li {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px 16px;
+    border-radius: var(--r-sm);
+    background: var(--bg);
+    border: 1px solid var(--line);
+  }
+  .steps li > div {
+    min-width: 0;
+  }
+  .steps b {
+    display: block;
+    margin-bottom: 3px;
+  }
+  .steps p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .steps a {
+    color: var(--text);
+    text-underline-offset: 2px;
+  }
+  .n {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid var(--line-2);
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .form {
+    margin-top: 12px;
+  }
+
+  .intro {
+    padding: 24px 26px 26px;
+  }
+  .flow {
+    list-style: none;
+    counter-reset: flow;
+    margin: 22px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .flow li {
+    counter-increment: flow;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px 16px 16px;
+    border-top: 2px solid var(--line-2);
+    background: var(--bg);
+    border-radius: 0 0 var(--r-sm) var(--r-sm);
+  }
+  .flow li:first-child {
+    border-top-color: var(--text);
+  }
+  .flow li::before {
+    content: counter(flow);
+    font-family: var(--font-num);
+    font-size: 13px;
+    color: var(--text-3);
+  }
+  .flow span {
+    font-size: 13px;
+    color: var(--text-2);
+    line-height: 1.5;
+  }
+  .cta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    margin-top: 22px;
+  }
+  .cta .btn {
+    height: 36px;
+    padding: 0 16px;
+  }
+
+  .failed {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 16px 18px;
+    border-color: rgba(229, 72, 59, 0.35);
+  }
+  .failed span {
+    flex: 1 1 260px;
+    color: var(--text-2);
+  }
+
+  @container (max-width: 1040px) {
+    .steps {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .flow {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
   @container (max-width: 860px) {
     .layout {
       grid-template-columns: minmax(0, 1fr);
     }
-    .reports {
+    .main {
+      order: -1;
+    }
+    .rail {
       position: static;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
-    .reports ul {
-      flex-direction: row;
-      overflow-x: auto;
-    }
-    .reports li {
-      flex: 0 0 210px;
+    .reports {
+      grid-row: span 2;
     }
   }
 </style>

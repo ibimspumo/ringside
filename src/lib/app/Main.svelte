@@ -398,8 +398,10 @@
             tournament = t;
             showHands(null, id);
           }}
-          onTraining={() => (tab = "training")}
-          onSettings={() => (tab = "settings")}
+          onTraining={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
         />
       {:else if tab === "players"}
         <Players {filter} {hud} {refresh} onHands={(name, id) => showHands(name, id ?? null)} />

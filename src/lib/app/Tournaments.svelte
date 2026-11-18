@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../api";
+  import { notAnalyzable } from "../coach/meaning";
   import { buyInText, cash, tournamentName } from "../stats";
   import type { Filter, TournamentRow, Tournaments } from "../types";
   import { dateTime, int, sign, signed } from "./format";
@@ -18,14 +19,6 @@
     onHands: (tournament: number) => void;
     onAnalyze: (tournament: number) => void;
   } = $props();
-
-  /** Why the coach cannot analyse this tournament yet, or null. */
-  function notAnalyzable(r: TournamentRow): string | null {
-    if (r.prize === null) return "Erst wenn das Turnier für dich vorbei ist";
-    if (r.game && !r.game.includes("Hold")) return "Der Coach analysiert bisher nur Hold'em";
-    if (r.hands === 0) return "Keine Hände von diesem Turnier gespeichert";
-    return null;
-  }
 
   type Point = { n: number; played_at: string; profit: number; bounties: number };
   type Col = "date" | "game" | "buy_in" | "entrants" | "place" | "prize" | "bounties" | "profit" | "hands";
@@ -291,7 +284,10 @@
                       onclick={(e) => {
                         e.stopPropagation();
                         onAnalyze(r.id);
-                      }}>Analysieren</button
+                      }}
+                      ><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"
+                        ><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" /></svg
+                      >Analysieren</button
                     >
                   {:else}
                     <span class="na" title={notAnalyzable(r)}>–</span>
@@ -446,9 +442,29 @@
     padding-right: 12px;
   }
   .analyze {
-    height: 24px;
-    padding: 0 9px;
-    font-size: 12px;
+    gap: 6px;
+    height: 26px;
+    padding: 0 10px 0 8px;
+    border-color: var(--line);
+    background: transparent;
+    color: var(--text-2);
+    font-size: 12.5px;
+  }
+  .analyze svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  tr:hover .analyze,
+  .analyze:focus-visible {
+    border-color: var(--line-2);
+    background: var(--surface-2);
+    color: var(--text);
+  }
+  .analyze:hover {
+    background: var(--surface-3);
   }
   .na {
     color: var(--text-3);
