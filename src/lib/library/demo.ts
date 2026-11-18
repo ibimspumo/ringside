@@ -45,21 +45,21 @@ function statuses(i: number): (SpotSource | null)[] {
 
 const NOW = Math.floor(Date.now() / 1000);
 const MIXED: (Shared | null)[] = [
-  { state: "verified", at: NOW - 86_400 * 3 },
-  { state: "verified", at: NOW - 86_400 * 2 },
+  { state: "served", at: NOW - 86_400 * 3 },
+  { state: "served", at: NOW - 86_400 * 2 },
   { state: "submitted", at: NOW - 1_800 },
   { state: "submitted", at: NOW - 600 },
   { state: "rejected", at: NOW - 86_400, note: "exploitability 1.84% of the pot is above the 1% limit" },
   { state: "failed", at: NOW - 300, note: "network error: timed out" },
   null,
-  { state: "verified", at: NOW - 86_400 * 4 },
+  { state: "served", at: NOW - 86_400 * 4 },
 ];
 
 function shared(i: number, status: (SpotSource | null)[]): (Shared | null)[] {
   return status.map((st, f) => {
     if (st !== "local") return null;
     if (i === 0) return MIXED[(f - 104) % MIXED.length];
-    return f < 18 ? { state: "verified", at: NOW - 86_400 * 5 } : { state: "submitted", at: NOW - 3_600 };
+    return f < 18 ? { state: "served", at: NOW - 86_400 * 5 } : { state: "submitted", at: NOW - 3_600 };
   });
 }
 

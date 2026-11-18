@@ -1,7 +1,8 @@
 /**
  * Whitelist of solution kinds the API accepts, with their input and result schemas.
- * Each kind mirrors an implementation of `Kind` in crates/ringside-cloud/src/kinds/; the
- * verifier there decides whether a result is correct, this only rejects malformed data.
+ * Each kind mirrors an implementation of `Kind` in crates/ringside-cloud/src/kinds/. A
+ * result that passes these checks is served at once; nothing here solves. The app checks
+ * a download's full form before it uses it, and the verifier re-solves a sample.
  */
 
 export class InvalidError extends Error {}
@@ -13,7 +14,13 @@ export interface KindSpec {
   /** Throws InvalidError unless `input` is a well-formed input of this kind. */
   checkInput(input: unknown): void;
   /** The result with exactly the fields that get stored, or InvalidError; `input` has passed checkInput. */
-  normalizeResult(result: unknown, input: unknown): unknown;
+  normalizeResult(result: unknown, input: unknown): Promise<Normalized>;
+}
+
+export interface Normalized {
+  result: unknown;
+  /** What the result itself reports, for kinds whose files carry it; checked against the kind's tolerance. */
+  exploitability: number | null;
 }
 
 function record(x: unknown, what: string, keys: readonly string[]): Record<string, unknown> {
@@ -56,7 +63,8 @@ const pushfoldHu: KindSpec = {
   },
   normalizeResult(result) {
     const r = record(result, "result", ["shove", "call"]);
-    return { shove: frequencies(r.shove, "shove", NUM_CLASSES), call: frequencies(r.call, "call", NUM_CLASSES) };
+    const shove = frequencies(r.shove, "shove", NUM_CLASSES);
+    return Promise.resolve({ result: { shove, call: frequencies(r.call, "call", NUM_CLASSES) }, exploitability: null });
   },
 };
 
@@ -119,7 +127,8 @@ const pushfoldMw: KindSpec = {
     const i = input as { stacks_mbb: number[]; max_all_in: number };
     const nodes = nodeCount(i.stacks_mbb.length, i.max_all_in);
     if (!Array.isArray(r.act) || r.act.length !== nodes) throw new InvalidError(`act must have ${nodes} nodes`);
-    return { act: r.act.map((row, n) => frequencies(row, `act[${n}]`, NUM_CLASSES)) };
+    const act = r.act.map((row, n) => frequencies(row, `act[${n}]`, NUM_CLASSES));
+    return Promise.resolve({ result: { act }, exploitability: null });
   },
 };
 
@@ -154,9 +163,13 @@ export const POSTFLOP_FLOPS: readonly string[] = `
 const POSTFLOP_MAX_BASE64 = Math.ceil(180_000 / 3) * 4;
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 
+/** Largest exploitability a postflop file may report, percent of the pot (TOLERANCE in kinds/postflop.rs). */
+export const POSTFLOP_TOLERANCE = 1.0;
+
 /**
  * Library spots: the input names a catalog entry, the result is the stored spot (base64).
- * Only the header is read here; the verifier reads and re-solves the rest.
+ * Header, reported exploitability and the compressed body are checked here; the app
+ * reads every node before it uses a download.
  */
 const postflop: KindSpec = {
   engineVersions: [1],
@@ -170,9 +183,7 @@ const postflop: KindSpec = {
     if (typeof r.flop !== "string" || !POSTFLOP_FLOPS.includes(r.flop)) throw new InvalidError("flop is not in the catalog");
   },
   normalizeResult(result, input) {
-    const data = storedData(result);
-    checkHeader(data, input as { catalog: number; scenario: string; flop: string });
-    return { data };
+    return storedSpot(result, input as { catalog: number; scenario: string; flop: string }, POSTFLOP_TOLERANCE);
   },
 };
 
@@ -268,15 +279,18 @@ const spot: KindSpec = {
     int(r.allin_pct, "allin_pct", 0, 1000);
   },
   normalizeResult(result, input) {
-    const data = storedData(result);
-    checkHeader(data, { catalog: SPOT_CATALOG, scenario: SPOT_SCENARIO, flop: (input as { board: string }).board });
-    return { data };
+    const header = { catalog: SPOT_CATALOG, scenario: SPOT_SCENARIO, flop: (input as { board: string }).board };
+    return storedSpot(result, header, SPOT_TOLERANCE);
   },
 };
 
 /** Header of a stored spot of kind `spot` (CATALOG_VERSION and SCENARIO in kinds/spot.rs). */
 export const SPOT_CATALOG = 0;
 export const SPOT_SCENARIO = "spot";
+/** Largest exploitability a shared spot may report, percent of the pot (TOLERANCE in kinds/spot.rs). */
+export const SPOT_TOLERANCE = 2.0;
+/** Largest inflated body of a stored spot (MAX_INFLATED in ringside-solver's library/format.rs). */
+const MAX_INFLATED = 4 << 20;
 
 function storedData(result: unknown): string {
   const r = record(result, "result", ["data"]);
@@ -288,19 +302,63 @@ function storedData(result: unknown): string {
   return data;
 }
 
-/** Magic "RSLS", format 1, catalog u16, scenario (u8 length + ASCII) and flop must match the input. */
-function checkHeader(data: string, input: { catalog: number; scenario: string; flop: string }): void {
-  const want = 4 + 1 + 2 + 1 + input.scenario.length + 6;
-  let b: Uint8Array;
+/**
+ * Magic "RSLS", format 1, catalog u16, scenario (u8 length + ASCII) and flop must match the
+ * input. Returns where the header ends.
+ */
+export function checkHeader(b: Uint8Array, input: { catalog: number; scenario: string; flop: string }): number {
+  const end = 4 + 1 + 2 + 1 + input.scenario.length + 6;
+  const text = (from: number, len: number) => String.fromCharCode(...b.subarray(from, from + len));
+  const ok = b.length >= end && text(0, 4) === "RSLS" && b[4] === 1 && (b[5] | (b[6] << 8)) === input.catalog &&
+    b[7] === input.scenario.length && text(8, b[7]) === input.scenario && text(8 + b[7], 6) === input.flop;
+  if (!ok) throw new InvalidError("data is not a stored spot for this input");
+  return end;
+}
+
+/** Inflates raw deflate data, refusing more than `max` bytes. */
+async function inflatedSize(data: Uint8Array<ArrayBuffer>, max: number): Promise<number> {
+  const reader = new Blob([data]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  let size = 0;
   try {
-    b = Uint8Array.from(atob(data.slice(0, Math.ceil(want / 3) * 4)), (c) => c.charCodeAt(0));
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return size;
+      size += value.length;
+      if (size > max) throw new InvalidError("data body inflates to more than the format allows");
+    }
+  } catch (e) {
+    if (e instanceof InvalidError) throw e;
+    throw new InvalidError("data body does not inflate");
+  } finally {
+    reader.cancel().catch(() => {});
+  }
+}
+
+/**
+ * A stored spot (library/format.rs): header for this input, iterations u32, exploitability
+ * f32 within `tolerance`, then a raw deflate body that inflates within the format's limit.
+ */
+async function storedSpot(
+  result: unknown,
+  input: { catalog: number; scenario: string; flop: string },
+  tolerance: number,
+): Promise<Normalized> {
+  const data = storedData(result);
+  let b: Uint8Array<ArrayBuffer>;
+  try {
+    b = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
   } catch {
     throw new InvalidError("data must be base64");
   }
-  const text = (from: number, len: number) => String.fromCharCode(...b.subarray(from, from + len));
-  const ok = b.length >= want && text(0, 4) === "RSLS" && b[4] === 1 && (b[5] | (b[6] << 8)) === input.catalog &&
-    b[7] === input.scenario.length && text(8, b[7]) === input.scenario && text(8 + b[7], 6) === input.flop;
-  if (!ok) throw new InvalidError("data is not a stored spot for this input");
+  const at = checkHeader(b, input);
+  if (b.length < at + 8 + 2) throw new InvalidError("data ends after the header");
+  const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+  const exploitability = view.getFloat32(at + 4, true);
+  if (!(Number.isFinite(exploitability) && exploitability >= 0 && exploitability <= tolerance)) {
+    throw new InvalidError(`reported exploitability must be within 0 and ${tolerance} % of the pot`);
+  }
+  if ((await inflatedSize(b.subarray(at + 8), MAX_INFLATED)) < 2) throw new InvalidError("data body is empty");
+  return { result: { data }, exploitability };
 }
 
 export const KINDS: Readonly<Record<string, KindSpec>> = {

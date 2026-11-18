@@ -33,7 +33,7 @@
     switch (worker.state) {
       case "solving":
         return worker.community
-          ? ["Rechnet für andere", "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen."]
+          ? ["Rechnet für andere", "Deine Bibliothek ist komplett. Jetzt löst dein PC Spots, die andere noch brauchen; sobald einer oben ist, bekommen ihn alle."]
           : [
               "Rechnet gerade",
               worker.manual ? "Läuft, bis du anhältst, PokerStars startet oder alles fertig ist." : "Die Automatik rechnet, solange du die App nicht benutzt.",

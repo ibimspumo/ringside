@@ -582,7 +582,7 @@ fn rate_job(
         && let Ok(mut decisions) = rate(job, &cloud_summary(&stored), None, |path| view.node(path))
     {
         for d in &mut decisions {
-            d.note.push_str(" Lösung aus Ringside Cloud (geprüft); ohne EV je Aktion, bewertet nach Häufigkeit.");
+            d.note.push_str(" Lösung aus Ringside Cloud, von der Community gerechnet; ohne EV je Aktion, bewertet nach Häufigkeit.");
         }
         return Ok((decisions, true));
     }

@@ -40,27 +40,26 @@ Deno.test("health answers without the database", async () => {
   assertEquals((await res.json()).kinds, { "pushfold-hu": [1], "pushfold-mw": [1], postflop: [1], spot: [1] });
 });
 
-Deno.test("submitted solutions stay hidden until verified, then are cacheable", async () => {
+Deno.test("a well-formed solution is served at once, a verified one is cached for good", async () => {
   const { sql, handle } = setup();
   const res = await handle(post("/v1/solutions", submission()));
-  assertEquals(res.status, 202);
+  assertEquals(res.status, 201);
   const { key, status, outcome } = await res.json();
-  assertEquals([status, outcome], ["submitted", "new"]);
+  assertEquals([status, outcome], ["accepted", "new"]);
   assertEquals(key, await solutionKey("pushfold-hu", 1, canonicalize(INPUT)), "server computes the key");
 
-  const hidden = await handle(get(`/v1/solutions/pushfold-hu/${key}`));
-  assertEquals(hidden.status, 404);
-  assertEquals(hidden.headers.get("cache-control"), "no-store");
+  const shown = await handle(get(`/v1/solutions/pushfold-hu/${key}`));
+  assertEquals(shown.status, 200);
+  const cache = shown.headers.get("cache-control")!;
+  assert(cache.startsWith("public, max-age=") && !cache.includes("immutable"), cache);
+  const body = await shown.json();
+  assertEquals([body.input, body.result, body.status, body.verified_at], [INPUT, RESULT, "accepted", null]);
 
   sql.db.prepare("UPDATE solutions SET status = 'verified', exploitability = 1e-12, checked_at = 5 WHERE key = ?")
     .run(key);
-  const shown = await handle(get(`/v1/solutions/pushfold-hu/${key}`));
-  assertEquals(shown.status, 200);
-  assert(shown.headers.get("cache-control")!.includes("immutable"));
-  const body = await shown.json();
-  assertEquals(body.input, INPUT);
-  assertEquals(body.result, RESULT);
-  assertEquals(body.exploitability, 1e-12);
+  const verified = await handle(get(`/v1/solutions/pushfold-hu/${key}`));
+  assert(verified.headers.get("cache-control")!.includes("immutable"));
+  assertEquals((await verified.json()).exploitability, 1e-12);
 
   const again = await handle(post("/v1/solutions", submission({ result: { ...RESULT, call: Array(169).fill(0) } })));
   assertEquals([again.status, (await again.json()).status], [200, "verified"]);
@@ -68,21 +67,46 @@ Deno.test("submitted solutions stay hidden until verified, then are cacheable", 
   assertEquals(kept.result, RESULT, "a verified solution is never overwritten");
 });
 
-Deno.test("a pending solution is kept, a rejected one is replaced", async () => {
+Deno.test("an accepted solution is kept, a rejected one is replaced", async () => {
   const { sql, handle } = setup();
   const { key } = await (await handle(post("/v1/solutions", submission()))).json();
   const other = { shove: Array(169).fill(0), call: Array(169).fill(0) };
   const dup = await handle(post("/v1/solutions", submission({ result: other }), "198.51.100.1"));
-  assertEquals((await dup.json()).outcome, "pending");
+  assertEquals([dup.status, await dup.json()], [200, { key, status: "accepted", outcome: "pending" }]);
   const stored = () => sql.db.prepare("SELECT status, result_size FROM solutions WHERE key = ?").get(key);
   assertEquals(stored()!.result_size, JSON.stringify(RESULT).length);
 
   sql.db.prepare("UPDATE solutions SET status = 'rejected' WHERE key = ?").run(key);
+  assertEquals((await handle(get(`/v1/solutions/pushfold-hu/${key}`))).status, 404, "rejected is not served");
   const rep = await handle(post("/v1/solutions", submission({ result: other }), "198.51.100.1"));
-  assertEquals((await rep.json()).outcome, "replaced");
-  assertEquals(stored(), { status: "submitted", result_size: JSON.stringify(other).length });
+  assertEquals([rep.status, (await rep.json()).outcome], [201, "replaced"]);
+  assertEquals(stored(), { status: "accepted", result_size: JSON.stringify(other).length });
   const log = sql.db.prepare("SELECT outcome FROM submissions ORDER BY id").all().map((r) => r.outcome);
   assertEquals(log, ["new", "pending", "replaced"]);
+});
+
+Deno.test("a banned client cannot submit, others can", async () => {
+  const { sql, handle } = setup();
+  await handle(post("/v1/solutions", submission(), "198.51.100.66"));
+  const [row] = sql.db.prepare("SELECT submitter FROM solutions").all();
+  sql.db.prepare("INSERT INTO banned_clients (submitter, banned_at, reason) VALUES (?, 1, 'sample failed')")
+    .run(row.submitter);
+  sql.db.prepare("DELETE FROM solutions").run();
+  const refused = await handle(post("/v1/solutions", submission(), "198.51.100.66"));
+  assertEquals([refused.status, (await refused.json()).error], [403, "banned"]);
+  assertEquals(sql.db.prepare("SELECT count(*) AS n FROM solutions").get()!.n, 0, "nothing stored");
+  const other = await handle(post("/v1/solutions", submission(), "198.51.100.67"));
+  assertEquals(other.status, 201);
+  await other.body?.cancel();
+});
+
+Deno.test("a legacy submitted row waits; status names it", async () => {
+  const { sql, handle } = setup();
+  const { key } = await (await handle(post("/v1/solutions", submission()))).json();
+  sql.db.prepare("UPDATE solutions SET status = 'submitted' WHERE key = ?").run(key);
+  assertEquals((await handle(get(`/v1/solutions/pushfold-hu/${key}`))).status, 404);
+  const dup = await (await handle(post("/v1/solutions", submission(), "198.51.100.1"))).json();
+  assertEquals([dup.status, dup.outcome], ["submitted", "pending"]);
 });
 
 Deno.test("status tells many keys at once, answers verified ones without the database", async () => {
@@ -97,7 +121,7 @@ Deno.test("status tells many keys at once, answers verified ones without the dat
     assertEquals(res.headers.get("cache-control"), "no-store");
     return (await res.json()).statuses;
   };
-  assertEquals(await ask([key, unknown]), { [key]: { status: "submitted" }, [unknown]: { status: "unknown" } });
+  assertEquals(await ask([key, unknown]), { [key]: { status: "accepted" }, [unknown]: { status: "unknown" } });
 
   sql.db.prepare("UPDATE solutions SET status = 'verified', checked_at = 5 WHERE key = ?").run(key);
   sql.db.prepare("UPDATE solutions SET status = 'rejected', check_note = 'exploitability too high' WHERE key = ?")
@@ -177,11 +201,11 @@ Deno.test("multiway submissions are checked against the tree of their input", as
   const act = (nodes: number) => ({ act: Array.from({ length: nodes }, () => Array(169).fill(0.5)) });
   const mw = (over: Record<string, unknown>) => ({ kind: "pushfold-mw", engine_version: 1, input, result: act(6), ...over });
   const ok = await handle(post("/v1/solutions", mw({})));
-  assertEquals(ok.status, 202);
+  assertEquals(ok.status, 201);
   assertEquals((await ok.json()).key, await solutionKey("pushfold-mw", 1, canonicalize(input)));
   const nine = { ...input, stacks_mbb: Array(9).fill(20000) };
   const big = await handle(post("/v1/solutions", mw({ input: nine, result: act(128) }), "192.0.2.90"));
-  assertEquals(big.status, 202, "a 9-player profile fits");
+  assertEquals(big.status, 201, "a 9-player profile fits");
   await big.body?.cancel();
   const cases: unknown[] = [
     mw({ result: act(5) }),

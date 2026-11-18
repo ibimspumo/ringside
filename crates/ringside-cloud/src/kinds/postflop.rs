@@ -16,7 +16,7 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use ringside_solver::library::catalog::{CATALOG_VERSION, catalog};
-use ringside_solver::library::format::{Stored, header};
+use ringside_solver::library::format::{Stored, header, reported_exploitability};
 use ringside_solver::library::check;
 use serde::{Deserialize, Serialize};
 
@@ -110,6 +110,11 @@ impl Kind for Postflop {
     fn check_download(input: &PostflopInput, solution: &PostflopSolution) -> Result<(), String> {
         Self::check_input(input)?;
         solution.stored(input).map(|_| ())
+    }
+
+    fn reported(solution: &PostflopSolution) -> Result<Option<f64>, String> {
+        let bytes = solution.bytes()?;
+        Ok(Some(reported_exploitability(&bytes).map_err(|e| e.to_string())? as f64))
     }
 }
 

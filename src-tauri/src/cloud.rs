@@ -94,7 +94,7 @@ pub(crate) fn may_talk(app: &AppHandle) -> bool {
 ///
 /// Blocking (seconds when it has to solve), so call it from a blocking task. Order:
 /// 1. the solutions cached on this computer;
-/// 2. with `cloud.fetch`, the cloud's verified solution, checked here again (its
+/// 2. with `cloud.fetch`, the cloud's solution, checked here again (its
 ///    exploitability is measured with the engine) and dropped if it fails;
 /// 3. otherwise solved here and, with `cloud.share`, offered to the cloud in the
 ///    background.
@@ -240,7 +240,7 @@ fn compact(board: &str) -> String {
     board.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
-/// With `cloud.fetch`: the cloud's verified solution of `input`, renamed to the local
+/// With `cloud.fetch`: the cloud's solution of `input`, its form checked, renamed to the local
 /// `board`, with the one-spot catalog to view it.
 pub(crate) fn fetch_spot(app: &AppHandle, input: &SpotInput, board: &str) -> Option<(Catalog, Stored)> {
     if !cloud_settings_of(app).fetch || !may_talk(app) {
@@ -304,7 +304,7 @@ pub(crate) fn share_spot(app: &AppHandle, input: SpotInput, solution: &mut Solut
             let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
             match Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&stored)) {
                 Ok(SubmitStatus::Submitted) => Shared { state: ShareState::Submitted, at, note: None },
-                Ok(SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Verified, at, note: None },
+                Ok(SubmitStatus::Accepted | SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Served, at, note: None },
                 Err(e) => {
                     app.state::<CloudState>().note(&e);
                     Shared { state: ShareState::Failed, at, note: Some(e.to_string()) }
@@ -335,7 +335,7 @@ pub(crate) fn check_spots(app: &AppHandle) -> Result<(), Error> {
         for ((local, _), (_, status)) in waiting.iter().zip(statuses) {
             if let Some(entry) = log.get_mut(local) {
                 entry.shared.state = match status {
-                    KeyStatus::Verified => ShareState::Verified,
+                    KeyStatus::Accepted | KeyStatus::Verified => ShareState::Served,
                     KeyStatus::Submitted => ShareState::Submitted,
                     KeyStatus::Rejected(note) => {
                         entry.shared.note = note;

@@ -99,17 +99,17 @@
     const started = all.filter((s) => s.status.some(Boolean)).length;
     const marks = all.flatMap((s) => s.status.flatMap((st, i) => (st === "local" ? [markOf(s.shared[i])] : [])));
     const n = (m: Mark) => marks.filter((x) => x === m).length;
-    const verified = n("verified");
-    const waiting = n("submitted");
+    const served = n("served");
+    const pending = n("submitted");
     return {
       local,
       spots,
       done: local + cloud,
       started,
       situations: all.length,
-      contributed: verified + waiting,
-      verified,
-      waiting,
+      contributed: served + pending,
+      served,
+      pending,
       rejected: n("rejected"),
       onlyHere: n("only_here"),
       failed: n("failed"),
@@ -162,13 +162,13 @@
   const marksHere = $derived.by(() => {
     if (!current) return [];
     const seen = new Set(current.status.flatMap((st, i) => (st === "local" ? [markOf(current.shared[i])] : [])));
-    return (["verified", "submitted", "only_here", "rejected", "failed"] as Mark[]).filter((m) => seen.has(m));
+    return (["served", "submitted", "only_here", "rejected", "failed"] as Mark[]).filter((m) => seen.has(m));
   });
   const MARK_SHORT: Record<Mark, string> = {
-    verified: "geprüft",
-    submitted: "wartet",
+    served: "verteilt",
+    submitted: "noch nicht freigegeben",
     only_here: "noch nicht hochgeladen",
-    rejected: "abgelehnt",
+    rejected: "abgelehnt oder zurückgezogen",
     failed: "neuer Versuch folgt",
   };
 
@@ -182,7 +182,7 @@
     const st = s.status[i];
     if (busy) return "Wird gerade gerechnet.";
     if (st === "local") return `${markText(s.shared[i], data?.share ?? false)} Klick zum Ansehen.`;
-    if (st === "cloud") return "Fertig, aus der Cloud geladen und geprüft. Klick zum Ansehen.";
+    if (st === "cloud") return "Fertig, aus der Cloud geladen, von der Community gerechnet. Klick zum Ansehen.";
     return "Noch nicht gelöst. Mitrechnen füllt die Bibliothek nach und nach.";
   }
 
@@ -232,11 +232,11 @@
                 <ul class="keys">
                   <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
                   <li>
-                    <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> <Term tip="Ein Prüfer hat deine Lösung nachgerechnet. Jetzt können alle Ringside-Nutzer sie laden.">geprüft</Term> <i>– nachgerechnet, für alle da</i></span>
+                    <ShareMark mark="served" /><span><b class="num">{int(totals.served)}</b> <Term tip="Ringside Cloud hat deine Lösung angenommen und verteilt sie an alle. Angenommen wird, was richtig aufgebaut ist; nachgerechnet werden nur Stichproben.">{MARK_SHORT.served}</Term> <i>– für alle da</i></span>
                   </li>
-                  {#if totals.waiting > 0}
+                  {#if totals.pending > 0}
                     <li>
-                      <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> <Term tip="Hochgeladen, aber noch nicht nachgerechnet. Der Prüfer rechnet einmal pro Stunde nach, danach bekommen alle den Spot.">warten auf Prüfung</Term> <i>– jede Stunde</i></span>
+                      <ShareMark mark="submitted" /><span><b class="num">{int(totals.pending)}</b> <Term tip="Hochgeladen; Ringside Cloud schaut noch, ob die Lösung richtig aufgebaut ist. Danach bekommen sie alle.">{MARK_SHORT.submitted}</Term></span>
                     </li>
                   {/if}
                   {#if totals.onlyHere > 0}
@@ -255,8 +255,8 @@
                 {/if}
                 {#if totals.rejected > 0}
                     <li>
-                      <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
-                        <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> abgelehnt</span></span>
+                      <Tooltip text="Ringside Cloud hat die Lösung nicht angenommen oder später zurückgezogen, etwa weil eine Stichprobe von diesem Internetanschluss beim Nachrechnen falsch war. Den Grund zeigt die Kachel mit dem roten Kreuz.">
+                        <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> {MARK_SHORT.rejected}</span></span>
                       </Tooltip>
                     </li>
                   {/if}
@@ -430,8 +430,9 @@
                 <p>
                   Die {data.flops.length} Flops sind eine geschichtete Stichprobe der 1755 strategisch verschiedenen Flops (Flops, die sich nur
                   durch vertauschte Farben unterscheiden, spielen sich gleich). Jeder steht für etwa {Math.round(ALL_FLOPS / data.flops.length)}
-                  der {int(ALL_FLOPS)} möglichen Flops; daher die Prozentangaben. Heruntergeladene Spots hat ein Prüfer mit dem Solver
-                  nachgemessen, oder sie tragen die Signatur von Ringside.
+                  der {int(ALL_FLOPS)} möglichen Flops; daher die Prozentangaben. Heruntergeladene Spots hat die Community mit Ringside
+                  gerechnet; Ringside prüft vor der Nutzung, ob sie richtig aufgebaut sind, und rechnet Stichproben nach. Die
+                  Grundstock-Pakete tragen die Signatur von Ringside.
                 </p>
               </details>
             </section>

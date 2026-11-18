@@ -77,7 +77,7 @@ let demo: SavedSolution[] = [
   pinned: pinned as boolean,
   shared:
     source === "hand"
-      ? { state: i === 1 ? "verified" : "submitted", at: (at as number) + 60 }
+      ? { state: i === 1 ? "served" : "submitted", at: (at as number) + 60 }
       : null,
 }));
 let demoMax = 500;

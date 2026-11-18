@@ -4,7 +4,7 @@ import type { SolverSpot, SolverSummary } from "../solver/types";
 export type LibraryMode = "off" | "idle" | "always";
 export type LibraryPower = "gentle" | "normal" | "full";
 export type WaitReason = "client" | "halted" | "off" | "idle" | "idle_unknown" | "in_use";
-export type ShareState = "submitted" | "verified" | "rejected" | "failed";
+export type ShareState = "submitted" | "served" | "rejected" | "failed";
 
 /** What became of a spot solved here and offered to the cloud. */
 export interface Shared {

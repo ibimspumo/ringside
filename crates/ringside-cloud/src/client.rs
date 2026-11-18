@@ -38,7 +38,10 @@ impl std::error::Error for Error {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SubmitStatus {
-    /// Queued for verification (or someone else's submission for the key already is).
+    /// Served to everyone from now on (or someone else's solution for the key already is).
+    Accepted,
+    /// Waits for the verifier's form check: a server from before accepting at once, or
+    /// someone else's submission from then.
     Submitted,
     /// A verified solution for the key already exists; nothing was stored.
     AlreadyVerified,
@@ -47,11 +50,13 @@ pub enum SubmitStatus {
 /// Where a submitted key stands on the server.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum KeyStatus {
-    /// Verified and served to everyone.
+    /// Served to everyone; its form was checked, it was not re-solved.
+    Accepted,
+    /// Re-solved by the verifier and served to everyone.
     Verified,
     /// Waits for the verifier.
     Submitted,
-    /// The verifier refused it, with its note.
+    /// Refused or withdrawn, with the verifier's note.
     Rejected(Option<String>),
     /// The server has nothing for the key.
     Unknown,
@@ -190,8 +195,9 @@ impl Client {
         Client { base: base_url.trim_end_matches('/').to_string(), agent, policy }
     }
 
-    /// The verified solution for `input`, if the cloud has one. It is checked locally
-    /// before it is returned, so a wrong answer from the server is an error, not a result.
+    /// The solution for `input`, if the cloud has one. It is checked locally before it is
+    /// returned (form, reported exploitability, for push/fold the full check), so a wrong
+    /// answer from the server is an error, not a result.
     pub fn get_solution<K: Kind>(&self, input: &K::Input) -> Result<Option<K::Solution>, Error> {
         let key = K::key(input).map_err(|e| Error::Protocol(e.to_string()))?;
         let url = format!("{}/v1/solutions/{}/{key}", self.base, K::NAME);
@@ -206,8 +212,8 @@ impl Client {
         }
         let solution: K::Solution =
             serde_json::from_value(served.result).map_err(|e| Error::Protocol(e.to_string()))?;
-        K::check_download(input, &solution)
-            .map(|()| Some(solution))
+        kinds::accept::<K>(input, &solution)
+            .map(|_| Some(solution))
             .map_err(|reason| Error::Protocol(format!("served solution fails the local check: {reason}")))
     }
 
@@ -224,6 +230,7 @@ impl Client {
             return Err(Error::Protocol("server computed a different key".into()));
         }
         match r.status.as_str() {
+            "accepted" => Ok(SubmitStatus::Accepted),
             "submitted" => Ok(SubmitStatus::Submitted),
             "verified" => Ok(SubmitStatus::AlreadyVerified),
             s => Err(Error::Protocol(format!("unknown status {s}"))),
@@ -245,6 +252,7 @@ impl Client {
             .map(|k| {
                 let e = r.statuses.remove(k).ok_or_else(|| Error::Protocol(format!("no status for {k}")))?;
                 let status = match e.status.as_str() {
+                    "accepted" => KeyStatus::Accepted,
                     "verified" => KeyStatus::Verified,
                     "submitted" => KeyStatus::Submitted,
                     "rejected" => KeyStatus::Rejected(e.note),
@@ -294,7 +302,8 @@ impl Client {
     }
 
     /// Asks the community to solve `input`, which the cloud does not have; only with the
-    /// user's consent to share. Returns the server's status: "queued", "submitted" or "verified".
+    /// user's consent to share. Returns the server's status: "queued", or the status of the
+    /// solution it already has ("accepted", "submitted", "verified").
     pub fn request_work<K: Kind>(&self, input: &K::Input) -> Result<String, Error> {
         let key = K::key(input).map_err(|e| Error::Protocol(e.to_string()))?;
         let body = serde_json::json!({ "kind": K::NAME, "engine_version": K::ENGINE_VERSION, "input": input }).to_string();
