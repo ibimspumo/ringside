@@ -245,18 +245,16 @@ fn opt_label(o: Opt) -> String {
     }
 }
 
-/// Measured agreement of the estimate's grades with the solver's, by street.
-pub fn reliability(preflop: bool) -> f64 {
-    let c = crate::calibration::stored();
-    if preflop { c.preflop.reliability() } else { c.postflop.reliability() }
+/// Measured agreement of the estimate's grades with the reference at `street`.
+pub fn reliability(street: Street) -> f64 {
+    crate::calibration::stored().reliability(street)
 }
 
 /// The hero's action `index` rated by the estimate, `why_not` saying why model and
 /// solver don't cover it.
 pub fn rate(hand: &Hand, hero: &str, index: usize, spot_type: SpotType, flop: Option<&FlopRanges>, why_not: &str) -> Result<Decision, String> {
-    let c = crate::calibration::stored();
-    let preflop = hand.actions[index].street == Street::Preflop;
-    rate_with(hand, hero, index, spot_type, flop, why_not, if preflop { &c.preflop_tuning } else { &c.postflop_tuning })
+    let t = crate::calibration::stored().tuning(hand.actions[index].street);
+    rate_with(hand, hero, index, spot_type, flop, why_not, &t)
 }
 
 /// [`rate`] with the estimate's numbers given.
@@ -274,16 +272,12 @@ pub fn rate_with(
     let big = hand.big_blind.max(1) as f64;
     let (opts, played) = options(&spot, a, big);
     let est = estimate(&spot, &opts, hand.id.wrapping_mul(31).wrapping_add(index as u64), tuning);
-    let top = est.evs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let pot = spot.pot;
-    // The estimate has no mixed strategy: options it can't tell apart from the best one
-    // share the frequency.
-    let near: Vec<bool> = est.evs.iter().map(|&e| (top - e) / pot.max(0.01) * 100.0 <= tuning.tie_pct).collect();
-    let share = 1.0 / near.iter().filter(|&&x| x).count().max(1) as f64;
+    let freq = crate::estimate::strategy(&est, pot, tuning);
     let strategy: Vec<Choice> = opts
         .iter()
         .enumerate()
-        .map(|(i, &o)| Choice { label: opt_label(o), freq: if near[i] { share } else { 0.0 }, ev_bb: Some(est.evs[i]), played: i == played, kind: o.key().into() })
+        .map(|(i, &o)| Choice { label: opt_label(o), freq: freq[i], ev_bb: Some(est.evs[i]), played: i == played, kind: o.key().into() })
         .collect();
     let opponents = spot.opponents.len();
     let who = if opponents == 1 { "den Gegner".to_string() } else { format!("{opponents} Gegner") };
@@ -296,13 +290,20 @@ pub fn rate_with(
         why.push_str(&format!(" Stack zu Pot (SPR): {}.", num(behind / spot.pot)));
     }
     let preflop = spot.preflop;
-    let rel = reliability(preflop);
-    let note = format!(
-        "Einschätzung (keine Lösung): {why_not} Ranges aus der Vorgeschichte{}, Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner. In {} % der Prüf-Spots lag sie höchstens eine Stufe neben {}, bei guten Zügen wie bei Fehlern.",
+    let rel = reliability(a.street);
+    let mut note = format!(
+        "Einschätzung (keine Lösung): {why_not} Ranges aus der Vorgeschichte{}, Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens {} % der Prüf-Spots lag sie höchstens eine Stufe neben {}, bei guten Zügen wie bei Fehlern.",
         if flop.is_some() && !preflop { " (am Flop aus dem Preflop-Modell)" } else { "" },
         (rel * 100.0).round(),
         if preflop { "dem Preflop-Modell" } else { "dem Solver" }
     );
+    let small = crate::calibration::stored().small(a.street);
+    if !small.is_empty() {
+        note.push_str(&format!(" Zu wenige Fälle, um mitzuzählen: {}.", small.join(", ")));
+    }
+    if opponents > 1 {
+        note.push_str(" Gemessen ist das heads-up; mit mehreren Gegnern ist sie ungeprüft.");
+    }
     let d = base(hand.id, index, a.street, spot_type, fmt::real_action(hand, a));
     let mut d = score(d, Source::Estimate, strategy, pot, note, |_| why);
     d.reliability = Some(rel);
