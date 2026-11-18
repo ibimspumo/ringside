@@ -344,6 +344,24 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await click(".replayer button[aria-label^='Weiter']");
 });
 
+step("Hände: die Analyse zeigt eine Entscheidung erst, wenn das Abspielen dort steht", async () => {
+  const TABS = "main [role='tablist'][aria-label^='Deine Entscheidungen'] [role='tab']";
+  const verdict = () => s.exec(`return !!document.querySelector("main .decision")`);
+  if (!(await s.exec(`return !!document.querySelector(arguments[0])`, TABS))) {
+    if (!TAURI) throw new Error("the demo hand has rated decisions");
+    log("hand without decisions: replay order not checked");
+    return;
+  }
+  await click(TABS);
+  await find("main .decision");
+  // One step back the replay stands before the action ahead of your first decision.
+  await click(".replayer button[aria-label^='Zurück']");
+  await waitText("Gleich bist du dran");
+  if (await verdict()) throw new Error("the first decision's verdict shows before the replay reaches it");
+  await click(".replayer button[aria-label^='Weiter']");
+  await find("main .decision");
+});
+
 /** Scroll boxes in "Hände" that are wider than their room, and how far the analysis sits from the right edge. */
 const OVERFLOW = `
   const boxes = [document.querySelector("main .content"), ...document.querySelectorAll("main .hands *")].filter((e) => {
