@@ -3476,7 +3476,6 @@ dependencies = [
  "ringside-coach",
  "ringside-core",
  "ringside-engine",
- "ringside-gpu",
  "ringside-learn",
  "ringside-play",
  "ringside-solver",
