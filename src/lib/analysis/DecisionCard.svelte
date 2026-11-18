@@ -91,33 +91,45 @@
     >
       <p>{reason}</p>
       {#snippet actions()}
-        <ChartsButton decision={d} />
-        {#if prefill}
-          <Button size="sm" onclick={() => prefill && openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">Im Solver öffnen</Button>
-        {/if}
         {#if onLearn && grade !== "best" && grade !== "mix"}
           {#each LEARN[d.spot] as l (l.label)}
-            <Button size="sm" variant="quiet" onclick={() => onLearn(l.target)}>{l.label}</Button>
+            <Button size="sm" variant="quiet" onclick={() => onLearn(l.target)} title="Öffnet das passende Kapitel im Lernbereich">
+              {#snippet icon()}<svg class="book" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5" /></svg>{/snippet}
+              {l.label}
+            </Button>
           {/each}
+        {/if}
+        <ChartsButton decision={d} variant="primary" />
+        {#if prefill}
+          <Button variant="primary" onclick={() => prefill && openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">Im Solver öffnen</Button>
         {/if}
       {/snippet}
     </Verdict>
 
     <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
       {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-        <span class="seg {tone(c)}" class:mine={c.played} style="flex-grow:{Math.max(c.freq, 0.015)}" title="{c.label}: {pct(c.freq)}"></span>
+        <span class="part {tone(c)}" class:mine={c.played} style:flex-grow={Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
       {/each}
     </div>
     <ul class="options">
+      <li class="cols" aria-hidden="true">
+        <span></span>
+        <span>{SOURCE[d.source].label}</span>
+        <span title="Wie oft die Quelle diese Aktion mit genau deiner Hand wählt">{d.source === "estimate" ? "" : "so oft"}</span>
+        <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
+      </li>
       {#each d.strategy as c (c.label)}
         <li class:mine={c.played}>
           <span class="dot {tone(c)}"></span>
           <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
-          <span class="num freq">{d.source === "estimate" ? "" : pct(c.freq)}</span>
+          <span class="num freq">{d.source === "estimate" ? "" : c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
           <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
         </li>
       {/each}
     </ul>
+    <p class="legend">
+      {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
+    </p>
 
     {#if kit}
       <SourceNote kind={kit} variant="block">
@@ -184,15 +196,16 @@
     gap: 2px;
     height: 12px;
   }
-  .seg {
+  .part {
     flex-basis: 0;
     border-radius: 3px;
     min-width: 4px;
   }
-  .seg.mine {
+  /* Your share carries the grade's colour, so a bad call is never outlined like a good one. */
+  .part.mine {
     box-shadow:
       0 0 0 2px var(--surface),
-      0 0 0 3.5px var(--text);
+      0 0 0 4px var(--ring);
   }
   .fold {
     background: var(--act-fold);
@@ -248,8 +261,32 @@
     text-align: right;
   }
   .ev {
-    color: var(--text-3);
+    color: var(--text-2);
     cursor: help;
+  }
+  .options li.cols {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  .options li.cols > :nth-child(n + 3) {
+    text-align: right;
+  }
+  abbr {
+    text-decoration: underline dotted;
+    text-underline-offset: 3px;
+    cursor: help;
+  }
+  .legend {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: var(--lh-base);
+  }
+  .book path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
   }
   .ev.best {
     color: var(--pos);

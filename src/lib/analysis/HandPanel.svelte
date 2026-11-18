@@ -1,8 +1,12 @@
 <script lang="ts">
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
+  import ProgressBar from "../ui/ProgressBar.svelte";
   import DecisionCard from "./DecisionCard.svelte";
-  import { RATING, SOURCE } from "./labels";
+  import { GRADE_OF, RATING, SOURCE } from "./labels";
   import { analysis } from "./store.svelte";
   import type { Decision } from "./types";
 
@@ -16,6 +20,8 @@
     onAnalyze,
     onSelect,
     onLearn,
+    caption = null,
+    main = true,
   }: {
     decisions: Decision[] | null;
     selected: number | null;
@@ -26,9 +32,13 @@
     onAnalyze: () => void;
     onSelect: (action: number) => void;
     onLearn?: (target: LearnTarget) => void;
+    /** A line above the verdict, e.g. that the table shows the moment of this decision. */
+    caption?: { text: string; ahead: boolean } | null;
+    /** Whether analysing this hand is the main action of the screen. */
+    main?: boolean;
   } = $props();
 
-  const STREET = { preflop: "Pre", flop: "Flop", turn: "Turn", river: "River" } as const;
+  const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
   const current = $derived(decisions?.find((d) => d.action_index === selected) ?? null);
   const pending = $derived(decisions?.filter((d) => d.status === "pending").length ?? 0);
   const handId = $derived(decisions?.[0]?.hand_id ?? null);
@@ -36,22 +46,21 @@
 </script>
 
 {#if locked}
-  <div class="cta">
-    <p>Die Analyse ist gesperrt, solange PokerStars läuft.</p>
-  </div>
+  <p class="paused">Die Analyse pausiert, bis du PokerStars schließt. Nachspielen geht weiter.</p>
 {:else if decisions === null}
-  <div class="cta"><p class="faint">Lädt …</p></div>
+  <EmptyState compact tone="loading" title="Lädt die Bewertung …" />
 {:else if decisions.length === 0 && analyzed}
   <div class="cta">
     <p>In dieser Hand gibt es nichts zu bewerten: Du hast nicht selbst gehandelt, oder es ist kein No-Limit Hold'em.</p>
   </div>
 {:else if decisions.length === 0}
   <div class="cta">
-    <button class="btn primary big" disabled={busy} onclick={onAnalyze}>
-      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5" /></svg>
+    <strong>Wie gut hast du diese Hand gespielt?</strong>
+    <p>Ringside prüft jede deiner Entscheidungen. Vor dem Flop ist das sofort fertig, nach dem Flop rechnet der Solver meist unter einer Minute.</p>
+    <Button variant={main ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={onAnalyze}>
+      {#snippet icon()}<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5" /></svg>{/snippet}
       {busy ? "Analysiere …" : "Diese Hand analysieren"}
-    </button>
-    <p>Ringside prüft jede deiner Entscheidungen in dieser Hand. Vor dem Flop ist das sofort fertig, nach dem Flop rechnet der Solver meist unter einer Minute.</p>
+    </Button>
   </div>
 {:else}
   <div class="panel-wrap">
@@ -59,67 +68,87 @@
       <div class="solving" role="status">
         <span>
           {#if solving}
-            Solver rechnet {pending === 1 ? "deine Flop-Entscheidung" : `deine ${pending} Entscheidungen nach dem Flop`} …
+            Solver rechnet {pending === 1 ? "deine Entscheidung nach dem Flop" : `deine ${pending} Entscheidungen nach dem Flop`} …
             <b class="num">{Math.round((solving.iteration / solving.max_iterations) * 100)} %</b>
           {:else}
             {pending === 1 ? "Eine Entscheidung" : `${pending} Entscheidungen`} nach dem Flop {pending === 1 ? "wartet" : "warten"} auf den Solver – diese Hand ist als Nächste dran.
           {/if}
         </span>
         <div class="row">
-          <div class="bar"><i style="width:{solving ? Math.min(100, (solving.iteration / solving.max_iterations) * 100) : 4}%"></i></div>
+          <ProgressBar tone="warn" label="Fortschritt des Solvers" value={solving ? Math.min(1, solving.iteration / solving.max_iterations) : null} />
           {#if handId !== null && analysis.status?.marked.includes(handId)}
-            <button class="stop" onclick={() => handId !== null && api.analysisCancelHand(handId)} title="Diese Hand nicht mehr vorziehen. Sie wird später mit den übrigen gerechnet, wenn die Analyse aller Hände läuft.">
-              Abbrechen
-            </button>
+            <Button
+              size="sm"
+              variant="quiet"
+              onclick={() => handId !== null && api.analysisCancelHand(handId)}
+              title="Diese Hand nicht mehr vorziehen. Sie wird später mit den übrigen gerechnet, wenn die Analyse aller Hände läuft."
+            >
+              Nicht vorziehen
+            </Button>
           {/if}
         </div>
       </div>
     {/if}
-    <div class="steps" role="tablist" aria-label="Deine Entscheidungen">
+    <div class="steps" role="tablist" aria-label="Deine Entscheidungen in dieser Hand">
       {#each decisions as d (d.action_index)}
+        {@const label = d.rating
+          ? `${RATING[d.rating].label} · ${SOURCE[d.source ?? "model"].label}`
+          : d.status === "pending"
+            ? "Wird gerechnet"
+            : d.status === "forced"
+              ? "Keine Entscheidung"
+              : "Nicht bewertet"}
         <button
           role="tab"
           aria-selected={d.action_index === selected}
           class:on={d.action_index === selected}
-          style="--c:{d.rating ? RATING[d.rating].color : 'var(--text-3)'}"
-          class:open={!d.rating}
+          style:--c={d.rating ? `var(--grade-${GRADE_OF[d.rating]})` : "var(--text-3)"}
           onclick={() => onSelect(d.action_index)}
-          title={d.rating ? `${RATING[d.rating].label} · ${SOURCE[d.source ?? "model"].label}` : d.status === "pending" ? "Wird gerechnet" : d.status === "forced" ? "Keine Entscheidung" : "Nicht bewertet"}
+          title="{STREET[d.street]}: {d.played} · {label}"
         >
-          <i></i>{STREET[d.street]} · {d.played.split(" ")[0]}
+          {#if d.rating}<GradeIcon grade={GRADE_OF[d.rating]} size={15} />{:else}<i class:wait={d.status === "pending"}></i>{/if}
+          <span class="street">{STREET[d.street]}</span>
+          <b>{d.played.split(" ")[0]}</b>
         </button>
       {/each}
     </div>
     {#if current}
+      {#if caption}<p class="caption" class:ahead={caption.ahead}>{caption.text}</p>{/if}
       <DecisionCard decision={current} {onLearn} />
     {/if}
   </div>
 {/if}
 
 <style>
+  .paused {
+    margin: 0;
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px dashed var(--line-2);
+    border-radius: var(--r-md);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
   .cta {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 14px 16px;
+    align-items: flex-start;
+    gap: var(--sp-2);
+    padding: var(--sp-4);
     border: 1px dashed var(--line-2);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     background: var(--surface);
-    font-size: 13px;
     color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .cta strong {
+    color: var(--text);
+    font-size: var(--fs-base);
   }
   .cta p {
-    margin: 0;
-    line-height: 1.45;
+    margin: 0 0 var(--sp-1);
+    line-height: var(--lh-base);
   }
-  .big {
-    align-self: flex-start;
-    height: 36px;
-    padding: 0 16px;
-    font-size: 14px;
-    gap: 8px;
-  }
-  .big svg path {
+  .cta svg path {
     fill: none;
     stroke: currentColor;
     stroke-width: 2.2;
@@ -128,91 +157,102 @@
   .panel-wrap {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: var(--sp-3);
   }
   .solving {
     display: flex;
     flex-direction: column;
-    gap: 5px;
-    font-size: 12.5px;
+    gap: 6px;
     color: var(--text-2);
+    font-size: var(--fs-sm);
   }
   .solving b {
     color: var(--amber);
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
   }
   .row {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--sp-3);
   }
-  .row .bar {
+  .row > :global(:first-child) {
     flex: 1;
   }
-  .stop {
-    height: 22px;
-    padding: 0 8px;
-    border: 1px solid var(--line-2);
-    border-radius: 999px;
-    background: transparent;
-    color: var(--text-2);
-    font-size: 11.5px;
-    cursor: pointer;
-  }
-  .stop:hover {
+  .caption {
+    margin: 0 0 calc(-1 * var(--sp-1));
     color: var(--text);
+    font-size: var(--fs-md);
   }
-  .bar {
-    height: 3px;
-    border-radius: 2px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .bar i {
-    display: block;
-    height: 100%;
-    background: var(--amber);
-    transition: width 0.3s ease;
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .bar i {
-      transition: none;
-    }
+  /* Not played yet at this point of the replay: marked as coming, so it never reads as the move just made. */
+  .caption.ahead::before {
+    content: "Kommt noch";
+    margin-right: var(--sp-2);
+    padding: 1px 7px;
+    border-radius: var(--r-pill);
+    border: 1px dashed var(--line-2);
+    color: var(--text-2);
+    font-size: var(--fs-xs);
   }
   .steps {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    gap: 6px;
   }
   .steps button {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 26px;
-    padding: 0 9px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
+    height: 30px;
+    padding: 0 var(--sp-3) 0 var(--sp-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-pill);
     background: var(--surface);
-    color: var(--text-2);
-    font-size: 12px;
+    color: var(--text);
+    font: inherit;
+    font-size: var(--fs-md);
     cursor: pointer;
+    transition:
+      color var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard),
+      background-color var(--dur-fast) var(--ease-standard);
   }
   .steps button:hover {
     color: var(--text);
+    border-color: color-mix(in srgb, var(--c) 55%, var(--line-2));
+  }
+  .steps button:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
   }
   .steps button.on {
     border-color: var(--c);
+    background: color-mix(in srgb, var(--c) 14%, var(--surface));
     color: var(--text);
-    background: var(--surface-2);
+  }
+  .steps b {
+    font-weight: var(--fw-semibold);
+  }
+  .street {
+    color: var(--text-2);
+  }
+  .on .street {
+    color: var(--text-2);
   }
   .steps i {
-    width: 8px;
-    height: 8px;
+    width: 13px;
+    height: 13px;
     border-radius: 50%;
-    background: var(--c);
+    border: 1.5px dashed var(--text-3);
   }
-  .steps .open i {
-    background: transparent;
-    border: 1.5px dashed var(--c);
+  .steps i.wait {
+    border-style: solid;
+    border-color: var(--amber);
+    border-right-color: transparent;
+    animation: spin var(--dur-loop) var(--ease-spin) infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
   }
 </style>

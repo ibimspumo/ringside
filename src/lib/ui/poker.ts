@@ -17,7 +17,7 @@ export const ACTION_NAME: Record<ActionKind, string> = {
 
 /** CSS colour of an action; bets and raises by size step. */
 export function actionColor(kind: ActionKind, step?: SizeStep): string {
-  if (kind === "bet" || kind === "raise") return step ? `var(--act-bet-${step})` : `var(--act-${kind})`;
+  if (kind === "bet" || kind === "raise") return step ? `var(--act-bet-${step})` : kind === "bet" ? "var(--act-bet-2)" : "var(--act-raise)";
   return `var(--act-${kind})`;
 }
 

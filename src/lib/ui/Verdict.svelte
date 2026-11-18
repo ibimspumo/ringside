@@ -17,6 +17,7 @@
     potShare,
     context,
     source,
+    sourceHint,
     lead,
     children,
     actions,
@@ -33,6 +34,8 @@
     /** Where the decision was: "River · Q♠8♠". */
     context?: string;
     source?: Source;
+    /** What exactly the source computed here, shown on hover instead of the general line. */
+    sourceHint?: string;
     /** Replaces the grade's standard line when the strategy is not a solution's. */
     lead?: string;
     /** The reason in one or two sentences. */
@@ -51,7 +54,9 @@
       <strong>{g.label}</strong>
       {#if context}<span>{context}</span>{/if}
     </div>
-    {#if costly && grade !== "best" && grade !== "mix"}<span class="price num">−{bb(cost ?? 0, { digits: 2 })}</span>{/if}
+    {#if costly && grade !== "best" && grade !== "mix"}<span class="price num" title="So viel bringt diese Entscheidung im Schnitt weniger als die beste – nicht das Ergebnis der Hand"
+        >−{bb(cost ?? 0, { digits: 2 })}</span
+      >{/if}
   </header>
 
   <div class="body">
@@ -59,7 +64,7 @@
       <p class="fix">
         Besser: <b>{better}</b> – dein {played}
         {#if costly}
-          kostet <b class="num">{bb(cost ?? 0, { digits: 2 })}</b>{#if potShare !== undefined}{" "}<span class="share">({pct(potShare)} des Pots)</span>{/if}.
+          bringt im Schnitt <b class="num">{bb(cost ?? 0, { digits: 2 })}</b> weniger{#if potShare !== undefined}{" "}<span class="share">({pct(potShare)} des Pots)</span>{/if}.
         {:else}
           ist schwächer.
         {/if}
@@ -75,7 +80,7 @@
     {#if children}<div class="why">{@render children()}</div>{/if}
     {#if source || actions}
       <footer>
-        {#if source}<SourceNote kind={source} />{/if}
+        {#if source}<SourceNote kind={source} hint={sourceHint} />{/if}
         {#if actions}<div class="actions">{@render actions()}</div>{/if}
       </footer>
     {/if}
@@ -122,10 +127,12 @@
     padding: var(--sp-2) var(--sp-4) var(--sp-2) var(--sp-3);
     background: color-mix(in srgb, var(--c) var(--band), transparent);
   }
+  /* In a narrow card the context moves under the grade instead of being cut off. */
   .what {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
-    gap: var(--sp-2);
+    gap: 0 var(--sp-2);
     min-width: 0;
     flex: 1;
   }
@@ -135,11 +142,8 @@
     font-weight: var(--fw-bold);
   }
   .what span {
-    overflow: hidden;
     color: var(--text-2);
     font-size: var(--fs-md);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .price {
     color: var(--text);
@@ -190,6 +194,8 @@
   }
   .actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--sp-2);
     margin-left: auto;
   }

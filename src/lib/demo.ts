@@ -357,7 +357,7 @@ export const demoHand: Hand = {
 export function demoHandById(id: number): Hand {
   const own = DEMO_HANDS.find((h) => h.id === id);
   if (own) return own;
-  if (id < 1e12) return demoHand;
+  if (id < 1e12) return { ...demoHand, id };
   const tournament = Math.floor(id / 1000);
   return { ...demoHand, id, game: "tournament", tournament_id: tournament, table_name: `${tournament} 10`, currency: null };
 }

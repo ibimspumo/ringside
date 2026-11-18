@@ -303,7 +303,7 @@ step("Hände: Replayer öffnet eine Hand", async () => {
   await nav("Hände");
   await click("main [role='option']");
   await find(".replayer");
-  await click(".replayer button[aria-label='Weiter']");
+  await click(".replayer button[aria-label^='Weiter']");
 });
 
 // The demo's decisions link the solver with the line to them; the app's need a solved spot.
@@ -316,7 +316,7 @@ step("Hände: Replayer öffnet eine Hand", async () => {
     );
     await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, hand);
     await s.click(hand);
-    await click("main .steps button", "Turn · Check");
+    await click("main .steps button[title^='Turn: Check']");
     await find("main .decision", "Solver", { exact: false });
     await click("main article.ui-verdict button", "Im Solver öffnen");
     // The line stands at the hero's turn decision: the turn card is dealt, the last step is on.

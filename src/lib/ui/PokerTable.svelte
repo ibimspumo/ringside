@@ -1,5 +1,56 @@
 <script lang="ts" module>
-  import type { ActionKind, SizeStep } from "./poker";
+  import { minHeight, type Box, type Sizes } from "../table/seats";
+  import type { ActionKind, Grade, SizeStep } from "./poker";
+
+  /**
+   * Below this width the full plates leave no room round the board, so the table turns compact:
+   * smaller plates at the same type sizes, action tags on the plate's edge, a taller stage.
+   */
+  export const COMPACT_BELOW = 880;
+  /** Narrowest table on which nothing overlaps, at six and nine seats (checked against `clear`). */
+  export const CLEAN_FROM = 570;
+
+  const FULL: Sizes = {
+    seat: { w: 112, h: 74 },
+    me: { w: 124, h: 88 },
+    badge: { w: 92, h: 22 },
+    bet: { w: 64, h: 22 },
+    dealer: 18,
+    gap: 6,
+    margin: 8,
+  };
+  const COMPACT: Sizes = {
+    seat: { w: 80, h: 50 },
+    me: { w: 96, h: 72 },
+    badge: { w: 58, h: 20 },
+    bet: { w: 50, h: 20 },
+    dealer: 16,
+    gap: 4,
+    margin: 6,
+    onEdge: true,
+  };
+  /** Pot, board and street name, stacked in the middle. */
+  const MIDDLE = { full: { w: 186, h: 96 }, compact: { w: 150, h: 82 } };
+
+  /** One size step from about 900 px on, at most a third larger. */
+  export const scaleAt = (w: number) => (w < COMPACT_BELOW ? 1 : Math.min(1.3, Math.max(1, w / 900)));
+
+  export function sizesAt(w: number): Sizes {
+    if (w < COMPACT_BELOW) return COMPACT;
+    const k = scaleAt(w);
+    const grow = (b: Box) => ({ w: b.w * k, h: b.h * k });
+    return { ...FULL, seat: grow(FULL.seat), me: grow(FULL.me ?? FULL.seat), badge: grow(FULL.badge), bet: grow(FULL.bet), dealer: 18 * k, gap: 6 * k };
+  }
+
+  /** The table's height at a width; callers fitting it into a box use it to find the width. */
+  export function tableHeight(w: number): number {
+    const compact = w < COMPACT_BELOW;
+    const k = scaleAt(w);
+    const mid = compact ? MIDDLE.compact : { w: MIDDLE.full.w * k, h: MIDDLE.full.h * k };
+    // Narrower tables get taller, so the lines from the seats to the middle keep room for tag and chips.
+    const ratio = compact ? (w < 610 ? 0.95 : w < 640 ? 0.85 : 0.75) : 0.66;
+    return Math.max(minHeight(sizesAt(w), [{ box: mid, dy: 0 }]), Math.round(w * ratio));
+  }
 
   export type TableSeat = {
     name?: string;
@@ -17,47 +68,59 @@
     toAct?: boolean;
     dealer?: boolean;
     empty?: boolean;
+    /** Won at the end of the hand, in big blinds: the plate turns green, the amount sits on the line. */
+    won?: number;
+    /** Grade of the action on the line, e.g. your rated decision while a hand is replayed. */
+    grade?: Grade;
   };
 </script>
 
 <script lang="ts">
-  import { layout, minHeight, placeOf, type Point, type Sizes } from "../table/seats";
+  import { layout, placeOf, type Point } from "../table/seats";
   import ActionLabel from "./ActionLabel.svelte";
   import { bb, num } from "./format";
+  import GradeIcon from "./GradeIcon.svelte";
+  import { GRADE } from "./poker";
   import PlayingCard from "./PlayingCard.svelte";
 
   /**
    * Table for every view with seats: "you" (`hero`) bottom centre, the others clockwise. The
    * geometry comes from table/seats.ts: action tag and chips sit on the line from each seat to
-   * the middle, at the same pixel distance for all seats.
+   * the middle, at the same pixel distance for all seats. Plates keep their size on small
+   * tables and grow a step on wide ones, so names and stacks stay readable everywhere.
+   * `format` writes amounts (given in big blinds), e.g. as money; `note` sits under the board.
    */
   let {
     seats,
     hero = 0,
     board = [],
     pot,
+    note,
+    noteWin = false,
+    noteAside,
+    format,
     label = "Pokertisch",
-  }: { seats: TableSeat[]; hero?: number; board?: string[]; pot?: number; label?: string } = $props();
-
-  const SIZES: Sizes = {
-    seat: { w: 112, h: 74 },
-    me: { w: 124, h: 88 },
-    badge: { w: 70, h: 22 },
-    bet: { w: 52, h: 22 },
-    dealer: 18,
-    gap: 6,
-    margin: 8,
-  };
-  /** Pot above the board, both centred on the middle. */
-  const MIDDLE = [
-    { box: { w: 110, h: 20 }, dy: -28 },
-    { box: { w: 170, h: 42 }, dy: 6 },
-  ];
+  }: {
+    seats: TableSeat[];
+    hero?: number;
+    board?: string[];
+    pot?: number;
+    note?: string;
+    /** The note says who won: it stands out instead of whispering the street. */
+    noteWin?: boolean;
+    /** A quieter second part of the note, e.g. your own hand beside the winner's. */
+    noteAside?: string;
+    format?: (bb: number) => string;
+    label?: string;
+  } = $props();
 
   let w = $state(640);
+  const k = $derived(scaleAt(w));
+  const SIZES = $derived(sizesAt(w));
   const n = $derived(seats.length);
-  const h = $derived(Math.max(minHeight(SIZES, MIDDLE), Math.round(w * 0.66)));
+  const h = $derived(tableHeight(w));
   const table = $derived(layout(n, w, h, SIZES));
+  const amount = (v: number) => (format ? format(v) : num(v, v % 1 ? 1 : 0));
   const place = (i: number) => table.places[placeOf(i, hero, n)];
   const at = (p: Point) => `left:${p.x}px; top:${p.y}px`;
   /** A chip or tag starts its glide at the seat. */
@@ -67,7 +130,7 @@
   };
 </script>
 
-<div class="ui-table" role="group" aria-label={label} bind:clientWidth={w} style:height="{h}px">
+<div class="ui-table" role="group" aria-label={label} bind:clientWidth={w} style:height="{h}px" style:--k={k} class:compact={w < COMPACT_BELOW}>
   <div
     class="rail"
     style:left="{table.felt.cx - table.felt.rx}px"
@@ -79,20 +142,25 @@
   </div>
 
   <div class="middle" style={at(table.center)}>
-    {#if pot !== undefined}<span class="pot num">Pot {bb(pot)}</span>{/if}
+    {#if pot !== undefined}<span class="pot num" class:hidden={pot <= 0}>Pot {format ? format(pot) : bb(pot)}</span>{/if}
     <div class="board" aria-label="Board">
-      {#each board as c, k (c)}<PlayingCard card={c} size={30} reveal delay={k * 70} />{/each}
+      {#each board as c, j (c)}<PlayingCard card={c} size={w < COMPACT_BELOW ? 24 : Math.round(32 * k)} reveal delay={j * 70} />{/each}
     </div>
+    {#if note}<span class="note" class:win={noteWin}>{note}{#if noteAside}<span class="aside">· {noteAside}</span>{/if}</span>{/if}
   </div>
 
   {#each seats as s, i (i)}
     {#if !s.empty}
       {@const p = place(i)}
       {#if s.bet}
-        <span class="bet num" style="{at(p.bet)}; {from(i, p.bet)}"><i aria-hidden="true"></i>{num(s.bet, s.bet % 1 ? 1 : 0)}</span>
+        <span class="bet num" style="{at(p.bet)}; {from(i, p.bet)}"><i aria-hidden="true"></i>{amount(s.bet)}</span>
       {/if}
-      {#if s.action}
-        <span class="tag" style="{at(p.badge)}; {from(i, p.badge)}"><ActionLabel {...s.action} amount={undefined} size="sm" /></span>
+      {#if s.won !== undefined}
+        <span class="tag won num" style="{at(p.badge)}; {from(i, p.badge)}" title="Was dieser Spieler aus dem Pot bekommt">+{amount(s.won)}</span>
+      {:else if s.action}
+        <span class="tag" class:graded={!!s.grade} style="{at(p.badge)}; {from(i, p.badge)}" title={s.grade ? GRADE[s.grade].label : undefined}
+          ><ActionLabel {...s.action} amount={undefined} size="sm" />{#if s.grade}<GradeIcon grade={s.grade} size={13} />{/if}</span
+        >
       {/if}
       {#if s.dealer}<span class="dealer" style={at(p.dealer)} title="Dealer-Button">D</span>{/if}
     {/if}
@@ -105,21 +173,28 @@
       class:folded={s.folded}
       class:act={s.toAct}
       class:empty={s.empty}
+      class:winner={s.won !== undefined}
       style={at(place(i).seat)}
-      aria-label={s.empty ? "freier Platz" : `${i === hero ? "Du" : (s.name ?? s.position ?? `Platz ${i + 1}`)}${s.toAct ? ", am Zug" : ""}${s.folded ? ", ausgestiegen" : ""}`}
+      aria-label={s.empty ? "freier Platz" : `${i === hero ? "Du" : (s.name ?? s.position ?? `Platz ${i + 1}`)}${s.toAct ? ", am Zug" : ""}${s.folded ? ", ausgestiegen" : ""}${s.won !== undefined ? ", gewinnt" : ""}`}
     >
       {#if s.cards && !s.folded}
         <div class="cards">
-          {#each s.cards === "hidden" ? [undefined, undefined] : s.cards as c, k (k)}<PlayingCard card={c} size={i === hero ? 30 : 22} hidden={!c} />{/each}
+          {#each s.cards === "hidden" ? [undefined, undefined] : s.cards as c, j (j)}<PlayingCard
+              card={c}
+              size={(i === hero || s.cards !== "hidden" ? 30 : 22) - (w < COMPACT_BELOW ? 5 : 0)}
+              hidden={!c}
+              reveal={i !== hero && s.cards !== "hidden"}
+              delay={j * 60}
+            />{/each}
         </div>
       {/if}
       {#if !s.empty}
         <div class="plate">
           <span class="who">
             {#if s.position}<b>{s.position}</b>{/if}
-            <span class="name">{i === hero ? "Du" : (s.name ?? "")}</span>
+            <span class="name" title={i === hero ? undefined : s.name}>{i === hero ? "Du" : (s.name ?? "")}</span>
           </span>
-          {#if s.stack !== undefined}<span class="stack num">{bb(s.stack)}</span>{/if}
+          {#if s.stack !== undefined}<span class="stack num">{format ? format(s.stack) : bb(s.stack)}</span>{/if}
         </div>
       {:else}
         <div class="plate free">frei</div>
@@ -157,6 +232,34 @@
     gap: 6px;
     transform: translate(-50%, -50%);
   }
+  .pot.hidden {
+    visibility: hidden;
+  }
+  .note {
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
+    scale: var(--k);
+  }
+  .note .aside {
+    margin-left: 0.4em;
+    color: var(--text-2);
+  }
+  .note.win {
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--grid-plate);
+    color: var(--pos);
+    font-size: var(--fs-sm);
+    animation: rise var(--dur-slow) var(--ease-enter) both;
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      translate: 0 4px;
+    }
+  }
   .pot {
     padding: 2px var(--sp-2);
     border-radius: var(--r-pill);
@@ -175,6 +278,10 @@
   .dealer {
     position: absolute;
     transform: translate(-50%, -50%);
+    scale: var(--k);
+  }
+  .pot {
+    scale: var(--k);
   }
   .seat {
     display: flex;
@@ -225,6 +332,16 @@
     font-weight: var(--fw-semibold);
     line-height: 1.1;
   }
+  .compact .plate {
+    min-width: 72px;
+    padding: 3px 6px;
+  }
+  .compact .who {
+    max-width: 72px;
+  }
+  .compact .middle {
+    gap: 4px;
+  }
   .hero .plate {
     border-color: var(--text);
     box-shadow:
@@ -237,8 +354,15 @@
       0 0 0 2px color-mix(in srgb, var(--amber) 45%, transparent),
       var(--shadow-1);
   }
+  .winner .plate {
+    border-color: var(--pos);
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--pos) 40%, transparent),
+      var(--shadow-1);
+  }
   .folded {
-    opacity: 0.42;
+    opacity: 0.62;
+    transition: opacity var(--dur) var(--ease-standard);
   }
   .free {
     min-width: 64px;
@@ -283,6 +407,24 @@
   }
   .tag {
     z-index: 1;
+  }
+  /* The grade sits on the tag's corner, so a graded tag is as wide as everyone else's. */
+  .graded > :global(.ui-grade-icon) {
+    position: absolute;
+    top: -7px;
+    right: -7px;
+    border-radius: 50%;
+    background: var(--bg);
+  }
+  .won {
+    padding: 1px var(--sp-2);
+    border-radius: var(--r-pill);
+    border: 1px solid color-mix(in srgb, var(--pos) 55%, transparent);
+    background: color-mix(in srgb, var(--pos) 16%, var(--bg));
+    color: var(--pos);
+    font-size: var(--fs-sm);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
   }
   .bet,
   .tag {
