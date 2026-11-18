@@ -374,20 +374,23 @@
     color: var(--text);
   }
   .compare {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--sp-2);
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
     margin: 0;
   }
   .compare > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
     padding: var(--sp-2) var(--sp-3);
     border-radius: var(--r-sm);
     background: var(--surface-2);
     border: 1px solid var(--line);
   }
-  .compare dt {
-    overflow-wrap: anywhere;
-    hyphens: auto;
+  .compare dd {
+    margin: 0;
   }
   .compare > .mine {
     border-color: var(--text-2);
