@@ -105,8 +105,8 @@ fn served<K: Kind>(client: &Client, input: &K::Input) -> Result<Option<K::Soluti
 /// Checks only this run's keys, in this process.
 fn verify(db: &Db, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
     let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
-    let opts = VerifyOptions { keys: Some(&plain), limit: 10, deadline: None, dry_run: false };
-    Ok(verify_pending(db, &opts, &check_here)?.into_iter().map(|c| (c.key, c.verdict)).collect())
+    let opts = VerifyOptions { keys: Some(&plain), limit: 10, offset: 0, tried_since: None, deadline: None, dry_run: false };
+    Ok(verify_pending(db, &opts, &check_here)?.into_iter().map(|c| (c.key, c.attempt.verdict())).collect())
 }
 
 fn run(base: &str, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
@@ -344,6 +344,9 @@ fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>,
         db.execute(&[("UPDATE work SET lease_until = ? WHERE key = ?", vec![(now() - 1).into(), key.as_str().into()])])?;
         let third = client.next_work(&kinds).map_err(|e| e.to_string())?;
         step("queue: after the lease ran out it is handed out again", third.as_ref().is_some_and(|w| w.key == key), "same key")?;
+        client.release_work(&key).map_err(|e| e.to_string())?;
+        let again = client.next_work(&kinds).map_err(|e| e.to_string())?;
+        step("queue: a given-back lease is handed out again at once", again.as_ref().is_some_and(|w| w.key == key), "same key")?;
 
         let catalog_of = input.catalog(Some(&local))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
