@@ -70,6 +70,9 @@
   /** The stack at the decision, as the table shows it; the spot's own figure is the stack at the start of the hand. */
   const stack = $derived(hand && at !== null ? bb(behind(hand, at)) : bb(spot.stack_bb));
 
+  /** The reason's first sentence, next to the verdict; the whole reason follows below the table. */
+  const gist = $derived(spot.why.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? spot.why);
+
   const KEY: Record<Choice, string> = { fold: "F", check: "X", call: "C", raise: "R", allin: "A" };
 
   function choose(c: Choice) {
@@ -173,6 +176,7 @@
                 <b>Der Coach nennt hier keine eindeutige Aktion.</b>
               {/if}
             </div>
+            <p class="gist"><CardText hands text={say(gist)} /></p>
             <dl class="compare">
               <div class="mine"><dt>Du</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
@@ -357,6 +361,12 @@
     flex-wrap: wrap;
     gap: 8px 12px;
     font-size: var(--fs-lg);
+  }
+  .gist {
+    margin: 0;
+    font-size: var(--fs-base);
+    line-height: 1.5;
+    color: var(--text);
   }
   .compare {
     display: grid;
