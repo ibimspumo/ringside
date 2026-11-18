@@ -46,6 +46,8 @@ pub struct DrillSpot {
     /// The hand up to the decision; a variation with the hero's new cards.
     pub hand: Hand,
     pub hero_cards: Vec<String>,
+    /// The hero's seat label, e.g. "BB".
+    pub position: Option<String>,
     pub choices: Vec<DrillChoice>,
     pub source: Option<Source>,
     pub reliability: Option<f64>,
@@ -84,7 +86,8 @@ fn stored(state: &AppState, hand_id: u64, action_index: usize) -> CmdResult<Deci
 }
 
 fn spot(key: &str, base: &Hand, shown: Hand, d: &Decision, seed: Option<u64>) -> CmdResult<DrillSpot> {
-    let kind = kind_of(&row(&shown, d)).ok_or("Keine Entscheidung")?;
+    let r = row(&shown, d);
+    let kind = kind_of(&r).ok_or("Keine Entscheidung")?;
     if kind.key() != key {
         return Err("Der Spot gehört zu einer anderen Lage".into());
     }
@@ -101,6 +104,7 @@ fn spot(key: &str, base: &Hand, shown: Hand, d: &Decision, seed: Option<u64>) ->
         seed,
         played_at: base.played_at.clone(),
         hero_cards: shown.hero_cards.clone(),
+        position: r.position,
         hand: shown,
         choices: d.strategy.iter().map(|c| DrillChoice { label: c.label.clone(), kind: c.kind.clone() }).collect(),
         source: d.source,
