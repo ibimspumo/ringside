@@ -61,3 +61,17 @@ export function termsIn(labels: string[]): { term: string; meaning: string }[] {
 
 /** The model's texts write "bb"; the app writes big blinds as "BB". */
 export const say = (text: string) => text.replace(/(\d)\s?bb\b/g, "$1 BB").replace(/\bbb\b/g, "BB");
+
+/** Writes the hero's own hand class ("K6o") as the exact cards ("Kh6d"), so text and table show the same cards. */
+export function ownCards(text: string, hero: string[]): string {
+  if (hero.length !== 2) return text;
+  const [a, b] = hero;
+  const ranks = (x: string, y: string) => `${x[0]}${y[0]}`;
+  const kind = a[0] === b[0] ? "" : a[1] === b[1] ? "s" : "o";
+  const forms = [ranks(a, b) + kind, ranks(b, a) + kind];
+  return forms.reduce((t, f) => t.replace(new RegExp(`(?<![\\w+])${f}(?![\\w+])`, "g"), `${a}${b}`), text);
+}
+
+/** Small amounts in cents, the way a player thinks about them: "14 Cent", "1,20 $". */
+export const money = (usd: number) =>
+  usd < 1 ? `${Math.max(1, Math.round(usd * 100))} Cent` : `${usd.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;

@@ -8,7 +8,7 @@
   import { conceptName } from "./concepts";
   import { CHOICE_NAME, accepted, bb, behind, choices, decisionIndex, played, scene, type Choice } from "./drill";
   import Figures from "./Figures.svelte";
-  import { positionHint, verdictOf, say } from "./meaning";
+  import { positionHint, verdictOf, say, ownCards } from "./meaning";
   import { appear, rise } from "./motion";
   import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
@@ -72,6 +72,8 @@
 
   /** The reason's first sentence, next to the verdict; the whole reason follows below the table. */
   const gist = $derived(spot.why.match(/^.*?[.!?](?=\s|$)/)?.[0] ?? spot.why);
+  /** The rest of the reason, so the first sentence is not said twice. */
+  const rest = $derived(spot.why.slice(gist.length).trim() || spot.why);
 
   const KEY: Record<Choice, string> = { fold: "F", check: "X", call: "C", raise: "R", allin: "A" };
 
@@ -176,7 +178,7 @@
                 <b>Der Coach nennt hier keine eindeutige Aktion.</b>
               {/if}
             </div>
-            <p class="gist"><CardText hands text={say(gist)} /></p>
+            <p class="gist"><CardText hands text={say(ownCards(gist, spot.hero_cards))} /></p>
             <dl class="compare">
               <div class="mine"><dt>Deine Antwort</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
@@ -184,7 +186,7 @@
                 <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <span title="Urteil des Coaches: {verdict.name}"><GradeBadge grade={verdict.grade} size="sm" variant="icon" /></span></dd>
               </div>
               {#if spot.better}
-                <div><dt>Empfehlung</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
+                <div><dt>Empfehlung</dt><dd><CardText hands text={say(ownCards(spot.better, spot.hero_cards))} /></dd></div>
               {/if}
             </dl>
             <div class="next">
@@ -212,12 +214,12 @@
     <div class="detail" in:rise>
       <div class="detail-why">
         <h3>Warum</h3>
-        <p class="why"><CardText hands text={say(spot.why)} /></p>
+        <p class="why"><CardText hands text={say(ownCards(rest, spot.hero_cards))} /></p>
       </div>
       {#if spot.numbers.length}
         <div class="detail-figs">
           <h3>Ringsides Zahlen</h3>
-          <Figures numbers={spot.numbers} />
+          <Figures numbers={spot.numbers} hero={spot.hero_cards} />
         </div>
       {/if}
     </div>

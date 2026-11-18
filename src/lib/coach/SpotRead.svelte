@@ -10,7 +10,7 @@
   import CardText from "../ui/CardText.svelte";
   import { conceptName } from "./concepts";
   import Figures from "./Figures.svelte";
-  import { positionHint, verdictOf, say } from "./meaning";
+  import { positionHint, verdictOf, say, ownCards } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
   import type { CoachSpot } from "./types";
 
@@ -77,13 +77,13 @@
       </div>
       <div class="text">
         <p class="eyebrow">Dein Spot zum Thema {conceptName(spot.concept)} <GradeBadge grade={verdict.grade} size="sm" /></p>
-        <h2 id="mine-title"><CardText hands text={say(spot.action)} /></h2>
-        {#if spot.better}<p class="better"><span>Besser</span><b><CardText hands text={say(spot.better)} /></b></p>{/if}
+        <h2 id="mine-title"><CardText hands text={say(ownCards(spot.action, spot.hero_cards))} /></h2>
+        {#if spot.better}<p class="better"><span>Besser</span><b><CardText hands text={say(ownCards(spot.better, spot.hero_cards))} /></b></p>{/if}
         {#if spot.numbers.length}
           <p class="lead">
             Deine Zahlen aus diesem Spot. Der Artikel unten rechnet mit eigenen Beispielen – vergleiche sie mit deinen:
           </p>
-          <Figures numbers={spot.numbers} />
+          <Figures numbers={spot.numbers} hero={spot.hero_cards} />
         {/if}
         <div class="row">
           <Button onclick={onDrill}>Diesen Spot üben</Button>

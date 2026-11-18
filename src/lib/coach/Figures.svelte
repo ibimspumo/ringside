@@ -1,10 +1,10 @@
 <script lang="ts">
   import SourceNote from "../ui/SourceNote.svelte";
-  import { say, termsIn } from "./meaning";
+  import { ownCards, say, termsIn } from "./meaning";
   import type { Figure } from "./types";
 
   /** A spot's figures as rows (label, value, source), with the poker terms they use explained. */
-  let { numbers }: { numbers: Figure[] } = $props();
+  let { numbers, hero }: { numbers: Figure[]; hero?: string[] } = $props();
 
   const terms = $derived(termsIn(numbers.map((n) => n.label)));
 </script>
@@ -14,7 +14,7 @@
     {#each numbers as n, i (i)}
       {@const calc = n.source === "berechnet"}
       <div class="fig" class:guess={!calc}>
-        <dt>{say(n.label)}</dt>
+        <dt>{say(hero ? ownCards(n.label, hero) : n.label)}</dt>
         <dd>
           <b class:num={calc} class:big={calc}>{say(n.value)}</b>
           <span class="src"><SourceNote kind={calc ? "computed" : "opinion"} /></span>

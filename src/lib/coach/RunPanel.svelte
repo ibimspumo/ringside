@@ -10,7 +10,7 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import Stat from "../ui/Stat.svelte";
   import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
-  import { shortModel } from "./meaning";
+  import { money, shortModel } from "./meaning";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
 
   let {
@@ -34,7 +34,7 @@
     | { kind: "preparing" }
     | { kind: "confirm"; estimate: Estimate }
     | { kind: "running"; estimate: Estimate; progress: CoachProgress | null }
-    | { kind: "error"; message: string; noKey: boolean };
+    | { kind: "error"; message: string; noKey: boolean; paid?: number };
 
   let st = $state<State>({ kind: "preparing" });
   $effect(() => onRunning?.(st.kind === "running"));
@@ -69,7 +69,8 @@
     try {
       onDone(await coachApi.run(estimate.token, tournamentId));
     } catch (e) {
-      st = { kind: "error", message: errorText(e), noKey: false };
+      const paid = st.kind === "running" ? (st.progress?.cost_usd ?? 0) : 0;
+      st = { kind: "error", message: errorText(e), noKey: false, paid };
     }
   }
 
@@ -92,8 +93,6 @@
   });
 
   const perM = (v: number | null) => (v == null ? "?" : v.toLocaleString("de-DE", { maximumFractionDigits: 3 }));
-  /** "ca. 0,143 $" → value and unit for a Stat. */
-  const money = (v: number) => cost(v).replace(/\s\$$/, "");
   /** Calculations Ringside has finished; the one running right now does not count yet. */
   const finished = (p: CoachProgress | null) => Math.max(0, (p?.tool_calls ?? 0) - (p?.stage === "tool" ? 1 : 0));
   const effortOptions = [...EFFORTS].reverse().map((x) => ({ value: x.id, label: x.name }));
@@ -142,8 +141,7 @@
                 size="lg"
                 label="Das kostet die Analyse"
                 value="ca. {money(e.cost_usd)}"
-                unit="$"
-                meaning={e.max_cost_usd != null ? `höchstens ${cost(e.max_cost_usd)}` : undefined}
+                meaning={e.max_cost_usd != null ? `höchstens ${money(e.max_cost_usd)}` : undefined}
               />
             {:else}
               <Stat size="lg" label="Das kostet die Analyse" value="unbekannt" />
@@ -197,7 +195,7 @@
 
       <div class="row send">
         <Button variant="primary" size="lg" onclick={() => send(e)}>
-          Senden und analysieren{e.cost_usd != null ? ` · ca. ${cost(e.cost_usd)}` : ""}
+          Senden und analysieren{e.cost_usd != null ? ` · ca. ${money(e.cost_usd)}` : ""}
         </Button>
         <Button variant="quiet" onclick={onClose}>Abbrechen</Button>
         <details class="tech">
@@ -236,7 +234,7 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Bisher bezahlt" value={money(p?.cost_usd ?? 0)} unit="$" meaning={max != null ? `höchstens ${cost(max)}` : "keine Obergrenze bekannt"} />
+            <Stat label="Bisher bezahlt" value={p?.cost_usd ? money(p.cost_usd) : "noch nichts"} meaning={max != null ? `höchstens ${money(max)}` : "keine Obergrenze bekannt"} />
             {#if max != null}<ProgressBar value={(p?.cost_usd ?? 0) / max} label="Bezahlt im Verhältnis zur Obergrenze" />{/if}
           </div>
         </Card>
@@ -293,7 +291,7 @@
         </details>
       </div>
     {:else}
-      <EmptyState tone="error" title={st.noKey ? "Es fehlt noch der Key von OpenRouter." : "Die Analyse hat nicht geklappt."} text={st.message}>
+      <EmptyState tone="error" title={st.noKey ? "Es fehlt noch der Key von OpenRouter." : "Die Analyse hat nicht geklappt."} text={st.paid ? `${st.message} Bis zum Abbruch bezahlt: ${money(st.paid)}.` : st.message}>
         {#snippet action()}
           {#if st.kind === "error" && st.noKey}
             <Button variant="primary" onclick={onSettings}>Key hinterlegen</Button>
