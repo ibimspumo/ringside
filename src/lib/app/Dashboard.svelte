@@ -3,7 +3,7 @@
   import Summary from "../analysis/Summary.svelte";
   import { analysis } from "../analysis/store.svelte";
   import { LEARN, SPOT, SPOT_HINT, bb } from "../analysis/labels";
-  import type { SpotLoss } from "../analysis/types";
+  import type { SpotLoss, SpotType } from "../analysis/types";
   import { api } from "../api";
   import type { LearnTarget } from "./Leaks.svelte";
   import { PALETTES, RATED_STATS, STAT_META, bountyText, compact, fmt, stat } from "../stats";
@@ -98,7 +98,7 @@
         const m = new Map<StatId, string>();
         for (const l of rep.leaks) {
           if (l.uncertain || m.has(l.stat)) continue;
-          const band = (rep.bands[l.band] ?? "").replaceAll(" ", "\u00a0");
+          const band = (rep.bands[l.band] ?? "").replaceAll(" ", "\u00a0").replaceAll("–", "\u2060–\u2060");
           m.set(l.stat, `${l.positions.length ? `bei ${l.positions.join(", ")}` : "über alle Positionen"} · ${band}`);
         }
         flagged = m;
@@ -157,6 +157,16 @@
   }
 </script>
 
+{#snippet nextStep(spot: SpotType, loss: number)}
+  <div class="next">
+    <span class="next-label">Dein nächster Schritt</span>
+    <p><b>{SPOT[spot]}</b> kostet dich bisher am meisten: {bb(loss)}. {SPOT_HINT[spot]}</p>
+    {#if onLearn}
+      <Button variant="primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</Button>
+    {/if}
+  </div>
+{/snippet}
+
 <div class="page dash">
   {#if failed}
     <Panel>
@@ -188,6 +198,7 @@
             : ""}.
           {#if r.hands < FEW_HANDS}<span class="chance">Bei so wenigen Händen spielt der Zufall noch stark mit.</span>{/if}
         </p>
+        {#if next?.spot}<div class="next-narrow">{@render nextStep(next.spot, next.loss_bb)}</div>{/if}
 
         <dl class="facts">
           <div>
@@ -247,16 +258,7 @@
       </div>
     </section>
 
-    {#if next?.spot}
-      {@const spot = next.spot}
-      <div class="next">
-        <span class="next-label">Dein nächster Schritt</span>
-        <p><b>{SPOT[spot]}</b> kostet dich bisher am meisten: {bb(next.loss_bb)}. {SPOT_HINT[spot]}</p>
-        {#if onLearn}
-          <Button variant="primary" onclick={() => onLearn(LEARN[spot][0].target)}>{LEARN[spot][0].label}</Button>
-        {/if}
-      </div>
-    {/if}
+    {#if next?.spot}<div class="next-wide">{@render nextStep(next.spot, next.loss_bb)}</div>{/if}
 
     <section class="loss">
       {#if started}
@@ -430,7 +432,18 @@
   .next p b {
     color: var(--text);
   }
+  .next-narrow {
+    display: none;
+    margin-top: var(--sp-3);
+  }
+  /* Narrow pages: the next step follows the result instead of waiting below the chart. */
   @container (max-width: 860px) {
+    .next-wide {
+      display: none;
+    }
+    .next-narrow {
+      display: block;
+    }
     .next {
       grid-template-columns: minmax(0, 1fr) auto;
     }
@@ -739,10 +752,8 @@
   }
   .stat small {
     font-size: var(--fs-sm);
+    line-height: 1.35;
     color: var(--text-2);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
   }
 
   /* Wide windows: the page grows so the curve and the style row use the room. */

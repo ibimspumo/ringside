@@ -859,6 +859,7 @@
     color: var(--text-2);
   }
   .advice p {
+    max-width: 72ch;
     margin: 0;
   }
   .advice b {

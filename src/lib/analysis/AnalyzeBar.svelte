@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from "../api";
-  import { int } from "../app/format";
+  import Button from "../ui/Button.svelte";
+  import { int } from "../ui/format";
   import { duration } from "./labels";
   import { analysis, watchAnalysis } from "./store.svelte";
 
@@ -43,9 +44,9 @@
           siehst danach deine teuersten Fehler zuerst.
         </span>
       </div>
-      <button class="btn primary go" disabled={busy || s.state === "locked"} onclick={() => act(() => api.analysisRun(true))}>
+      <Button variant="primary" disabled={busy || s.state === "locked"} onclick={() => act(() => api.analysisRun(true))}>
         {int(c.hands)} Hände analysieren
-      </button>
+      </Button>
     {:else if p}
       <div class="text" role="status">
         <b
@@ -61,7 +62,7 @@
             <span class="ph-head">
               <span class="step num" aria-hidden="true">{#if preDone}✓{:else}1{/if}</span>Vor dem Flop
             </span>
-            <span class="track" class:running={preDone && !!c.queued} aria-hidden="true"><i style="width:{share * 100}%"></i></span>
+            <span class="track" aria-hidden="true"><i style="width:{share * 100}%"></i></span>
             <small class="num"
               >{preDone ? `fertig · alle ${int(c.hands)} gespeicherten Hände` : `${int(c.analyzed)} von ${int(c.hands)} Händen`}</small
             >
@@ -69,29 +70,29 @@
           <div class="phase" class:waiting={!preDone}>
             <span class="ph-head"><span class="step num" aria-hidden="true">2</span>Nach dem Flop</span>
             <span class="track" aria-hidden="true">
-              {#if preDone && c.queued}<i class="post busy"></i>{:else}<i class="post" style="width:{postShare * 100}%"></i>{/if}
+              <i class="post" class:busy={preDone && !!c.queued && p.state === "running"} style="width:{postShare * 100}%"></i>
             </span>
             <small class="num"
               >{!preDone
                 ? "startet danach"
                 : c.queued
-                  ? `${int(c.queued)} Flop-Spots werden noch gerechnet${eta ? ` · ${eta}` : ""}`
+                  ? `${Math.floor(postShare * 100)}\u00a0% bewertet · die letzten ${int(c.queued)} Flop-Spots brauchen Solver-Zeit${eta ? `, ${eta}` : ""}`
                   : "alles gerechnet"}</small
             >
           </div>
         </div>
       </div>
       {#if p.state === "running"}
-        <button
-          class="btn ghost"
+        <Button
+          variant="quiet"
           disabled={busy}
           onclick={() => act(api.analysisCancel)}
           title="Hält die Analyse an. Bewertetes bleibt gespeichert; mit „Fortsetzen“ geht es dort weiter."
         >
           Abbrechen
-        </button>
+        </Button>
       {:else if p.state !== "paused_pokerstars" && p.state !== "done"}
-        <button class="btn primary" disabled={busy} onclick={() => act(() => api.analysisRun(true))}>Fortsetzen</button>
+        <Button variant="primary" disabled={busy} onclick={() => act(() => api.analysisRun(true))}>Fortsetzen</Button>
       {/if}
     {/if}
   </div>
@@ -120,9 +121,6 @@
     font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
-  }
-  .go {
-    flex-shrink: 0;
   }
   .phases {
     display: grid;
@@ -166,10 +164,6 @@
     font-size: var(--fs-sm);
     color: var(--text-2);
   }
-  .track.running {
-    height: 6px;
-    background: var(--surface-3);
-  }
   .track {
     position: relative;
     height: 4px;
@@ -187,13 +181,12 @@
   .track i.post {
     background: var(--pos);
   }
-  /* The flop spots have no reliable share: a calm shimmer over the whole track instead of a bar that looks almost done. */
+  /* The flop spots still run: the filled part keeps moving so the bar never reads as finished. */
   .track i.busy {
-    width: 100%;
     background: repeating-linear-gradient(
       -45deg,
-      color-mix(in srgb, var(--text-2) 55%, transparent) 0 6px,
-      transparent 6px 12px
+      var(--amber) 0 6px,
+      color-mix(in srgb, var(--amber) 55%, transparent) 6px 12px
     );
     background-size: 17px 100%;
     animation: stripes var(--dur-loop) var(--ease-standard) infinite;
