@@ -16,7 +16,7 @@
   import { libraryApi, onLibraryStatus } from "./api";
   import BackgroundMode from "./BackgroundMode.svelte";
   import { preview } from "./demo";
-  import { cards, depthOf, firstOf, flopName, MARK_NAME, markOf, markText, type Mark, situationOf, storyOf, titleOf } from "./labels";
+  import { cards, depthOf, firstOf, flopName, markOf, markText, type Mark, situationOf, storyOf, titleOf } from "./labels";
   import { openInSolver } from "./open";
   import PowerChoice from "./PowerChoice.svelte";
   import RunControl from "./RunControl.svelte";
@@ -206,46 +206,39 @@
               <p class="meta">In <b class="num">{totals.started}</b> von {totals.situations} Situationen kannst du schon nachsehen.</p>
             </div>
             </div>
-          </section>
-
-          <section class="mine" aria-label="Dein Beitrag">
-            <h2 class="label">Dein Beitrag</h2>
-            {#if !data.share}
-              <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
-            {:else if totals.contributed === 0}
-              <p class="meta">
-                Noch nichts. Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.
-              </p>
-            {:else}
-              <p class="lead"><b class="num">{int(totals.contributed)}</b> Spots von dir geteilt</p>
-              <ProgressBar value={totals.verified / totals.contributed} tone="good" label="Anteil geprüfter Spots" />
-              <ul class="keys">
-                <li>
-                  <ShareMark mark="verified" />
-                  <p><b class="num">{int(totals.verified)}</b> geprüft <span>– nachgerechnet, für alle da</span></p>
-                </li>
-                {#if totals.waiting > 0}
+            <div class="yours" aria-label="Dein Beitrag">
+              {#if !data.share}
+                <p class="meta">Teilen ist aus: Was dein PC rechnet, bleibt bei dir. Einschalten kannst du es in den Einstellungen unter Ringside Cloud.</p>
+              {:else if totals.contributed === 0 && totals.notUploaded === 0}
+                <p class="meta">Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.</p>
+              {:else}
+                <ul class="keys">
+                  <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
                   <li>
-                    <ShareMark mark="submitted" />
-                    <p><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <span>– wird stündlich nachgerechnet</span></p>
+                    <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> geprüft <i>– nachgerechnet, für alle da</i></span>
                   </li>
-                {/if}
-              </ul>
-            {/if}
-            {#if data.share && (totals.notUploaded > 0 || totals.rejected > 0)}
-              <p class="rest">
-                {#if totals.notUploaded > 0}
-                  <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
-                    <span class="item"><ShareMark mark="only_here" /><b class="num">{totals.notUploaded}</b> noch nicht hochgeladen</span>
-                  </Tooltip>
-                {/if}
-                {#if totals.rejected > 0}
-                  <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
-                    <span class="item"><ShareMark mark="rejected" /><b class="num">{totals.rejected}</b> abgelehnt</span>
-                  </Tooltip>
-                {/if}
-              </p>
-            {/if}
+                  {#if totals.waiting > 0}
+                    <li>
+                      <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <i>– jede Stunde</i></span>
+                    </li>
+                  {/if}
+                  {#if totals.notUploaded > 0}
+                    <li>
+                      <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
+                        <span class="item"><ShareMark mark="only_here" /><span><b class="num">{totals.notUploaded}</b> noch nicht hochgeladen</span></span>
+                      </Tooltip>
+                    </li>
+                  {/if}
+                  {#if totals.rejected > 0}
+                    <li>
+                      <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
+                        <span class="item"><ShareMark mark="rejected" /><span><b class="num">{totals.rejected}</b> abgelehnt</span></span>
+                      </Tooltip>
+                    </li>
+                  {/if}
+                </ul>
+              {/if}
+            </div>
           </section>
 
           <section class="worker" aria-label="Mitrechnen">
@@ -382,10 +375,9 @@
                 <span><MiniCard card="As" />Fertig, klick zum Ansehen</span>
                 <span><MiniCard card="As" dim />Noch offen</span>
                 {#if marksHere.length}
-                  <span class="from">Von dir gerechnet:</span>
-                  {#each marksHere as m (m)}
-                    <span title={m === "only_here" && !data.share ? "Nur auf deinem PC, Teilen ist aus" : MARK_NAME[m]}><ShareMark mark={m} />{MARK_SHORT[m]}</span>
-                  {/each}
+                  <Tooltip text={marksHere.map((m) => MARK_SHORT[m]).join(", ").replace(/^./, (c) => c.toUpperCase()) + " – was das heißt, steht oben bei „Von dir“."}>
+                    <span class="from">{#each marksHere as m (m)}<ShareMark mark={m} />{/each}Von dir gerechnet</span>
+                  </Tooltip>
                 {/if}
               </div>
 
@@ -472,7 +464,7 @@
   /* The band: where the library stands, what you gave, and the worker. */
   .band {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) minmax(0, 1.1fr);
+    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
     gap: var(--sp-6);
   }
   .band > section + section {
@@ -490,7 +482,6 @@
   }
   .facts,
   .stand,
-  .mine,
   .worker {
     display: flex;
     flex-direction: column;
@@ -520,46 +511,34 @@
     color: var(--text);
     font-weight: var(--fw-semibold);
   }
+  .yours {
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
+  }
   .keys {
     display: flex;
-    flex-direction: column;
-    gap: var(--sp-1);
-    margin: var(--sp-1) 0 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-4);
+    margin: 0;
     padding: 0;
     list-style: none;
-    font-size: var(--fs-md);
-  }
-  .keys li {
-    display: grid;
-    grid-template-columns: 14px minmax(0, 1fr);
-    gap: var(--sp-2);
-    align-items: baseline;
-    line-height: var(--lh-base);
-  }
-  .keys li > :global(.mark) {
-    transform: translateY(2px);
-  }
-  .rest {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-1) var(--sp-4);
     color: var(--text-2);
     font-size: var(--fs-md);
+    line-height: var(--lh-base);
   }
-  .rest .item {
+  .keys li,
+  .keys .item {
     display: inline-flex;
     align-items: center;
     gap: var(--sp-1);
   }
-  .rest b {
+  .keys b {
     color: var(--text);
     font-weight: var(--fw-semibold);
   }
-  .keys b {
-    font-weight: var(--fw-semibold);
-  }
-  .keys span {
-    color: var(--text-2);
+  .keys i {
+    font-style: normal;
   }
   .chev {
     fill: none;
@@ -754,7 +733,7 @@
     gap: var(--sp-1);
   }
   .legend .from {
-    color: var(--text);
+    color: var(--text-2);
   }
   .texture {
     display: flex;
@@ -813,23 +792,7 @@
       max-width: 1760px;
     }
   }
-  /* Narrow windows: the worker gets its own row under facts and contribution. */
   @container (max-width: 1100px) {
-    .band {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    }
-    .band {
-      gap: var(--sp-4);
-    }
-    .band > section + section {
-      padding-left: var(--sp-4);
-    }
-    .band > .worker {
-      grid-column: 1 / -1;
-      padding: var(--sp-4) 0 0;
-      border-left: 0;
-      border-top: 1px solid var(--line);
-    }
     .body {
       grid-template-columns: 236px minmax(0, 1fr);
     }
