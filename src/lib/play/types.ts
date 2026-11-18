@@ -17,8 +17,12 @@ export interface PlayConfig {
 export type Street = "preflop" | "flop" | "turn" | "river";
 export type ChoiceKind = "fold" | "check" | "call" | "limp" | "bet" | "raise" | "all_in";
 export type Grade = "best" | "mix" | "good" | "inaccurate" | "mistake" | "blunder";
-export type Source = "model" | "equilibrium" | "solver" | "library" | "saved";
-export type EndReason = "folded" | "showdown" | "left_line" | "flop_unsolved" | "not_stored";
+export type Source = "model" | "equilibrium" | "solver" | "live" | "library" | "saved" | "estimate";
+export type EndReason = "folded" | "showdown";
+/** Why a move has no grade: the hand never gets here in the solution, a multiway pot, a line the model does not play, a stopped live solve. */
+export type Unrated = "not_reached" | "multiway" | "off_model" | "no_solve";
+/** Why a hand waits for a live solve. */
+export type SolveWhy = "new_line" | "no_spot" | "deeper";
 
 export interface Choice {
   kind: ChoiceKind;
@@ -62,9 +66,11 @@ export interface Judgement {
 export interface Lesson {
   street: Street;
   choices: Choice[];
-  source: Source;
-  /** Null: the solution never has this hand here, so nothing grades the move. */
+  /** Null where nothing covers the decision. */
+  source: Source | null;
+  /** Null: nothing grades the move, `unrated` says why. */
   strategy: number[] | null;
+  unrated: Unrated | null;
   evs: number[] | null;
   pot: number;
   to_call: number;
@@ -98,6 +104,8 @@ export interface Decision {
   pot: number;
   to_call: number;
   hinted: boolean;
+  /** A source grades this decision; else it stays "nicht bewertet". */
+  graded: boolean;
 }
 
 export interface SpotInfo {
@@ -129,6 +137,30 @@ export interface HandView {
   preflop_source: Source;
   spot: SpotInfo | null;
   waiting: boolean;
+  /** The spot the hand waits for while it is solved live. */
+  solving: Solving | null;
+  /** Played on without a solution from here. */
+  free: FreeInfo | null;
+}
+
+export interface Solving {
+  why: SolveWhy;
+  street: Street;
+  oop: number;
+  ip: number;
+  pot: number;
+  stack: number;
+  /** Precision of the live solve, % of the pot. */
+  target_pct: number;
+}
+
+export interface FreeInfo {
+  why: Unrated;
+  street: Street;
+  /** How the opponents play from here. */
+  rule: string;
+  /** Why the live solve stopped. */
+  note: string | null;
 }
 
 export type PoolState = "waiting" | "running" | "paused_client" | "done" | "cancelled" | "error";
@@ -143,6 +175,16 @@ export interface PoolStatus {
   next_secs: number | null;
   solve_secs: number | null;
   solved: number;
+  error: string | null;
+}
+
+/** The live solve the hand waits for (urgency "now") or one solved ahead. */
+export interface LiveStatus {
+  urgency: "now" | "ahead";
+  status: PoolState;
+  fraction: number;
+  secs_left: number | null;
+  target_pct: number;
   error: string | null;
 }
 

@@ -6,8 +6,14 @@
 //! (`jobs`) and also goes to the page as `play-pool`. Before it solves a spot it looks for a
 //! saved solution (`solutions`) and in the spot library.
 //!
-//! Solved spots take up to a gigabyte each, so the stock has a small budget and is freed
-//! [`AWAY`] after the page was left (`play_away`); the page fills it again on return.
+//! A hand that reaches a spot nobody prepared waits while the same worker solves it live
+//! (`play-live` to the table, a task in the task center, cancellable); the hand then goes
+//! on and the page hears `play-hand`. While the hero thinks, the next likely spot is
+//! solved ahead.
+//!
+//! Solved spots take up to a gigabyte each, so the stock has a small budget (live spots
+//! count against it) and is freed [`AWAY`] after the page was left (`play_away`); the
+//! page fills it again on return.
 
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, LazyLock, Mutex, Once};
@@ -18,7 +24,7 @@ use ringside_learn::Kind as LearnKind;
 use ringside_play::hand::Source;
 use ringside_play::pool::{Lookup, TARGET_PCT};
 use ringside_play::tree::{LibraryTree, Tree};
-use ringside_play::{Config, Hand, HandView, Lesson, Plan, Pool, PoolStatus, Status};
+use ringside_play::{Config, Hand, HandView, Lesson, LiveStatus, Plan, Pool, PoolStatus, Status, Urgency};
 use ringside_solver::library::format::Stored;
 use ringside_solver::library::{SpotId, catalog};
 use ringside_solver::{Spot, Step};
@@ -39,6 +45,8 @@ struct PlayState {
     current: Mutex<Option<Current>>,
     worker: Once,
     job: Mutex<Option<Job>>,
+    /// The task of the live solve running now.
+    live_job: Mutex<Option<Job>>,
     /// Since when the practice page is closed.
     away: Mutex<Option<Instant>>,
 }
@@ -47,6 +55,7 @@ static PLAY: LazyLock<PlayState> = LazyLock::new(|| PlayState {
     current: Mutex::new(None),
     worker: Once::new(),
     job: Mutex::new(None),
+    live_job: Mutex::new(None),
     away: Mutex::new(None),
 });
 
@@ -65,8 +74,10 @@ fn pool(app: &AppHandle) -> Arc<Pool> {
     // of the memory, at most 1.5 GB, which holds one or two solved spots.
     let cores = std::thread::available_parallelism().map_or(4, |n| n.get());
     let threads = (cores / 2).clamp(1, 4);
+    // A live solve keeps the hand waiting, so it may take all cores but one.
+    let live_threads = cores.saturating_sub(1).clamp(1, 8);
     let budget = (crate::solver::installed_memory().unwrap_or(8 * GB) / 8).min(3 * GB / 2);
-    let p = Arc::new(Pool::new(Box::new(AppLookup(app.clone())), threads, budget));
+    let p = Arc::new(Pool::new(Box::new(AppLookup(app.clone())), threads, budget).with_live_threads(live_threads));
     *slot = Some(p.clone());
     p
 }
@@ -92,6 +103,7 @@ pub(crate) fn tick() {
     drop(away);
     if let Some(pool) = POOL.lock().unwrap().as_ref() {
         pool.set_plan(None);
+        pool.forget_live();
     }
     ringside_play::table::release();
     let mut current = PLAY.current.lock().unwrap();
@@ -108,7 +120,8 @@ fn ensure_worker(app: &AppHandle) {
         std::thread::spawn(move || {
             let paused_app = app.clone();
             let report_app = app.clone();
-            pool.run(|| false, move || client_running(&paused_app), move |s| report(&report_app, s));
+            let live_app = app.clone();
+            pool.run(|| false, move || client_running(&paused_app), move |s| report(&report_app, s), move |s| report_live(&live_app, s));
         });
     });
 }
@@ -147,6 +160,94 @@ fn report(app: &AppHandle, s: &PoolStatus) {
     }
 }
 
+/// The one place a live solve reports to: the table (`play-live`) and the task center.
+/// Once it is over, the waiting hand goes on.
+fn report_live(app: &AppHandle, s: &LiveStatus) {
+    let _ = app.emit("play-live", s);
+    let mut slot = PLAY.live_job.lock().unwrap();
+    match s.status {
+        Status::Running | Status::Waiting | Status::PausedClient => {
+            let title = match s.urgency {
+                Urgency::Now => "Spot live rechnen",
+                Urgency::Ahead => "Nächsten Spot vorrechnen",
+            };
+            let job = slot.get_or_insert_with(|| {
+                let job = jobs::start(Kind::Play, title, Target::to("play", None));
+                let app = app.clone();
+                job.on_cancel(move || cancel_live(&app));
+                job
+            });
+            job.progress(s.fraction);
+            job.detail(format!("Schnell gerechnet, Genauigkeit {} % des Pots", num(s.target_pct)));
+        }
+        Status::Done => {
+            if let Some(job) = slot.take() {
+                job.finish();
+            }
+        }
+        Status::Cancelled => {
+            if let Some(job) = slot.take() {
+                job.stopped();
+            }
+        }
+        Status::Error => {
+            if let Some(job) = slot.take() {
+                job.fail(s.error.clone().unwrap_or_else(|| "Unbekannter Fehler".into()));
+            }
+        }
+    }
+    drop(slot);
+    if matches!(s.status, Status::Done | Status::Cancelled | Status::Error) {
+        // The worker reports while it holds the stock; the hand goes on beside it.
+        let app = app.clone();
+        std::thread::spawn(move || go_on(&app));
+    }
+}
+
+fn num(x: f64) -> String {
+    format!("{x}").replace('.', ",")
+}
+
+/// Hands the hand a live spot that is ready (or why there is none) and tells the page.
+fn go_on(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    let mut slot = PLAY.current.lock().unwrap();
+    let Some(current) = slot.as_mut() else { return };
+    let waited = current.hand.need().is_some();
+    drive(app, &mut current.hand);
+    if waited && current.hand.need().is_none() {
+        let _ = finish_if_over(&state, current);
+        let _ = app.emit("play-hand", current.hand.view());
+    }
+}
+
+/// Gives the hand the spot it waits for if it is ready, else asks for it; asks for the
+/// next likely spot ahead while the hero thinks.
+fn drive(app: &AppHandle, hand: &mut Hand) {
+    let p = pool(app);
+    while let Some(need) = hand.need().cloned() {
+        match p.take_live(&need) {
+            Some(result) => {
+                if let Err(e) = hand.resume(result) {
+                    eprintln!("going on with a live spot: {e}");
+                    return;
+                }
+            }
+            None => return p.request(need, Urgency::Now),
+        }
+    }
+    match hand.forecast() {
+        Some(need) => p.request(need, Urgency::Ahead),
+        None if hand.is_over() => p.forget_live(),
+        None => {}
+    }
+}
+
+fn cancel_live(app: &AppHandle) {
+    pool(app).cancel_live();
+    go_on(app);
+}
+
 // -----------------------------------------------------------------------------------
 // Stored solutions.
 
@@ -165,8 +266,8 @@ fn catalog_scenario(spot: &Spot) -> Option<usize> {
 }
 
 impl Lookup for AppLookup {
-    fn load(&self, spot: &Spot) -> Option<Box<dyn Tree>> {
-        if let Some((_, snapshot)) = crate::solutions::lookup(&self.0, spot, TARGET_PCT) {
+    fn load(&self, spot: &Spot, max_pct: f64) -> Option<Box<dyn Tree>> {
+        if let Some((_, snapshot)) = crate::solutions::lookup(&self.0, spot, max_pct) {
             return Some(Box::new(snapshot));
         }
         let scenario = catalog_scenario(spot)?;
@@ -186,12 +287,12 @@ impl Lookup for AppLookup {
             .collect()
     }
 
-    fn save(&self, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario, solution: &mut ringside_solver::Solution, settings: &ringside_solver::Settings) {
+    fn save(&self, table: ringside_play::TableKey, seats: [usize; 2], solution: &mut ringside_solver::Solution, settings: &ringside_solver::Settings) {
         let names = ringside_engine::multiway::position_names(table.players);
         let info = crate::solutions::SaveInfo {
             title: String::new(),
-            oop: names[scenario.oop].to_string(),
-            ip: names[scenario.ip].to_string(),
+            oop: names[seats[0]].to_string(),
+            ip: names[seats[1]].to_string(),
             ranges: format!("Preflop-Modell, {} Spieler, {} BB", table.players, table.stack_bb),
             source: Some(ringside_core::db::SolutionSource::Training),
             hand_id: None,
@@ -234,7 +335,7 @@ fn record(state: &AppState, hand: &Hand) -> CmdResult<()> {
         board: cards(&view.board),
         grades: view.verdicts.iter().map(|v| v.judgement.as_ref().map(|j| j.grade)).collect(),
         net_bb: view.outcome.as_ref().map_or(0.0, |o| o.net[view.hero]),
-        postflop: view.verdicts.iter().any(|v| v.lesson.source != Source::Model && v.lesson.source != Source::Equilibrium),
+        postflop: view.verdicts.iter().any(|v| v.lesson.street != ringside_play::hand::Street::Preflop && v.lesson.source.is_some_and(|s| s != Source::Model && s != Source::Equilibrium)),
     };
     let attempt = Attempt {
         kind: LearnKind::FullHands.id().into(),
@@ -294,7 +395,9 @@ pub async fn play_next(config: Config, seed: Option<u64>, app: AppHandle) -> Cmd
         let tables = config.deep_keys();
         p.set_plan((!tables.is_empty()).then_some(Plan { tables, hero_seat: config.hero_seat }));
         ensure_worker(&app);
-        let hand = Hand::start(&config, seed.unwrap_or_else(new_seed), Some(&p))?;
+        p.forget_live();
+        let mut hand = Hand::start(&config, seed.unwrap_or_else(new_seed), Some(&p))?;
+        drive(&app, &mut hand);
         let mut current = Current { hand, repeat: seed.is_some(), recorded: false };
         finish_if_over(state, &mut current)?;
         let view = current.hand.view();
@@ -308,10 +411,12 @@ pub async fn play_next(config: Config, seed: Option<u64>, app: AppHandle) -> Cmd
 #[tauri::command]
 pub async fn play_repeat(app: AppHandle) -> CmdResult<HandView> {
     here();
-    blocking(app, move |_| {
+    blocking(app.clone(), move |_| {
         let mut slot = PLAY.current.lock().unwrap();
         let old = slot.as_ref().ok_or("Noch keine Hand gespielt.")?;
-        let hand = Hand::play(old.hand.deal.clone())?;
+        pool(&app).forget_live();
+        let mut hand = Hand::play(old.hand.deal.clone())?;
+        drive(&app, &mut hand);
         let view = hand.view();
         *slot = Some(Current { hand, repeat: true, recorded: false });
         Ok(view)
@@ -329,12 +434,29 @@ pub async fn play_current(app: AppHandle) -> CmdResult<Option<HandView>> {
 #[tauri::command]
 pub async fn play_act(choice: usize, app: AppHandle) -> CmdResult<HandView> {
     here();
-    blocking(app, move |state| {
+    blocking(app.clone(), move |state| {
         let mut slot = PLAY.current.lock().unwrap();
         let current = slot.as_mut().ok_or("Noch keine Hand gespielt.")?;
         current.hand.act(choice)?;
+        drive(&app, &mut current.hand);
         finish_if_over(state, current)?;
         Ok(current.hand.view())
+    })
+    .await
+}
+
+/// Where the live solve the hand waits for stands.
+#[tauri::command]
+pub async fn play_live_status(app: AppHandle) -> CmdResult<Option<LiveStatus>> {
+    blocking(app.clone(), move |_| Ok(pool(&app).live_status())).await
+}
+
+/// Stops the live solve; the hand goes on without a solution.
+#[tauri::command]
+pub async fn play_live_cancel(app: AppHandle) -> CmdResult<Option<HandView>> {
+    blocking(app.clone(), move |_| {
+        cancel_live(&app);
+        Ok(PLAY.current.lock().unwrap().as_ref().map(|c| c.hand.view()))
     })
     .await
 }

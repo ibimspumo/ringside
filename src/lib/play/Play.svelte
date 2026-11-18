@@ -8,13 +8,14 @@
   import CardText from "../ui/CardText.svelte";
   import GradeBadge from "../ui/GradeBadge.svelte";
   import Kbd from "../ui/Kbd.svelte";
+  import ProgressRing from "../ui/ProgressRing.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { playApi } from "./api";
   import InfoPanel from "./InfoPanel.svelte";
-  import { GRADE, GRADES, choiceColors, choiceLabel, configLine, etaText, num, resultLine, signedBB } from "./labels";
+  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, etaText, freeLine, num, resultLine, signedBB, solvingLine } from "./labels";
   import { openSolverTab } from "./nav.svelte";
   import PoolChip from "./PoolChip.svelte";
-  import { act, askHint, listen, nextHand, prepare, repeatHand, resume, saveConfig, session, stats, type SessionHand } from "./session.svelte";
+  import { act, askHint, cancelLive, listen, nextHand, prepare, repeatHand, resume, saveConfig, session, stats, type SessionHand } from "./session.svelte";
   import SessionStats from "./SessionStats.svelte";
   import Start from "./Start.svelte";
   import { situation, streetHead } from "./story";
@@ -56,8 +57,9 @@
         pb.jump(end);
         return;
       }
-      // The same hand after a move plays on from where the table is; a new one starts at the deal.
-      const goesOn = prev.seed === v.seed && v.verdicts.length > prev.verdicts.length && v.snapshots.length > prev.snapshots.length;
+      // The same hand after a move or a live solve plays on from where the table is; a new one
+      // starts at the deal.
+      const goesOn = prev.seed === v.seed && (v.verdicts.length > prev.verdicts.length || !!prev.solving) && v.snapshots.length >= prev.snapshots.length;
       if (goesOn) pb.jump(Math.min(pb.cursor, prev.snapshots.length - 1));
       else pb.jump(0);
       pb.play(end);
@@ -102,7 +104,18 @@
   const head = $derived(view ? streetHead(view, at) : null);
   const infoLesson = $derived(decision && session.hint ? session.hint : (current?.v ?? moves[moves.length - 1]?.v ?? null));
   const colors = $derived(decision ? choiceColors(decision.choices) : []);
-  const canSolver = $derived(over && live && view?.spot?.source === "solver" && view.verdicts.some((v) => v.path));
+  const canSolver = $derived(over && live && (view?.spot?.source === "solver" || view?.spot?.source === "live") && view.verdicts.some((v) => v.path));
+  /** The hand waits for a live solve, and the table has caught up with it. */
+  const solving = $derived(live && settled && view?.solving ? view.solving : null);
+  const liveRun = $derived(session.live?.status === "running" ? session.live : null);
+  const solvingDetail = $derived.by(() => {
+    if (!solving) return "";
+    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${etaText(liveRun.secs_left)}` : "";
+    return `Schnell gerechnet, Genauigkeit ${num(solving.target_pct)} % des Pots${state}. Danach geht die Hand weiter.`;
+  });
+  const STREET_ORDER: Street[] = ["preflop", "flop", "turn", "river"];
+  /** Once the table shows the street where the hand left the solutions. */
+  const freeShown = $derived(!!view?.free && !!head && STREET_ORDER.indexOf(view.snapshots[at].street) >= STREET_ORDER.indexOf(view.free.street));
 
   const summary = $derived.by(() => {
     if (!view) return "";
@@ -214,9 +227,12 @@
     } else if ((e.key === "r" || e.key === "R") && over && live) {
       e.preventDefault();
       repeatHand();
-    } else if ((e.key === "h" || e.key === "H") && decision && !decision.hinted) {
+    } else if ((e.key === "h" || e.key === "H") && decision && decision.graded && !decision.hinted) {
       e.preventDefault();
       askHint();
+    } else if (e.key === "Escape" && solving) {
+      e.preventDefault();
+      cancelLive();
     } else if (e.key === "Escape" && (session.look !== null || session.review)) {
       session.look = null;
       session.review = null;
@@ -263,9 +279,13 @@
             <span>Rückblick auf Hand #{session.review.n}</span>
             <button class="link" onclick={() => (session.review = null)}>Zur aktuellen Hand (Esc)</button>
           </div>
-        {:else if view.waiting && live}
+        {:else if view.free && freeShown}
+          <div class="banner" role="note">
+            <span>{freeLine(view.free)}</span>
+          </div>
+        {:else if view.waiting && live && !view.spot && !view.solving}
           <div class="banner">
-            <span>Spot wird gerechnet{session.pool?.next_secs ? `, ${etaText(session.pool.next_secs)}` : ""} – solange spielst du eine Preflop-Hand.</span>
+            <span>Kein Spot vorbereitet – erreicht die Hand einen Heads-up-Flop, rechnet Ringside ihn live.</span>
           </div>
         {/if}
 
@@ -276,6 +296,9 @@
               <Term term={head.inPosition ? "ip" : "oop"}>{head.inPosition ? "mit Position" : "ohne Position"}</Term>) gegen {head.others}
               · Pot <span class="num">{num(head.pot)} BB</span> · <Term term="effective">effektiv</Term>
               <span class="num">{num(head.effective, 0)} BB</span>
+              {#if view.spot?.source === "live" && view.snapshots[at].street !== "preflop"}
+                · <span class="live">live gerechnet, Genauigkeit <span class="num">{num(view.spot.exploitability_pct)} %</span></span>
+              {/if}
             {:else}
               <b>Preflop</b> · {view.players} Spieler · <span class="num">{num(view.stack_bb, 0)} BB</span> Stacks
             {/if}
@@ -289,12 +312,23 @@
         <!-- A click on the table shows the end of the running animation. -->
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
         <div class="tablebox" onclick={() => pb.running && pb.skip()}>
-          <Table {view} {at} final={finalShown} {ms} />
+          <Table {view} {at} final={finalShown} {ms} solving={solving ? (liveRun?.fraction ?? null) : undefined} />
           {#if pb.running}<span class="skip faint">Überspringen <Kbd keys="Leertaste" /></span>{/if}
         </div>
 
         <div class="dock" bind:this={dock}>
-          {#if decision && sit}
+          {#if solving}
+            <div class="solving" role="status" aria-live="polite" data-part="solving">
+              <ProgressRing value={liveRun?.fraction ?? null} size={44} label="Spot wird gerechnet">
+                {#if liveRun}<span class="num">{Math.round(liveRun.fraction * 100)}</span>{/if}
+              </ProgressRing>
+              <div class="solving-text">
+                <b>{solvingLine(solving.why)}</b>
+                <span class="faint">{solvingDetail}</span>
+              </div>
+              <Button variant="quiet" onclick={cancelLive} disabled={session.busy} kbd="Esc" title="Die Hand geht ohne Lösung weiter; deine Züge ab hier werden nicht bewertet.">Abbrechen</Button>
+            </div>
+          {:else if decision && sit}
             <p class="situation" aria-live="polite">
               <span class="lead">
                 {sit.lead}{#if sit.raise}&nbsp;(<Term term="threebet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
@@ -313,9 +347,13 @@
                   {#if l.size}<small class="num">{l.size}</small>{/if}
                 </button>
               {/each}
-              <Button variant="quiet" onclick={askHint} disabled={decision.hinted || session.busy} title="Zeigt die Strategie für deine Hand. Der Zug zählt dann nur halb." kbd="H">
-                {decision.hinted ? "Tipp angezeigt" : "Tipp anzeigen"}
-              </Button>
+              {#if decision.graded}
+                <Button variant="quiet" onclick={askHint} disabled={decision.hinted || session.busy} title="Zeigt die Strategie für deine Hand. Der Zug zählt dann nur halb." kbd="H">
+                  {decision.hinted ? "Tipp angezeigt" : "Tipp anzeigen"}
+                </Button>
+              {:else}
+                <span class="unrated faint">Nicht bewertet</span>
+              {/if}
             </div>
           {:else if session.look !== null}
             <div class="banner">
@@ -398,7 +436,7 @@
                         {#if m.v.judgement}
                           <GradeBadge grade={m.v.judgement.grade} cost={m.v.judgement.loss_bb ?? undefined} size="sm" />
                         {:else}
-                          <span class="faint">nicht bewertet</span>
+                          <span class="faint">{UNRATED_SHORT[m.v.unrated ?? "not_reached"]}</span>
                         {/if}
                         <span class="chev" aria-hidden="true">{open === m.n ? "▴" : "▾"}</span>
                       </button>
@@ -571,6 +609,9 @@
   .head b {
     color: var(--text);
   }
+  .head .live {
+    color: var(--info);
+  }
   .speed {
     display: inline-flex;
     align-items: center;
@@ -592,6 +633,29 @@
   .dock {
     display: grid;
     gap: 12px;
+  }
+  .solving {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 12px 16px;
+    border-radius: var(--r);
+    background: var(--surface);
+    border: 1px solid var(--line-2);
+  }
+  .solving-text {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+    font-size: var(--fs-md);
+  }
+  .solving-text b {
+    font-size: var(--fs-base);
+  }
+  .unrated {
+    align-self: center;
+    font-size: var(--fs-sm);
   }
   .situation {
     margin: 0;
