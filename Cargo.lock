@@ -3521,6 +3521,7 @@ dependencies = [
  "ringside-engine",
  "ringside-play",
  "ringside-solver",
+ "rusqlite",
  "serde",
  "serde_json",
  "ureq",

@@ -33,13 +33,18 @@
     {#if cloud}<Switch label="Fertige Lösungen abrufen" checked={cloud.fetch} onchange={(on) => set("fetch", on)} />{/if}
   {/snippet}
   {#snippet more()}
-    <p>Ringside nimmt nur Lösungen, die geprüft sind. Du musst dafür nichts tun.</p>
+    <p>
+      Die Lösungen hat die Community mit Ringside gerechnet. Ringside nimmt nur, was richtig aufgebaut ist. Du musst dafür
+      nichts tun.
+    </p>
     <details>
       <summary>Technische Details</summary>
       <p>
-        Push/Fold-Lösungen rechnet Ringside vor der Nutzung mit der eigenen Engine nach. Spots der Bibliothek misst vor der
-        Freigabe ein Prüfer mit dem Solver; auf deinem PC prüft Ringside dann nur noch, ob die Lösung richtig aufgebaut ist.
-        Die Grundausstattung der Bibliothek (Grundstock-Pakete) muss die Signatur von Ringside tragen.
+        Push/Fold-Lösungen rechnet Ringside vor der Nutzung mit der eigenen Engine nach. Bei Spots der Bibliothek prüft
+        Ringside auf deinem PC nur, ob die Lösung richtig aufgebaut ist und ob ihre gemeldete Genauigkeit reicht; nachgerechnet
+        wird nur eine Stichprobe pro Stunde. Ist eine Stichprobe falsch, zieht Ringside Cloud alle Lösungen dieses
+        Internetanschlusses zurück und nimmt von dort keine mehr an. Die Grundausstattung der Bibliothek (Grundstock-Pakete)
+        muss die Signatur von Ringside tragen.
       </p>
     </details>
   {/snippet}
@@ -69,8 +74,8 @@
         Modell, aus dem die Ranges folgen.
       </p>
       <p>
-        Ein Prüfer misst jede Lösung, bevor andere sie bekommen. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots, die
-        andere noch brauchen. Das Teilen läuft im Hintergrund.
+        Andere bekommen deine Lösung, sobald sie oben ist; Ringside Cloud prüft dafür nur ihren Aufbau und rechnet Stichproben
+        nach. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots, die andere noch brauchen. Das Teilen läuft im Hintergrund.
       </p>
     </details>
   {/snippet}

@@ -3,7 +3,7 @@
 //! `cargo test --release -p ringside-store --test ready -- --ignored --nocapture`.
 //!
 //! For each heads-up flop of a practice table the stock picks the line by how often the
-//! model plays it, then a flop. It is served without a solve when the line has a verified
+//! model plays it, then a flop. It is served without a solve when the cloud serves a
 //! spot on one of the library's flops. Before the store only lines that are exactly a
 //! catalog scenario could be served from the library.
 
@@ -31,8 +31,8 @@ fn practice_gets_ready_spots() {
     let c = catalog();
     // Control: the library's spots of its first scenario, which packs and the cloud serve.
     let control: Vec<String> = c.ids().take(MAX_STATUS_KEYS).map(|id| catalog_key(id).split_once(':').unwrap().1.to_string()).collect();
-    let served = client.statuses(&control).expect("status request").iter().filter(|(_, s)| *s == KeyStatus::Verified).count();
-    println!("Kontrolle: {served} von {} Katalog-Spots ({}) geprüft in der Cloud", control.len(), c.scenarios[0].id);
+    let served = client.statuses(&control).expect("status request").iter().filter(|(_, s)| matches!(s, KeyStatus::Accepted | KeyStatus::Verified)).count();
+    println!("Kontrolle: {served} von {} Katalog-Spots ({}) in der Cloud ausgeliefert", control.len(), c.scenarios[0].id);
     for table in [
         TableKey { players: 6, ante: Ante::BigBlind, stack_bb: 40.0 },
         TableKey { players: 9, ante: Ante::BigBlind, stack_bb: 40.0 },
@@ -72,7 +72,7 @@ fn practice_gets_ready_spots() {
                 std::thread::sleep(GAP);
                 asked += 1;
                 let statuses = client.statuses(chunk).expect("status request");
-                verified += statuses.iter().filter(|(_, s)| *s == KeyStatus::Verified).count();
+                verified += statuses.iter().filter(|(_, s)| matches!(s, KeyStatus::Accepted | KeyStatus::Verified)).count();
             }
             if verified > 0 {
                 after += sc.reach;
@@ -83,7 +83,7 @@ fn practice_gets_ready_spots() {
             ready_flops += verified;
         }
         println!(
-            "{} Spieler, {} BB: {:.0} % der Stock-Spots fertig (vorher höchstens {:.0} %), {} geprüfte Flops in {} Linien ({} davon Katalog-Linien), {} Abfragen",
+            "{} Spieler, {} BB: {:.0} % der Stock-Spots fertig (vorher höchstens {:.0} %), {} ausgelieferte Flops in {} Linien ({} davon Katalog-Linien), {} Abfragen",
             table.players,
             table.stack_bb,
             100.0 * after / total,
@@ -107,7 +107,7 @@ fn library_in_the_cloud() {
             .map(|flop| catalog_key(ringside_solver::library::SpotId { scenario, flop }).split_once(':').unwrap().1.to_string())
             .collect();
         std::thread::sleep(GAP);
-        let verified = client.statuses(&keys).expect("status request").iter().filter(|(_, s)| *s == KeyStatus::Verified).count();
+        let verified = client.statuses(&keys).expect("status request").iter().filter(|(_, s)| matches!(s, KeyStatus::Accepted | KeyStatus::Verified)).count();
         println!("{}: {verified} von {}", s.id, keys.len());
     }
 }

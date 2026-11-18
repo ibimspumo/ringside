@@ -600,11 +600,12 @@ pub fn header(bytes: &[u8]) -> Result<(u32, String, String), Error> {
     Ok((version, scenario, flop))
 }
 
-/// Iterations and exploitability (percent of the pot) from the header of a stored spot.
-pub fn header_summary(bytes: &[u8]) -> Result<(u32, f32), Error> {
+/// The exploitability a stored spot reports about itself, read from its header alone.
+pub fn reported_exploitability(bytes: &[u8]) -> Result<f32, Error> {
     let (_, scenario, _) = header(bytes)?;
-    let mut r = R(&bytes[4 + 1 + 2 + 1 + scenario.len() + 6..]);
-    Ok((r.u32()?, r.f32()?))
+    let mut r = R(bytes.get(4 + 1 + 2 + 1 + scenario.len() + 6..).ok_or_else(|| invalid("header"))?);
+    r.u32()?;
+    r.f32()
 }
 
 impl Stored {

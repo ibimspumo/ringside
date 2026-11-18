@@ -12,7 +12,7 @@
     {:else if mark === "submitted"}
       <circle cx="6" cy="6" r="4.4" fill="none" stroke="currentColor" stroke-width="1.4" />
       <path d="M6 3.6V6l1.7 1.1" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
-    {:else if mark === "verified"}
+    {:else if mark === "served"}
       <circle cx="6" cy="6" r="5.2" fill="currentColor" />
       <path d="M3.6 6.1l1.6 1.6 3.2-3.3" fill="none" stroke="var(--bg)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
     {:else if mark === "rejected"}
@@ -40,7 +40,7 @@
   .submitted {
     color: var(--amber);
   }
-  .verified {
+  .served {
     color: var(--pos);
   }
   .rejected {

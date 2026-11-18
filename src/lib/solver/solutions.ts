@@ -100,7 +100,7 @@ let demo: SavedSolution[] = [
   shareable: source !== "own",
   shared:
     source === "hand"
-      ? { state: i === 1 ? "verified" : "submitted", at: (at as number) + 60 }
+      ? { state: i === 1 ? "served" : "submitted", at: (at as number) + 60 }
       : null,
 }));
 let demoMax = 500;

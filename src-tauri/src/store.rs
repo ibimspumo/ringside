@@ -22,7 +22,7 @@ use ringside_core::db::{NewSolution, SavedSolution, StoreFormat, StoreRow};
 use ringside_engine::preflop_table::ModelLine;
 use ringside_play::tree::{StoredTree, Tree};
 use ringside_solver::gate::Gate;
-use ringside_solver::library::format::{Stored, View, header_summary};
+use ringside_solver::library::format::{Stored, View, reported_exploitability};
 use ringside_solver::library::{Catalog, SpotId, catalog};
 use ringside_solver::saved::{Snapshot, good_enough, spot_key};
 use ringside_solver::{Error as SolverError, Node, Settings, Solution, Spot, Summary};
@@ -135,7 +135,7 @@ pub(crate) fn load_library(root: &Path, id: SpotId) -> Option<(Source, Stored, u
 }
 
 fn library_row(data: &Path, root: &Path, source: Source, id: SpotId, bytes: &[u8], at: i64) -> Result<StoreRow, String> {
-    let (_, exploitability) = header_summary(bytes).map_err(err)?;
+    let exploitability = reported_exploitability(bytes).map_err(err)?;
     let spot = catalog().spot(id);
     Ok(StoreRow {
         id: 0,
@@ -264,7 +264,7 @@ fn download_path(data: &Path, key: &str) -> PathBuf {
     data.join(DOWNLOADS).join(format!("{name}.rsls"))
 }
 
-/// Keeps a verified model flop from the cloud, on its canonical flop.
+/// Keeps a model flop the cloud served, its form checked, on its canonical flop.
 pub(crate) fn save_download(data: &Path, state: &AppState, input: &SpotInput, stored: &Stored) -> Result<(), String> {
     let key = ringside_store::key::spot_kind_key(input)?;
     let path = download_path(data, &key);

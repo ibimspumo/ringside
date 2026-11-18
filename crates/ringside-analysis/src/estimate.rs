@@ -563,7 +563,9 @@ pub struct Prepared {
     pot: f64,
 }
 
-/// The estimate's EVs from what [`prepare`] found.
+/// The estimate's EVs from what [`prepare`] found. The gaps to the best option are
+/// shrunk, so the levels move with them; they are anchored again where folding is 0, so
+/// every option reads as what it brings over giving up. Only the gaps grade.
 pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
     let kind = |o: Opt| match o {
         Opt::Fold => 0,
@@ -580,7 +582,7 @@ pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
     let top = by_kind.iter().copied().fold(f64::NEG_INFINITY, f64::max);
     let goes_on = p.equity >= p.pot_odds.unwrap_or(0.0) - t.line_margin && p.equity < t.line_top;
     let line_cap = t.line_pct / 100.0 * p.pot;
-    let evs = p
+    let mut evs: Vec<f64> = p
         .options
         .iter()
         .zip(&by_kind)
@@ -589,6 +591,10 @@ pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
             top - if goes_on && o != Opt::Fold { loss.min(line_cap) } else { loss }
         })
         .collect();
+    if let Some(fold) = p.options.iter().position(|&o| o == Opt::Fold) {
+        let base = evs[fold];
+        evs.iter_mut().for_each(|e| *e -= base);
+    }
     let folds = best_of_kind.iter().map(|&k| p.folds[k]).collect();
     Estimate { evs, equity: p.equity, pot_odds: p.pot_odds, folds }
 }
@@ -655,4 +661,36 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
     let behind = spot.hero_behind - add;
     let rr = if all_in { 1.0 } else { realization(&Spot { aggressor: true, ..spot.clone() }, behind / called_pot.max(0.01), eq_called, t) };
     (all_fold * spot.pot + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn prepared(options: Vec<Opt>, evs: Vec<f64>, equity: f64, pot_odds: Option<f64>) -> Prepared {
+        let folds = vec![None; options.len()];
+        Prepared { options, evs, folds, equity, pot_odds, pot: 20.0 }
+    }
+
+    /// Shrinking the gaps leaves folding at 0 and every gap as the shrink makes it.
+    #[test]
+    fn folding_brings_nothing_and_the_gaps_stay() {
+        let p = prepared(vec![Opt::Fold, Opt::Call, Opt::Raise(30.0)], vec![0.0, 19.89, 20.11], 0.9, Some(0.28));
+        for t in [Tuning::default(), Tuning { shrink: 0.18, line_margin: 0.05, line_pct: 1.5, ..Tuning::default() }] {
+            let est = settle(&p, &t);
+            assert_eq!(est.evs[0], 0.0, "{t:?}");
+            let top = est.evs.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            // The gap to the best option (what the move costs) is the shrunk one, capped
+            // for options that go on.
+            let goes_on = 0.9 >= 0.28 - t.line_margin && 0.9 < t.line_top;
+            for (k, &raw) in p.evs.iter().enumerate() {
+                let loss = t.shrink * (20.11 - raw);
+                let want = if goes_on && k > 0 { loss.min(t.line_pct / 100.0 * 20.0) } else { loss };
+                assert!((top - est.evs[k] - want).abs() < 1e-9, "{t:?} option {k}");
+            }
+        }
+        // Without a fold nothing is anchored.
+        let check = prepared(vec![Opt::Check, Opt::Bet(6.0)], vec![5.0, 6.0], 0.6, None);
+        assert_eq!(settle(&check, &Tuning::default()).evs, vec![5.0, 6.0]);
+    }
 }

@@ -92,7 +92,7 @@ pub(crate) fn may_talk(app: &AppHandle) -> bool {
 ///
 /// Blocking (seconds when it has to solve), so call it from a blocking task. Order:
 /// 1. the solutions cached on this computer;
-/// 2. with `cloud.fetch`, the cloud's verified solution, checked here again (its
+/// 2. with `cloud.fetch`, the cloud's solution, checked here again (its
 ///    exploitability is measured with the engine) and dropped if it fails;
 /// 3. otherwise solved here and, with `cloud.share`, offered to the cloud in the
 ///    background.
@@ -232,7 +232,8 @@ fn compact(board: &str) -> String {
     board.chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
-/// With `cloud.fetch`: the cloud's verified solution of `input`, on its canonical flop.
+/// With `cloud.fetch`: the cloud's solution of `input` on its canonical flop, served as
+/// accepted or verified, its form checked here (`Client::get_solution`).
 pub(crate) fn download_spot(app: &AppHandle, input: &SpotInput) -> Option<Stored> {
     if !cloud_settings_of(app).fetch || !may_talk(app) {
         return None;
@@ -248,8 +249,8 @@ pub(crate) fn download_spot(app: &AppHandle, input: &SpotInput) -> Option<Stored
     }
 }
 
-/// Which of `keys` the cloud has verified; empty when it may not be asked.
-pub(crate) fn verified(app: &AppHandle, keys: &[String]) -> Vec<String> {
+/// Which of `keys` the cloud serves (accepted or verified); empty when it may not be asked.
+pub(crate) fn served(app: &AppHandle, keys: &[String]) -> Vec<String> {
     if !cloud_settings_of(app).fetch || !may_talk(app) || keys.is_empty() {
         return Vec::new();
     }
@@ -257,7 +258,7 @@ pub(crate) fn verified(app: &AppHandle, keys: &[String]) -> Vec<String> {
     let mut out = Vec::new();
     for chunk in keys.chunks(MAX_STATUS_KEYS) {
         match client.statuses(chunk) {
-            Ok(list) => out.extend(list.into_iter().filter(|(_, s)| *s == KeyStatus::Verified).map(|(k, _)| k)),
+            Ok(list) => out.extend(list.into_iter().filter(|(_, s)| matches!(s, KeyStatus::Accepted | KeyStatus::Verified)).map(|(k, _)| k)),
             Err(e) => {
                 app.state::<CloudState>().note(&e);
                 break;
@@ -309,7 +310,7 @@ pub(crate) fn share_spot(app: &AppHandle, input: SpotInput, solution: &mut Solut
             let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
             match Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<SpotKind>(&input, &SpotSolution::from_stored(&stored)) {
                 Ok(SubmitStatus::Submitted) => Shared { state: ShareState::Submitted, at, note: None },
-                Ok(SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Verified, at, note: None },
+                Ok(SubmitStatus::Accepted | SubmitStatus::AlreadyVerified) => Shared { state: ShareState::Served, at, note: None },
                 Err(e) => {
                     app.state::<CloudState>().note(&e);
                     Shared { state: ShareState::Failed, at, note: Some(e.to_string()) }
@@ -340,7 +341,7 @@ pub(crate) fn check_spots(app: &AppHandle) -> Result<(), Error> {
         for ((local, _), (_, status)) in waiting.iter().zip(statuses) {
             if let Some(entry) = log.get_mut(local) {
                 entry.shared.state = match status {
-                    KeyStatus::Verified => ShareState::Verified,
+                    KeyStatus::Accepted | KeyStatus::Verified => ShareState::Served,
                     KeyStatus::Submitted => ShareState::Submitted,
                     KeyStatus::Rejected(note) => {
                         entry.shared.note = note;

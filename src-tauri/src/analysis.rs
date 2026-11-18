@@ -561,8 +561,8 @@ fn save_info(job: &PostflopJob) -> SaveInfo {
 type Rated = Result<(Vec<Decision>, bool), JobError>;
 
 /// Rates `job` from the spot store (`store::resolve`): an own solve as exact as a queued
-/// one, if every decision lies in its saved part; a library spot or a verified spot of
-/// Ringside Cloud if every hero decision is on the flop (they store the flop per hand, but
+/// one, if every decision lies in its saved part; a library spot or a spot Ringside Cloud
+/// serves (accepted on its form or verified) if every hero decision is on the flop (they store the flop per hand, but
 /// no EV per action, so the rating goes by frequency). Otherwise it solves with `solve`,
 /// files the solution in the store under `data` and offers it to the cloud, or, if this
 /// computer cannot solve it, asks the community to. The flag is true when nothing was
@@ -577,7 +577,7 @@ fn rate_job(data: &Path, state: &AppState, job: &PostflopJob, app: Option<&AppHa
     let use_found = |found: Found| -> Option<Rated> {
         let note = match found.origin() {
             Origin::Own if found.saved_id().is_some() => None,
-            Origin::Cloud => Some(" Lösung aus Ringside Cloud (geprüft); ohne EV je Aktion, bewertet nach Häufigkeit."),
+            Origin::Cloud => Some(" Lösung aus Ringside Cloud, von der Community gerechnet; ohne EV je Aktion, bewertet nach Häufigkeit."),
             _ => Some(" Lösung aus der Spot-Bibliothek; ohne EV je Aktion, bewertet nach Häufigkeit."),
         };
         if note.is_some() && !flop_only {

@@ -209,8 +209,8 @@
       <div class="intro">
         {#if data.fetched.length}
           <p>
-            <b>Fertige Spots von anderen.</b> Diese Spots hat ein anderer Spieler gerechnet und ein Prüfer nachgemessen.
-            Ringside nimmt sie beim Üben und in der Hand-Analyse, statt selbst zu rechnen.
+            <b>Fertige Spots von anderen.</b> Diese Spots hat die Community gerechnet; Ringside hat beim Laden ihre Form
+            geprüft. Ringside nimmt sie beim Üben und in der Hand-Analyse, statt selbst zu rechnen.
           </p>
         {/if}
         {#if data.library.own + data.library.library > 0}

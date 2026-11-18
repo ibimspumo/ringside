@@ -277,7 +277,7 @@ const CLOUD_EVERY: Duration = Duration::from_secs(30 * 60);
 const STATUS_GAP: Duration = Duration::from_secs(5);
 
 /// Flops of the scenario's line at `table` that are solved already: in the store (own,
-/// library, other players' downloads) and, with `cloud.fetch`, verified in the cloud.
+/// library, other players' downloads) and, with `cloud.fetch`, served by the cloud.
 /// The candidates are the library's representative flops.
 fn ready_flops(app: &AppHandle, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario) -> Vec<String> {
     let c = catalog();
@@ -313,10 +313,10 @@ fn ready_flops(app: &AppHandle, table: ringside_play::TableKey, scenario: &rings
                 drop(last);
                 let spot_keys: Vec<String> =
                     keys.iter().filter_map(|(k, _)| k.strip_prefix("spot:").map(str::to_string)).collect();
-                let verified = crate::cloud::verified(app, &spot_keys);
+                let served = crate::cloud::served(app, &spot_keys);
                 let flops: Vec<String> = keys
                     .iter()
-                    .filter(|(k, _)| k.strip_prefix("spot:").is_some_and(|h| verified.iter().any(|v| v == h)))
+                    .filter(|(k, _)| k.strip_prefix("spot:").is_some_and(|h| served.iter().any(|v| v == h)))
                     .map(|(_, f)| f.clone())
                     .collect();
                 READY.lock().unwrap().insert(line_key, (Instant::now(), flops.clone()));
