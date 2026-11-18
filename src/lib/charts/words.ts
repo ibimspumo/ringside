@@ -61,28 +61,6 @@ export function posHint(pos: string): string {
   return POS_HINT[pos] ?? `${pos}: dein Platz am Tisch.`;
 }
 
-export const TERM = {
-  bb: "BB (Big Blind): der große Pflichteinsatz. Stacks und Gewinne werden in BB gezählt, damit sie für jede Blindstufe gleich lesbar sind.",
-  stack: "Stack: wie viele Chips du vor der Hand hast, gemessen in Big Blinds. Mit 10 BB und weniger gilt fast nur noch all-in oder Fold.",
-  shove: "Shove: sofort all-in gehen. Mit kurzem Stack die beste Waffe, weil der Gegner nur noch callen oder folden kann.",
-  ante: "Ante: ein kleiner Pflichteinsatz, den jeder Spieler vor der Hand zahlt. Er macht den Pot größer, also lohnt sich früheres All-in.",
-  bbAnte: "BB-Ante: der Big Blind zahlt die Ante für den ganzen Tisch. So spielen die meisten Turniere auf PokerStars.",
-  equilibrium:
-    "Gleichgewicht (Nash): keiner kann mehr gewinnen, indem er allein anders spielt. Gegen jeden Gegner verlierst du damit nichts – gegen schwache gewinnst du oft mehr, wenn du abweichst.",
-  model:
-    "Modell: Preflop wird exakt gerechnet, das Spiel nach dem Flop aber nur geschätzt. Gute Richtschnur, aber kein Solver-Ergebnis.",
-  ev: "EV (Erwartungswert): was die Aktion im Schnitt einbringt, in Big Blinds. Höher ist besser; Folden kostet nichts mehr, als schon im Pot liegt.",
-  combos:
-    "Kombos: so viele Kartenkombinationen gibt es von dieser Hand. Paare 6, suited 4, offsuit 12 – offsuit-Hände bekommst du also dreimal so oft.",
-  mixed:
-    "Gemischt: Beide Aktionen bringen fast gleich viel. Im Gleichgewicht spielst du sie mal so, mal so; am Tisch ist keine der beiden ein Fehler.",
-  reach: "Wie oft diese Situation an diesem Platz überhaupt vorkommt, von allen Händen aus gezählt.",
-  exploit:
-    "Ausnutzbar: wie viel ein perfekter Gegner gegen diese Strategie noch zusätzlich gewinnen könnte. Nahe 0 heißt: so gut wie fertig gerechnet.",
-  live: "Für diese Stacktiefe gibt es keine vorgerechnete Tabelle. Ringside rechnet sie auf deinem Rechner; das Ergebnis wird gespeichert.",
-  precomputed: "Vorgerechnet: Diese Tabelle ist fertig gerechnet und wird sofort geladen.",
-  icm: "Chip-EV ohne ICM: gerechnet in Chips. Kurz vor dem Geld oder am Finaltisch spielst du besser etwas enger, weil Ausscheiden dort Preisgeld kostet.",
-} as const;
 
 export const pct = (x: number, d = 1) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
 

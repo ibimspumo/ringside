@@ -19,7 +19,7 @@
   const text = $derived(tip ?? (id ? explain(id) : ""));
 </script>
 
-<Tooltip {text} {side}
+<Tooltip {text} {side} inline
   ><button type="button" class="ui-term">{#if children}{@render children()}{:else if id}{WORDS[id].word}{/if}</button></Tooltip
 >
 

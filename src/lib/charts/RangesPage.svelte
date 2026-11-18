@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Term from "../ui/Term.svelte";
   import { onMount, untrack } from "svelte";
   import { api, onPreflopProgress } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
@@ -15,13 +16,12 @@
   import IconButton from "../ui/IconButton.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import Tag from "../ui/Tag.svelte";
-  import Tooltip from "../ui/Tooltip.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import { usePageHead } from "../ui/page.svelte";
   import { preview } from "../learn/preview";
   import { actionColor, actionName, actionPhrase, bb, colorWord, facing, spotLabel, stepTag } from "./preflop-labels";
-  import { TERM, byPos, fromPos, pct, tablePositions, type SeatMark } from "./words";
+  import { byPos, fromPos, pct, tablePositions, type SeatMark } from "./words";
   import { backToHand, chartsHandoff, type ChartTarget } from "./handoff.svelte";
 
   /** Spots reached less often than this are left out. */
@@ -570,7 +570,7 @@
             {/snippet}
           </SeatTable>
           <div class="rail">
-            <span class="lbl"><Tooltip text={ante === "big_blind" ? TERM.bbAnte : TERM.ante}><span class="term">Ante</span></Tooltip></span>
+            <span class="lbl"><Term id={ante === "big_blind" ? "bb_ante" : "ante"}>Ante</Term></span>
             <SegmentedControl
               label="Ante-Struktur"
               size="sm"
@@ -674,7 +674,7 @@
                     <details class="calc">
                       <summary>Rechendetails</summary>
                       <p class="num">
-                        Durchgang {progress.last.iterations}, <Tooltip text={TERM.exploit}><span class="term">ausnutzbar</span></Tooltip>
+                        Durchgang {progress.last.iterations}, <Term id="exploit">ausnutzbar</Term>
                         {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)
                       </p>
                     </details>
@@ -720,15 +720,15 @@
                 <dd>{pf.players} Spieler, alle mit {bb(pf.stack_bb)} BB</dd>
                 <dt>Antes</dt>
                 <dd>{anteInfo ? anteText(anteInfo) : ""}</dd>
-                <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
+                <dt><Term id="reach">Kommt vor</Term></dt>
                 <dd>in <span class="num">{one(pfNode.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
-                <dd>{#if pf.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
+                <dd>{#if pf.precomputed}<Term id="precomputed">Vorgerechnet</Term>{:else}<Term id="live">Gerade live berechnet</Term>{/if}</dd>
               </dl>
             </section>
             <section class="panel facts">
               <div class="panel-head"><h2 class="panel-title">Gleichgewicht, reines Push/Fold</h2></div>
-              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips – <Tooltip text={TERM.icm}><span class="term">ohne Turnier-Auszahlungen (ICM)</span></Tooltip></p>
+              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips – <Term id="chip_ev">ohne Turnier-Auszahlungen (ICM)</Term></p>
               <details>
                 <summary>Genauer: was angenommen wird</summary>
                 <p class="note">
@@ -750,11 +750,11 @@
                 <dd>{spots.players} Spieler, alle mit {bb(spots.stack_bb)} BB</dd>
                 <dt>Antes</dt>
                 <dd>{anteText(spots)}</dd>
-                <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
+                <dt><Term id="reach">Kommt vor</Term></dt>
                 <dd>in <span class="num">{one(spot.reach * 100)} %</span> der Hände</dd>
                 <dt>Quelle</dt>
-                <dd>{#if spots.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
-                <dt><Tooltip text={TERM.exploit}><span class="term">Ausnutzbar</span></Tooltip></dt>
+                <dd>{#if spots.precomputed}<Term id="precomputed">Vorgerechnet</Term>{:else}<Term id="live">Gerade live berechnet</Term>{/if}</dd>
+                <dt><Term id="exploit">Ausnutzbar</Term></dt>
                 <dd>{spots.exploitability_bb < 0.005 ? "Sehr nah am Gleichgewicht des Modells" : "Noch nicht ganz fertig gerechnet"} <span class="faint">(<span class="num">{pct(spots.exploitability_bb, 4)}</span> BB je Hand)</span></dd>
               </dl>
             </section>
@@ -786,7 +786,7 @@
                 </p>
                 <p class="note">
                   <b>Vereinfachungen:</b> Nach einer 3-Bet spielt nur der erste, der weitermacht; nach einem All-in nur der erste Caller. Höchstens
-                  drei Spieler sehen einen Flop. Chip-EV <Tooltip text={TERM.icm}><span class="term">ohne ICM</span></Tooltip>, Kartenentfernung paarweise genähert.
+                  drei Spieler sehen einen Flop. Chip-EV <Term id="chip_ev">ohne ICM</Term>, Kartenentfernung paarweise genähert.
                 </p>
                 {#if spots.realized.length}
                   <table class="eqr">

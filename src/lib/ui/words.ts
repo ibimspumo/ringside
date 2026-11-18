@@ -37,7 +37,8 @@ export const WORDS = {
   },
   ev: {
     word: "EV",
-    short: "EV (Erwartungswert): was eine Hand oder Aktion von hier an im Schnitt einbringt, in Big Blinds. Höher ist besser; Folden hat EV 0.",
+    short: "EV (Erwartungswert): was eine Hand oder Aktion im Schnitt einbringt, in Big Blinds. Höher ist besser.",
+    long: "Wovon gezählt wird, steht jeweils dabei: ab der Entscheidung (Folden ist dann 0) oder ab deinem Stack vor der Hand (dann kostet Folden den schon gesetzten Blind).",
   },
   winrate: {
     word: "Winrate",
@@ -230,6 +231,7 @@ export const WORDS = {
   chip_ev: {
     word: "Chip-EV",
     short: "Gerechnet in Chips, nicht in Preisgeld.",
+    long: "Kurz vor dem Geld oder am Finaltisch spielst du besser etwas enger, weil Ausscheiden dort Preisgeld kostet.",
   },
   model_strategy: {
     word: "Modell-Strategie",
@@ -254,6 +256,40 @@ export const WORDS = {
   sample: {
     word: "Stichprobe",
     short: "Wenige Hände sagen wenig: Der wahre Wert kann weit vom angezeigten liegen.",
+  },
+
+  // Starting-hand charts.
+  stack: {
+    word: "Stack",
+    short: "Wie viele Chips du vor der Hand hast, gemessen in Big Blinds. Mit 10 BB und weniger gilt fast nur noch all-in oder Fold.",
+  },
+  shove: {
+    word: "Shove",
+    short: "Sofort all-in gehen. Mit kurzem Stack die beste Waffe, weil der Gegner nur noch callen oder folden kann.",
+  },
+  ante: {
+    word: "Ante",
+    short: "Ein kleiner Pflichteinsatz, den jeder Spieler vor der Hand zahlt. Er macht den Pot größer, also lohnt sich früheres All-in.",
+  },
+  bb_ante: {
+    word: "BB-Ante",
+    short: "Der Big Blind zahlt die Ante für den ganzen Tisch. So spielen die meisten Turniere auf PokerStars.",
+  },
+  hand_combos: {
+    word: "Kombos",
+    short: "So viele Kartenkombinationen gibt es von dieser Hand: Paare 6, suited 4, offsuit 12 – offsuit-Hände bekommst du also dreimal so oft.",
+  },
+  reach: {
+    word: "Kommt vor",
+    short: "Wie oft diese Situation an diesem Platz überhaupt vorkommt, von allen Händen aus gezählt.",
+  },
+  live: {
+    word: "Live gerechnet",
+    short: "Für diese Stacktiefe gibt es keine vorgerechnete Tabelle. Ringside rechnet sie auf deinem Rechner; das Ergebnis wird gespeichert.",
+  },
+  precomputed: {
+    word: "Vorgerechnet",
+    short: "Diese Tabelle ist fertig gerechnet und wird sofort geladen.",
   },
 
   // Where a rating comes from.

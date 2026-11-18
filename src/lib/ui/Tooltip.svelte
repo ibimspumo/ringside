@@ -11,8 +11,16 @@
     text,
     side = "top",
     open: forced = false,
+    inline = false,
     children,
-  }: { text: string; side?: "top" | "bottom" | "right" | "left"; open?: boolean; children: Snippet } = $props();
+  }: {
+    text: string;
+    side?: "top" | "bottom" | "right" | "left";
+    open?: boolean;
+    /** Flows with the words around it, for a word in running text. */
+    inline?: boolean;
+    children: Snippet;
+  } = $props();
 
   const id = `tt-${Math.random().toString(36).slice(2, 9)}`;
   let wrap = $state<HTMLElement>();
@@ -41,6 +49,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <span
   class="ui-tooltip-anchor"
+  class:inline
   bind:this={wrap}
   tabindex={ownStop ? 0 : undefined}
   aria-describedby={anchor ? id : undefined}
@@ -56,6 +65,9 @@
   .ui-tooltip-anchor {
     display: inline-flex;
     border-radius: var(--r-xs);
+  }
+  .ui-tooltip-anchor.inline {
+    display: inline;
   }
   .ui-tooltip-anchor:focus-visible {
     outline: 2px solid var(--focus);

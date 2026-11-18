@@ -477,7 +477,7 @@
         <div class="three">
           <Card><Stat label="Gewinn" value="+12,4" unit="BB/100" tone="good" meaning="Gut: über dem Schnitt deines Limits." help="Gewinn je 100 Hände in Big Blinds" /></Card>
           <Card><Stat label="VPIP" value="38" unit="%" tone="warn" meaning="Zu viele Hände – Ziel 22–28 %." help="Wie oft du freiwillig Geld in den Pot legst" /></Card>
-          <Card><Stat label="EV-Verlust" value="−4,2" unit="BB" tone="bad" meaning="Meist am River: zu oft gecallt." /></Card>
+          <Card><Stat label="Kostet im Schnitt" value="−4,2" unit="BB" tone="bad" meaning="Meist am River: zu oft gecallt." /></Card>
           <Card tone="raised"><Stat size="lg" label="Genauigkeit" value="84" unit="%" meaning="12 von 14 Entscheidungen richtig." /></Card>
           <Card onclick={() => {}}><SectionHead level={3} title="Klickbare Karte" sub="Ganze Fläche ist ein Knopf." /></Card>
           <Card onclick={() => {}} selected><SectionHead level={3} title="Ausgewählt" sub="Rahmen in Textfarbe." /></Card>
@@ -562,7 +562,7 @@
         <div class="row bets">{#each [1, 2, 3, 4] as s (s)}<ActionLabel kind="bet" step={s as 1 | 2 | 3 | 4} amount={[1.5, 3, 6, 12][s - 1]} />{/each}<span class="muted">Einsätze werden mit der Größe dunkler.</span></div>
         <h3 class="sub-head">Badges</h3>
         <div class="row">
-          <Badge>Neutral</Badge><Badge tone="info">Turnier</Badge><Badge tone="good" dot>Live</Badge><Badge tone="warn">3 Leaks</Badge><Badge tone="bad">Fehler</Badge><Badge size="sm">klein</Badge>
+          <Badge>Neutral</Badge><Badge tone="info">Turnier</Badge><Badge tone="good" dot>Live</Badge><Badge tone="warn">3 Schwachstellen</Badge><Badge tone="bad">Fehler</Badge><Badge size="sm">klein</Badge>
         </div>
         <h3 class="sub-head">Herkunft der Zahlen</h3>
         <div class="row">{#each SOURCES as s (s)}<SourceNote kind={s} />{/each}</div>
@@ -756,7 +756,7 @@
         <SectionHead title="Fortschritt & Zustände" sub="Leer lädt zum Handeln ein, Fehler sagen, was zu tun ist." />
         <div class="row progress">
           <ProgressRing value={0.72} label="Analyse" size={48}>72</ProgressRing>
-          <ProgressRing value={0.3} tone="warn" label="Leaks" size={40} />
+          <ProgressRing value={0.3} tone="warn" label="Schwachstellen" size={40} />
           <ProgressRing value={null} label="Lädt" size={32} />
           <div class="grow stack">
             <ProgressBar value={0.4} label="Import" />

@@ -389,7 +389,7 @@
                   ? "Gut dabei – lies dir die Begründung bei der markierten Stelle noch einmal durch."
                   : "Kein Problem, genau dafür ist das Training da: Die Begründungen oben zeigen, worauf es ankommt."}
             </p>
-            <p class="sumline num">Punkte <b>{Math.round(handPoints)}</b> von 100 · EV-Verlust <b>{bb(handLoss, 2)} BB</b></p>
+            <p class="sumline num">Punkte <b>{Math.round(handPoints)}</b> von 100 · kostet im Schnitt <b>{bb(handLoss, 2)} BB</b></p>
           {/if}
         </section>
       {/if}
@@ -399,7 +399,7 @@
         <div class="series num">
           <span>Hände <b>{series.hands + (phase === "me" || phase === "wait" ? 1 : 0)}</b></span>
           <span>Punkte <b>{series.decisions ? Math.round(series.points / series.decisions) : "–"}</b></span>
-          <span>EV-Verlust <b>{signed(-series.loss, 2)} BB</b></span>
+          <span>Kostet im Schnitt <b>{signed(-series.loss, 2)} BB</b></span>
         </div>
         <div class="grades">
           {#each Object.entries(GRADES) as [g, info] (g)}
@@ -409,7 +409,7 @@
         <details>
           <summary>So wird bewertet</summary>
           <p class="small">
-            Maßstab ist der EV-Verlust deiner Wahl gegenüber der besten Aktion mit deiner Hand, in Prozent des Pots an dieser Stelle:
+            Maßstab ist, was deine Wahl im Schnitt weniger bringt als die beste Aktion mit deiner Hand, in Prozent des Pots an dieser Stelle:
             <b>Beste Wahl</b> bis {fmt(THRESHOLDS.best)} % (so genau rechnet die Lösung) und die Lösung spielt die Aktion in mindestens
             {Math.round(BEST_MIN_FREQUENCY * 100)} % der Fälle, <b>Gut</b> bis {fmt(THRESHOLDS.good)} %, <b>Ungenau</b> bis {fmt(THRESHOLDS.inaccurate)} %,
             darüber <b>Fehler</b>. Punkte: 100 / 70 / 30 / 0.
