@@ -454,9 +454,7 @@
 <ClientLock feature="Die Seite „Ranges nach Stack“">
   <div class="page ranges-page">
     <div class="intro">
-      <p>
-        Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack. Wähl ihn unten, dann deinen Platz am Tisch.
-      </p>
+      <p>Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack.</p>
       {#if fromHand !== null}
         <button class="btn" onclick={() => backToHand()}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" /></svg>
@@ -543,7 +541,7 @@
         </section>
 
         <section class="panel chart-panel" aria-busy={loading}>
-          <header class="answer" class:stale={loading && !!answer}>
+          <header class="answer" class:dim={loading && !!answer}>
             <div class="answer-top">
               {#if engine === "pushfold"}
                 <span class="badge eq"><Hint text={TERM.equilibrium}>Gleichgewicht</Hint></span>
@@ -570,6 +568,33 @@
             {:else if loading}
               <h2>{bb(stack)} BB werden gerade gerechnet.</h2>
               <p>Sobald es fertig ist, steht hier die Antwort für deinen Platz.</p>
+            {/if}
+            {#if loading && !onGrid && !error}
+              <div class="live" role="status">
+                {#if engine === "preflop"}
+                  <div class="bar" role="progressbar" aria-label="Fortschritt der Live-Berechnung" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(done * 100)}>
+                    <i style="width:{(done * 100).toFixed(1)}%"></i>
+                  </div>
+                  <div class="live-row">
+                    <p>
+                      <b class="num">{Math.round(done * 100)} %</b> · Live gerechnet; auf einem Laptop mit 4 Kernen
+                      {players > 6 ? "etwa 4 bis 8 Minuten" : "etwa 2 bis 3 Minuten"}.
+                      {#if progress}
+                        <span class="faint num"
+                          >Durchgang {progress.last.iterations}, <Hint text={TERM.exploit}>ausnutzbar</Hint>
+                          {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)</span
+                        >
+                      {/if}
+                    </p>
+                    <button class="btn" onclick={() => api.preflopCancel()}>Abbrechen</button>
+                  </div>
+                {:else}
+                  <div class="live-row">
+                    <span class="spin" aria-hidden="true"></span>
+                    <p>Für {bb(stack)} BB gibt es keine fertige Tabelle; das dauert einige Sekunden.</p>
+                  </div>
+                {/if}
+              </div>
             {:else}
               <h2>Für diesen Platz gibt es hier keine Entscheidung.</h2>
             {/if}
@@ -590,29 +615,7 @@
                 <p class="neg">{error}</p>
                 {#if axis.length}<button class="btn" onclick={() => pickStack(nearest(axis, stack))}>Zurück zu {bb(nearest(axis, stack))} BB</button>{/if}
               </div>
-            {:else if loading && !onGrid}
-              <div class="over" role="status">
-                <p><b>Wird live gerechnet: {bb(stack)} BB</b></p>
-                {#if engine === "preflop"}
-                  <div class="bar" role="progressbar" aria-label="Fortschritt der Live-Berechnung" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(done * 100)}>
-                    <i style="width:{(done * 100).toFixed(1)}%"></i>
-                  </div>
-                  <p class="small">
-                    <span class="num">{Math.round(done * 100)} %</span> · Auf einem Laptop mit 4 Kernen dauert das {players > 6 ? "etwa 4 bis 8 Minuten" : "etwa 2 bis 3 Minuten"}.
-                  </p>
-                  {#if progress}
-                    <p class="small faint num">
-                      Durchgang {progress.last.iterations}, <Hint text={TERM.exploit}>ausnutzbar</Hint>
-                      {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)
-                    </p>
-                  {/if}
-                  <button class="btn" onclick={() => api.preflopCancel()}>Abbrechen</button>
-                {:else}
-                  <span class="spin" aria-hidden="true"></span>
-                  <p class="small">Für {bb(stack)} BB gibt es keine fertige Tabelle; das dauert einige Sekunden.</p>
-                {/if}
-              </div>
-            {:else if loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item)}
+            {:else if onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
               <div class="over quiet" role="status"><span class="spin" aria-hidden="true"></span><p>Wird geladen …</p></div>
             {/if}
           </div>
@@ -942,6 +945,11 @@
   }
   .answer {
     padding: 16px 20px 0;
+  }
+  .answer.dim h2,
+  .answer.dim > p,
+  .answer.dim :global(.action-bar) {
+    opacity: 0.35;
     transition: opacity var(--dur) var(--ease-out);
   }
   .answer-top {
@@ -1065,12 +1073,36 @@
     margin: 0;
     color: var(--text-2);
   }
-  .over p b {
-    color: var(--text);
-    font-size: 14px;
+  .live {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 12px;
+    padding: 12px 14px;
+    border-radius: var(--r);
+    border: 1px solid var(--line-2);
+    background: var(--surface-2);
+    animation: pop-live var(--dur) var(--ease-out);
   }
-  .over .small {
+  @keyframes pop-live {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+  }
+  .live-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .live-row p {
+    flex: 1;
+    margin: 0;
     font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .live-row b {
+    color: var(--text);
   }
   .bar {
     align-self: stretch;
@@ -1176,7 +1208,7 @@
     .body {
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto;
-      grid-template-areas: "axis" "setup" "chart" "side";
+      grid-template-areas: "axis" "chart" "setup" "side";
     }
     /* Narrow window: table on the left, situations on the right, so the answer stays high. */
     .setup {

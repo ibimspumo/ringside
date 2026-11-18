@@ -20,6 +20,7 @@
     player,
     tournamentNames,
     openId,
+    openAt = null,
     spot = null,
     onClearPlayer,
     onClearTournament,
@@ -32,6 +33,8 @@
     /** Names known from table windows, by tournament id. */
     tournamentNames: Map<number, string>;
     openId: number | null;
+    /** Decision of `openId` to stop at (action index), e.g. coming back from the ranges page. */
+    openAt?: number | null;
     /** Hands of a leak-finder spot, with a label for the chip. */
     spot?: { filter: SpotFilter; label: string } | null;
     onClearPlayer: () => void;
@@ -143,7 +146,7 @@
   });
 
   $effect(() => {
-    if (openId !== null) untrack(() => open(openId, null, true));
+    if (openId !== null) untrack(() => open(openId, openAt, true));
   });
 
   // A finished solve of the hand on screen shows at once.

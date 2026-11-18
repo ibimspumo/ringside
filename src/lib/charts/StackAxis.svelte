@@ -36,7 +36,7 @@
     custom?: { digits: number; example: string; range: string | null } | null;
   } = $props();
 
-  const PAD = { l: 38, r: 50, t: 22, b: 8 };
+  const PAD = { l: 38, r: 54, t: 22, b: 8 };
   const TICKS = [2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100];
 
   let width = $state(600);
@@ -82,10 +82,10 @@
       .filter((s) => s.points.length)
       .map((s) => {
         const p = s.points[s.points.length - 1];
-        return { seat: s.seat, name: s.name, x: x(p.stack) + 6, y: y(p.pct) };
+        return { seat: s.seat, name: s.name, x: x(p.stack) + 9, y: y(p.pct), at: y(p.pct) };
       })
       .sort((a, b) => a.y - b.y);
-    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 12) ends[i].y = ends[i - 1].y + 12;
+    for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
     return ends;
   });
 
@@ -154,6 +154,7 @@
         <path class="line" class:on={s.seat === seat} class:hot={hover?.seat === s.seat} d={path(s.points)} />
       {/each}
       {#each labels as l (l.seat)}
+        {#if Math.abs(l.y - l.at) > 2}<path class="lead" d="M{l.x - 8},{l.at} L{l.x - 2},{l.y}" />{/if}
         <text class="end" class:on={l.seat === seat} x={l.x} y={l.y + 3.5}>{l.name}</text>
       {/each}
       {#if hover}
@@ -323,6 +324,11 @@
     stroke: var(--text);
     stroke-width: 2.25;
     opacity: 1;
+  }
+  .lead {
+    fill: none;
+    stroke: var(--text-3);
+    stroke-width: 1;
   }
   .end {
     font-family: var(--font-num);

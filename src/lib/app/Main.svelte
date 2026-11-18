@@ -136,6 +136,7 @@
   /** Hands tab: optional player filter and a hand to open, set from other views. */
   let handsPlayer = $state<string | null>(null);
   let handToOpen = $state<number | null>(null);
+  let handOpenAt = $state<number | null>(null);
   /** Coach tab: a tournament to analyse, set from the tournaments page. */
   let analyzeTournament = $state<number | null>(null);
 
@@ -147,6 +148,7 @@
     if (chartsHandoff.back !== chartsBack) {
       chartsBack = chartsHandoff.back;
       handToOpen = chartsHandoff.hand;
+      handOpenAt = chartsHandoff.at;
       tab = "hands";
     }
   });
@@ -224,6 +226,7 @@
     handsPlayer = player;
     handsSpot = null;
     handToOpen = handId;
+    handOpenAt = null;
     tab = "hands";
   }
 
@@ -434,6 +437,7 @@
           player={handsPlayer}
           {tournamentNames}
           openId={handToOpen}
+          openAt={handOpenAt}
           spot={handsSpot}
           onClearSpot={() => (handsSpot = null)}
           onClearPlayer={() => (handsPlayer = null)}

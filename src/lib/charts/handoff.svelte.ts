@@ -21,14 +21,16 @@ export interface ChartTarget {
  * A spot to open on the ranges page, and the hand it came from. The main view switches to
  * the page when `target` is set, and back to the hand when `back` is requested.
  */
-export const chartsHandoff = $state<{ target: ChartTarget | null; hand: number | null; back: number }>({
+export const chartsHandoff = $state<{ target: ChartTarget | null; hand: number | null; at: number | null; back: number }>({
   target: null,
   hand: null,
+  at: null,
   back: 0,
 });
 
 export function openInCharts(target: ChartTarget, handId: number) {
   chartsHandoff.hand = handId;
+  chartsHandoff.at = target.action_index;
   chartsHandoff.target = target;
 }
 

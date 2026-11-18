@@ -246,8 +246,8 @@
   }
   .cell.out {
     background: transparent;
-    box-shadow: inset 0 0 0 1px var(--line);
-    opacity: 0.55;
+    box-shadow: inset 0 0 0 1px var(--line-2);
+    color: var(--text-3);
   }
   .cell.dim {
     opacity: 0.18;
@@ -296,7 +296,7 @@
     padding-top: 6px;
     border-top: 1px solid var(--line-2);
     font-size: 11.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   .hand-card {
