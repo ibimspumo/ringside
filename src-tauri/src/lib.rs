@@ -15,6 +15,7 @@ mod report;
 mod settings;
 mod solutions;
 mod solver;
+mod store;
 
 use std::collections::HashSet;
 use std::hash::{BuildHasher, RandomState};
@@ -653,6 +654,7 @@ pub fn run() {
             app.manage(library::LibraryState::default());
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
+            store::spawn_migration(app.handle().clone());
             analysis::spawn(app.handle().clone());
             library::spawn(app.handle().clone());
             jobs::spawn(app.handle().clone());

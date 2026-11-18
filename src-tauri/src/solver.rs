@@ -12,10 +12,12 @@ use std::sync::atomic::Ordering;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+use ringside_solver::gate::Priority;
 use ringside_solver::library::catalog;
 use ringside_solver::library::format::{Stored, View};
 use ringside_solver::saved::Snapshot;
 use ringside_solver::{Error, Estimate, Job, Node, Progress, Settings, Solution, Spot, Step, Summary, estimate, spawn};
+use ringside_store::Policy;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -185,11 +187,25 @@ pub async fn solver_start(
         }
         show(Shown::None);
 
-        if !fresh && let Some((id, snapshot)) = solutions::lookup(&app, &spot, settings.target_pct) {
-            let summary = snapshot.meta.summary.clone();
-            show(Shown::Saved(Box::new(snapshot)));
-            let _ = app.emit("solver-done", DoneEvent::Solved { run, summary, saved: Some(id), reused: true });
-            return Ok(());
+        let keyed = crate::store::keyed(&spot, info.model.as_ref());
+        if !fresh && let Some(keyed) = &keyed {
+            // Only own solves: the page shows every node, library and cloud spots only the flop.
+            let policy = Policy { others: false, ..crate::store::policy(&app, false, false) };
+            let ask = crate::store::Ask::new(&spot, keyed, settings.target_pct);
+            let found = crate::store::resolve_app(&app, &ask, &policy, || false, Some, || None);
+            if let Some((_, crate::store::Found::Snapshot { id, snapshot })) = found {
+                let summary = snapshot.meta.summary.clone();
+                show(Shown::Saved(snapshot));
+                let _ = app.emit("solver-done", DoneEvent::Solved { run, summary, saved: Some(id), reused: true });
+                return Ok(());
+            }
+        }
+        // What the user looks at goes first; a background solve gives way within an iteration.
+        let ticket = crate::store::gate().enter(Priority::Viewed);
+        while !ticket.hold(Duration::from_secs(1)) {
+            if client_running(&app) {
+                return Err("Solange PokerStars läuft, rechnet Ringside nicht.".into());
+            }
         }
 
         let title = if info.title.trim().is_empty() { "Spot lösen".to_string() } else { format!("Lösen: {}", info.title.trim()) };
@@ -222,6 +238,7 @@ pub async fn solver_start(
         let done_app = app.clone();
         let solve_settings = settings.clone();
         let on_finish = move |result: Result<Solution, Error>| {
+            drop(ticket);
             let event = match result {
                 Ok(mut solution) => {
                     let summary = solution.summary.clone();
