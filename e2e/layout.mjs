@@ -134,7 +134,7 @@ const SETTLED = `
   const done = arguments[arguments.length - 1];
   const until = Date.now() + 15000;
   const poll = () => {
-    if (document.querySelector("main h1") || Date.now() > until)
+    if ((document.querySelector("main h1") && document.querySelector("[role=banner] .bar .row")) || Date.now() > until)
       document.fonts.ready.then(() => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => done(true))), 250));
     else setTimeout(poll, 100);
   };
@@ -150,9 +150,15 @@ async function size(s, width) {
 
 /** One view: its problems, prefixed with where they happened. */
 async function view(s, base, query, width) {
-  await s.navigate(new URL(query, base).href);
-  await s.execAsync(SETTLED);
-  const problems = await s.exec(CHECK);
+  let problems = [];
+  // The dev server may reload the page once while it optimizes; a page that is not there yet is
+  // loaded again before anything counts.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await s.navigate(new URL(query, base).href);
+    await s.execAsync(SETTLED);
+    problems = await s.exec(CHECK);
+    if (!problems.includes("obere Leiste fehlt")) break;
+  }
   return problems.map((p) => `${width} px ${query}: ${p}`);
 }
 

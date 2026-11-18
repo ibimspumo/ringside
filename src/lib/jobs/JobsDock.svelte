@@ -30,6 +30,10 @@
     const pct = share === null ? "" : ` · ${Math.floor(share * 100)} %`;
     return `${active.length === 1 ? "1 läuft" : `${active.length} laufen`}${pct}`;
   });
+  /** Beside the ring in a narrow bar: what runs and how far ("Analyse 96 %"), or the state. */
+  const brief = $derived(
+    jobs.locked || share === null || !lead ? summary : `${active.length === 1 ? (KIND_LABEL[lead.kind] ?? "Aufgabe") : `${active.length} Aufgaben`} ${Math.floor(share * 100)} %`,
+  );
 
   let panel = $state<HTMLElement | null>(null);
   let button = $state<HTMLElement | null>(null);
@@ -77,7 +81,7 @@
       <small>{summary}</small>
     </span>
   {:else if active.length}
-    <span class="txt"><small>{summary}</small></span>
+    <span class="txt"><small>{brief}</small></span>
   {/if}
 </button>
 

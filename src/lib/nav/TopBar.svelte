@@ -135,12 +135,12 @@
 
   /*
    * Folding of the bar when room runs short, one step at a time. What also shows elsewhere goes
-   * first; marks keep words as long as they can, the lock note keeps its words longest:
+   * first; marks and tables keep words as long as they can, the lock note longest:
    *   1 status without "im Blick" / "gespeichert"   2 hand count off
    *   3 lock note short ("PokerStars läuft")         4 name "Ringside" off
-   *   5 tasks as ring and state only                 6 open tables as dot and number
-   *   7 tab icons off                                8 marks shorter ("4 gefunden")
-   *   9 marks as a number ("4")                     10 lock note as its icon (tabs and page keep theirs)
+   *   5 tasks as ring and share only                 6 tab icons off
+   *   7 marks shorter ("4 gefunden")                 8 marks as a number ("4")
+   *   9 open tables as dot and number               10 lock note as its icon (tabs and page keep theirs)
    *  11 marks off (the menus keep them)
    */
   let step = $state(0);
@@ -203,11 +203,11 @@
           <NavItem
             size="top"
             label={area.label}
-            icon={step < 7 ? area.icon : undefined}
+            icon={step < 6 ? area.icon : undefined}
             active={single && tab === area.pages[0]}
             current={!single && current?.id === area.id}
             chevron={single ? undefined : "down"}
-            status={mark && step < 11 ? (step < 8 ? (mark.line ?? mark.long) : step < 9 ? mark.long : mark.text) : undefined}
+            status={mark && step < 11 ? (step < 7 ? (mark.line ?? mark.long) : step < 8 ? mark.long : mark.text) : undefined}
             tone={mark?.tone}
             locked={shut}
             title={shut ? "Gesperrt, solange PokerStars läuft" : undefined}
@@ -227,7 +227,7 @@
             <SourceNote kind="locked" hint={LOCK_HINT} label={step < 3 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "PokerStars läuft" : ""} />
           </span>
         {/if}
-        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 6} /></span>
+        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 9} /></span>
         <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 5} /></span>
         <span class="item gear" class:on={tab === "settings"} data-bar-item>
           <IconButton label="Einstellungen" aria-current={tab === "settings" ? "page" : undefined} onclick={() => go("settings")}>

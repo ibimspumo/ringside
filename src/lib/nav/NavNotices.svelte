@@ -35,7 +35,7 @@
   <div class="strip warn">
     <b class="title"
       ><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13zM8 6.5v3.5M8 11.8v.2" /></svg><Term tip={HOW}
-        >PokerStars speichert noch keine Hände</Term
+        >PokerStars speichert keine neuen Hände</Term
       ></b
     >
     <span class="how long">{HOW}</span>
@@ -45,6 +45,7 @@
 {/if}
 
 <style>
+  /* A card in the page column, like the cloud note below it; urgency is the amber edge alone. */
   .strip {
     container-type: inline-size;
     display: grid;
@@ -52,8 +53,10 @@
     align-items: center;
     gap: var(--sp-4);
     min-height: 44px;
-    padding: var(--sp-2) var(--frame-right, var(--frame-auto)) var(--sp-2) var(--frame-left, var(--frame-auto));
-    border-bottom: 1px solid var(--line);
+    margin: var(--sp-3) var(--frame-right, var(--frame-auto)) 0 var(--frame-left, var(--frame-auto));
+    padding: 6px 6px 6px var(--sp-4);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r);
     background: var(--surface);
     font-size: var(--fs-sm);
     color: var(--text-2);

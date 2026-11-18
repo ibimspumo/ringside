@@ -38,7 +38,7 @@
     <p class="line">
       <b>Ringside Cloud ist an.</b>
       <span class="long">Geteilt werden nur Rechen-Eingaben und Ergebnisse, nichts Persönliches.</span>
-      <span class="short">Geteilt wird nichts Persönliches.</span>
+      <span class="short">Geteilt werden nur Rechnungen, nichts Persönliches.</span>
     </p>
     <div class="actions">
       <Button size="sm" variant="quiet" aria-expanded={details} aria-controls="cloud-details" onclick={() => (details = !details)}>
@@ -67,9 +67,9 @@
     column-gap: var(--sp-3);
     margin: var(--sp-3) var(--frame-right, var(--frame-auto)) 0 var(--frame-left, var(--frame-auto));
     padding: 6px 6px 6px var(--sp-3);
-    border: 1px solid var(--line-2);
+    border: 1px solid var(--line);
     border-radius: var(--r);
-    background: var(--surface-2);
+    background: var(--surface);
   }
   svg {
     fill: none;

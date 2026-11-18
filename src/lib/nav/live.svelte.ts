@@ -1,5 +1,5 @@
 import { api } from "../api";
-import { isActive } from "../jobs/kinds";
+import { etaText, isActive } from "../jobs/kinds";
 import { jobs } from "../jobs/store.svelte";
 import { adviceLocked } from "../app/client.svelte";
 import { isDue } from "../learn/catalog";
@@ -101,8 +101,10 @@ class NavLive {
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;
-      const text = job.status === "paused" ? "pausiert" : `rechnet${pct || " …"}`;
-      return { ...live(text, text), busy: true };
+      // The time left reads like the page below ("noch etwa 3 Std."); a share only without it.
+      const eta = etaText(job.eta_secs);
+      const text = job.status === "paused" ? "pausiert" : eta ? `rechnet · ${eta}` : `rechnet${pct || " …"}`;
+      return { ...live(job.status === "paused" ? text : "rechnet", text), busy: true };
     }
     return this.values[page];
   }
