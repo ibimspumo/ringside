@@ -411,16 +411,17 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--sp-3);
-    padding: var(--sp-2) var(--sp-3);
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    border: 1px solid var(--line);
+    padding: var(--sp-2) 0;
+    border-top: 1px solid var(--line);
+  }
+  .compare > div:first-child {
+    border-top: 0;
   }
   .compare dd {
     margin: 0;
   }
-  .compare > .mine {
-    border-color: var(--text-2);
+  .compare > .mine dd {
+    color: var(--text);
   }
   dt {
     font-size: var(--fs-md);

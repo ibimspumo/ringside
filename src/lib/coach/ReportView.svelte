@@ -201,7 +201,7 @@
                       <span class="txt"
                         >{#if s.spot.better}Besser: <CardText hands text={say(s.spot.better)} />{:else}<CardText hands text={say(s.spot.action)} />{/if}</span
                       >
-                      <span class="go num" aria-hidden="true">{s.n} →</span>
+                      <span class="go" aria-hidden="true">→</span>
                     </span>
                   </Card>
                 </li>

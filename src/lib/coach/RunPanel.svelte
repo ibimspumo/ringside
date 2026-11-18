@@ -45,7 +45,7 @@
     icm: "ICM",
     outs: "Outs",
   };
-  const STEPS = ["Hände auswählen", "Kosten bestätigen", "Analyse läuft"];
+  const STEPS = ["Hände vorbereiten", "Kosten bestätigen", "Analyse läuft"];
   const stepOf = (k: State["kind"]) => (k === "preparing" ? 0 : k === "confirm" ? 1 : k === "running" ? 2 : -1);
   let used = $state<string[]>([]);
   let cancelling = $state(false);
@@ -241,7 +241,7 @@
         <Card tone="sunken">
           <div class="fact">
             <Stat label="Ringside hat gerechnet" value={st.estimate.spots + finished(p) ? `${st.estimate.spots + finished(p)}-mal` : "noch nichts"}
-              meaning={st.estimate.spots ? `${st.estimate.spots} davon schon vor dem Senden` : undefined} />
+              meaning={st.estimate.spots ? `${st.estimate.spots} vorab, ${finished(p)} während der Analyse` : undefined} />
             <span class="tools">
               {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
                   >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
@@ -435,6 +435,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
+    height: 100%;
+  }
+  .figs :global(.ui-card) {
+    height: 100%;
   }
 
   .effort {
@@ -572,7 +576,6 @@
     font-weight: var(--fw-semibold);
   }
   .figs {
-    align-items: start;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--sp-3);
