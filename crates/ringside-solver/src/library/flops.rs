@@ -61,7 +61,6 @@ pub fn canonical(cards: [Card; 3]) -> [Card; 3] {
     best.expect("24 permutations")
 }
 
-
 fn texture(c: &[Card; 3]) -> Texture {
     let ranks = [c[0].rank(), c[1].rank(), c[2].rank()];
     let suits = [c[0].suit(), c[1].suit(), c[2].suit()];
