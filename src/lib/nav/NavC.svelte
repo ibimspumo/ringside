@@ -5,8 +5,8 @@
   import NavItem from "../ui/NavItem.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import { arrowNav } from "./keys";
-  import { areaLine, navLive } from "./live.svelte";
-  import { AREAS, LOCKED_PAGES, PAGES, areaOf, type AreaId, type Page } from "./pages";
+  import { areaLine, navLive, tight } from "./live.svelte";
+  import { AREAS, LOCKED_PAGES, PAGES, areaOf, type Area, type AreaId, type Page } from "./pages";
 
   /**
    * Concept C: a top bar with the five intents, like a website. Each opens a large menu with
@@ -90,6 +90,14 @@
     if (open && !panel?.contains(t) && !Object.values(triggers).some((b) => b?.contains(t))) close();
   }
   const lockedNow = (p: Page) => locked && LOCKED_PAGES.includes(p);
+  /** What a tab shows at rest: the first value that calls for something in its area. */
+  function badge(area: Area) {
+    for (const p of area.pages) {
+      const l = navLive.of(p, locked);
+      if (l && l.tone !== "neutral") return l;
+    }
+    return undefined;
+  }
 </script>
 
 <svelte:window onkeydown={key} onpointerdown={outside} />
@@ -103,6 +111,7 @@
     <nav aria-label="Hauptmenü" class="intents">
       {#each AREAS as area (area.id)}
         {@const single = area.pages.length === 1}
+        {@const mark = badge(area)}
         <NavItem
           size="top"
           label={area.label}
@@ -110,6 +119,10 @@
           active={single && tab === area.pages[0]}
           current={!single && current?.id === area.id}
           chevron={single ? undefined : "down"}
+          status={mark?.text}
+          tone={mark?.tone}
+          locked={area.pages.some(lockedNow)}
+          title={area.pages.some(lockedNow) ? "Teile sind gesperrt, solange PokerStars läuft" : undefined}
           aria-haspopup={single ? undefined : "true"}
           aria-expanded={single ? undefined : open === area.id}
           aria-controls={single ? undefined : "nav-c-menu"}
@@ -132,12 +145,9 @@
 
   {#if current && current.pages.length > 1}
     <nav class="sub" aria-label={current.label} use:arrowNav>
-      <span class="sub-area">{current.label}</span>
       {#each current.pages as p (p)}
         {@const live = navLive.of(p, locked)}
-        <span class="sub-item">
-          <NavItem size="sm" data-nav label={PAGES[p].label} icon={PAGES[p].icon} active={tab === p} locked={lockedNow(p)} status={live?.text} tone={live?.tone} title={PAGES[p].text} onclick={() => go(p)} />
-        </span>
+        <NavItem size="sub" data-nav label={PAGES[p].label} icon={PAGES[p].icon} active={tab === p} locked={lockedNow(p)} status={tight(live)} tone={live?.tone} title={PAGES[p].text} onclick={() => go(p)} />
       {/each}
     </nav>
   {/if}
@@ -151,7 +161,7 @@
           <b>{menu.label}</b>
           <p>{menu.text}</p>
           {#if locked && menu.pages.some(lockedNow)}
-            <SourceNote kind="locked" />
+            <SourceNote kind="locked" variant="block">Öffnet wieder, sobald du PokerStars schließt.</SourceNote>
           {:else if line.tone !== "neutral" || line.text !== menu.short}<span class="line {line.tone}">{line.text}</span>{/if}
         </div>
         <div class="tiles" class:three={menu.pages.length === 3}>
@@ -235,23 +245,10 @@
     align-items: center;
     gap: 2px;
     height: 40px;
-    padding: 0 var(--sp-4) 0 var(--sp-5);
+    padding: 0 var(--sp-4) 0 10px;
     border-top: 1px solid var(--line);
     overflow-x: auto;
     scrollbar-width: none;
-  }
-  .sub-area {
-    margin-right: var(--sp-2);
-    padding-right: var(--sp-3);
-    border-right: 1px solid var(--line-2);
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-semibold);
-    letter-spacing: 0.02em;
-    color: var(--text-3);
-    white-space: nowrap;
-  }
-  .sub-item {
-    flex-shrink: 0;
   }
 
   .menu {
@@ -270,9 +267,8 @@
     display: grid;
     grid-template-columns: 260px minmax(0, 1fr);
     gap: var(--sp-6);
-    max-width: 1360px;
-    margin-inline: auto;
-    padding: var(--sp-5) 30px var(--sp-6);
+    max-width: 1440px;
+    padding: var(--sp-5) var(--sp-5) var(--sp-6);
   }
   .intro {
     display: flex;

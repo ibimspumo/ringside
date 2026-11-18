@@ -83,12 +83,6 @@
   .dock {
     display: flex;
     width: 190px;
-    overflow: hidden;
   }
-  /* Narrow windows: only the ring of the task center; a click still opens the list. */
-  @media (max-width: 1279px) {
-    .dock {
-      width: 46px;
-    }
-  }
+
 </style>

@@ -1,10 +1,10 @@
 <script lang="ts">
-  import type { Snippet } from "svelte";
+  import { tick, type Snippet } from "svelte";
   import Logo from "../Logo.svelte";
   import NavItem from "../ui/NavItem.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import { arrowNav } from "./keys";
-  import { navLive } from "./live.svelte";
+  import { navLive, tight } from "./live.svelte";
   import { AREAS, LOCKED_PAGES, PAGES, type Page } from "./pages";
 
   /**
@@ -41,6 +41,26 @@
   /** A tool on screen keeps its group open. */
   const showTools = $derived(toolsOpen || open || tools.pages.includes(tab));
   const lockedNow = (p: Page) => locked && LOCKED_PAGES.includes(p);
+
+  /** In low windows the menu scrolls; its end fades out while entries are hidden below. */
+  let navEl = $state<HTMLElement>();
+  let more = $state(false);
+  const measure = () => navEl && (more = navEl.scrollTop + navEl.clientHeight < navEl.scrollHeight - 2);
+  $effect(() => {
+    if (!navEl) return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(navEl);
+    return () => ro.disconnect();
+  });
+  /** Opened tools scroll into view in low windows, so the click shows what it opened. */
+  let toolsEl = $state<HTMLElement>();
+  $effect(() => {
+    if (!showTools) return;
+    tick().then(() => {
+      toolsEl?.scrollIntoView({ block: "nearest" });
+      measure();
+    });
+  });
 </script>
 
 <aside class="side" aria-label="Navigation">
@@ -49,7 +69,7 @@
     <strong>Ringside</strong>
   </div>
 
-  <nav aria-label="Hauptmenü" use:arrowNav>
+  <nav aria-label="Hauptmenü" use:arrowNav bind:this={navEl} class:more onscroll={measure}>
     {#each AREAS as area (area.id)}
       {#if area.id === "werkzeuge"}
         <div class="group quiet" role="group" aria-labelledby="nav-a-{area.id}">
@@ -61,14 +81,15 @@
             aria-expanded={showTools}
             aria-controls="nav-a-tools"
             status={showTools ? undefined : String(area.pages.length)}
+            locked={locked && !showTools}
             data-nav
             onclick={toggleTools}
           />
           {#if showTools}
-            <div class="items" id="nav-a-tools">
+            <div class="items" id="nav-a-tools" bind:this={toolsEl}>
               {#each area.pages as p (p)}
                 {@const live = navLive.of(p, locked)}
-                <NavItem size="sm" data-nav label={PAGES[p].label} icon={PAGES[p].icon} active={tab === p} locked={lockedNow(p)} status={live?.text} tone={live?.tone} onclick={() => onSelect(p)} />
+                <NavItem size="sm" data-nav label={PAGES[p].label} icon={PAGES[p].icon} active={tab === p} locked={lockedNow(p)} status={tight(live)} tone={live?.tone} onclick={() => onSelect(p)} />
               {/each}
             </div>
           {/if}
@@ -88,7 +109,7 @@
               icon={PAGES[p].icon}
               active={tab === p}
               locked={lockedNow(p)}
-              status={BIG.includes(p) ? (live?.long ?? PAGES[p].short) : live?.text}
+              status={BIG.includes(p) ? (live?.long ?? PAGES[p].short) : tight(live)}
               tone={live?.tone}
               title={PAGES[p].text}
               onclick={() => onSelect(p)}
@@ -103,7 +124,7 @@
     {#if locked}
       <div class="lock"><SourceNote
           kind="locked"
-          label="PokerStars läuft: Üben gesperrt"
+          label="PokerStars läuft: Teile gesperrt"
           hint="Gesperrt, solange PokerStars läuft. Lernen, Hände spielen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt; HUD und Statistik laufen weiter."
         /></div>
     {/if}
@@ -144,6 +165,9 @@
     min-height: 0;
     overflow-y: auto;
   }
+  nav.more {
+    mask-image: linear-gradient(to bottom, var(--text) calc(100% - 28px), transparent);
+  }
   .group,
   .items {
     display: flex;
@@ -181,7 +205,11 @@
       margin-bottom: var(--sp-2);
     }
     nav {
-      gap: 6px;
+      gap: 4px;
+    }
+    /* Every entry stays visible above the footer: the status lines give way first. */
+    nav :global(.ui-nav.lg .status) {
+      display: none;
     }
     .group-label {
       padding-bottom: 2px;

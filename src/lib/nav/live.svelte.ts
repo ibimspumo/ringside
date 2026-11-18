@@ -18,7 +18,12 @@ export interface Live {
   long: string;
   line?: string;
   tone: Tone;
+  /** A task of this page is running right now. */
+  busy?: boolean;
 }
+
+/** The short value for a narrow bar, only where it calls for something: a warning, an open table, a running task. */
+export const tight = (l: Live | undefined): string | undefined => (l && (l.tone !== "neutral" || l.busy) ? l.text : undefined);
 
 const live = (text: string, long = text, tone: Tone = "neutral", line?: string): Live => ({ text, long, tone, line });
 
@@ -89,7 +94,7 @@ class NavLive {
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;
-      return live(pct ? pct.trim() : "…", `rechnet${pct || " …"}`);
+      return { ...live("rechnet", `rechnet${pct || " …"}`), busy: true };
     }
     return this.values[page];
   }

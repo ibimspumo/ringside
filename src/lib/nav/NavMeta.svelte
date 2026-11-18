@@ -59,9 +59,9 @@
     font-weight: var(--fw-regular);
     color: var(--text);
   }
+  /* Narrow top bar: the open tables show on the Gegner tab, the task center keeps its words. */
   @media (max-width: 1279px) {
-    .bar .long,
-    .bar .stored {
+    .bar {
       display: none;
     }
   }

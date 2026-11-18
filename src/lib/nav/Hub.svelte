@@ -8,6 +8,8 @@
   let { locked, onSelect }: { locked: boolean; onSelect: (page: Page) => void } = $props();
 
   const areas = AREAS.filter((a) => a.id !== "start");
+  /** The two ways to practise lead the start page, as in the side bar of the other concepts. */
+  const BIG: Page[] = ["training", "play"];
 </script>
 
 <section class="hub" aria-label="Bereiche" use:arrowNav>
@@ -21,17 +23,17 @@
           <p>{area.text}</p>
         </div>
       </header>
-      {#if line.text !== area.short}<p class="line {line.tone}">{line.text}</p>{/if}
+      <p class="line {line.tone}">{line.text !== area.short ? line.text : ""}</p>
       <div class="pages">
         {#each area.pages as p (p)}
           {@const live = navLive.of(p, locked)}
           <NavItem
-            size="md"
+            size={BIG.includes(p) ? "lg" : area.id === "werkzeuge" ? "sm" : "md"}
             data-nav
             label={PAGES[p].label}
             icon={PAGES[p].icon}
             locked={locked && LOCKED_PAGES.includes(p)}
-            status={live?.long}
+            status={live?.long ?? (BIG.includes(p) ? PAGES[p].short : undefined)}
             tone={live?.tone}
             title={PAGES[p].text}
             onclick={() => onSelect(p)}
@@ -51,9 +53,12 @@
     margin-inline: auto;
     padding: 26px 30px 0;
   }
+  /* Head, status line and list sit at the same height in every tile. */
   .area {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-row: span 3;
+    grid-template-rows: subgrid;
+    align-content: start;
     gap: var(--sp-2);
     padding: var(--sp-4) var(--sp-3) var(--sp-3);
     border: 1px solid var(--line);
@@ -83,6 +88,7 @@
   }
   .head {
     display: grid;
+    align-content: start;
     gap: 2px;
     min-width: 0;
   }
@@ -98,6 +104,7 @@
     color: var(--text-2);
   }
   .line {
+    min-height: 1lh;
     margin: 0;
     padding: 0 var(--sp-1);
     font-family: var(--font-num);

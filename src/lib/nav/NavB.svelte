@@ -5,7 +5,7 @@
   import NavItem from "../ui/NavItem.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import { arrowNav } from "./keys";
-  import { areaLine, navLive } from "./live.svelte";
+  import { areaLine, navLive, tight } from "./live.svelte";
   import { AREAS, LOCKED_PAGES, PAGES, areaOf, type Area, type AreaId, type Page } from "./pages";
 
   /**
@@ -105,7 +105,7 @@
             <div class="inner">
               {#each area.pages as p (p)}
                 {@const live = navLive.of(p, locked)}
-                <NavItem size="md" data-nav label={PAGES[p].label} icon={PAGES[p].icon} active={tab === p} locked={lockedNow(p)} status={live?.text} tone={live?.tone} title={PAGES[p].text} onclick={() => onSelect(p)} />
+                <NavItem size="md" data-nav label={PAGES[p].label} icon={PAGES[p].icon} active={tab === p} locked={lockedNow(p)} status={tight(live)} tone={live?.tone} title={PAGES[p].text} onclick={() => onSelect(p)} />
               {/each}
             </div>
           </div>
@@ -118,7 +118,7 @@
     {#if locked}
       <div class="lock"><SourceNote
           kind="locked"
-          label="PokerStars läuft: Üben gesperrt"
+          label="PokerStars läuft: Teile gesperrt"
           hint="Gesperrt, solange PokerStars läuft. Lernen, Hände spielen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt; HUD und Statistik laufen weiter."
         /></div>
     {/if}

@@ -4,7 +4,8 @@
   /**
    * One entry of the app's navigation. `lg` is a highlighted entry with a status line, `md` the
    * normal row with a short value on the right, `sm` a quiet row for tools, `rail` only the icon,
-   * `top` a tab of a top bar (with `chevron` it opens a menu), `tile` a menu or start-page entry
+   * `top` a tab of a top bar (with `chevron` it opens a menu), `sub` a tab of the row below it,
+   * `tile` a menu or start-page entry
    * with a sentence, `group` the small heading that folds a group. `icon` is an SVG path on a
    * 24 × 24 grid. `locked`: closed while PokerStars runs.
    */
@@ -24,7 +25,7 @@
   }: {
     label: string;
     icon?: string;
-    size?: "lg" | "md" | "sm" | "rail" | "top" | "tile" | "group";
+    size?: "lg" | "md" | "sm" | "rail" | "top" | "sub" | "tile" | "group";
     /** The page on screen. */
     active?: boolean;
     /** The area of the page on screen, for group or menu entries; marked quieter than `active`. */
@@ -61,7 +62,7 @@
       {#if text && size === "tile"}<span class="text">{text}</span>{/if}
       {#if status && (size === "lg" || size === "tile")}<span class="status {tone}">{@render lock()}{status}</span>{/if}
     </span>
-    {#if status && size !== "lg" && size !== "top" && size !== "tile"}<span class="value {tone}">{@render lock()}{status}</span>
+    {#if status && size !== "lg" && size !== "tile"}<span class="value {tone}">{@render lock()}{status}</span>
     {:else if locked && size !== "lg" && size !== "tile"}<span class="value">{@render lock()}</span>{/if}
     {#if chevron}
       <svg class="chev {chevron}" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5 8 9.5l3-3" /></svg>
@@ -225,7 +226,7 @@
     height: 28px;
     padding: 0 var(--sp-3) 0 10px;
     font-size: var(--fs-md);
-    color: var(--text-3);
+    color: var(--text-2);
     gap: 10px;
   }
   .sm .ico svg {
@@ -276,6 +277,32 @@
   }
   .top.on {
     background: transparent;
+  }
+
+  /* Tab of the row under a top bar: quiet, the open page underlined like the bar above. */
+  .sub {
+    flex-shrink: 0;
+    width: auto;
+    height: 32px;
+    padding: 0 10px;
+    gap: var(--sp-2);
+    font-size: var(--fs-md);
+  }
+  .sub .ico svg {
+    width: 16px;
+    height: 16px;
+  }
+  .sub.on {
+    background: transparent;
+  }
+  .sub.on::before {
+    left: 10px;
+    right: 10px;
+    top: auto;
+    bottom: -4px;
+    width: auto;
+    height: 2px;
+    margin: 0;
   }
 
   /* Menu and start-page entry: name, a sentence, the live value at the right. */
@@ -371,12 +398,12 @@
       height: 26px;
     }
     .lg {
-      min-height: 40px;
-      padding-block: 3px;
+      min-height: 36px;
+      padding-block: 2px;
     }
     .lg .ico {
-      width: 30px;
-      height: 30px;
+      width: 28px;
+      height: 28px;
     }
   }
   @media (prefers-reduced-motion: reduce) {
