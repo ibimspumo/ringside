@@ -174,7 +174,7 @@
               {/if}
             </div>
             <dl class="compare">
-              <div><dt>Du jetzt</dt><dd>{CHOICE_NAME[answer]}</dd></div>
+              <div class="mine"><dt>Du jetzt</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
                 <dt>Damals gespielt</dt>
                 <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <GradeBadge grade={verdict.grade} size="sm" /></dd>
@@ -359,10 +359,19 @@
     font-size: var(--fs-lg);
   }
   .compare {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px 28px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: var(--sp-2);
     margin: 0;
+  }
+  .compare > div {
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+  }
+  .compare > .mine {
+    border-color: var(--text-2);
   }
   dt {
     font-size: var(--fs-md);
