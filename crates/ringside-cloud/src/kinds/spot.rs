@@ -3,8 +3,8 @@
 //! practice table that led there. Stored in the library format (`ringside_solver::library`).
 //!
 //! # What is shared
-//! The input names the model configuration (ante, table size, stack depth, model
-//! version) and the preflop line in model seats; both ranges follow from that, so a free
+//! The input names the model configuration (table family, ante, table size, stack
+//! depth, model version) and the preflop line in model seats; both ranges follow from that, so a free
 //! range never leaves the computer and the verifier rebuilds the ranges itself. Board,
 //! pot, stack and sizes are abstract numbers in big blinds and percent of the pot. No
 //! names, hand or tournament numbers, times or money amounts: [`SpotInput`] has no field
@@ -22,7 +22,8 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use ringside_engine::preflop::{Action, Kind as PreflopKind, Step};
-use ringside_engine::preflop_table::{self, PLAYERS, STACKS};
+pub use ringside_engine::preflop_table::ModelLine;
+use ringside_engine::preflop_table::{self, Family, STACKS};
 use ringside_engine::pushfold_table::Ante;
 use ringside_engine::Card;
 use ringside_play::scenario::{PotType, Scenario as ModelScenario, heads_up, steer};
@@ -38,8 +39,8 @@ use super::Kind;
 pub struct SpotKind;
 
 /// Version of the preflop model the ranges come from; bump it whenever the embedded
-/// preflop tables change (the test `model_tables_are_pinned` fails then).
-pub const MODEL_VERSION: u32 = 1;
+/// preflop tables of either family change (the test `model_tables_are_pinned` fails then).
+pub const MODEL_VERSION: u32 = 2;
 /// Catalog version and scenario id in the header of a stored spot of this kind.
 pub const CATALOG_VERSION: u32 = 0;
 pub const SCENARIO: &str = "spot";
@@ -66,6 +67,8 @@ pub type LineStep = (u32, String, u32);
 #[serde(deny_unknown_fields)]
 pub struct SpotInput {
     pub model: u32,
+    /// Table family: "plain" (practice, library) or "limps" (hand analysis).
+    pub family: String,
     /// "none", "classic" or "big_blind".
     pub ante: String,
     pub players: u32,
@@ -90,16 +93,6 @@ pub struct SpotSolution {
     pub data: String,
 }
 
-/// Where the ranges of a local spot come from: the model configuration and the preflop
-/// line in model seats.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct ModelLine {
-    pub ante: Ante,
-    pub players: usize,
-    pub stack_bb: f64,
-    pub line: Vec<Step>,
-}
-
 fn kind_name(k: PreflopKind) -> Option<&'static str> {
     Some(match k {
         PreflopKind::Check => "check",
@@ -115,6 +108,17 @@ fn kind_of(s: &str) -> Option<PreflopKind> {
     [PreflopKind::Check, PreflopKind::Call, PreflopKind::Limp, PreflopKind::Raise, PreflopKind::AllIn]
         .into_iter()
         .find(|k| kind_name(*k) == Some(s))
+}
+
+fn family_name(f: Family) -> &'static str {
+    match f {
+        Family::Plain => "plain",
+        Family::Limps => "limps",
+    }
+}
+
+fn family_of(s: &str) -> Option<Family> {
+    Family::ALL.into_iter().find(|f| family_name(*f) == s)
 }
 
 fn ante_of(s: &str) -> Option<Ante> {
@@ -171,6 +175,7 @@ impl SpotInput {
         }
         let input = SpotInput {
             model: MODEL_VERSION,
+            family: family_name(model.family).into(),
             ante: model.ante.key().into(),
             players: model.players as u32,
             stack_bb: whole(model.stack_bb, 1.0, 1000).ok_or("stack depth is not whole")?,
@@ -193,9 +198,10 @@ impl SpotInput {
         if self.model != MODEL_VERSION {
             return Err(format!("model version must be {MODEL_VERSION}"));
         }
+        let family = family_of(&self.family).ok_or("unknown table family")?;
         let ante = ante_of(&self.ante).ok_or("unknown ante")?;
         let players = self.players as usize;
-        if !PLAYERS.contains(&players) || !STACKS.contains(&(self.stack_bb as f64)) {
+        if !family.players().contains(&players) || !STACKS.contains(&(self.stack_bb as f64)) {
             return Err("model configuration is not precomputed".into());
         }
         if self.line.is_empty() || self.line.len() > MAX_LINE {
@@ -212,8 +218,8 @@ impl SpotInput {
                 Ok(Step { seat: *seat as usize, action: Action { kind, to_bb: *to as f64 / 1000.0 } })
             })
             .collect::<Result<Vec<_>, String>>()?;
-        let sol = preflop_table::chart(ante, players, self.stack_bb as f64).ok_or("model configuration is not precomputed")?;
-        let params = preflop_table::params(ante, players, self.stack_bb as f64);
+        let params = family.params(ante, players, self.stack_bb as f64);
+        let sol = preflop_table::lookup(&params).ok_or("model configuration is not precomputed")?;
         let (path, walk) = steer(&sol, &params, &line).ok_or("the line is not in the model")?;
         let sc = heads_up(&sol, &params, &path, &walk, None, 0.0).ok_or("the line ends in no heads-up flop with ranges")?;
         Ok((sc, ante))
@@ -371,7 +377,7 @@ mod tests {
             .into_iter()
             .find(|s| s.line.len() == 2 && s.line[0].seat == 6 && s.line[1].seat == 8)
             .expect("the model's BTN vs BB flop");
-        let model = ModelLine { ante, players: 9, stack_bb: 40.0, line: sc.line.clone() };
+        let model = ModelLine { family: Family::Plain, ante, players: 9, stack_bb: 40.0, line: sc.line.clone() };
         (model, sc.spot("Kh7c2h"))
     }
 
@@ -444,9 +450,11 @@ mod tests {
     #[test]
     fn model_tables_are_pinned() {
         let mut all = Vec::new();
-        for ante in Ante::ALL {
-            for players in PLAYERS {
-                all.extend_from_slice(preflop_table::embedded_file(ante, players).unwrap());
+        for family in Family::ALL {
+            for ante in Ante::ALL {
+                for &players in family.players() {
+                    all.extend_from_slice(preflop_table::embedded_file(family, ante, players).unwrap());
+                }
             }
         }
         let digest = ring::digest::digest(&ring::digest::SHA256, &all);

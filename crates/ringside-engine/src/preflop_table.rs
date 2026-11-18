@@ -41,6 +41,7 @@ use crate::idle::Idle;
 use crate::preflop::{Action, Kind, Node, Params, Realized, Solution, Step, own_history, skeleton, taken};
 pub use crate::pushfold_table::Ante;
 use crate::range::NUM_CLASSES;
+use serde::{Deserialize, Serialize};
 
 const MAGIC: &[u8; 4] = b"RSPR";
 pub const FORMAT_VERSION: u32 = 3;
@@ -60,7 +61,8 @@ const C: usize = NUM_CLASSES;
 const STALE: &str = "run `cargo run --release -p ringside-engine --bin gen-preflop-tables`";
 
 /// A set of tables, see the module docs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Family {
     Plain,
     Limps,
@@ -94,6 +96,25 @@ impl Family {
             Family::Plain => params(ante, players, stack_bb),
             Family::Limps => limp_params(ante, players, stack_bb),
         }
+    }
+}
+
+/// A heads-up flop of a table named without its ranges: the table and the non-fold
+/// actions on the way in model seats. The ranges follow from them, so Ringside Cloud
+/// shares this instead of ranges, and the verifier rebuilds them.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct ModelLine {
+    pub family: Family,
+    pub ante: Ante,
+    pub players: usize,
+    pub stack_bb: f64,
+    pub line: Vec<Step>,
+}
+
+impl ModelLine {
+    /// The table's parameters.
+    pub fn params(&self) -> Params {
+        self.family.params(self.ante, self.players, self.stack_bb)
     }
 }
 

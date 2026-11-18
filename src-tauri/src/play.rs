@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 
 use ringside_core::db::Attempt;
 use ringside_learn::Kind as LearnKind;
+use ringside_engine::preflop_table::{Family, ModelLine};
 use ringside_play::hand::Source;
 use ringside_play::pool::{Lookup, TARGET_PCT};
 use ringside_play::tree::{LibraryTree, Tree};
@@ -304,7 +305,8 @@ impl Lookup for AppLookup {
     }
 
     fn solved(&self, table: ringside_play::TableKey, line: &[ringside_engine::preflop::Step], solution: &mut ringside_solver::Solution) {
-        let model = ringside_analysis::SpotModel { ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: line.to_vec() };
+        // Practice plays the plain tables.
+        let model = ModelLine { family: Family::Plain, ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: line.to_vec() };
         if let Some(input) = crate::cloud::spot_input(&model, &solution.spot) {
             crate::cloud::share_spot(&self.0, input, solution);
         }

@@ -12,13 +12,13 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use ringside_analysis::SpotModel;
 use ringside_cloud::client::{DEFAULT_BASE_URL, MAX_STATUS_KEYS, RetryPolicy};
 use ringside_cloud::kinds::pushfold_mw::{evaluated, reference, to_caller_units};
 use ringside_cloud::kinds::spot::MAX_BYTES as SPOT_MAX_BYTES;
-use ringside_cloud::kinds::{Kind, ModelLine, PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution};
+use ringside_cloud::kinds::{Kind, PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution};
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
 use ringside_engine::multiway::{self, Params, Solution as PushFoldSolution};
+use ringside_engine::preflop_table::ModelLine;
 use ringside_solver::library::Catalog;
 use ringside_solver::library::format::{Stored, encode};
 use ringside_solver::saved::spot_key;
@@ -232,9 +232,8 @@ fn update_spot_log(app: &AppHandle, f: impl FnOnce(&mut SpotLog)) {
 
 /// The cloud input of a local flop spot, if its ranges are exactly the model's along the
 /// line; spots with edited ranges (or the hero's hand added) are never shared.
-pub(crate) fn spot_input(model: &SpotModel, spot: &Spot) -> Option<SpotInput> {
-    let line = ModelLine { ante: model.ante, players: model.players, stack_bb: model.stack_bb, line: model.line.clone() };
-    SpotInput::from_model(&line, spot).ok()
+pub(crate) fn spot_input(model: &ModelLine, spot: &Spot) -> Option<SpotInput> {
+    SpotInput::from_model(model, spot).ok()
 }
 
 fn compact(board: &str) -> String {
@@ -677,6 +676,31 @@ Board [Kd 7s 2c]
         }
         // The hero's hand is no part of it, and neither is the hero's seat by name.
         assert!(!text.contains("hero") && !text.contains("Hero"), "{text}");
+    }
+
+    #[test]
+    fn practice_and_analysis_spots_are_both_shared_under_their_own_keys() {
+        use ringside_engine::preflop_table::Family;
+        // The hand analysis rates with the limps tables.
+        let hand = ringside_core::parse_hand(POSTFLOP_HAND).unwrap();
+        let (_, json) = ringside_analysis::analyze_hand(&hand).job.expect("a heads-up flop");
+        let job: ringside_analysis::PostflopJob = serde_json::from_str(&json).unwrap();
+        let analysed = job.model.clone().unwrap();
+        assert_eq!(analysed.family, Family::Limps);
+        let limps = spot_input(&analysed, &job.spot).expect("an analysed spot is shareable");
+
+        // Practice plays the plain tables: the same table and line, as the pool solves it.
+        let table = ringside_play::TableKey { players: analysed.players, ante: analysed.ante, stack_bb: analysed.stack_bb };
+        let deep = ringside_play::table::deep(table).expect("plain table");
+        let sc = deep.scenarios.iter().find(|s| s.line == analysed.line).expect("the line in the plain table");
+        let practice = ModelLine { family: Family::Plain, ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: sc.line.clone() };
+        let plain = spot_input(&practice, &sc.spot("Kd7s2c")).expect("a practice spot is shareable");
+
+        assert_eq!((plain.family.as_str(), limps.family.as_str()), ("plain", "limps"));
+        assert_ne!(SpotKind::key(&plain).unwrap(), SpotKind::key(&limps).unwrap());
+        // The limps ranges are not the plain ones: a spot never passes for the other family.
+        let swapped = ModelLine { family: Family::Plain, ..analysed };
+        assert!(spot_input(&swapped, &job.spot).is_none());
     }
 
     #[test]

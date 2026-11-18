@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
 import { canonicalize, solutionKey } from "./canonical.ts";
 import { canonicalFlop, InvalidError, kindSpec } from "./kinds.ts";
 
@@ -11,6 +11,13 @@ const shared: Shared = JSON.parse(
   await Deno.readTextFile(new URL("../../crates/ringside-cloud/testdata/spot.json", import.meta.url)),
 );
 const spec = kindSpec("spot")!;
+
+Deno.test("the same spot in the plain and the limps family has two keys", () => {
+  const [plain, limps] = shared.keys;
+  assertEquals([plain.input.family, limps.input.family], ["plain", "limps"]);
+  assertEquals({ ...plain.input, family: "limps" }, limps.input);
+  assert(plain.key !== limps.key);
+});
 
 Deno.test("spot keys match Rust", async () => {
   for (const k of shared.keys) {
@@ -32,8 +39,10 @@ Deno.test("spot inputs off the model's shape are refused", () => {
   const good = shared.keys[0].input;
   const bad: Record<string, unknown>[] = [
     { ...good, board: "Kh7c2h" },
-    { ...good, model: 2 },
+    { ...good, model: 1 },
+    { ...good, family: "other" },
     { ...good, players: 7 },
+    { ...good, family: "plain", players: 4 },
     { ...good, stack_bb: 41 },
     { ...good, line: [] },
     { ...good, line: [[9, "raise", 2200]] },

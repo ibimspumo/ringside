@@ -15,8 +15,7 @@ use ringside_cloud::kinds::{
 };
 use ringside_cloud::operator::{Db, SqlValue, VerifyOptions, check_here, load_env, need, now, verify_pending};
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
-use ringside_engine::preflop_table;
-use ringside_engine::pushfold_table::Ante;
+use ringside_engine::preflop_table::{self, Ante, Family};
 use ringside_engine::range::HandClass;
 use ringside_engine::solve_push_fold;
 use ringside_solver::library::format::encode;
@@ -289,16 +288,17 @@ fn postflop(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) ->
 /// A spot off the catalog: requested, handed out by the queue (and again once its lease
 /// ran out), solved on a suit renaming of its board, submitted, verified and served.
 fn shared_spot(client: &Client, db: &Db, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
-    let (ante, players, stack) = (Ante::BigBlind, 9, 40.0);
-    let sol = preflop_table::chart(ante, players, stack).ok_or("model table missing")?;
-    let params = preflop_table::params(ante, players, stack);
+    // The hand analysis's tables, with limps from every seat.
+    let (family, ante, players, stack) = (Family::Limps, Ante::BigBlind, 9, 40.0);
+    let params = family.params(ante, players, stack);
+    let sol = preflop_table::lookup(&params).ok_or("model table missing")?;
     // The 3-bet pot with the fewest combos solves in seconds.
     let sc = ringside_play::scenario::scenarios(&sol, &params)
         .into_iter()
         .filter(|s| s.pot_type == ringside_play::scenario::PotType::ThreeBet)
         .min_by(|a, b| a.reach.total_cmp(&b.reach))
         .ok_or("no 3-bet pot in the model")?;
-    let model = ModelLine { ante, players, stack_bb: stack, line: sc.line.clone() };
+    let model = ModelLine { family, ante, players, stack_bb: stack, line: sc.line.clone() };
     let c = catalog();
     let offset = (now() % c.flops.len() as i64) as usize;
     let mut chosen = None;

@@ -203,8 +203,12 @@ function permutations(xs: number[]): number[][] {
 }
 
 /** Versions of the preflop model the verifier rebuilds ranges with; mirrors MODEL_VERSION in kinds/spot.rs. */
-export const SPOT_MODELS: readonly number[] = [1];
-export const SPOT_PLAYERS: readonly number[] = [6, 8, 9];
+export const SPOT_MODELS: readonly number[] = [2];
+/** Table families and their table sizes; mirror `preflop_table::Family` in ringside-engine. */
+export const SPOT_FAMILIES: Readonly<Record<string, readonly number[]>> = {
+  plain: [6, 8, 9],
+  limps: [2, 3, 4, 5, 6, 8, 9],
+};
 export const SPOT_STACKS: readonly number[] = [15, 20, 25, 30, 40, 50, 75, 100];
 const SPOT_ANTES = ["none", "classic", "big_blind"];
 const SPOT_ACTIONS = ["check", "call", "limp", "raise", "all_in"];
@@ -224,6 +228,7 @@ const spot: KindSpec = {
   checkInput(input) {
     const r = record(input, "input", [
       "model",
+      "family",
       "ante",
       "players",
       "stack_bb",
@@ -235,9 +240,11 @@ const spot: KindSpec = {
       "allin_pct",
     ]);
     if (!SPOT_MODELS.includes(r.model as number)) throw new InvalidError("model is not a known model version");
+    const sizes = typeof r.family === "string" && Object.hasOwn(SPOT_FAMILIES, r.family) ? SPOT_FAMILIES[r.family] : null;
+    if (!sizes) throw new InvalidError(`family must be one of ${Object.keys(SPOT_FAMILIES).join(", ")}`);
     if (typeof r.ante !== "string" || !SPOT_ANTES.includes(r.ante)) throw new InvalidError("unknown ante");
     const players = int(r.players, "players", 2, 9);
-    if (!SPOT_PLAYERS.includes(players)) throw new InvalidError("players has no model table");
+    if (!sizes.includes(players)) throw new InvalidError("players has no model table in this family");
     if (!SPOT_STACKS.includes(int(r.stack_bb, "stack_bb", 1, 1000))) throw new InvalidError("stack_bb has no model table");
     if (!Array.isArray(r.line) || r.line.length < 1 || r.line.length > SPOT_MAX_LINE) {
       throw new InvalidError(`line must have 1 to ${SPOT_MAX_LINE} actions`);

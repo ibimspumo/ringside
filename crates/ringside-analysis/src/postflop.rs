@@ -16,7 +16,9 @@ use ringside_solver::{
 use serde::{Deserialize, Serialize};
 
 use crate::fmt::{bb, num};
-use crate::preflop::{Flop, SpotModel};
+use ringside_engine::preflop_table::ModelLine;
+
+use crate::preflop::Flop;
 use crate::seats::hero_combo;
 use crate::{Source, base, hero_actions, is_raise, score};
 
@@ -57,7 +59,7 @@ pub struct PostflopJob {
     pub pot_bb: f64,
     /// Where the ranges come from; jobs stored before it was recorded have none.
     #[serde(default)]
-    pub model: Option<SpotModel>,
+    pub model: Option<ModelLine>,
 }
 
 /// Spot type of a hero action after the flop.
