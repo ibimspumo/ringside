@@ -293,7 +293,7 @@
             >
           </div>
           <div class="fig">
-            <span class="label"><Term tip={SURE_HELP}>Sicherheit des Leaks</Term></span>
+            <span class="label"><Term tip={SURE_HELP}>Sicher, dass es ein Leak ist</Term></span>
             <b class="num">{pct(l.confidence)}</b>
             <small
               ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
@@ -1030,9 +1030,18 @@
     .body {
       grid-template-columns: 1fr;
     }
-    /* One column: what to do comes right under the title, the figures follow. */
+    /* One column: the bar under the title, then what to do, then the figures. */
+    .measure {
+      display: contents;
+    }
     .advice {
-      order: -1;
+      order: 1;
+    }
+    .figures {
+      order: 2;
+    }
+    .cites {
+      order: 3;
     }
   }
 </style>

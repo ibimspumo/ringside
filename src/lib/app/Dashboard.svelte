@@ -266,8 +266,12 @@
     <section class="loss">
       <div class="section-head">
           <h2 class="section-title">Wo du Chips verlierst</h2>
-          {#if running && !preflopDone}
-            <span class="snapshot">Zwischenstand – die Zahlen wachsen, solange die Analyse läuft.</span>
+          {#if running}
+            <span class="snapshot"
+              >{preflopDone
+                ? "Zwischenstand – nach dem Flop kommen noch Entscheidungen dazu."
+                : "Zwischenstand – die Zahlen wachsen, solange die Analyse läuft."}</span
+            >
           {/if}
       </div>
       <AnalyzeBar compact title="Analyse starten" />
@@ -325,7 +329,7 @@
                   <b class="num" class:none={g === null && !s?.opp}
                     >{fmt(s)}{#if s && s.value !== null && !STAT_META[id].ratio}<span class="unit">%</span>{/if}</b
                   >
-                  {#if z}<em>{z.label}</em>{/if}
+                  {#if z}<em>{flagged.get(id) ? `gesamt ${z.label}` : z.label}</em>{/if}
                 </span>
                 <span class="gauge" aria-hidden="true" style="--lo:{palette.low}; --mid:{palette.mid}; --hi:{palette.high}">
                   <i></i><i></i><i></i>

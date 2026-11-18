@@ -81,7 +81,9 @@
   {@const ratings = data.ratings}
   <section class="summary">
     <div class="totals">
-      <span class="label"><Term tip={EV_LOSS_EXPLAIN}>Verlust durch Fehler</Term></span>
+      <span class="label"
+        ><Term tip={EV_LOSS_EXPLAIN}>Verlust durch Fehler</Term>{#if analysis.status?.progress?.state === "running"}&nbsp;– bisher{/if}</span
+      >
       <b class="big num">{bb(data.loss_bb)}</b>
       <p class="mean">
         So viel haben dich Entscheidungen gekostet, die besser gegangen wären – auf lange Sicht gerechnet. Das ist dein Spielraum.
