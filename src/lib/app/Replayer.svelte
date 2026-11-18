@@ -83,6 +83,8 @@
     const out: Event[] = [];
     let street: Street = "preflop";
     hand.actions.forEach((action, index) => {
+      // Antes are in the pot before the first step; the log sums them up in one line.
+      if (action.kind === "post_ante") return;
       while (action.street !== street) {
         street = STREETS[STREETS.indexOf(street) + 1];
         out.push({ type: "street", street });
@@ -173,7 +175,6 @@
   const POST: Partial<Record<Action["kind"], string>> = {
     post_small_blind: "Small Blind",
     post_big_blind: "Big Blind",
-    post_ante: "Ante",
     post_both: "SB + BB",
   };
   const KIND: Partial<Record<Action["kind"], ActionKind>> = { fold: "fold", check: "check", call: "call", bet: "bet", raise: "raise" };
@@ -213,12 +214,18 @@
     return out;
   });
 
+  const antes = $derived(hand.actions.filter((a) => a.kind === "post_ante"));
+
   const table = $derived.by(() => {
     const stacks = new Map(hand.seats.map((s) => [s.name, s.stack]));
     const put = new Map<string, number>();
     const label = new Map<string, { kind: ActionKind; index: number }>();
     const folded = new Set<string>();
     let pot = 0;
+    for (const a of antes) {
+      stacks.set(a.player, (stacks.get(a.player) ?? 0) - a.amount);
+      pot += a.amount;
+    }
     let board = 0;
     let revealed = false;
     let winners = new Map<string, number>();
@@ -234,8 +241,7 @@
       if (e.type === "action") {
         const a = e.action;
         stacks.set(a.player, (stacks.get(a.player) ?? 0) - a.amount);
-        if (a.kind === "post_ante") pot += a.amount;
-        else put.set(a.player, (put.get(a.player) ?? 0) + a.amount);
+        put.set(a.player, (put.get(a.player) ?? 0) + a.amount);
         if (a.kind === "fold") folded.add(a.player);
         const kind = kindOf(a);
         if (kind) label.set(a.player, { kind, index: e.index });
@@ -285,6 +291,19 @@
   });
 
   const unit = $derived(hand.big_blind > 0 ? hand.big_blind : 1);
+
+  /** All antes in one line at the top of the preflop log. */
+  const anteLine = $derived.by(() => {
+    if (!antes.length) return null;
+    const total = format(antes.reduce((sum, a) => sum + a.amount, 0) / unit);
+    if (antes.length === 1) {
+      const p = antes[0].player;
+      if (positions.get(p) === "BB") return `Big Blind zahlt Ante ${total}`;
+      return p === hand.hero ? `Du zahlst Ante ${total}` : `${p} zahlt Ante ${total}`;
+    }
+    const each = antes[0].amount;
+    return antes.every((a) => a.amount === each) ? `Antes ${antes.length} × ${format(each / unit)} = ${total}` : `Antes zusammen ${total}`;
+  });
   const n = $derived(Math.max(hand.max_seats, 2));
   const heroSeat = $derived(hand.seats.find((s) => s.name === hand.hero)?.seat ?? 1);
 
@@ -445,6 +464,7 @@
         {#each log as g (g.street)}
           <div class="street-log">
             <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
+            {#if g.street === "preflop" && anteLine}<p class="antes num" title="Die Antes liegen schon vor dem ersten Zug im Pot.">{anteLine}</p>{/if}
             <ol>
               {#each g.items as { i, a, index } (i)}
                 {@const mark = marks?.get(index)}
@@ -809,6 +829,12 @@
     color: var(--text);
     background: var(--surface-3);
     border-left-color: var(--text);
+  }
+  .antes {
+    margin: 0;
+    padding: 2px var(--sp-3) 4px;
+    color: var(--text-3);
+    font-size: var(--fs-sm);
   }
   .seat-pos {
     flex-shrink: 0;

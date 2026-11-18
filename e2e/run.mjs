@@ -193,6 +193,17 @@ async function click(sel, text = null, opts) {
   await s.click(el);
 }
 
+/** Antes sum up in one line of the replayer's log, never one row per player. Returns that line. */
+async function anteLine() {
+  const r = await s.exec(`
+    const log = document.querySelector(".replayer [aria-label='Zugverlauf']");
+    const rows = log ? [...log.querySelectorAll(".what")].filter((e) => /\\bAnte\\b/.test(e.textContent)).length : 0;
+    return { rows, line: log?.querySelector(".antes")?.textContent.trim() ?? null };`);
+  if (r.rows) throw new Error(`${r.rows} ante row(s) in the log instead of one line`);
+  log(`ante line: ${r.line ?? "none"}`);
+  return r.line;
+}
+
 const mainText = () => s.exec(`return document.querySelector("main")?.innerText ?? ""`);
 
 function waitText(pattern, timeout) {
@@ -322,6 +333,7 @@ step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async 
   await click("main .moment.bad button", "Abspielen");
   await find("main h1", "Hände");
   await find(".replayer");
+  await anteLine();
   await click("main button[aria-label='Turnierfilter entfernen']");
 });
 
@@ -574,6 +586,22 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await click("main .rows .row button", "Hände ansehen", { exact: false });
   await find("main h1", "Hände");
   await waitFor("the weakness as filter chip", `return document.querySelector("main")?.innerText.includes(arguments[0])`, [title]);
+});
+
+step("Deine Hände: die Antes stehen in einer Zeile, nicht je Spieler", async () => {
+  await nav("Lernen");
+  await click("main [role='tab']", "Deine Hände");
+  const found = await waitFor(
+    "a hand or the empty list",
+    `return document.querySelector("main .replayer [aria-label='Zugverlauf']") ? "hand" : /Noch keine passenden Spots/.test(document.querySelector("main").innerText) && "none"`,
+  );
+  if (found === "none") {
+    if (!TAURI) throw new Error("the demo has own spots");
+    return;
+  }
+  const line = await anteLine();
+  // The demo's spots are tournament hands with eight antes.
+  if (!TAURI && !/^Antes 8 × .+ = /.test(line ?? "")) throw new Error(`ante line: ${line}`);
 });
 
 /** Sets the table size with the − / + buttons in the middle of the table. */
