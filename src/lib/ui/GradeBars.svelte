@@ -1,5 +1,6 @@
 <script lang="ts">
   import GradeIcon from "./GradeIcon.svelte";
+  import { int } from "./format";
   import { GRADE, GRADES, type Grade } from "./poker";
 
   /**
@@ -22,7 +23,7 @@
     <li class:none={n === 0} style:--c="var(--grade-{g})">
       <GradeIcon grade={g} size={15} />
       <span class="word">{GRADE[g].label}</span>
-      <b class="num">{n}</b>
+      <b class="num">{int(n)}</b>
       <span class="track"><i style:width="{total ? (n / total) * 100 : 0}%"></i></span>
     </li>
   {/each}
