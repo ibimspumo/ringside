@@ -77,7 +77,7 @@
     <div class="strategy">
       <div class="mix" role="img" aria-label="Was {d.source ? SOURCE[d.source].label : 'die Berechnung'} mit deiner Hand spielt">
         {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-          <span class="seg" class:mine={c.played} style:background={shade(c)} style:--ring={d.rating ? `var(--grade-${gradeOf(d.rating)})` : "var(--text)"} style:flex-grow={Math.max(c.freq, 0.015)} title="{c.label}: {pct(c.freq)}"></span>
+          <span class="part" class:mine={c.played} style:background={shade(c)} style:--ring={d.rating ? `var(--grade-${gradeOf(d.rating)})` : "var(--text)"} style:flex-grow={Math.max(c.freq, 0.015)} title="{c.label}: {pct(c.freq)}"></span>
         {/each}
       </div>
       <ul class="options">
@@ -184,13 +184,13 @@
     gap: 2px;
     height: 12px;
   }
-  .seg {
+  .part {
     flex-basis: 0;
     min-width: 4px;
     border-radius: var(--r-xs);
   }
   /* Your share carries the grade's colour, so a bad call is never outlined like a good one. */
-  .seg.mine {
+  .part.mine {
     box-shadow:
       0 0 0 2px var(--surface),
       0 0 0 4px var(--ring);

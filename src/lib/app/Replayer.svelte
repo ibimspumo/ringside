@@ -451,7 +451,7 @@
                     onclick={() => (mark && onMark ? onMark(index) : (step = i + 1))}
                     title="{me ? `Du (${a.player})` : a.player}{mark ? ` · ${mark.label}` : ''}"
                   >
-                    <span class="pos num" class:me>{positions.get(a.player) ?? "–"}</span>
+                    <span class="seat-pos num" class:me>{positions.get(a.player) ?? "–"}</span>
                     <span class="actor">{me ? "Du" : a.player}</span>
                     <span class="what" style:--c={kind ? `var(--act-${kind === "allin" ? "allin" : kind === "raise" || kind === "bet" ? "bet-3" : kind})` : undefined}
                       >{kind ? WORD[kind] : (POST[a.kind] ?? a.kind)}</span
@@ -470,14 +470,14 @@
             {#each result as r (r.name)}
               <div class="who-won" class:winner={r.won !== undefined}>
                 <span class="line">
-                  <span class="pos num" class:me={r.name === hand.hero}>{r.position ?? "–"}</span>
+                  <span class="seat-pos num" class:me={r.name === hand.hero}>{r.position ?? "–"}</span>
                   <span class="actor" title={r.name}>{r.name === hand.hero ? "Du" : r.name}</span>
                   {#if r.won !== undefined}<b class="num gain">+{format(r.won / unit)}</b>{:else}<span class="lost">verliert</span>{/if}
                 </span>
                 {#if r.cards && hand.board.length >= 3}
                   <BestHand hole={r.cards} board={hand.board} winner={r.won !== undefined} size={24} />
                 {:else if r.won !== undefined && !hand.shown.length}
-                  <span class="faint">ohne Showdown – alle anderen haben gefoldet</span>
+                  <span class="quiet">ohne Showdown – alle anderen haben gefoldet</span>
                 {/if}
               </div>
             {/each}
@@ -801,7 +801,7 @@
     background: var(--surface-3);
     border-left-color: var(--text);
   }
-  .pos {
+  .seat-pos {
     flex-shrink: 0;
     min-width: 34px;
     padding: 0 4px;
@@ -813,7 +813,7 @@
     line-height: 17px;
     text-align: center;
   }
-  .pos.me {
+  .seat-pos.me {
     background: var(--text);
     color: var(--bg);
   }
@@ -897,7 +897,7 @@
   .lost {
     color: var(--text-3);
   }
-  .faint {
+  .quiet {
     color: var(--text-3);
     font-size: var(--fs-sm);
   }

@@ -386,13 +386,13 @@
 {#snippet verdictLine()}
   <div class="brief">
     {#if locked}
-      <p class="faint">Die Analyse pausiert, solange PokerStars läuft – Nachspielen geht weiter.</p>
+      <p class="quiet">Die Analyse pausiert, solange PokerStars läuft – Nachspielen geht weiter.</p>
     {:else if current?.rating}
       {@const g = gradeOf(current.rating)}
       <GradeIcon grade={g} size={18} />
       <p>
         <b style:color="color-mix(in srgb, var(--grade-{g}) 60%, var(--text))">{RATING[current.rating].label}</b>
-        <span class="faint">· {({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}</span>
+        <span class="quiet">· {({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}</span>
         {#if current.best && (current.rating === "mistake" || current.rating === "blunder" || current.rating === "inaccuracy")}
           – Besser <b>{current.best}</b>, dein {current.played.split(" ")[0]} kostet im Schnitt <b class="num">{fmtBb(current.ev_loss_bb ?? 0, { digits: 2 })}</b>
         {:else}
@@ -404,7 +404,7 @@
       <p>Diese Hand ist noch nicht bewertet.</p>
       <Button size="sm" variant={started ? "primary" : "secondary"} loading={busy} disabled={busy} onclick={() => analyze()}>Diese Hand analysieren</Button>
     {:else if current}
-      <p class="faint">{current.status === "pending" ? "Der Solver rechnet diese Entscheidung noch." : "Diese Entscheidung bewertet Ringside nicht."}</p>
+      <p class="quiet">{current.status === "pending" ? "Der Solver rechnet diese Entscheidung noch." : "Diese Entscheidung bewertet Ringside nicht."}</p>
     {/if}
   </div>
 {/snippet}
@@ -452,7 +452,7 @@
         <div class="spot-groups">
           {#each SPOT_GROUPS as g (g.label)}
             <div class="spot-group">
-              <span class="faint">{g.label}</span>
+              <span class="quiet">{g.label}</span>
               <div class="toggles">
                 {#each g.spots.filter((x) => x !== "turn" && x !== "river") as s (s)}
                   <span title={SPOT_HINT[s]}><Tag selected={spots.includes(s)} onclick={() => toggleSpot(s)}>{s === "flop" ? "Sonst am Flop" : SPOT[s]}</Tag></span>
@@ -576,13 +576,13 @@
         >
           <span class="who">
             <span class="hole">
-              {#each cards(h.hero_cards) as c (c)}<PlayingCard card={c} size={22} />{:else}<span class="faint">–</span>{/each}
+              {#each cards(h.hero_cards) as c (c)}<PlayingCard card={c} size={22} />{:else}<span class="quiet">–</span>{/each}
             </span>
-            <b class="pos num">{h.hero_position ?? "–"}</b>
+            <b class="posn num">{h.hero_position ?? "–"}</b>
           </span>
           <span class="mid">
             <span class="line">
-              <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="faint">kein Flop</span>{/each}</span>
+              <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="quiet">kein Flop</span>{/each}</span>
               {#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
                   ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
                     cx="12"
@@ -613,7 +613,7 @@
               <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{fmtBb(w!.ev_loss_bb!, { digits: 2 })}</span>
             {:else}
               <span class="net num {sign(net)}" title="Was du in dieser Hand gewonnen oder verloren hast"
-                >{net === null ? "–" : signed(net, Math.abs(net) >= 10 ? 0 : 1)}<span class="unit">BB</span></span
+                >{net === null ? "–" : signed(net, Math.abs(net) >= 10 ? 0 : 1)}<span class="bb-unit">BB</span></span
               >
             {/if}
             {#if rail}<small class="num">{time(h.played_at)}</small>{/if}
@@ -650,12 +650,12 @@
             </h2>
             <p class="num">
               {#if name}Tisch {selected.table_name.split(" ").at(-1)} · {/if}{stakes(selected)} · {dateTime(selected.played_at)}
-              <span class="faint" title="Nummer der Hand bei PokerStars">#{selected.id}</span>
+              <span class="quiet" title="Nummer der Hand bei PokerStars">#{selected.id}</span>
             </p>
           </div>
           {#if net !== null}
             <div class="result" title="Was du in dieser einen Hand gewonnen oder verloren hast – mit Glück und Pech. Die Bewertung rechts sagt dagegen, was eine Entscheidung im Schnitt kostet.">
-              <span>Ergebnis der Hand</span>
+              <span>{wide ? "Ergebnis der Hand" : "Ergebnis"}</span>
               <b class="num {sign(net)}">{signed(net, Math.abs(net) >= 10 ? 0 : 1)} BB</b>
             </div>
           {/if}
@@ -800,7 +800,7 @@
     gap: var(--sp-1);
     font-size: var(--fs-sm);
   }
-  .spot-group .faint {
+  .spot-group .quiet {
     color: var(--text-2);
   }
   .toggles {
@@ -857,7 +857,7 @@
       opacity: 0;
     }
   }
-  .faint {
+  .quiet {
     color: var(--text-3);
   }
 
@@ -954,7 +954,7 @@
     gap: var(--sp-2);
     min-width: 0;
   }
-  .pos {
+  .posn {
     color: var(--text-2);
     font-size: var(--fs-xs);
     font-weight: var(--fw-semibold);
@@ -1016,7 +1016,7 @@
     font-size: var(--fs-base);
     font-weight: var(--fw-semibold);
   }
-  .unit {
+  .bb-unit {
     margin-left: 2px;
     font-size: var(--fs-xs);
   }
@@ -1144,13 +1144,6 @@
     flex-direction: row;
     align-items: baseline;
     gap: var(--sp-2);
-  }
-  .narrow .result span {
-    font-size: 0;
-  }
-  .narrow .result span::after {
-    content: "Ergebnis";
-    font-size: var(--fs-xs);
   }
   .narrow .result b {
     font-size: var(--fs-lg);
