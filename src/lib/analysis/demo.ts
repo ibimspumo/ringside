@@ -283,6 +283,22 @@ export function withWorst(list: HandSummary[], q: HandQuery): HandSummary[] {
 
 export function demoSummary(): AnalysisSummary {
   if (!analyzed) return { hands: 6431, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: [0, 0, 0, 0, 0], by_source: [], by_spot: [], costliest: [] };
+  const full = fullSummary();
+  if (analyzed >= 6431) return full;
+  // While the demo run is under way, the snapshot grows with it.
+  const f = analyzed / 6431;
+  const part = (n: number) => Math.round(n * f);
+  return {
+    ...full,
+    rated: part(full.rated),
+    loss_bb: Math.round(full.loss_bb * f * 10) / 10,
+    ratings: full.ratings.map(part),
+    by_source: full.by_source.map(([s, n]) => [s, part(n)]),
+    by_spot: full.by_spot.map((s) => ({ ...s, rated: part(s.rated), flawed: part(s.flawed), loss_bb: Math.round(s.loss_bb * f * 10) / 10 })),
+  };
+}
+
+function fullSummary(): AnalysisSummary {
   return {
     hands: 6431,
     analyzed,

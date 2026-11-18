@@ -84,13 +84,16 @@
     white-space: nowrap;
   }
   p:not(.h1) {
+    display: -webkit-box;
     margin: 0;
     min-width: 0;
     overflow: hidden;
     color: var(--text-2);
     font-size: var(--fs-md);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: var(--lh-tight);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
   .actions {
     display: flex;
