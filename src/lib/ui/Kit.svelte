@@ -28,6 +28,7 @@
   import SectionHead from "./SectionHead.svelte";
   import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
+  import Slider from "./Slider.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
   import Tabs from "./Tabs.svelte";
@@ -124,6 +125,8 @@
   // Auswahl
   let period = $state("7d");
   let small = $state("bb");
+  const DEPTHS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 20, 25, 30, 40, 50, 75, 100];
+  let depth = $state(25);
   let tab = $state("hands");
   let tags = $state(["BTN", "CO"]);
   let picked = $state<string[]>(["Cash"]);
@@ -424,8 +427,12 @@
       <section id="auswahl">
         <SectionHead
           title="Auswahl"
-          sub="Segmente für wenige gleichrangige Optionen, das Auswahlmenü für dieselbe Wahl in schmalen Kopfzeilen, Reiter für Bereiche einer Seite, Tags für Filter."
+          sub="Segmente für wenige gleichrangige Optionen, das Auswahlmenü für dieselbe Wahl in schmalen Kopfzeilen, Reiter für Bereiche einer Seite, Tags für Filter, der Regler für eine Zahl aus vielen Stufen."
         />
+        <Card pad="md">
+          <Slider label="Dein Stack" unit="BB" log values={DEPTHS} value={depth} onchange={(v) => (depth = v)} steps={[5, 10, 15, 20, 25, 30, 40, 50, 75, 100]} />
+        </Card>
+        <div class="gap"></div>
         <div class="two">
           <div class="stack">
             <SegmentedControl label="Zeitraum" bind:value={period} options={[{ value: "today", label: "Heute" }, { value: "7d", label: "7 Tage" }, { value: "30d", label: "30 Tage" }, { value: "all", label: "Alles" }]} />

@@ -649,7 +649,7 @@ async function tableSize(n) {
 async function stackTo(bb) {
   await s.exec(
     `const el = document.querySelector("#stack-axis");
-     const st = el.dataset.stacks.split(",").map(Number);
+     const st = el.dataset.values.split(",").map(Number);
      const lo = Math.log(st[0]), hi = Math.log(st[st.length - 1]);
      el.value = String(Math.round(((Math.log(arguments[0]) - lo) / (hi - lo)) * 1000));
      el.dispatchEvent(new Event("input", { bubbles: true }));`,
@@ -693,6 +693,12 @@ step("Ranges nach Stack: Tischgrößen-Vergleich, Klick auf heads-up wechselt de
   await waitText(/Heads-up bist du als Button selbst Small Blind|Als Erster am Zug spielst du/);
   await tableSize(6);
   await find(".stepper span", "6 Spieler");
+});
+
+step("Ranges nach Stack: Schnellwahl „10 BB“ ändert Wert und Satz", async () => {
+  await click("main [role='group'][aria-label='Schnellwahl Dein Stack'] button", "10");
+  await waitFor("10 BB oben rechts", `return document.querySelector("main output.val")?.textContent.replace(/\\s+/g, " ").trim() === "10 BB"`);
+  await waitText(/Vo[nm] [^\n]*mit 10 BB (erhöhst|foldest) du/);
 });
 
 /** Presses one key the way a keyboard would, on whatever has the focus. */
