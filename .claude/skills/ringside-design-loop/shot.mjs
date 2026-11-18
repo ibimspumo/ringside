@@ -59,7 +59,7 @@ try {
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
   const page = (method, params) => send(method, params, sessionId);
-  await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height, deviceScaleFactor: 2, mobile: false });
+  await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height, deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 2), mobile: false });
   await page("Page.enable");
   await page("Runtime.enable");
   await page("Page.navigate", { url });
@@ -85,7 +85,7 @@ try {
       returnByValue: true,
     });
     if (result.value > 0) {
-      await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height + result.value, deviceScaleFactor: 2, mobile: false });
+      await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height + result.value, deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 2), mobile: false });
       await page("Runtime.evaluate", {
         expression: "new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 150))))",
         awaitPromise: true,

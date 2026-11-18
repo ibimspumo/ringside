@@ -7,6 +7,7 @@
 #   shots.sh /tmp/ringside-shots/hud/r1 editor='?tab=hud' overlay='?view=overlay'
 # Other sizes: SIZES="980,700 1920,1080" shots.sh …
 # Whole page instead of the window: FULL=1 shots.sh …
+# Pixel density (default 2): SHOT_SCALE=1 for 2560 and 3840 px wide windows.
 # shot.mjs drives Chrome over DevTools and waits for fonts and painted frames; reduced motion
 # keeps entry animations from being caught half-way.
 # Writes <out-dir>/<name>-<width>.png. Starts its own Vite on a free port and stops it again.
