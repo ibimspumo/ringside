@@ -76,7 +76,7 @@
               >{!preDone
                 ? "startet danach"
                 : c.queued
-                  ? `${Math.floor(postShare * 100)}\u00a0% der Entscheidungen bewertet${eta ? ` · ${eta}` : ""} · ${int(c.queued)} Flop-Spots im Solver`
+                  ? `${Math.floor(postShare * 100)}\u00a0% bewertet · die letzten ${int(c.queued)} Flop-Spots rechnet der Solver${eta ? `, ${eta.replace("noch ", "")}` : ""}`
                   : "alles gerechnet"}</small
             >
           </div>

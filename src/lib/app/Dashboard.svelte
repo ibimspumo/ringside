@@ -99,7 +99,7 @@
         for (const l of rep.leaks) {
           if (l.uncertain || m.has(l.stat)) continue;
           const band = (rep.bands[l.band] ?? "").replaceAll(" ", "\u00a0").replaceAll("–", "\u2060–\u2060");
-          m.set(l.stat, `${l.positions.length ? `bei ${l.positions.join(", ")}` : "über alle Positionen"} · ${band}`);
+          m.set(l.stat, `${l.positions.length ? l.positions.join("\u00a0/\u00a0") : "alle Plätze"}, ${band}`);
         }
         flagged = m;
       },
@@ -329,7 +329,7 @@
                   <b class="num" class:none={g === null && !s?.opp}
                     >{fmt(s)}{#if s && s.value !== null && !STAT_META[id].ratio}<span class="unit">%</span>{/if}</b
                   >
-                  {#if z}<em>{flagged.get(id) ? `gesamt ${z.label}` : z.label}</em>{/if}
+                  {#if z}<em>{flagged.get(id) ? `im Schnitt ${z.label}` : z.label}</em>{/if}
                 </span>
                 <span class="gauge" aria-hidden="true" style="--lo:{palette.low}; --mid:{palette.mid}; --hi:{palette.high}">
                   <i></i><i></i><i></i>
@@ -343,7 +343,7 @@
                 {#if flagged.get(id)}
                   <small class="leak-hint"
                     ><Term tip="Die Seite Leaks meldet diesen Wert an einer Stelle als Abweichung vom Richtwert: {flagged.get(id)}."
-                      >Leak {flagged.get(id)}</Term
+                      >Leak: {flagged.get(id)}</Term
                     ></small
                   >
                 {/if}

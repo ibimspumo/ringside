@@ -124,8 +124,9 @@
                 </span>
                 <span class="links">
                   {#if onLearn}
-                    {#each LEARN[spot] as l, j (l.label)}
-                      <Button size="sm" variant={j === (i === 0 && LEARN[spot].length > 1 ? 1 : 0) ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
+                    <!-- The first spot's exercise is already the next step above the summary. -->
+                    {#each LEARN[spot].filter((_, j) => i > 0 || LEARN[spot].length === 1 || j > 0) as l, j (l.label)}
+                      <Button size="sm" variant={j === 0 ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
                     {/each}
                   {/if}
                   {#if onSpot}

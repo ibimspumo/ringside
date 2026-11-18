@@ -293,7 +293,7 @@
             >
           </div>
           <div class="fig">
-            <span class="label"><Term tip={SURE_HELP}>Sicher, dass es ein Leak ist</Term></span>
+            <span class="label"><Term tip={SURE_HELP}>Sicher außerhalb des Richtwerts</Term></span>
             <b class="num">{pct(l.confidence)}</b>
             <small
               ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
