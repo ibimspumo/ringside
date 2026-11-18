@@ -457,12 +457,12 @@
 <ClientLock feature="Die Seite „Ranges nach Stack“">
   <div class="page ranges-page">
     {#if fromHand !== null}
-      <!-- Stays in view while the page scrolls, without taking room. -->
       <div class="back-bar">
         <button class="btn" onclick={() => backToHand()}>
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" /></svg>
           Zurück zur Hand{fromLabel ? ` · ${fromLabel}` : ""}
         </button>
+        <span>Du kommst aus einer gespielten Hand; sie ist im Raster markiert.</span>
       </div>
     {/if}
     <div class="intro">
@@ -746,16 +746,19 @@
   .ranges-page {
     max-width: 1600px;
   }
+  /* Stays at the top while the page scrolls; it has its own row, so it covers nothing. */
   .back-bar {
     position: sticky;
-    top: 12px;
+    top: 0;
     z-index: 8;
-    height: 0;
     display: flex;
-    justify-content: flex-end;
-  }
-  .back-bar .btn {
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    align-items: center;
+    gap: 12px;
+    margin: -10px 0 10px;
+    padding: 10px 0;
+    background: var(--bg);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .back-bar svg {
     fill: none;
