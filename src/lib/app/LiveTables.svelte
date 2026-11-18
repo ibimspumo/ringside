@@ -4,6 +4,7 @@
   import { moneyShort } from "../stats";
   import type { LiveTable, PlayerView, SeatView, TableView } from "../types";
   import Badge from "../ui/Badge.svelte";
+  import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { pokerClient, watchPokerClient } from "./client.svelte";
@@ -14,7 +15,7 @@
   import PlayerTable, { type ExtraColumn, type PlayerRow } from "./PlayerTable.svelte";
   import { preview } from "../learn/preview";
 
-  let { onHands }: { onHands: (name: string, handId?: number) => void } = $props();
+  let { onHands, onPlayers }: { onHands: (name: string, handId?: number) => void; onPlayers: () => void } = $props();
 
   let tables = $state<LiveTable[]>([]);
   let loaded = $state(false);
@@ -64,6 +65,12 @@
     return cols;
   }
 
+  /** PokerStars titles read "Name - Blinds - Tisch …": the name leads, the rest is detail. */
+  function titleParts(title: string): [string, string] {
+    const [name, ...rest] = title.split(" - ");
+    return [name, rest.join(" · ")];
+  }
+
   function stakes(t: TableView) {
     if (t.game === "tournament") return `Turnier · BB ${int(t.big_blind / 100)}`;
     return `Cash · ${moneyShort(t.big_blind, t.currency)} BB`;
@@ -93,14 +100,18 @@
   {/if}
 
   {#each tables as t (t.table_key)}
+    {@const [name, detail] = titleParts(t.title)}
     <section class="table-card" aria-label={t.title}>
       <header>
-        <h2 title={t.title}>{t.title}</h2>
+        <div class="title">
+          <h2 title={t.title}>{name}</h2>
+          {#if detail}<span class="detail" title={t.title}>{detail}</span>{/if}
+        </div>
         {#if t.table}
           <span class="facts">
             <Badge size="sm" tone={t.table.game === "tournament" ? "info" : "neutral"}>{stakes(t.table)}</Badge>
             <span><span class="num">{t.table.seats.length}</span> Spieler</span>
-            <span class="faint num">Hand #{t.table.hand_id}</span>
+            <span class="faint" title="Die Werte stehen auf dem Stand nach dieser Hand">zuletzt gelesen: Hand <span class="num">#{t.table.hand_id}</span></span>
           </span>
           {#if more[t.table_key]}<span class="more"><MoreColumns /></span>{/if}
         {/if}
@@ -123,7 +134,9 @@
     </section>
   {:else}
     {#if loaded}
-      <EmptyState title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD." />
+      <EmptyState title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.">
+        {#snippet action()}<Button size="sm" variant="quiet" onclick={onPlayers}>Alle Gegner ansehen</Button>{/snippet}
+      </EmptyState>
     {:else}
       <EmptyState tone="loading" title="Suche offene Tische" />
     {/if}
@@ -176,10 +189,21 @@
     padding: var(--sp-3) var(--sp-4);
     border-bottom: 1px solid var(--line);
   }
-  h2 {
-    flex: 0 1 auto;
+  .title {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
     max-width: 100%;
+  }
+  .detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  h2 {
+    min-width: 0;
     margin: 0;
     overflow: hidden;
     text-overflow: ellipsis;

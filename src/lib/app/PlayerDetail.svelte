@@ -10,7 +10,7 @@
   import StatMeter from "../ui/StatMeter.svelte";
   import Term from "../ui/Term.svelte";
   import { dateTime, int, sign, signed } from "./format";
-  import { SMALL_SAMPLE, TYPE, read, sampleNote } from "./reads";
+  import { HINT, SMALL_SAMPLE, TYPE, read, sampleNote } from "./reads";
   import Wheel from "./Wheel.svelte";
 
   let {
@@ -123,7 +123,7 @@
       <section class="note" style="--c:{note.label?.color ?? 'var(--line-2)'}" aria-label="Deine Notiz">
         <span class="note-head">
           {#if note.label}<i aria-hidden="true"></i>{note.label.name || "Label"}{:else}Deine Notiz{/if}
-          <small>aus PokerStars</small>
+          <small>deine Notiz aus PokerStars</small>
         </span>
         {#if note.text}<p>{note.text}</p>{/if}
       </section>
@@ -137,10 +137,13 @@
             {@const s = stat(player.stats, id)}
             {@const range = hud.thresholds[id]}
             {@const thin = (s?.opp ?? 0) < SMALL_SAMPLE}
+            {@const t = tone(hud, s)}
+            {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
                 <Term tip={STAT_META[id].help}>{STAT_META[id].name}</Term>
                 <small>{word(id)} · {sampleNote(s)}</small>
+                {#if hint}<span class="hint">→ {hint}</span>{/if}
               </dt>
               <dd>
                 {#if range}
@@ -424,8 +427,11 @@
     font-weight: var(--fw-semibold);
     text-align: right;
   }
-  .thin dd b {
-    opacity: 0.55;
+  .hint {
+    display: block;
+    margin-top: 2px;
+    color: var(--text);
+    font-size: var(--fs-md);
   }
   .shown {
     margin: 0;

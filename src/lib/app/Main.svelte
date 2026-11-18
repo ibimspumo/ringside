@@ -521,7 +521,7 @@
       {:else if tab === "players"}
         <Players {filter} {hud} {refresh} onHands={(name, id) => showHands(name, id ?? null)} />
       {:else if tab === "live"}
-        <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
+        <LiveTables onHands={(name, id) => showHands(name, id ?? null)} onPlayers={() => (tab = "players")} />
       {:else if tab === "training"}
         <Training
           {hud}

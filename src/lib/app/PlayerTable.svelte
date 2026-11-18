@@ -118,7 +118,7 @@
       {#each cols as id (id)}
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
           <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="bottom">
-            {@render head(id, columns === "core" ? (SHORT[id] ?? STAT_META[id].name) : STAT_META[id].short)}
+            {@render head(id, columns === "core" ? `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}` : STAT_META[id].short)}
           </Tooltip>
         </th>
       {/each}
@@ -197,13 +197,16 @@
     text-align: right;
     white-space: nowrap;
   }
+  /* With scales the number opens the cell, so its title stands left above it. */
   th.core {
     width: 120px;
+    text-align: left;
   }
   @container player-list (max-width: 760px) {
     th.core {
       width: auto;
       padding-right: calc(var(--sp-2) + 10px);
+      text-align: right;
     }
   }
   /* Numbers carry room for the "unsure" ring after them; titles line up with the numbers. */

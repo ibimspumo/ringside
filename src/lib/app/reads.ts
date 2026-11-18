@@ -2,7 +2,7 @@
 // sure that is. Rules of thumb and texts as in crates/ringside-learn/src/hud.rs, so the
 // "Gegner lesen" drill and the player pages judge alike.
 import { stat } from "../stats";
-import type { StatValue } from "../types";
+import type { StatId, StatValue } from "../types";
 
 export type PlayerType = "nit" | "tag" | "lag" | "station";
 
@@ -102,3 +102,19 @@ export function sampleNote(s: StatValue | undefined): string {
   return `aus ${s.opp.toLocaleString("de-DE")} ${what}${s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
 }
 
+
+/** What a clearly low or high value means for your play: one line each, shown only off the table. */
+export const HINT: Partial<Record<StatId, { low: string; high: string }>> = {
+  vpip: { low: "Geht er mit, hat er meist etwas Starkes.", high: "Mit guten Händen auf Wert setzen, wenig bluffen." },
+  pfr: { low: "Erhöht er doch, ist die Hand meist stark.", high: "Seine Raises sind oft schwach: mit starken Händen 3-betten." },
+  three_bet: { low: "Seine 3-Bets sind meist sehr stark: ohne Top-Hand folden.", high: "Gegen seine 3-Bets mit guten Händen weiterspielen." },
+  fold_to_three_bet: { low: "3-Bets gegen ihn nur mit Hand, er geht oft mit.", high: "Gegen seine Raises öfter 3-betten, er gibt meist auf." },
+  steal: { low: "Klaut er doch, ist die Hand meist stark.", high: "Gegen seine Steals aus den Blinds öfter erhöhen." },
+  fold_to_steal: { low: "Steals gegen ihn nur mit guter Hand.", high: "Seine Blinds öfter stehlen." },
+  cbet: { low: "Setzt er am Flop nach, glaub ihm eher.", high: "Gegen seine C-Bets öfter callen oder erhöhen." },
+  fold_to_cbet: { low: "C-Bets gegen ihn nur mit Hand oder starkem Draw.", high: "Nach deinem Raise am Flop fast immer nachsetzen." },
+  wtsd: { low: "Er gibt vor dem Showdown oft auf: Druck lohnt sich.", high: "Er geht oft bis zum Showdown: kaum bluffen." },
+  wsd: { low: "Er zeigt oft schwache Hände: dünner auf Wert setzen.", high: "Kommt er zum Showdown, hat er meist etwas." },
+  af: { low: "Setzt er doch, hat er meist etwas.", high: "Er setzt viel, auch ohne Hand: öfter mitgehen." },
+  afq: { low: "Passiv: seine Bets ernst nehmen.", high: "Sehr aggressiv: mit mittleren Händen öfter mitgehen." },
+};
