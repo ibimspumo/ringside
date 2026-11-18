@@ -1,18 +1,13 @@
 <script lang="ts">
-  import { onMount, type Snippet } from "svelte";
-  import { api, on } from "../api";
+  import type { Snippet } from "svelte";
+  import { pokerClient, watchPokerClient } from "./client.svelte";
 
   /** Shows `children` only while the PokerStars client is closed. */
   let { feature = "Training", children }: { feature?: string; children: Snippet } = $props();
 
   // Unknown until the backend answers; nothing is shown meanwhile, so locked content never flashes.
-  let running = $state<boolean | null>(null);
-
-  onMount(() => {
-    const sub = on<boolean>("poker-client", (r) => (running = r));
-    sub.then(() => api.pokerClientRunning().then((r) => (running = r)));
-    return () => sub.then((f) => f());
-  });
+  watchPokerClient();
+  const running = $derived(pokerClient.running);
 </script>
 
 {#if running === false}

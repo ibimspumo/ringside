@@ -13,6 +13,8 @@
   import SourceNote from "../ui/SourceNote.svelte";
   import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING, RATING_RULE, RATINGS, SOURCE, SPOT, SPOT_HINT, bb, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
+  import AtTable from "../app/AtTable.svelte";
+  import { adviceLocked, watchPokerClient } from "../app/client.svelte";
   import type { AnalysisSummary, Rating, SpotType } from "./types";
 
   /**
@@ -37,8 +39,14 @@
   } = $props();
 
   let data = $state<AnalysisSummary | null>(null);
+  watchPokerClient();
+  const locked = $derived(adviceLocked());
 
   $effect(() => {
+    if (locked) {
+      data = null;
+      return;
+    }
     void refresh;
     void analysis.solved;
     void analysis.status?.counts.analyzed;
@@ -58,7 +66,9 @@
 </script>
 
 
-{#if data && data.rated > 0 && strip}
+{#if locked}
+  {#if !strip}<AtTable compact />{/if}
+{:else if data && data.rated > 0 && strip}
   <section class="band">
     <span class="lead"><abbr title={EV_LOSS_EXPLAIN}>Verlust durch Fehler</abbr> <b class="num">{bb(data.loss_bb)}</b></span>
     {#if focus.length}
