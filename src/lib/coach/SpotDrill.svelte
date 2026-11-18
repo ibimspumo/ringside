@@ -386,7 +386,8 @@
     border: 1px solid var(--line);
   }
   .compare dt {
-    white-space: nowrap;
+    overflow-wrap: anywhere;
+    hyphens: auto;
   }
   .compare > .mine {
     border-color: var(--text-2);

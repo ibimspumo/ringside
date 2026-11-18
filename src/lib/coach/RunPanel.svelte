@@ -594,7 +594,7 @@
     color: var(--amber);
   }
 
-  @container (max-width: 760px) {
+  @container (max-width: 560px) {
     .cards,
     .figs,
     .skeleton {
