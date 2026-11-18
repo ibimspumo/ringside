@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, untrack } from "svelte";
+  import { preview } from "../learn/preview";
   import { solver } from "../solver/store.svelte";
   import Term from "../solver/Term.svelte";
   import { Playback, SPEEDS, nudgeSpeed, setSpeed, speed, stepMs, type Speed } from "../table/playback.svelte";
@@ -32,6 +33,16 @@
     listen();
     resume();
     prepare($state.snapshot(session.config));
+    // Browser demo, for screenshots: `players=<n>` deals a hand at that table, `act=2,0` plays your moves.
+    const players = Number(preview("players"));
+    if (players) {
+      saveConfig({ ...session.config, mode: "full", players, stack_bb: 40, mixed_stacks: false, hero_seat: null });
+      session.hands = [];
+      void (async () => {
+        await nextHand();
+        for (const k of (preview("act") ?? "").split(",").filter(Boolean)) await act(Number(k));
+      })();
+    }
     return () => {
       pb.dispose();
       playApi.away();

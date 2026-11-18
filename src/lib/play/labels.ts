@@ -248,7 +248,13 @@ export function etaText(secs: number | null): string {
   return `ca. ${Math.ceil(secs / 60)} min`;
 }
 
+/** Table sizes of the practice; mirror `ringside_play::table::PLAYERS`. */
+export const TABLE_SIZES = [2, 3, 4, 5, 6, 8, 9] as const;
+
+/** "Heads-up", "4 Spieler", "9-max": full tables by their type, short ones by who is left. */
+export const tableName = (n: number) => (n === 2 ? "Heads-up" : n <= 5 ? `${n} Spieler` : `${n}-max`);
+
 export function configLine(c: PlayConfig): string {
   const stack = c.mixed_stacks ? "gemischte Stacks" : bbText(c.stack_bb, 0);
-  return `${MODE_LABEL[c.mode]} · ${c.players}-max · ${stack} · ${ANTE_LABEL[c.ante]}`;
+  return `${MODE_LABEL[c.mode]} · ${tableName(c.players)} · ${stack} · ${ANTE_LABEL[c.ante]}`;
 }
