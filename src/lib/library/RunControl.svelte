@@ -82,7 +82,7 @@
 </script>
 
 <div class="run">
-  <div class="say" aria-live="polite">
+  <div class="say" class:live={running} aria-live="polite">
     <p class="head"><span class="dot {tone}" aria-hidden="true"></span>{words[0]}</p>
     {#if worker.state === "solving" && worker.community}
       {@const [where, flop] = worker.community.split(/,\s*Flop\s+/)}
@@ -213,5 +213,11 @@
   .err {
     color: var(--neg);
     font-size: var(--fs-md);
+  }
+  /* Narrow windows: while it runs, spot and progress say enough; the flops stay in view. */
+  @container (max-width: 1100px) {
+    .live .sub {
+      display: none;
+    }
   }
 </style>

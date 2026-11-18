@@ -132,8 +132,8 @@
 
   type Texture = "Rainbow" | "Zweifarbig" | "Monoton" | "Gepaart" | "Drilling";
   const TEXTURE_HINT: Record<Texture, string> = {
-    Rainbow: "drei verschiedene Farben, auf dem Flop noch kein Flush-Draw",
-    Zweifarbig: "zwei Karten einer Farbe, Flush-Draws möglich",
+    Rainbow: "drei verschiedene Farben, auf dem Flop noch kein Flush‑Draw",
+    Zweifarbig: "zwei Karten einer Farbe, Flush‑Draws möglich",
     Monoton: "alle drei in einer Farbe, ein Flush ist schon möglich",
     Gepaart: "zwei Karten gleichen Rangs",
     Drilling: "drei Karten gleichen Rangs",
@@ -231,11 +231,11 @@
               <ul class="keys">
                 <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
                 <li>
-                  <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> geprüft <i>– nachgerechnet, für alle da</i></span>
+                  <ShareMark mark="verified" /><span><b class="num">{int(totals.verified)}</b> <Term tip="Ein Prüfer hat deine Lösung nachgerechnet. Jetzt können alle Ringside-Nutzer sie laden.">geprüft</Term> <i>– nachgerechnet, für alle da</i></span>
                 </li>
                 {#if totals.waiting > 0}
                   <li>
-                    <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <i>– jede Stunde</i></span>
+                    <ShareMark mark="submitted" /><span><b class="num">{int(totals.waiting)}</b> <Term tip="Hochgeladen, aber noch nicht nachgerechnet. Der Prüfer rechnet einmal pro Stunde nach, danach bekommen alle den Spot.">warten auf Prüfung</Term> <i>– jede Stunde</i></span>
                   </li>
                 {/if}
                 {#if totals.notUploaded > 0}
@@ -333,7 +333,7 @@
           <Card pad="lg">
             <section class="flops" aria-label="Flops">
               <p class="step"><span class="n num">2</span>Flop anklicken und nachsehen</p>
-              <SectionHead title={titleOf(current)} sub={situationOf(current)}>
+              <SectionHead title={titleOf(current)} sub="{situationOf(current)} · Pot {num(current.pot)} BB · jeder hat noch {num(current.stack)} BB">
                 {#snippet actions()}
                   {#if cov > 0}
                     <Button variant="primary" loading={opening !== null} onclick={() => openAny(current)}>Zufälligen Flop ansehen</Button>
@@ -341,8 +341,7 @@
                 {/snippet}
               </SectionHead>
               <p class="story">
-                {storyOf(current)} Im Pot liegen <span class="num">{num(current.pot)}</span> BB, jeder hat noch
-                <span class="num">{num(current.stack)}</span> BB. {firstOf(current)}
+                {storyOf(current)} {firstOf(current)}
                 {#if cov > 0}
                   <span class="cover">
                     {cov >= 0.995 ? "Für jeden Flop gibt es hier eine Lösung." : `Für ${pct(cov)} aller möglichen Flops gibt es hier schon eine Lösung.`}
@@ -775,6 +774,9 @@
     }
     .flops {
       margin: calc(-1 * var(--sp-2));
+    }
+    .keys i {
+      display: none;
     }
   }
 </style>
