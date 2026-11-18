@@ -346,7 +346,7 @@
   const besides = $derived(boxW >= (aside ? 860 : 1150));
   const sideW = $derived(besides ? Math.round(aside ? Math.min(420, Math.max(300, boxW * 0.28)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
   const fit = $derived.by(() => {
-    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 1100);
+    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 1000);
     const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
     return fitTable(free, room);
   });
@@ -367,6 +367,27 @@
     return { w: best, f: Math.max(MIN_SCALE, Math.min(1, free / tableHeight(best))) };
   }
 
+  const VERB: Record<ActionKind, string> = { fold: "foldet", check: "checkt", call: "callt", bet: "setzt", raise: "erhöht auf", allin: "geht all-in mit", limp: "limpt" };
+  const VERB_YOU: Record<ActionKind, string> = { fold: "foldest", check: "checkst", call: "callst", bet: "setzt", raise: "erhöhst auf", allin: "gehst all-in mit", limp: "limpst" };
+  /** What just happened, as a sentence beside the controls. */
+  const lastSaid = $derived.by(() => {
+    if (step === 0) return "Vor der Hand";
+    const e = events[step - 1];
+    if (e.type === "street") return `${STREET_NAME[e.street]} kommt`;
+    if (e.type === "showdown") return "Showdown: Karten offen";
+    if (e.type === "collect") {
+      const top = [...table.winners.entries()].sort((x, y) => y[1] - x[1])[0]?.[0];
+      return top ? `Pot geht an ${top === hand.hero ? "dich" : top}` : "Hand vorbei";
+    }
+    const a = e.action;
+    const who = a.player === hand.hero ? "Du" : a.player;
+    const kind = kindOf(a);
+    const sum = a.amount > 0 ? ` ${format((a.to ?? a.amount) / unit)}` : "";
+    if (!kind) return `${who}: ${POST[a.kind] ?? a.kind}${sum}`;
+    const verb = (a.player === hand.hero ? VERB_YOU : VERB)[kind];
+    return kind === "fold" || kind === "check" ? `${who} ${verb}` : `${who} ${verb}${sum}`;
+  });
+
   /** Under the board at the end: who won and with what, in words. */
   const outcome = $derived.by(() => {
     if (!done || upTo !== null || !table.winners.size) return null;
@@ -374,7 +395,8 @@
     const who = name === hand.hero ? "Du gewinnst" : `${name} gewinnt`;
     const cards = name === hand.hero ? hand.hero_cards : hand.shown.find(([p]) => p === name)?.[1];
     if (!hand.shown.length || !cards?.length || hand.board.length < 3) return `${who} – alle anderen haben gefoldet`;
-    return `${who}: ${CATEGORY[categoryOf([...cards, ...hand.board])]}`;
+    const mine = name !== hand.hero && hand.shown.some(([p]) => p === hand.hero) ? ` · du: ${CATEGORY[categoryOf([...hand.hero_cards, ...hand.board])]}` : "";
+    return `${who}: ${CATEGORY[categoryOf([...cards, ...hand.board])]}${mine}`;
   });
 
   function key(e: KeyboardEvent) {
@@ -520,7 +542,7 @@
             ></button>
           {/each}
         </div>
-        <span class="steps num" title="Schritt in der Hand">{step}/{events.length}</span>
+        <span class="steps" title="Schritt {step} von {events.length}">{lastSaid}</span>
         <SegmentedControl
           size="sm"
           label="Beträge anzeigen in"
@@ -648,10 +670,13 @@
     box-shadow: 0 0 0 2px var(--text);
   }
   .steps {
-    min-width: 40px;
-    color: var(--text-2);
+    min-width: 0;
+    max-width: 220px;
+    overflow: hidden;
+    color: var(--text);
     font-size: var(--fs-sm);
-    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .bounties {
@@ -704,7 +729,7 @@
     margin: 0;
     padding: var(--sp-2) var(--sp-3) 6px;
     background: var(--surface);
-    color: var(--text-2);
+    color: var(--text);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
   }

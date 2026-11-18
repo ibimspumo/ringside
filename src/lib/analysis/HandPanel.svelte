@@ -185,7 +185,7 @@
     border: 1px solid var(--line-2);
     border-radius: var(--r-pill);
     background: var(--surface);
-    color: var(--text-2);
+    color: var(--text);
     font: inherit;
     font-size: var(--fs-md);
     cursor: pointer;
@@ -211,7 +211,7 @@
     font-weight: var(--fw-semibold);
   }
   .street {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .on .street {
     color: var(--text-2);

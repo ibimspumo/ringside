@@ -51,7 +51,9 @@
       <strong>{g.label}</strong>
       {#if context}<span>{context}</span>{/if}
     </div>
-    {#if costly && grade !== "best" && grade !== "mix"}<span class="price num">−{bb(cost ?? 0, { digits: 2 })}</span>{/if}
+    {#if costly && grade !== "best" && grade !== "mix"}<span class="price num" title="So viel bringt diese Entscheidung im Schnitt weniger als die beste – nicht das Ergebnis der Hand"
+        >−{bb(cost ?? 0, { digits: 2 })}</span
+      >{/if}
   </header>
 
   <div class="body">

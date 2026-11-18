@@ -562,7 +562,9 @@
         <div
           class="row"
           data-id={h.id}
-          title={rail ? `${h.hero_position ?? ""} ${h.hero_cards}${w && v ? ` · ${w.rating ? RATING[w.rating].label + ": " : ""}${v.lead} ${v.rest}` : ""}` : undefined}
+          title={rail
+            ? `${h.hero_position ?? ""} ${h.hero_cards}${w && v ? ` · ${w.rating ? RATING[w.rating].label + ": " : ""}${v.lead} ${v.rest}` : ""}`
+            : `${date(h.played_at)}, ${time(h.played_at)} Uhr`}
           class:on={selected?.id === h.id}
           role="option"
           tabindex="0"
@@ -579,6 +581,13 @@
           <span class="mid">
             <span class="line">
               <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="faint">kein Flop</span>{/each}</span>
+              {#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
+                  ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
+                    cx="12"
+                    cy="12"
+                    r="2.8"
+                  /></svg
+                >{/if}
 
             </span>
             {#if locked}
@@ -593,25 +602,17 @@
             {/if}
           </span>
           {#if rail && w?.rating && !locked}
-            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[w.street]}</span>
+            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{w.best && costly(w) ? w.best.split(" ")[0] : ({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[w.street]}</span>
           {/if}
           <span class="end">
             {#if view === "mistakes" && costly(w) && !locked}
-              <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{bb(w!.ev_loss_bb!, 2)}</span>
+              <span class="loss num" style:color="var(--grade-{gradeOf(w!.rating!)})" title="Was diese Entscheidung im Schnitt kostet">−{fmtBb(w!.ev_loss_bb!, { digits: 2 })}</span>
             {:else}
               <span class="net num {sign(net)}" title="Was du in dieser Hand gewonnen oder verloren hast"
                 >{net === null ? "–" : signed(net, Math.abs(net) >= 10 ? 0 : 1)}<span class="unit">BB</span></span
               >
             {/if}
-            <small class="num" title="{date(h.played_at)}, {time(h.played_at)} Uhr"
-              >{#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
-                  ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
-                    cx="12"
-                    cy="12"
-                    r="2.8"
-                  /></svg
-                >{/if}{time(h.played_at)}</small
-            >
+            {#if rail}<small class="num">{time(h.played_at)}</small>{/if}
           </span>
         </div>
       {:else}
@@ -919,7 +920,7 @@
     grid-row: 1;
   }
   .verdict {
-    grid-column: 2;
+    grid-column: 2 / 4;
     grid-row: 2;
   }
   .row .net,
@@ -951,8 +952,7 @@
     overflow: hidden;
   }
   .sd {
-    margin-right: 5px;
-    vertical-align: -2px;
+    flex-shrink: 0;
     fill: none;
     stroke: var(--sd);
     stroke-width: 2;
@@ -1120,6 +1120,11 @@
   .narrow .where,
   .narrow .ident p {
     display: none;
+  }
+  .narrow .result {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--sp-2);
   }
   .narrow .result span {
     font-size: 0;

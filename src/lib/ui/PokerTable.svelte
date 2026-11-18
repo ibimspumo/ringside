@@ -354,7 +354,7 @@
       var(--shadow-1);
   }
   .folded {
-    opacity: 0.42;
+    opacity: 0.55;
     transition: opacity var(--dur) var(--ease-standard);
   }
   .free {

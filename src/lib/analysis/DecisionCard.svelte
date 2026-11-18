@@ -92,7 +92,7 @@
           <li class:mine={c.played}>
             <span class="dot {tone(c)}"></span>
             <span class="label"
-              ><span class="name">{c.label}</span>{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
+              ><span class="name">{c.label.replace(" auf ", " ")}</span>{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
             >
             <span class="num freq">{pct(c.freq)}</span>
             <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
@@ -114,7 +114,10 @@
     {#snippet actions()}
       {#if prefill || chartable(d) || learn.length}
         {#each learn as l (l.label)}
-          <Button size="sm" variant="quiet" onclick={() => onLearn?.(l.target)}>{l.label}</Button>
+          <Button size="sm" variant="quiet" onclick={() => onLearn?.(l.target)} title="Öffnet das passende Kapitel im Lernbereich">
+            {#snippet icon()}<svg class="book" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5zM4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5" /></svg>{/snippet}
+            {l.label}
+          </Button>
         {/each}
         <ChartsButton decision={d} variant="primary" />
         {#if prefill}
@@ -244,6 +247,12 @@
     min-width: 0;
   }
   .label em,
+  .book path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+  }
   .best-mark {
     flex-shrink: 0;
   }
