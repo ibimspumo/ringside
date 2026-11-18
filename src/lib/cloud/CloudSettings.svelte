@@ -21,7 +21,7 @@
     };
   });
 
-  function set(key: "fetch" | "share", on: boolean) {
+  function set(key: "fetch" | "share" | "practice_ready", on: boolean) {
     if (!cloud) return;
     cloud[key] = on;
     cloudApi.saveSettings($state.snapshot(cloud));
@@ -64,8 +64,8 @@
     <details>
       <summary>Technische Details</summary>
       <p>
-        Flop-Spots aus der Handanalyse und aus „Hände spielen“ teilt Ringside nur, wenn ihre Ranges aus Ringsides
-        Preflop-Modell stammen. Dann gehen Flop, Pot, Stack, Einsatzgrößen und die Modell-Linie hoch, also der Weg durchs
+        Flop-Spots aus der Handanalyse, aus „Hände spielen“ und von der Solver-Seite teilt Ringside nur, wenn ihre Ranges
+        aus Ringsides Preflop-Modell stammen. Dann gehen Flop, Pot, Stack, Einsatzgrößen und die Modell-Linie hoch, also der Weg durchs
         Modell, aus dem die Ranges folgen.
       </p>
       <p>
@@ -73,6 +73,26 @@
         andere noch brauchen. Das Teilen läuft im Hintergrund.
       </p>
     </details>
+  {/snippet}
+</SettingRow>
+
+<SettingRow
+  title="Üben mit fertigen Spots anderer"
+  sub="„Hände spielen“ nimmt zuerst Spots, die schon gerechnet sind – auch von anderen Spielern. So wartest du nicht."
+>
+  {#snippet control()}
+    {#if cloud}<Switch
+        label="Üben mit fertigen Spots anderer"
+        checked={cloud.practice_ready}
+        onchange={(on) => set("practice_ready", on)}
+      />{/if}
+  {/snippet}
+  {#snippet more()}
+    <p>
+      Aus: nur eigene, frisch gegebene Spots. Dann kommen die Flops zufällig, und dein PC rechnet jeden Spot selbst – das
+      dauert länger.
+    </p>
+    <p>Geteilt wird in beiden Fällen, wenn „Eigene Lösungen teilen“ an ist.</p>
   {/snippet}
 </SettingRow>
 

@@ -56,6 +56,8 @@
         return ["Wartet auf eine Pause", "Die Automatik legt los, wenn fünf Minuten niemand Maus oder Tastatur benutzt. Oder starte gleich selbst."];
       case "idle_unknown":
         return ["Wartet", "Ob der PC gerade frei ist, erkennt Ringside nur unter Windows. Starte hier selbst."];
+      case "busy":
+        return ["Wartet: Wichtigeres geht vor", "Was du gerade ansiehst, deine neuen Hände und der Übungsvorrat rechnen zuerst. Danach geht es hier weiter."];
       case "in_use":
         return ["Wartet, solange du Ringside benutzt", "Die Automatik lässt dich in Ruhe arbeiten. Mit „Jetzt mitrechnen“ geht es sofort los, auch während du Ringside benutzt."];
     }
