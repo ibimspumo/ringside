@@ -78,7 +78,8 @@ export function choices(hand: Hand, index: number): { id: Choice; label: string;
   if (s.facing) {
     list.push({ id: "fold", label: "Fold", hint: "aufgeben" });
     if (s.toCall < s.behind) list.push({ id: "call", label: "Call", hint: bb(s.toCall) });
-    if (s.toCall < s.behind) list.push({ id: "raise", label: "Raise", hint: "erhöhen" });
+    // A raise must at least double the bet; the exact size does not change the coach's verdict.
+    if (s.toCall < s.behind) list.push({ id: "raise", label: "Raise", hint: `ab ${bb(Math.min(2 * s.bet, s.behind))}` });
   } else {
     list.push({ id: "check", label: "Check", hint: "schieben" });
     list.push({ id: "raise", label: "Bet", hint: "setzen" });
