@@ -204,8 +204,8 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 28px;
-    background: linear-gradient(to left, var(--shadow-edge), transparent);
+    width: 56px;
+    background: linear-gradient(to left, var(--surface) 20%, transparent);
     pointer-events: none;
   }
   table {

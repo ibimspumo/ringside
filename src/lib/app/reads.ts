@@ -35,7 +35,7 @@ export const TYPE: Record<PlayerType, { name: string; long: string; sketch: stri
     name: "Calling Station",
     long: "Calling Station (locker und passiv)",
     sketch: "Spielt viele Hände, callt aber meist nur.",
-    counter: "Viele Value-Bets, kaum bluffen.",
+    counter: "Mit guten Händen oft und groß setzen, kaum bluffen.",
     why: "Er foldet selten. Bluffs gehen nicht durch, gute Hände werden bezahlt.",
     band: [27, 100],
   },
@@ -99,7 +99,7 @@ export function sampleNote(s: StatValue | undefined, short = false): string {
   if (!s || !s.opp) return "noch keine Gelegenheit";
   const perHand = s.id === "vpip" || s.id === "pfr";
   const what = perHand ? (s.opp === 1 ? "Hand" : "Händen") : s.opp === 1 ? "Gelegenheit" : "Gelegenheiten";
-  return `aus ${s.opp.toLocaleString("de-DE")} ${what}${!short && s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
+  return `aus ${s.opp.toLocaleString("de-DE")}\u00a0${what}${!short && s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
 }
 
 

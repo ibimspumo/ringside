@@ -97,7 +97,7 @@
     {#if hero}
       <p class="self">Das bist du. Wie gut deine eigenen Werte sind, zeigt dir die Seite <b>Leaks</b>.</p>
     {:else if !advice}
-      <SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar." />
+      <div class="lock"><SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar." /></div>
     {:else if r?.type}
       {@const t = TYPE[r.type]}
       <section class="read" aria-label="Spielertyp">
@@ -373,6 +373,9 @@
   .sure.warn i {
     background: none;
     box-shadow: inset 0 0 0 2px var(--amber);
+  }
+  .lock {
+    align-self: flex-start;
   }
   .self {
     margin: 0;
