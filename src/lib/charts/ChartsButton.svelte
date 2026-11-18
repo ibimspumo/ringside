@@ -3,6 +3,7 @@
   import { api, on } from "../api";
   import type { Decision } from "../analysis/types";
   import { openInCharts, type ChartTarget } from "./handoff.svelte";
+  import Button from "../ui/Button.svelte";
 
   /** "Range ansehen" for a rated preflop decision: opens its spot on the ranges page with the hand. */
   let { decision: d }: { decision: Decision } = $props();
@@ -38,8 +39,7 @@
 </script>
 
 {#if target}
-  <button
-    class="btn"
+  <Button
     disabled={locked}
     title={locked
       ? "Die Ranges sind gesperrt, solange PokerStars läuft – so verlangen es die PokerStars-Regeln."
@@ -47,14 +47,14 @@
     onclick={() => target && openInCharts(target, d.hand_id, { played: d.played, best: d.best, loss: d.ev_loss_bb })}
   >
     Range ansehen
-  </button>
+  </Button>
   {#if locked}<span class="locked">gesperrt, solange PokerStars läuft</span>{/if}
 {/if}
 
 <style>
   .locked {
     align-self: center;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-3);
   }
 </style>

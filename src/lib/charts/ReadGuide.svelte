@@ -53,11 +53,11 @@
   text {
     fill: var(--text-2);
     font-family: var(--font-num);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
   text.pt {
-    font-size: 9px;
+    font-size: var(--fs-xs);
     fill: var(--text-3);
   }
   ul {
@@ -67,7 +67,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     line-height: 1.45;
     color: var(--text-2);
   }
@@ -77,7 +77,7 @@
   }
   .note {
     margin: 12px 18px 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
     color: var(--text-2);
   }

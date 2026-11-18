@@ -3,8 +3,10 @@
 </script>
 
 <script lang="ts">
-  import { floating, type Anchor } from "../app/format";
-  import Hint from "./Hint.svelte";
+  import type { Anchor } from "../app/format";
+  import Button from "../ui/Button.svelte";
+  import Popover from "../ui/Popover.svelte";
+  import Tooltip from "../ui/Tooltip.svelte";
   import { TERM, pct } from "./words";
 
   /**
@@ -133,7 +135,7 @@
 
 <div class="axis" bind:clientWidth={width}>
   <div class="top">
-    <label class="lbl" for={id}><Hint text={TERM.stack}>Stack</Hint> <span class="faint">· die wichtigste Wahl</span></label>
+    <label class="lbl" for={id}><Tooltip text={TERM.stack}><span class="term">Stack</span></Tooltip> <span class="faint">· die wichtigste Wahl</span></label>
     {#if !onGrid}<span class="own">eigener Stack</span>{/if}
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
@@ -164,11 +166,11 @@
     <line class="now" x1={x(value)} x2={x(value)} y1={PAD.t - 2} y2={H - PAD.b} />
     {#if series}
       {#each series as s (s.seat)}
-        <path class="line" class:on={s.seat === seat} class:hot={hover?.seat === s.seat} d={path(s.points)} />
+        <path class="line" class:mine={s.seat === seat} class:hot={hover?.seat === s.seat} d={path(s.points)} />
       {/each}
       {#each labels as l (l.seat)}
         {#if Math.abs(l.y - l.at) > 2}<path class="lead" d="M{l.x - 8},{l.at} L{l.x - 2},{l.y}" />{/if}
-        <text class="end" class:on={l.seat === seat} x={l.x} y={l.y + 3.5}>{l.name}</text>
+        <text class="end" class:mine={l.seat === seat} x={l.x} y={l.y + 3.5}>{l.name}</text>
       {/each}
       {#if hover}
         {@const hs = series.find((s) => s.seat === hover!.seat)}
@@ -197,15 +199,15 @@
   />
   <div class="ticks" aria-hidden="true">
     {#each ticks as t (t)}
-      <button type="button" tabindex="-1" class:on={value === t} style="left:{x(t)}px" onclick={() => onPick(nearest(frac(t)))}>{t}</button>
+      <span class:here={value === t} style="left:{x(t)}px">{t}</span>
     {/each}
   </div>
 
   <div class="foot">
   {#if narrow}
-    <button type="button" class="more" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
+    <Button variant="quiet" size="sm" aria-expanded={showCurve} onclick={() => (showCurve = !showCurve)}>
       {showCurve ? "Kurve ausblenden" : "Kurve zeigen"}
-    </button>
+    </Button>
   {/if}
   {#if custom}
     {#if open}
@@ -216,14 +218,14 @@
           if (parsed !== null) onPick(parsed);
         }}
       >
-        <input class="field num" inputmode="decimal" placeholder="z. B. {custom.example}" aria-label="Eigener Stack in BB" bind:value={typed} />
-        <span class="unit">BB</span>
-        <button class="btn" type="submit" disabled={parsed === null}>Rechnen</button>
-        <button class="btn ghost" type="button" onclick={() => ((open = false), (typed = ""))}>Abbrechen</button>
-        <span class="help">{custom.range ?? ""} <Hint text={TERM.live}>Wird live gerechnet</Hint>, das dauert etwas.</span>
+        <span class="typed"><input class="field num" inputmode="decimal" placeholder="z. B. {custom.example}" aria-label="Eigener Stack in BB" bind:value={typed} /></span>
+        <span class="bb-unit">BB</span>
+        <Button type="submit" size="sm" disabled={parsed === null}>Rechnen</Button>
+        <Button variant="quiet" size="sm" onclick={() => ((open = false), (typed = ""))}>Abbrechen</Button>
+        <span class="help">{custom.range ?? ""} <Tooltip text={TERM.live}><span class="term">Wird live gerechnet</span></Tooltip>, das dauert etwas.</span>
       </form>
     {:else}
-      <button type="button" class="more" onclick={() => (open = true)}>Anderen Stack eingeben …</button>
+      <Button variant="quiet" size="sm" onclick={() => (open = true)}>Anderen Stack eingeben …</Button>
     {/if}
   {/if}
 
@@ -237,7 +239,7 @@
           </thead>
           <tbody>
             {#each stacks.filter((st) => series.some((s) => at(s, st) !== null)) as st (st)}
-              <tr class:on={st === value}>
+              <tr class:here={st === value}>
                 <td class="num">{bb(st)} BB</td>
                 {#each series as s (s.seat)}<td class="num">{at(s, st) === null ? "–" : `${pct(at(s, st) as number, 0)} %`}</td>{/each}
               </tr>
@@ -251,13 +253,13 @@
 </div>
 
 {#if hover}
-  <div class="tip axis-tip" use:floating={{ anchor: hover.anchor, side: "right" }}>
-    <header><b class="num">{bb(hover.stack)} BB</b> · so oft wird eröffnet</header>
+  <Popover anchor={hover.anchor} width={220}>
+    <p class="tip-head"><b class="num">{bb(hover.stack)} BB</b> · so oft wird eröffnet</p>
     {#each rows as r (r.seat)}
-      <div class="row" class:hot={r.seat === hover.seat}><span>{r.name}</span><b>{pct(r.p as number, 0)} %</b></div>
+      <div class="tip-row" class:hot={r.seat === hover.seat}><span>{r.name}</span><b class="num">{pct(r.p as number, 0)} %</b></div>
     {/each}
     <footer>Klick: zu {rows.find((r) => r.seat === hover!.seat)?.name} mit {bb(hover.stack)} BB</footer>
-  </div>
+  </Popover>
 {/if}
 
 <style>
@@ -272,13 +274,17 @@
     gap: 10px;
     margin-bottom: 2px;
   }
+  .term {
+    text-decoration: underline dotted color-mix(in srgb, currentColor 50%, transparent);
+    text-underline-offset: 3px;
+  }
   .lbl {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .what {
     margin: 2px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .what b {
@@ -287,19 +293,19 @@
   }
   .val {
     margin-left: auto;
-    font-size: 26px;
+    font-size: var(--fs-3xl);
     font-weight: 600;
     line-height: 1;
   }
   .val small {
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 500;
     color: var(--text-2);
   }
   .own {
     padding: 0 6px;
     border-radius: 4px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     line-height: 18px;
     color: var(--amber);
     background: color-mix(in srgb, var(--amber) 12%, transparent);
@@ -313,7 +319,7 @@
     fill: color-mix(in srgb, var(--pos) 6%, transparent);
   }
   .band-t {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     fill: var(--text-2);
   }
   .grid {
@@ -322,7 +328,7 @@
   }
   .y {
     font-family: var(--font-num);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     fill: var(--text-2);
     text-anchor: end;
   }
@@ -343,14 +349,14 @@
     stroke-linecap: round;
     opacity: 0.85;
     transition:
-      stroke var(--dur-fast) var(--ease-out),
-      opacity var(--dur-fast) var(--ease-out);
+      stroke var(--dur-fast) var(--ease-standard),
+      opacity var(--dur-fast) var(--ease-standard);
   }
   .line.hot {
     stroke: var(--text-2);
     opacity: 1;
   }
-  .line.on {
+  .line.mine {
     stroke: var(--text);
     stroke-width: 2.25;
     opacity: 1;
@@ -362,10 +368,10 @@
   }
   .end {
     font-family: var(--font-num);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     fill: var(--text-2);
   }
-  .end.on {
+  .end.mine {
     fill: var(--text);
     font-weight: 600;
   }
@@ -374,14 +380,14 @@
     stroke: var(--surface);
     stroke-width: 2;
     transition:
-      cx var(--dur) var(--ease-out),
-      cy var(--dur) var(--ease-out);
+      cx var(--dur) var(--ease-standard),
+      cy var(--dur) var(--ease-standard);
   }
   .dot.hot {
     fill: var(--text-2);
   }
   .wait {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     fill: var(--text-3);
     text-anchor: middle;
   }
@@ -418,7 +424,7 @@
     position: relative;
     height: 18px;
   }
-  .ticks button {
+  .ticks span {
     position: absolute;
     transform: translateX(-50%);
     padding: 0 3px;
@@ -426,11 +432,9 @@
     background: none;
     color: var(--text-2);
     font-family: var(--font-num);
-    font-size: 11.5px;
-    cursor: pointer;
+    font-size: var(--fs-xs);
   }
-  .ticks button:hover,
-  .ticks button.on {
+  .ticks span.here {
     color: var(--text);
   }
   .foot {
@@ -443,42 +447,33 @@
   .foot details[open] {
     flex-basis: 100%;
   }
-  .more {
-    align-self: flex-start;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font-size: 12.5px;
-    cursor: pointer;
-  }
-  .more:hover {
-    color: var(--text);
-    text-decoration: underline;
-  }
   .custom {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
   }
-  .custom .field {
+  .typed {
+    display: inline-flex;
     width: 84px;
   }
-  .unit {
-    font-size: 12.5px;
+  .typed input {
+    width: 100%;
+  }
+  .bb-unit {
+    font-size: var(--fs-sm);
     color: var(--text-2);
     margin-right: 4px;
   }
   .help {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-3);
   }
   .table-view {
     margin: 0;
   }
   .table-view summary {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
     cursor: pointer;
   }
@@ -491,7 +486,7 @@
   }
   table {
     border-collapse: collapse;
-    font-size: 12px;
+    font-size: var(--fs-sm);
   }
   th,
   td {
@@ -511,25 +506,28 @@
     border-top: 1px solid var(--line);
     color: var(--text-2);
   }
-  tr.on td {
+  tr.here td {
     color: var(--text);
     font-weight: 600;
   }
-  .axis-tip {
-    width: 210px;
-  }
-  .axis-tip .row.hot {
-    color: var(--text);
-    font-weight: 600;
-  }
-  .axis-tip .row {
+  .tip-head {
+    margin: 0 0 var(--sp-1);
     color: var(--text-2);
   }
-  .axis-tip footer {
+  .tip-row {
+    display: flex;
+    justify-content: space-between;
+    color: var(--text-2);
+  }
+  .tip-row.hot {
+    color: var(--text);
+    font-weight: 600;
+  }
+  footer {
     margin-top: 6px;
     padding-top: 5px;
     border-top: 1px solid var(--line-2);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
 </style>

@@ -5,20 +5,21 @@ export function bb(x: number): string {
   return x.toLocaleString("de-DE", { maximumFractionDigits: 2 });
 }
 
-/** Fill of an action. Mixed dark enough that light text keeps at least 4.5:1 on every colour. */
+/** Fill of an action, from the kit's action colours; the grid keeps labels readable on each. */
 export function actionColor(kind: PreflopKind): string {
   switch (kind) {
     case "all_in":
-      return "color-mix(in srgb, var(--neg) 70%, var(--surface-2))";
+      return "var(--act-allin)";
     case "raise":
-      return "color-mix(in srgb, var(--amber) 44%, var(--surface-2))";
+      return "var(--act-raise)";
     case "call":
+      return "var(--act-call)";
     case "check":
-      return "color-mix(in srgb, var(--pos) 48%, var(--surface-2))";
+      return "var(--act-check)";
     case "limp":
-      return "color-mix(in srgb, var(--focus) 46%, var(--surface-2))";
+      return "var(--act-limp)";
     default:
-      return "var(--surface-2)";
+      return "var(--act-fold)";
   }
 }
 
@@ -75,7 +76,7 @@ export function actionPhrase(a: PreflopAction, line: PreflopStep[] = []): string
 
 /** Colour word for the answer sentence, matching `actionColor`. */
 export function colorWord(kind: PreflopKind): string {
-  return kind === "all_in" ? "rote" : kind === "raise" ? "gelbe" : kind === "limp" ? "blaue" : kind === "fold" ? "leere" : "grüne";
+  return kind === "all_in" ? "dunkelrote" : kind === "raise" ? "orange" : kind === "limp" ? "hellblaue" : kind === "fold" ? "blaue" : "grüne";
 }
 
 /** One step of a line, from the point of view of `seat` ("du" for its own actions). */

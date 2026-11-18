@@ -10,7 +10,14 @@
   import StackAxis, { type Series } from "./StackAxis.svelte";
   import ActionBar from "./ActionBar.svelte";
   import ReadGuide from "./ReadGuide.svelte";
-  import Hint from "./Hint.svelte";
+  import Button from "../ui/Button.svelte";
+  import IconButton from "../ui/IconButton.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import Tag from "../ui/Tag.svelte";
+  import Tooltip from "../ui/Tooltip.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
+  import ProgressBar from "../ui/ProgressBar.svelte";
+  import { usePageHead } from "../ui/page.svelte";
   import { preview } from "../learn/preview";
   import { actionColor, actionName, actionPhrase, bb, colorWord, facing, spotLabel, stepTag } from "./preflop-labels";
   import { TERM, byPos, fromPos, pct, type SeatMark } from "./words";
@@ -73,6 +80,8 @@
   let fromLabel = $state<string | null>(null);
   let fromNote = $state<{ played: string; best: string | null; loss: number | null } | null>(null);
   let pendingNode = $state<number | null>(null);
+
+  usePageHead(() => ({ sub: "Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack." }));
 
   onMount(() => {
     api.pushfoldGrid().then((g) => (pfGrid = g));
@@ -354,7 +363,7 @@
       if (pfNode.act_pct < 0.05) return { where: `${where}${vs}`, parts: [], rest: "immer folden", share: 0 };
       return {
         where: `${where}${vs}`,
-        parts: [{ color: shove ? SHOVE : CALL, text: shove ? "rote Hände all-in" : "grüne Hände callen" }],
+        parts: [{ color: shove ? SHOVE : CALL, text: shove ? "dunkelrote Hände all-in" : "grüne Hände callen" }],
         rest: "Rest folden",
         share: pfNode.act_pct,
       };
@@ -470,18 +479,17 @@
   <div class="page ranges-page">
     {#if fromHand !== null}
       <div class="back-bar">
-        <button class="btn" onclick={() => backToHand()}>
-          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" /></svg>
+        <Button onclick={() => backToHand()}>
+          {#snippet icon()}<svg viewBox="0 0 24 24" width="15" height="15"><path d="M14.5 6l-6 6 6 6" /></svg>{/snippet}
           Zurück zur Hand{fromLabel ? ` · ${fromLabel}` : ""}
-        </button>
+        </Button>
         <span>
-          {#if fromNote}Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played} · besser: <b>{fromNote.best}</b>{#if fromNote.loss}{" "}(kostet etwa {pct(fromNote.loss, 2)} BB){/if}{/if}. {/if}Deine Hand ist im Raster markiert.
+          {#if fromNote}
+            Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played}{" · "}besser: <b>{fromNote.best}</b>{#if fromNote.loss}{` (kostet etwa ${pct(fromNote.loss, 2)} BB)`}{/if}{/if}.{" "}
+          {/if}Deine Hand ist im Raster markiert.
         </span>
       </div>
     {/if}
-    <div class="intro">
-      <p>Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack.</p>
-    </div>
 
     {#if pfGrid && preGrid}
       <div class="body">
@@ -521,19 +529,24 @@
           <SeatTable {positions} {seat} onPick={pickSeat} {marks} {folded}>
             {#snippet middle()}
               <div class="stepper" role="group" aria-label="Spieler am Tisch">
-                <button type="button" aria-label="Ein Spieler weniger" disabled={players <= playerRange[0]} onclick={() => (players -= 1)}>−</button>
+                <IconButton size="sm" label="Ein Spieler weniger" disabled={players <= playerRange[0]} onclick={() => (players -= 1)}>
+                  <svg viewBox="0 0 24 24"><path d="M6 12h12" /></svg>
+                </IconButton>
                 <span class="num">{players} Spieler</span>
-                <button type="button" aria-label="Ein Spieler mehr" disabled={players >= playerRange[playerRange.length - 1]} onclick={() => (players += 1)}>+</button>
+                <IconButton size="sm" label="Ein Spieler mehr" disabled={players >= playerRange[playerRange.length - 1]} onclick={() => (players += 1)}>
+                  <svg viewBox="0 0 24 24"><path d="M6 12h12M12 6v12" /></svg>
+                </IconButton>
               </div>
             {/snippet}
           </SeatTable>
           <div class="rail">
-            <span class="lbl"><Hint text={ante === "big_blind" ? TERM.bbAnte : TERM.ante}>Ante</Hint></span>
-            <div class="seg" role="group" aria-label="Ante-Struktur">
-              {#each pfGrid.antes as a (a.ante)}
-                <button class:on={ante === a.ante} title={anteText(a)} onclick={() => (ante = a.ante)}>{ANTE_LABEL[a.ante]}</button>
-              {/each}
-            </div>
+            <span class="lbl"><Tooltip text={ante === "big_blind" ? TERM.bbAnte : TERM.ante}><span class="term">Ante</span></Tooltip></span>
+            <SegmentedControl
+              label="Ante-Struktur"
+              size="sm"
+              options={pfGrid.antes.map((a) => ({ value: a.ante, label: ANTE_LABEL[a.ante], hint: anteText(a) }))}
+              bind:value={ante}
+            />
           </div>
           {#if !modelPlayers}
             <p class="only-pf">Mit {players} Spielern gibt es nur Push/Fold bis {bb(pfMax)} BB; das Modell mit Raises kennt {preGrid.players.join(", ")} Spieler.</p>
@@ -550,13 +563,12 @@
               {#if segments.length === 1}
                 <span class="seg-one">{SEG_LABEL[seg]}</span>
               {:else}
-                <div class="segs" role="tablist" aria-label="Situation">
-                  {#each segments as g (g)}
-                    <button type="button" role="tab" aria-selected={seg === g} class:on={seg === g} title={SEG_HINT[g]} onclick={() => ((segment = g), (pick = null))}>
-                      {SEG_LABEL[g]}
-                    </button>
-                  {/each}
-                </div>
+                <SegmentedControl
+                  label="Situation"
+                  options={segments.map((g) => ({ value: g, label: SEG_LABEL[g], hint: SEG_HINT[g] }))}
+                  value={seg}
+                  onchange={(g) => ((segment = g), (pick = null))}
+                />
               {/if}
               <p class="seg-hint">{SEG_HINT[seg]}</p>
               {#if items.length > 1}
@@ -564,11 +576,13 @@
                 <div class="spots" role="radiogroup" aria-label="Genaue Situation">
                   {#each items as it (it.key)}
                     {@const on = item?.key === it.key}
-                    <button type="button" role="radio" aria-checked={on} class="spot" class:on onclick={() => (pick = it.key)}>
-                      <i class="sw" style="background:{it.color}"></i>
-                      <span>{it.label}</span>
-                      <small class="num" title="So oft kommt diese Situation an deinem Platz vor">{pct(it.reach * 100, it.reach < 0.01 ? 2 : 1)} %</small>
-                    </button>
+                    <Tag selected={on} onclick={() => (pick = it.key)}>
+                      <span class="spot">
+                        <i class="sw" style="background:{it.color}"></i>
+                        <span>{it.label}</span>
+                        <small class="num" title="So oft kommt diese Situation an deinem Platz vor">{pct(it.reach * 100, it.reach < 0.01 ? 2 : 1)} %</small>
+                      </span>
+                    </Tag>
                   {/each}
                 </div>
               {/if}
@@ -580,18 +594,20 @@
         </section>
 
         <section class="panel chart-panel" aria-busy={loading}>
-          <header class="answer" class:dim={loading && !!answer}>
+          <header class="answer" class:faded={loading && !!answer}>
             <div class="answer-top">
-              {#if engine === "pushfold"}
-                <span class="badge eq"><Hint text={TERM.equilibrium}>Gleichgewicht</Hint></span>
-              {:else}
-                <span class="badge model"><Hint text={TERM.model}>Modell</Hint></span>
-              {/if}
+              <SourceNote kind={engine === "pushfold" ? "equilibrium" : "model"} />
               {#if overlap}
-                <div class="seg view" role="group" aria-label="Rechnung">
-                  <button class:on={!pfView} onclick={() => (pfView = false)}>Mit Raise</button>
-                  <button class:on={pfView} onclick={() => (pfView = true)}>Nur All-in</button>
-                </div>
+                <SegmentedControl
+                  label="Rechnung"
+                  size="sm"
+                  options={[
+                    { value: "model", label: "Mit Raise", hint: "Preflop-Modell mit Open, 3-Bet und All-in" },
+                    { value: "pf", label: "Nur All-in", hint: "Reines Push/Fold im Gleichgewicht" },
+                  ]}
+                  value={pfView ? "pf" : "model"}
+                  onchange={(v) => (pfView = v === "pf")}
+                />
               {/if}
               {#if answer}<span class="share num">{pct(answer.share)} %<small>{engine === "pushfold" && shove ? "der Hände" : "der Hände, die hier ankommen"}</small></span>{/if}
             </div>
@@ -605,8 +621,8 @@
               <h2>{cancelled ? `Berechnung für ${bb(stack)} BB abgebrochen.` : `Für ${bb(stack)} BB gibt es gerade kein Ergebnis.`}</h2>
               <p>{cancelled ? "Du kannst weiterrechnen oder zur nächsten fertigen Tabelle gehen." : error}</p>
               <div class="err-actions">
-                <button class="btn primary" onclick={() => (attempt += 1)}>{cancelled ? "Weiterrechnen" : "Nochmal versuchen"}</button>
-                {#if axis.length}<button class="btn ghost" onclick={() => pickStack(nearest(axis, stack))}>Zurück zu {bb(nearest(axis, stack))} BB</button>{/if}
+                <Button variant="primary" onclick={() => (attempt += 1)}>{cancelled ? "Weiterrechnen" : "Nochmal versuchen"}</Button>
+                {#if axis.length}<Button variant="quiet" onclick={() => pickStack(nearest(axis, stack))}>Zurück zu {bb(nearest(axis, stack))} BB</Button>{/if}
               </div>
             {:else if loading}
               <h2>{bb(stack)} BB werden gerade gerechnet.</h2>
@@ -617,21 +633,19 @@
             {#if loading && !onGrid && !error}
               <div class="live" role="status">
                 {#if engine === "preflop"}
-                  <div class="bar" role="progressbar" aria-label="Fortschritt der Live-Berechnung" aria-valuemin="0" aria-valuemax="100" aria-valuenow={Math.round(done * 100)}>
-                    <i style="width:{(done * 100).toFixed(1)}%"></i>
-                  </div>
+                  <ProgressBar value={done} label="Fortschritt der Live-Berechnung" />
                   <div class="live-row">
                     <p>
                       <b class="num">{Math.round(done * 100)} %</b> · Live gerechnet; auf einem Laptop mit 4 Kernen
                       {players > 6 ? "etwa 4 bis 8 Minuten" : "etwa 2 bis 3 Minuten"}.
                     </p>
-                    <button class="btn" onclick={() => api.preflopCancel()}>Abbrechen</button>
+                    <Button onclick={() => api.preflopCancel()}>Abbrechen</Button>
                   </div>
                   {#if progress}
                     <details class="calc">
                       <summary>Rechendetails</summary>
                       <p class="num">
-                        Durchgang {progress.last.iterations}, <Hint text={TERM.exploit}>ausnutzbar</Hint>
+                        Durchgang {progress.last.iterations}, <Tooltip text={TERM.exploit}><span class="term">ausnutzbar</span></Tooltip>
                         {pct(progress.last.exploitability, 4)} BB (Ziel {pct(progress.last.target_exploitability, 4)} BB)
                       </p>
                     </details>
@@ -665,26 +679,26 @@
         <aside class="side">
           <ReadGuide
             fill={engine === "pushfold"
-              ? "Teilweise gefüllte Felder spielst du gemischt; die Zahl unten rechts ist der Anteil in Prozent."
-              : "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, Fold bleibt leer. Die Zahl unten rechts nennt bei gemischten Händen die häufigste Aktion in Prozent."}
+              ? "Felder in zwei Farben spielst du gemischt; die Zahl unten rechts ist der Anteil in Prozent, blau ist Fold."
+              : "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, blau ist Fold. Die Zahl unten rechts nennt bei gemischten Händen die häufigste Aktion in Prozent."}
           />
           {#if engine === "pushfold" && pf && pfNode}
             <section class="panel facts">
               <div class="panel-head"><h2 class="panel-title">Dieser Spot</h2></div>
               <dl>
                 <dt>Tisch</dt>
-                <dd>{pf.players} Spieler, alle mit {bb(pf.stack_bb)} <Hint text={TERM.bb}>BB</Hint></dd>
+                <dd>{pf.players} Spieler, alle mit {bb(pf.stack_bb)} BB</dd>
                 <dt>Antes</dt>
                 <dd>{anteInfo ? anteText(anteInfo) : ""}</dd>
-                <dt><Hint text={TERM.reach}>Kommt vor</Hint></dt>
+                <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
                 <dd class="num">in {pct(pfNode.reach * 100)} % der Hände</dd>
                 <dt>Quelle</dt>
-                <dd>{#if pf.precomputed}<Hint text={TERM.precomputed}>Vorgerechnet</Hint>{:else}<Hint text={TERM.live}>Gerade live berechnet</Hint>{/if}</dd>
+                <dd>{#if pf.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
               </dl>
             </section>
             <section class="panel facts">
               <div class="panel-head"><h2 class="panel-title">Gleichgewicht, reines Push/Fold</h2></div>
-              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips, <Hint text={TERM.icm}>ohne Turnier-Auszahlungen (ICM)</Hint>.</p>
+              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips, <Tooltip text={TERM.icm}><span class="term">ohne Turnier-Auszahlungen (ICM)</span></Tooltip>.</p>
               <details>
                 <summary>Genauer: was angenommen wird</summary>
                 <p class="note">
@@ -703,14 +717,14 @@
               <div class="panel-head"><h2 class="panel-title">Dieser Spot</h2></div>
               <dl>
                 <dt>Tisch</dt>
-                <dd>{spots.players} Spieler, alle mit {bb(spots.stack_bb)} <Hint text={TERM.bb}>BB</Hint></dd>
+                <dd>{spots.players} Spieler, alle mit {bb(spots.stack_bb)} BB</dd>
                 <dt>Antes</dt>
                 <dd>{anteText(spots)}</dd>
-                <dt><Hint text={TERM.reach}>Kommt vor</Hint></dt>
+                <dt><Tooltip text={TERM.reach}><span class="term">Kommt vor</span></Tooltip></dt>
                 <dd class="num">in {pct(spot.reach * 100, 2)} % der Hände</dd>
                 <dt>Quelle</dt>
-                <dd>{#if spots.precomputed}<Hint text={TERM.precomputed}>Vorgerechnet</Hint>{:else}<Hint text={TERM.live}>Gerade live berechnet</Hint>{/if}</dd>
-                <dt><Hint text={TERM.exploit}>Ausnutzbar</Hint></dt>
+                <dd>{#if spots.precomputed}<Tooltip text={TERM.precomputed}><span class="term">Vorgerechnet</span></Tooltip>{:else}<Tooltip text={TERM.live}><span class="term">Gerade live berechnet</span></Tooltip>{/if}</dd>
+                <dt><Tooltip text={TERM.exploit}><span class="term">Ausnutzbar</span></Tooltip></dt>
                 <dd class="num">{pct(spots.exploitability_bb, 4)} BB je Hand (alle Spieler zusammen, im Modell)</dd>
               </dl>
             </section>
@@ -742,7 +756,7 @@
                 </p>
                 <p class="note">
                   <b>Vereinfachungen:</b> Nach einer 3-Bet spielt nur der erste, der weitermacht; nach einem All-in nur der erste Caller. Höchstens
-                  drei Spieler sehen einen Flop. Chip-EV <Hint text={TERM.icm}>ohne ICM</Hint>, Kartenentfernung paarweise genähert.
+                  drei Spieler sehen einen Flop. Chip-EV <Tooltip text={TERM.icm}><span class="term">ohne ICM</span></Tooltip>, Kartenentfernung paarweise genähert.
                 </p>
                 {#if spots.realized.length}
                   <table class="eqr">
@@ -790,7 +804,7 @@
     margin: -10px 0 10px;
     padding: 10px 0;
     background: var(--bg);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .back-bar svg {
@@ -799,17 +813,6 @@
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-  .intro {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 16px;
-  }
-  .intro p {
-    margin: 0;
-    color: var(--text-2);
   }
   .body {
     display: grid;
@@ -828,7 +831,7 @@
   }
   .pfr {
     margin: 8px 0 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .pfr b {
@@ -856,35 +859,13 @@
     border-radius: 99px;
     background: color-mix(in srgb, var(--bg) 70%, transparent);
     box-shadow: inset 0 0 0 1px var(--line-2);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     color: var(--text-2);
   }
   .stepper span {
     flex: 1;
     text-align: center;
     white-space: nowrap;
-  }
-  .stepper button {
-    width: 22px;
-    height: 22px;
-    border: 0;
-    border-radius: 50%;
-    background: transparent;
-    color: var(--text);
-    font-size: 14px;
-    line-height: 1;
-    cursor: pointer;
-    transition: background var(--dur-fast) var(--ease-out);
-  }
-  .stepper button:hover:not(:disabled) {
-    background: var(--surface-3);
-  }
-  .stepper button:disabled {
-    color: var(--text-3);
-    cursor: default;
-  }
-  .stepper button:focus-visible {
-    outline: 2px solid var(--focus);
   }
   .rail {
     display: flex;
@@ -893,7 +874,7 @@
     gap: 10px;
   }
   .lbl {
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .only-pf {
@@ -901,7 +882,7 @@
     padding: 8px 10px;
     border-radius: var(--r-sm);
     background: color-mix(in srgb, var(--amber) 8%, var(--surface));
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .situ {
@@ -911,53 +892,18 @@
     padding-top: 12px;
     border-top: 1px solid var(--line);
   }
-  .segs {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 3px;
-    border-radius: 9px;
-    background: var(--bg);
-    border: 1px solid var(--line);
-  }
-  .segs button {
-    flex: 1 1 auto;
-    height: 30px;
-    padding: 0 12px;
-    border: 0;
-    border-radius: 6px;
-    background: transparent;
-    color: var(--text-2);
-    font-size: 13px;
-    cursor: pointer;
-    transition:
-      background var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out);
-  }
-  .segs button:hover {
-    color: var(--text);
-  }
-  .segs button.on {
-    background: var(--surface-3);
-    color: var(--text);
-    font-weight: 600;
-  }
-  .segs button:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: -2px;
-  }
   .seg-one {
     align-self: flex-start;
     padding: 4px 12px;
     border-radius: 99px;
     border: 1px solid var(--line-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
     font-weight: 600;
     color: var(--text);
   }
   .seg-hint {
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
     line-height: 1.45;
   }
@@ -968,42 +914,17 @@
   .spot {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    min-height: 30px;
-    padding: 4px 12px 4px 10px;
-    border-radius: var(--r-sm);
-    border: 1px solid var(--line-2);
-    background: var(--surface-2);
-    color: var(--text-2);
-    font-size: 13px;
-    text-align: left;
-    cursor: pointer;
-    transition:
-      background var(--dur-fast) var(--ease-out),
-      border-color var(--dur-fast) var(--ease-out),
-      color var(--dur-fast) var(--ease-out);
-  }
-  .spot:hover {
-    color: var(--text);
-    background: var(--surface-3);
-  }
-  .spot.on {
-    color: var(--text);
-    border-color: var(--text-2);
-    background: var(--surface-3);
+    gap: var(--sp-2);
+    min-width: 0;
   }
   .spot small {
     margin-left: auto;
     color: var(--text-2);
-    font-size: 11.5px;
-  }
-  .spot:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
+    font-size: var(--fs-xs);
   }
   .hint-line {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-3);
   }
 
@@ -1014,11 +935,11 @@
   .answer {
     padding: 16px 20px 0;
   }
-  .answer.dim h2,
-  .answer.dim > p,
-  .answer.dim :global(.action-bar) {
+  .answer.faded h2,
+  .answer.faded > p,
+  .answer.faded :global(.action-bar) {
     opacity: 0.35;
-    transition: opacity var(--dur) var(--ease-out);
+    transition: opacity var(--dur) var(--ease-standard);
   }
   .answer-top {
     display: flex;
@@ -1026,42 +947,23 @@
     gap: 12px;
     margin-bottom: 8px;
   }
-  .badge {
-    padding: 1px 8px;
-    border-radius: 99px;
-    font-size: 11.5px;
-    font-weight: 600;
-    line-height: 20px;
-  }
-  .badge.eq {
-    color: var(--pos);
-    background: color-mix(in srgb, var(--pos) 13%, transparent);
-  }
-  .badge.model {
-    color: var(--amber);
-    background: color-mix(in srgb, var(--amber) 13%, transparent);
-  }
-  .view button {
-    height: 22px;
-    font-size: 12px;
-  }
   .share {
     margin-left: auto;
     display: inline-flex;
     align-items: baseline;
     gap: 6px;
-    font-size: 20px;
+    font-size: var(--fs-xl);
     font-weight: 600;
   }
   .share small {
     font-family: var(--font-ui);
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 400;
     color: var(--text-2);
   }
   .answer h2 {
     margin: 0;
-    font-size: 18px;
+    font-size: var(--fs-xl);
     font-weight: 600;
     line-height: 1.4;
     text-wrap: balance;
@@ -1078,7 +980,7 @@
   .answer p {
     margin: 4px 0 0;
     color: var(--text-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .answer :global(.action-bar) {
     margin-top: 14px;
@@ -1095,7 +997,7 @@
   }
   .stale {
     opacity: 0.3;
-    transition: opacity var(--dur) var(--ease-out);
+    transition: opacity var(--dur) var(--ease-standard);
   }
   .placeholder {
     aspect-ratio: 1;
@@ -1120,10 +1022,10 @@
     border-radius: var(--r);
     border: 1px solid var(--line-2);
     background: var(--surface-2);
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+    box-shadow: var(--shadow-2);
     text-align: center;
-    font-size: 13px;
-    animation: pop var(--dur) var(--ease-out);
+    font-size: var(--fs-md);
+    animation: pop var(--dur) var(--ease-enter);
   }
   @keyframes pop {
     from {
@@ -1163,7 +1065,7 @@
   }
   .calc p {
     margin: 4px 0 0;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .live-row {
@@ -1174,23 +1076,11 @@
   .live-row p {
     flex: 1;
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .live-row b {
     color: var(--text);
-  }
-  .bar {
-    align-self: stretch;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .bar i {
-    display: block;
-    height: 100%;
-    background: var(--text);
   }
   .spin {
     width: 16px;
@@ -1198,7 +1088,7 @@
     border-radius: 50%;
     border: 2px solid var(--surface-3);
     border-top-color: var(--text);
-    animation: spin 0.9s var(--ease-in-out) infinite;
+    animation: spin var(--dur-loop) var(--ease-spin) infinite;
   }
   @keyframes spin {
     to {
@@ -1220,7 +1110,7 @@
     grid-template-columns: auto 1fr;
     gap: 6px 14px;
     margin: 12px 18px 0;
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   dt {
     color: var(--text-2);
@@ -1230,7 +1120,7 @@
   }
   .note {
     margin: 10px 18px 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     line-height: 1.5;
     color: var(--text-2);
   }
@@ -1247,7 +1137,7 @@
     padding-top: 10px;
   }
   summary {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
     cursor: pointer;
   }
@@ -1261,7 +1151,7 @@
     margin: 12px 0 0;
     width: 100%;
     border-collapse: collapse;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .eqr caption {
     text-align: left;
@@ -1302,9 +1192,6 @@
     .rail {
       grid-area: rail;
       justify-content: flex-start;
-    }
-    .intro {
-      display: none;
     }
     .only-pf {
       grid-area: note;

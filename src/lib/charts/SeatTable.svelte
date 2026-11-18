@@ -1,6 +1,8 @@
 <script lang="ts">
   import { untrack, type Snippet } from "svelte";
   import { preview } from "../learn/preview";
+  import Tag from "../ui/Tag.svelte";
+  import Tooltip from "../ui/Tooltip.svelte";
   import { posHint, type SeatMark } from "./words";
 
   /**
@@ -72,7 +74,7 @@
 </script>
 
 <div class="seat-table">
-  <div class="felt" role="radiogroup" aria-label="Deine Position am Tisch">
+  <div class="felt" role="group" aria-label="Deine Position am Tisch">
     <div class="rail"></div>
     {#if middle}<div class="center">{@render middle()}</div>{/if}
     {#if btn}<span class="dealer" style={at(btn.seat, 0.78, -0.42)} aria-hidden="true">D</span>{/if}
@@ -80,14 +82,9 @@
       {@const m = marks[p.seat]}
       {#if m}<span class="mark" style="{at(p.seat, MARK)};--c:{m.color}">{m.text}</span>{/if}
       <div class="seat" class:folded={folded.includes(p.seat) && p.seat !== seat} style={at(p.seat)}>
-        <button
-          type="button"
-          role="radio"
-          class:on={p.seat === seat}
-          aria-checked={p.seat === seat}
-          title={posHint(p.name)}
-          onclick={() => onPick(p.seat)}>{p.name}</button
-        >
+        <Tooltip text={posHint(p.name)}>
+          <Tag selected={p.seat === seat} onclick={() => onPick(p.seat)}><span class="seat-name">{p.name}</span></Tag>
+        </Tooltip>
       </div>
     {/each}
   </div>
@@ -135,42 +132,20 @@
     place-items: center;
     background: var(--text);
     color: var(--bg);
-    font-size: 9.5px;
+    font-size: var(--fs-xs);
     font-weight: 700;
   }
   .seat {
     position: absolute;
     transform: translate(-50%, -50%);
-    transition: opacity var(--dur) var(--ease-out);
+    transition: opacity var(--dur) var(--ease-standard);
   }
   .seat.folded {
     opacity: 0.45;
   }
-  .seat button {
-    min-width: 44px;
-    height: 24px;
-    padding: 0 8px;
-    border-radius: 99px;
-    border: 1px solid var(--line-2);
-    background: var(--surface-3);
-    color: var(--text-2);
+  .seat-name {
     font-family: var(--font-num);
-    font-size: 12.5px;
     font-weight: 600;
-    cursor: pointer;
-  }
-  .seat button:hover {
-    color: var(--text);
-    border-color: var(--text-3);
-  }
-  .seat button:focus-visible {
-    outline: 2px solid var(--focus);
-    outline-offset: 2px;
-  }
-  .seat button.on {
-    background: var(--text);
-    border-color: var(--text);
-    color: var(--bg);
   }
   .mark {
     position: absolute;
@@ -179,7 +154,7 @@
     border-radius: 4px;
     background: var(--c);
     color: var(--text);
-    font-size: 10.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     line-height: 16px;
     max-width: 48px;
@@ -187,7 +162,7 @@
   }
   .cap {
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     line-height: 1.45;
     color: var(--text-2);
   }

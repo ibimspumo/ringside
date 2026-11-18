@@ -366,18 +366,31 @@ async function tableSize(n) {
   );
 }
 
+/** Moves the stack slider to `bb` the way dragging would: the slider runs on a log scale. */
+async function stackTo(bb) {
+  await s.exec(
+    `const el = document.querySelector("#stack-axis");
+     const st = el.dataset.stacks.split(",").map(Number);
+     const lo = Math.log(st[0]), hi = Math.log(st[st.length - 1]);
+     el.value = String(Math.round(((Math.log(arguments[0]) - lo) / (hi - lo)) * 1000));
+     el.dispatchEvent(new Event("input", { bubbles: true }));`,
+    bb,
+  );
+}
+
 step("Ranges nach Stack: Push/Fold, 6 Spieler, 10 BB aus der Tabelle", async () => {
   await nav("Ranges nach Stack");
   await find(".stepper span");
   await tableSize(6);
-  await click(".axis .ticks button", "10");
+  await find("#stack-axis");
+  await stackTo(10);
   await waitText("6 Spieler, alle mit 10 BB");
   await waitText(TAURI ? "Vorgerechnet" : "Quelle");
   await waitText("Gleichgewicht");
 });
 
 step("Ranges nach Stack: Modell mit 50 BB", async () => {
-  await click(".axis .ticks button", "50");
+  await stackTo(50);
   await waitText(/eröffnest du etwa \d+ %/);
   await waitText("Modell");
 });
