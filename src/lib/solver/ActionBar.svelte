@@ -103,9 +103,10 @@
   }
   .key {
     position: absolute;
-    right: 5px;
-    bottom: 3px;
-    font-size: 9.5px;
+    right: 6px;
+    top: 4px;
+    font-size: var(--fs-xs);
+    line-height: 1;
     color: var(--text-3);
   }
   .what {
