@@ -327,7 +327,7 @@
   }
   .eyebrow {
     margin: 0;
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   h2 {
@@ -342,7 +342,7 @@
     gap: var(--sp-5);
     margin: 0;
     padding: 0;
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .stepper li {

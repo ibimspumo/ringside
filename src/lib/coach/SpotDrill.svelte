@@ -191,7 +191,8 @@
             </div>
             {#if contrast}
               <p class="gist">
-                Du hast <b class="num">{contrast.have}</b> Equity, brauchst aber <b class="num">{contrast.need}</b>{spot.better
+                {assumed ? "Gegen die angenommene Range hast du" : "Du hast"} <b class="num">{contrast.have}</b> Equity, brauchst aber
+                <b class="num">{contrast.need}</b>{spot.better
                   ? ` – deshalb ${spot.better}.`
                   : "."}
               </p>
@@ -225,7 +226,7 @@
               {#if practice.articles.length}
                 <Button onclick={onRead}>Nachlesen: {practice.articles[0].title}</Button>
               {/if}
-              <Button variant="quiet" kbd="N" onclick={() => (answer = null)}>Nochmal entscheiden</Button>
+              <span class="again"><Button variant="quiet" kbd="N" onclick={() => (answer = null)}>Nochmal entscheiden</Button></span>
             </div>
             {#if !practice.train}
               <p class="fine">Für dieses Thema gibt es noch keine eigene Übung; hier übst du genau diesen einen Spot.</p>
@@ -504,6 +505,10 @@
     flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2);
+  }
+  /* A quiet button's text lines up with the edge of the buttons above. */
+  .again {
+    margin-left: calc(-1 * var(--sp-3));
   }
   .fine {
     margin: 0;
