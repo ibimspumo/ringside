@@ -174,13 +174,13 @@
               {/if}
             </div>
             <dl class="compare">
-              <div class="mine"><dt>Du jetzt</dt><dd>{CHOICE_NAME[answer]}</dd></div>
+              <div class="mine"><dt>Du</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
-                <dt>Damals gespielt</dt>
+                <dt>Damals</dt>
                 <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <GradeBadge grade={verdict.grade} size="sm" /></dd>
               </div>
               {#if spot.better}
-                <div><dt>Besser laut Coach</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
+                <div><dt>Coach</dt><dd><CardText hands text={say(spot.better)} /></dd></div>
               {/if}
             </dl>
             <div class="next">
@@ -360,7 +360,7 @@
   }
   .compare {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--sp-2);
     margin: 0;
   }
@@ -418,6 +418,7 @@
   }
   .played {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--sp-2);
   }

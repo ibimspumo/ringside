@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { api, inTauri } from "../api";
   import ClientLock from "../app/ClientLock.svelte";
   import type { LearnTarget } from "../app/Leaks.svelte";
@@ -52,13 +52,18 @@
   let focus = $state<{ mode: "drill" | "read"; n: number } | null>(null);
   let returnTo = $state<number | null>(null);
   /** Spots practised in this visit, by "<tournament>:<n>": the answer and whether it matched. */
+  let main = $state<HTMLElement>();
   let practised = $state<Record<string, { answer: Choice; right: boolean | null }>>({});
 
   function openSpot(mode: "drill" | "read", n: number) {
     focus = { mode, n };
     returnTo = null;
-    window.scrollTo?.({ top: 0 });
-    document.querySelector(".layout")?.scrollIntoView({ block: "start" });
+    showTask();
+  }
+
+  /** Brings the task just opened into view; in narrow windows it moves above the lists. */
+  function showTask() {
+    tick().then(() => main?.scrollIntoView({ block: "start" }));
   }
 
   function back() {
@@ -144,6 +149,7 @@
     setupOpen = false;
     focus = null;
     runFor = id;
+    showTask();
   }
 
   function done(r: CoachReport) {
@@ -271,7 +277,7 @@
           {/if}
         </aside>
 
-        <div class="main">
+        <div class="main" bind:this={main}>
           {#if status && !status.has_key}
             <Card pad="lg" tone="raised" aria-labelledby="key-title">
               <div class="onboard-head">
@@ -568,6 +574,7 @@
   }
 
   .main {
+    scroll-margin-top: var(--sp-4);
     display: flex;
     flex-direction: column;
     gap: 16px;
