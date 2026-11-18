@@ -8,7 +8,8 @@
 //! spots go before the rest of the history. A single hand asked for in the replayer is
 //! analysed at once and its postflop spot jumps the queue, interrupting a running solve,
 //! which stays queued. Like the trainer and the solver, everything is locked while
-//! PokerStars runs; a running solve stops within an iteration and resumes later.
+//! PokerStars runs; a running solve stops within an iteration and resumes later, a preflop
+//! batch before its next piece of hands.
 //!
 //! A spot solved before, on the solver page or by an earlier analysis, is rated from the
 //! saved solution when every decision of the hand lies in its saved part; every spot
@@ -44,6 +45,8 @@ const AFTER_KEY: &str = "auto_analysis_after";
 /// The user cancelled the automatic run; holds until PokerStars closes the next time.
 const CANCELLED_KEY: &str = "auto_analysis_cancelled";
 const BATCH: usize = 2000;
+/// Hands per piece of a batch; PokerStars is checked before each.
+const PIECE: usize = 100;
 const PROGRESS_EVERY: Duration = Duration::from_millis(250);
 /// Assumed solve time until the first spots were solved here.
 const DEFAULT_SOLVE_SECS: f64 = 60.0;
@@ -442,26 +445,59 @@ fn auto_finish(app: &AppHandle, after: u64) {
     }
 }
 
-/// Analyses the next batch of hands in `scope`; false when none is left.
+/// How far a preflop batch got.
+#[derive(Debug, Default, PartialEq)]
+struct Pieces {
+    /// Hands analysed and saved.
+    done: usize,
+    /// The id of the last of them.
+    last: Option<u64>,
+    /// Ended early because `stop` said so.
+    stopped: bool,
+    error: Option<String>,
+}
+
+/// Analyses `rows` (by id) `piece` hands at a time and saves each piece. Before each piece
+/// it asks `stop`, so nothing calculates once PokerStars runs; what is saved stays.
+fn analyze_pieces(main: &AppState, rows: &[(u64, String)], piece: usize, stop: impl Fn() -> bool) -> Pieces {
+    let mut out = Pieces::default();
+    for chunk in rows.chunks(piece.max(1)) {
+        if stop() {
+            out.stopped = true;
+            break;
+        }
+        let results = match POOL.as_ref() {
+            Some(pool) => pool.install(|| analyze_raw(chunk)),
+            None => analyze_raw(chunk),
+        };
+        if let Err(e) = main.db.lock().unwrap().save_analysis(&results) {
+            out.error = Some(e.to_string());
+            break;
+        }
+        out.done += chunk.len();
+        out.last = chunk.last().map(|(id, _)| *id);
+    }
+    out
+}
+
+/// Analyses the next batch of hands in `scope`; false when none is left. True as well when
+/// PokerStars stopped it, so the caller does not take the rest for done.
 fn preflop_batch(app: &AppHandle, scope: Scope) -> bool {
     let main = app.state::<AppState>();
     let analysis = app.state::<AnalysisState>();
     let rows = {
         let db = main.db.lock().unwrap();
-        if scope == Scope::All {
+        let after = if scope == Scope::All {
             let mut cursor = analysis.cursor.lock().unwrap();
             let total = db.hand_count().unwrap_or(0);
             if total != cursor.1 {
                 *cursor = (0, total);
             }
-            let rows = db.analysis_candidates(ENGINE, cursor.0, BATCH);
-            if let Ok(Some((last, _))) = rows.as_ref().map(|r| r.last()) {
-                cursor.0 = *last;
-            }
-            rows
+            cursor.0
         } else {
-            db.analysis_candidates(ENGINE, scope.after(), BATCH)
-        }
+            scope.after()
+        };
+        db.analysis_candidates(ENGINE, after, BATCH)
     };
     let rows = match rows {
         Ok(rows) => rows,
@@ -474,20 +510,28 @@ fn preflop_batch(app: &AppHandle, scope: Scope) -> bool {
         return false;
     }
     let started = Instant::now();
-    let results = match POOL.as_ref() {
-        Some(pool) => pool.install(|| analyze_raw(&rows)),
-        None => analyze_raw(&rows),
-    };
-    let saved = main.db.lock().unwrap().save_analysis(&results);
-    let rate = rows.len() as f64 / started.elapsed().as_secs_f64().max(1e-3);
-    app.state::<AnalysisState>().preflop_rate.store(rate.to_bits(), Ordering::Relaxed);
+    let pieces = analyze_pieces(&main, &rows, PIECE, || client_running(app));
+    // Only past what is saved: the rest comes with the next batch.
+    if scope == Scope::All
+        && let Some(last) = pieces.last
+    {
+        let mut cursor = analysis.cursor.lock().unwrap();
+        cursor.0 = cursor.0.max(last);
+    }
+    if pieces.done > 0 {
+        let rate = pieces.done as f64 / started.elapsed().as_secs_f64().max(1e-3);
+        analysis.preflop_rate.store(rate.to_bits(), Ordering::Relaxed);
+    }
+    if pieces.stopped {
+        return true;
+    }
     publish(app, false, |s| {
         s.state = "preflop";
-        if let Err(e) = &saved {
-            s.last_error = Some(e.to_string());
+        if let Some(e) = &pieces.error {
+            s.last_error = Some(e.clone());
         }
     });
-    saved.is_ok()
+    pieces.error.is_none()
 }
 
 /// How a spot of the analysis is listed in "Meine Lösungen".
@@ -921,6 +965,48 @@ mod tests {
 
     fn link(d: &Decision) -> serde_json::Value {
         serde_json::from_str(d.solver.as_deref().expect("rated decisions link the solver")).unwrap()
+    }
+
+    #[test]
+    fn pokerstars_opening_stops_a_batch_after_the_running_piece_and_loses_no_hand() {
+        let state = test_state();
+        let fixtures = ["cash.txt", "knockout.txt", "tournament.txt"]
+            .map(|f| std::fs::read_to_string(format!("{}/../crates/ringside-core/tests/fixtures/{f}", env!("CARGO_MANIFEST_DIR"))).unwrap());
+        let hands: Vec<_> = fixtures
+            .iter()
+            .flat_map(|text| ringside_core::split_hands(text))
+            .map(|raw| (ringside_core::parse_hand(raw).unwrap(), raw.to_string()))
+            .collect();
+        assert_eq!(hands.len(), 5);
+        state.db.lock().unwrap().insert_hands(&hands).unwrap();
+        let candidates = |after: u64| state.db.lock().unwrap().analysis_candidates(ENGINE, after, BATCH).unwrap();
+        let analyzed = || state.db.lock().unwrap().analysis_counts(ENGINE).unwrap().analyzed;
+        let rows = candidates(0);
+        let ids: Vec<u64> = rows.iter().map(|(id, _)| *id).collect();
+
+        // PokerStars runs from the start: nothing is calculated.
+        state.client_running.store(true, Ordering::SeqCst);
+        let none = analyze_pieces(&state, &rows, 2, || state.client_running.load(Ordering::SeqCst));
+        assert_eq!(none, Pieces { stopped: true, ..Default::default() });
+        assert_eq!(analyzed(), 0);
+
+        // PokerStars opens while the first piece is calculated: only that piece is done.
+        state.client_running.store(false, Ordering::SeqCst);
+        let first = analyze_pieces(&state, &rows, 2, || state.client_running.swap(true, Ordering::SeqCst));
+        assert_eq!(first, Pieces { done: 2, last: Some(ids[1]), stopped: true, error: None });
+        assert_eq!(analyzed(), 2);
+        // The cursor goes to the last calculated hand; from there, and in the automatic run's
+        // scope (the unanalysed hands after its mark), the rest is still waiting.
+        let rest: Vec<u64> = ids[2..].to_vec();
+        assert_eq!(candidates(first.last.unwrap()).iter().map(|(id, _)| *id).collect::<Vec<_>>(), rest);
+        assert_eq!(candidates(0).iter().map(|(id, _)| *id).collect::<Vec<_>>(), rest);
+
+        // The next run after PokerStars closed catches up.
+        state.client_running.store(false, Ordering::SeqCst);
+        let next = analyze_pieces(&state, &candidates(first.last.unwrap()), 2, || state.client_running.load(Ordering::SeqCst));
+        assert_eq!(next, Pieces { done: 3, last: Some(ids[4]), stopped: false, error: None });
+        assert_eq!(analyzed(), 5);
+        assert!(candidates(0).is_empty());
     }
 
     #[test]
