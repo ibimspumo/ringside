@@ -26,3 +26,42 @@ export function usePageHead(get: () => PageSections) {
     pageHead.current = null;
   });
 }
+
+/** Width and side padding of the page on screen; the PageHeader lines up with it. */
+export type PageFrame = { max: string; pad: string };
+
+export const pageFrame = $state<{ current: PageFrame | null }>({ current: null });
+
+/**
+ * Action for the scrolling content area: follows the `.page` inside it (pages differ in width:
+ * 1360 px, wide editors, full-bleed lists) and publishes its frame for the PageHeader.
+ */
+export function followPage(node: HTMLElement) {
+  let queued = false;
+  const sync = () => {
+    queued = false;
+    const page = node.querySelector<HTMLElement>(".page");
+    if (!page) {
+      pageFrame.current = null;
+      return;
+    }
+    const cs = getComputedStyle(page);
+    const next = { max: cs.maxWidth, pad: cs.paddingLeft };
+    const now = pageFrame.current;
+    if (!now || now.max !== next.max || now.pad !== next.pad) pageFrame.current = next;
+  };
+  const later = () => {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(sync);
+  };
+  const watch = new MutationObserver(later);
+  watch.observe(node, { childList: true, subtree: true });
+  sync();
+  return {
+    destroy() {
+      watch.disconnect();
+      pageFrame.current = null;
+    },
+  };
+}

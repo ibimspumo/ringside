@@ -34,7 +34,7 @@
   import { openSaved } from "../solver/solutions";
   import { solver } from "../solver/store.svelte";
   import PageHeader from "../ui/PageHeader.svelte";
-  import { pageHead } from "../ui/page.svelte";
+  import { followPage, pageHead } from "../ui/page.svelte";
 
   type Tab =
     | "dashboard"
@@ -370,7 +370,7 @@
       {/snippet}
     </PageHeader>
 
-    <div class="content" class:fill={tab === "hands"}>
+    <div class="content" class:fill={tab === "hands"} use:followPage>
       {#if tab === "dashboard"}
         <Dashboard
           {filter}
@@ -673,6 +673,8 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
+    /* A scrollbar takes room on both sides alike, so centred pages stay under the header. */
+    scrollbar-gutter: stable both-edges;
     container-type: inline-size;
   }
   .content.fill {
