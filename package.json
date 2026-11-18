@@ -1,6 +1,6 @@
 {
   "name": "ringside",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Local poker HUD overlay and stats for PokerStars",
   "type": "module",
   "scripts": {
