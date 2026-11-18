@@ -89,6 +89,26 @@ Deno.test("a client holds a bounded number of leases; more frees its oldest", as
   assertEquals(held.n, MAX_LEASES);
 });
 
+Deno.test("a client gives back only its own lease, and the spot goes out again at once", async () => {
+  const { sql, handle } = setup();
+  const key = await seed(sql, "AsKhTd");
+  const release = (ip: string) => handle(post("/v1/work/release", { key }, ip));
+  assertEquals((await (await handle(post("/v1/work/next", next(), "198.51.100.1"))).json()).work.key, key);
+  assertEquals(await (await release("198.51.100.2")).json(), { key, status: "not_leased" }, "not someone else's");
+  assertEquals((await (await handle(post("/v1/work/next", next(), "198.51.100.2"))).json()).work, null);
+
+  assertEquals(await (await release("198.51.100.1")).json(), { key, status: "released" });
+  const row = sql.db.prepare("SELECT lease_until, leased_to, leases FROM work WHERE key = ?").get(key)!;
+  assertEquals([row.lease_until, row.leased_to, row.leases], [null, null, 0], "a given-back lease does not count");
+  assertEquals((await (await handle(post("/v1/work/next", next(), "198.51.100.2"))).json()).work.key, key);
+  assertEquals((await release("198.51.100.1")).status, 200);
+  assertEquals((await handle(post("/v1/work/release", { key: "nope" }))).status, 400);
+
+  const max = RULES.release[0].max;
+  for (let i = 0; i < max - 2; i++) assertEquals((await release("198.51.100.1")).status, 200);
+  assertEquals((await release("198.51.100.1")).status, 429);
+});
+
 Deno.test("requested spots are queued once and rise with every request", async () => {
   const { sql, handle } = setup();
   const body = { kind: "spot", engine_version: 1, input: SPOT };

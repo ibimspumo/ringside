@@ -7,6 +7,7 @@ description = "Ringside Cloud: shared solutions, their verification and parser r
 
 [dependencies]
 base64 = "0.22"
+ctrlc = "3"
 flate2 = "1"
 ring = "0.17"
 ringside-engine = { path = "../ringside-engine" }

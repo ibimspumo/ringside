@@ -283,6 +283,16 @@ impl Client {
         Ok(r.work)
     }
 
+    /// Gives the lease on `key` back before it runs out, so the spot is handed out again
+    /// at once. The server only frees a lease this client holds.
+    pub fn release_work(&self, key: &str) -> Result<(), Error> {
+        let body = serde_json::json!({ "key": key }).to_string();
+        let url = format!("{}/v1/work/release", self.base);
+        self.send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), false)?
+            .ok_or_else(|| Error::Protocol("404 on release".into()))?;
+        Ok(())
+    }
+
     /// Asks the community to solve `input`, which the cloud does not have; only with the
     /// user's consent to share. Returns the server's status: "queued", "submitted" or "verified".
     pub fn request_work<K: Kind>(&self, input: &K::Input) -> Result<String, Error> {
