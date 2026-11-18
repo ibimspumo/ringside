@@ -614,3 +614,21 @@ fn thoroughness_lowers_the_estimate_and_is_sent() {
     assert_eq!(server.requests.lock().unwrap()[0]["reasoning"]["effort"], "low");
     assert!(server2.requests.lock().unwrap()[0]["reasoning"].is_null());
 }
+
+#[test]
+fn a_question_is_one_request_without_calculators_and_flags_new_figures() {
+    let server = serve(vec![ok(json!({
+        "choices": [{"message": {"role": "assistant", "content": "Ein Fold, weil du 4,2 BB verlierst. Mit 57 % Equity wäre es anders."}}],
+        "usage": {"prompt_tokens": 300, "completion_tokens": 40, "cost": 0.0012}
+    }))]);
+    let client = Client::new(&server.url, Some("k".into()));
+    let prepared = ringside_coach::prepare_ask("Call kostet 4,2 BB.", "Warum ist das ein Fold?", "m", None).unwrap();
+    let token = prepared.estimate().token.clone();
+    let answer = ringside_coach::ask(prepared.confirm(&token).unwrap(), &client, &|| false).unwrap();
+    assert_eq!(answer.unchecked, vec!["57"]);
+    assert!((answer.cost_usd - 0.0012).abs() < 1e-12);
+    let sent = server.requests.lock().unwrap().clone();
+    assert_eq!(sent.len(), 1);
+    assert!(sent[0].get("tools").is_none(), "the coach gets no calculators to answer a question");
+    assert_eq!(sent[0]["reasoning"]["effort"], "low");
+}

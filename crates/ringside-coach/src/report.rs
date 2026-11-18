@@ -162,7 +162,7 @@ fn german_decimals(text: &str) -> String {
 
 /// Whether every figure in `value` comes from `known` (rounded, or as a fraction ↔
 /// percentage). A value without digits cannot be computed.
-fn traced(value: &str, known: &[f64]) -> bool {
+pub(crate) fn traced(value: &str, known: &[f64]) -> bool {
     let found = numbers_in(value);
     !found.is_empty()
         && found.iter().all(|v| {

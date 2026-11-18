@@ -6,7 +6,9 @@
 //! the token of that estimate, [`run`] talks to the model and returns a checked
 //! [`Report`]. Nothing is sent before the confirmation.
 
+pub mod ask;
 pub mod concepts;
+pub mod facts;
 pub mod openrouter;
 pub mod prizes;
 pub mod render;
@@ -15,6 +17,7 @@ pub mod select;
 pub mod session;
 pub mod tools;
 
+pub use ask::{Answer, AskEstimate, ConfirmedAsk, PreparedAsk, ask, prepare_ask};
 pub use concepts::{CONCEPTS, Concept};
 pub use openrouter::{ApiError, Client, KeyInfo, ModelInfo};
 pub use report::{Report, ReportInfo};
