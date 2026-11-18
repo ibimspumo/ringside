@@ -731,9 +731,20 @@ async function fill(sel, text) {
   );
 }
 
-step("Solver: kleiner River-Spot", async () => {
+step("Solver: Durchspielen erklärt vor dem Lösen, was dort kommt", async () => {
   await nav("Solver");
+  await click("main [role='tab']", "Durchspielen", { exact: false });
+  // A spot opened from the hand analysis is solved already; without it the tab explains itself.
+  await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Verwerfen")?.click()`);
+  await click("main [role='tab']", "Durchspielen", { exact: false });
+  await waitText("Durchspielen startet nach dem Lösen");
+  await find("main button", "Spot lösen", { exact: false });
+});
+
+step("Solver: kleiner River-Spot mit deiner Hand", async () => {
   await click("main [role='tab']", "Aufbau");
+  // A new table drops a hand handed over from the analysis, so you pick your own.
+  await click("main [aria-label='Spieler am Tisch'] button", "6-max");
   // Five board cards make it a river spot, which solves in a moment.
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Board leeren")?.click()`);
   const slots = ["Flop", "Flop", "Flop", "Turn", "River"];
@@ -744,13 +755,18 @@ step("Solver: kleiner River-Spot", async () => {
   await click("main button", "Ranges anpassen");
   await fill("main textarea[aria-label='Range von OOP als Text']", "AA,KK");
   await fill("main textarea[aria-label='Range von IP als Text']", "QQ,JJ");
-  await click("main button.btn.primary:not(:disabled)", "Lösen");
+  await click("main button", "zuerst dran", { exact: false });
+  await click("main button.ui-slot[aria-label='Deine Hand wählen (optional)']");
+  await click(".deck-pop button.pick[aria-label='As']:not(:disabled)");
+  await click(".deck-pop button.pick[aria-label='Ah']:not(:disabled)");
+  await click("main button.ui-btn.primary:not(:disabled)", "Lösen");
   await find("main [role='group'][aria-label='Aktionen']", null, { timeout: 180_000 });
+  await waitText("Mit deiner Hand hier");
 });
 
 step("Solver: die Lösung steht in „Meine Lösungen“ und öffnet ohne Rechnen", async () => {
   await click("main [role='tab']", "Meine Lösungen");
-  await click("main .saved li.card button.btn.primary");
+  await click("main .saved li.card button.ui-btn.primary");
   await find("main [role='group'][aria-label='Aktionen']");
 });
 

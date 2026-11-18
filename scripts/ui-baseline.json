@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 166,
+      "total": 165,
       "files": {
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
@@ -46,7 +46,6 @@
         "play/VerdictCard.svelte": 1,
         "ranges/labels.ts": 2,
         "ranges/RangeGrid.svelte": 1,
-        "solver/DeckPopover.svelte": 1,
         "solver/RangeEditor.svelte": 1,
         "solver/Saved.svelte": 1,
         "solver/Term.svelte": 1,
@@ -166,7 +165,7 @@
       }
     },
     "global-class-override": {
-      "total": 103,
+      "total": 102,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 8,
@@ -205,7 +204,7 @@
         "solver/HandDetail.svelte": 1,
         "solver/Practice.svelte": 1,
         "solver/RangeEditor.svelte": 1,
-        "solver/Setup.svelte": 6,
+        "solver/Setup.svelte": 5,
         "solver/SizeChooser.svelte": 4,
         "solver/Study.svelte": 1,
         "ui/ChoiceMenu.svelte": 1

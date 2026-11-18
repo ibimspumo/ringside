@@ -51,9 +51,6 @@
 
 <svelte:window onpointerdown={outside} />
 
-<!-- Dims what lies behind, so seats half under the popover do not read as part of it. -->
-<div class="scrim" aria-hidden="true"></div>
-
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div class="popover deck-pop" bind:this={el} use:floating={{ anchor, side }} role="dialog" aria-label={title} tabindex="-1" onkeydown={key}>
   <header>
@@ -76,30 +73,16 @@
 </div>
 
 <style>
-  .scrim {
-    position: fixed;
-    inset: 0;
-    z-index: 49;
-    background: color-mix(in srgb, var(--bg) 45%, transparent);
-    animation: fade var(--dur) var(--ease-enter);
-  }
-  @keyframes fade {
-    from {
-      opacity: 0;
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .scrim {
-      animation: none;
-    }
-  }
   .deck-pop {
     z-index: 50;
     padding: 10px;
     border-radius: var(--r);
     background: var(--surface);
     border: 1px solid var(--line-2);
-    box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+    /* The wide spread dims what lies behind, so seats half under it do not read as part of it. */
+    box-shadow:
+      var(--shadow-3),
+      0 0 0 100vmax color-mix(in srgb, var(--bg) 45%, transparent);
   }
   header {
     display: flex;

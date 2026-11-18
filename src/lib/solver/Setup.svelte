@@ -320,7 +320,7 @@
       {#if solver.error}<span class="neg">{solver.error}</span>{/if}
           {#if solver.status === "cancelled" && !solver.error}<span class="dim">Abgebrochen.</span>{/if}
         </div>
-        <button class="btn primary" disabled={!canStart} onclick={() => startSolve()}>Lösen</button>
+        <Button variant="primary" size="lg" disabled={!canStart} onclick={() => startSolve()}>Lösen</Button>
       {/if}
     </section>
   </div>
@@ -694,10 +694,6 @@
   .est b.neg {
     color: var(--neg);
   }
-  .go .btn.primary {
-    min-width: 110px;
-  }
-
 
 
 
