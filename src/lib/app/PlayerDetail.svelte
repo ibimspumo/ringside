@@ -422,7 +422,7 @@
   }
   .stat {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(130px, 40%);
+    grid-template-columns: minmax(0, 1fr) minmax(120px, 34%);
     align-items: center;
     gap: var(--sp-3);
     padding: var(--sp-2) 0;
@@ -437,9 +437,6 @@
   }
   dt small {
     display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
     margin-top: 1px;
     color: var(--text-2);
     font-size: var(--fs-sm);
