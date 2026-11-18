@@ -146,7 +146,7 @@
             <div class="stat" class:thin>
               <dt>
                 <Term tip={STAT_META[id].help} side="bottom">{STAT_META[id].name}</Term>
-                <small>{word(id)} · {sampleNote(s, true)}</small>
+                <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
                 {#if hint}<span class="hint">→ {hint}</span>{/if}
               </dt>
               <dd>

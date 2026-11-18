@@ -152,11 +152,13 @@
           <CellButton current={selected === p.key} onclick={(e) => (e.stopPropagation(), onPick(p.key))} onkeydown={(e) => key(e, i)}>
             <Wheel stats={p.stats} {hud} size={18} />
             <span class="who-text">
-              <span class="n" title={p.name}>{p.name}</span>
+              <span class="line">
+                <span class="n" title={p.name}>{p.name}</span>
+                {#if p.label}<i class="dot" style="--c:{p.label.color}" title={p.label.name || "Label aus PokerStars"}></i>{/if}
+                {#if p.hero}<Badge size="sm">du</Badge>{/if}
+              </span>
               {#if p.note}<span class="note-line" title={p.note}>{p.note}</span>{/if}
             </span>
-            {#if p.label}<i class="dot" style="--c:{p.label.color}" title={p.label.name || "Label aus PokerStars"}></i>{/if}
-            {#if p.hero}<Badge size="sm">du</Badge>{/if}
           </CellButton>
         </td>
         {#if advice}
@@ -275,6 +277,12 @@
     flex-direction: column;
     min-width: 0;
   }
+  .line {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+  }
   .note-line {
     display: none;
     overflow: hidden;
@@ -284,7 +292,13 @@
     font-size: var(--fs-sm);
   }
   @container player-list (max-width: 760px) {
-    .note-line {
+    .line {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+  }
+  .note-line {
       display: block;
     }
     .note-col {
