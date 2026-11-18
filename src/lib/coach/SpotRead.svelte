@@ -2,7 +2,11 @@
   import ArticleView from "../learn/wissen/Article.svelte";
   import { ARTICLE_BY_ID } from "../learn/wissen/articles";
   import { loadRead, storeRead } from "../learn/wissen/read";
-  import PlayingCard from "../PlayingCard.svelte";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import GradeBadge from "../ui/GradeBadge.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
+  import SegmentedControl from "../ui/SegmentedControl.svelte";
   import CardText from "../ui/CardText.svelte";
   import { conceptName } from "./concepts";
   import Figures from "./Figures.svelte";
@@ -50,13 +54,15 @@
   }
 </script>
 
+<svelte:window onkeydown={(e) => e.key === "Escape" && onBack()} />
+
+{#snippet backIcon()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>{/snippet}
+
 <div class="read" bind:this={top}>
-  <section class="panel mine v-{spot.verdict}" aria-labelledby="mine-title">
+  <Card pad="lg" aria-labelledby="mine-title">
+    <div class="mine" style:--accent="var(--grade-{verdict.grade})">
     <header class="top">
-      <button class="btn ghost back" onclick={onBack}>
-        <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
-        Zurück zum Bericht
-      </button>
+      <Button variant="quiet" icon={backIcon} kbd="Esc" onclick={onBack}>Zurück zum Bericht</Button>
       <span class="where">{title} · Entscheidung <span class="num">{n}</span> von <span class="num">{total}</span></span>
     </header>
     <div class="body">
@@ -70,7 +76,7 @@
         >
       </div>
       <div class="text">
-        <p class="eyebrow">Dein Spot zum Thema {conceptName(spot.concept)} · <span class="vname">{verdict.name}</span></p>
+        <p class="eyebrow">Dein Spot zum Thema {conceptName(spot.concept)} <GradeBadge grade={verdict.grade} size="sm" /></p>
         <h2 id="mine-title"><CardText hands text={spot.action} /></h2>
         {#if spot.better}<p class="better"><span>Besser</span><b><CardText hands text={spot.better} /></b></p>{/if}
         {#if spot.numbers.length}
@@ -80,20 +86,20 @@
           <Figures numbers={spot.numbers} />
         {/if}
         <div class="row">
-          <button class="btn" onclick={onDrill}>Diesen Spot üben</button>
-          {#if practice.articles.length > 1}
-            <div class="seg" role="tablist" aria-label="Artikel zum Thema">
-              {#each practice.articles as a (a.id)}
-                <button role="tab" aria-selected={current === a.id} class:on={current === a.id} onclick={() => (chosen = a.id)}
-                  >{a.title}</button
-                >
-              {/each}
-            </div>
+          <Button onclick={onDrill}>Diesen Spot üben</Button>
+          {#if practice.articles.length > 1 && current}
+            <SegmentedControl
+              options={practice.articles.map((a) => ({ value: a.id, label: a.title }))}
+              value={current}
+              label="Artikel zum Thema"
+              onchange={(id) => (chosen = id)}
+            />
           {/if}
         </div>
       </div>
     </div>
-  </section>
+    </div>
+  </Card>
 
   {#if article}
     <p class="divider"><span>Allgemeine Erklärung mit eigenen Beispielen</span></p>
@@ -109,18 +115,8 @@
     scroll-margin-top: 16px;
   }
   .mine {
-    --accent: var(--text-3);
-    padding: 14px 22px 20px;
+    padding-left: var(--sp-3);
     box-shadow: inset 3px 0 0 var(--accent);
-  }
-  .v-fehler {
-    --accent: var(--neg);
-  }
-  .v-fraglich {
-    --accent: var(--amber);
-  }
-  .v-stark {
-    --accent: var(--pos);
   }
   .top {
     display: flex;
@@ -128,9 +124,9 @@
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px 16px;
-    margin-left: -10px;
+    margin: calc(-1 * var(--sp-2)) 0 0 calc(-1 * var(--sp-3));
   }
-  .back svg {
+  svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -173,13 +169,12 @@
     min-width: 0;
   }
   .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
     margin: 0;
     font-size: var(--fs-md);
     color: var(--text-2);
-  }
-  .vname {
-    color: var(--accent);
-    font-weight: var(--fw-semibold);
   }
   h2 {
     margin: 0;
