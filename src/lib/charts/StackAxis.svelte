@@ -6,12 +6,13 @@
   import type { Anchor } from "../app/format";
   import Button from "../ui/Button.svelte";
   import Popover from "../ui/Popover.svelte";
+  import Slider from "../ui/Slider.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
   import { TERM, pct } from "./words";
 
   /**
-   * The stack depth as the page's main axis: how often each position opens over the depth,
-   * and right under it, on the same log scale, the slider that picks the depth.
+   * The stack depth as the page's main choice: the slider with quick steps, and under it, on the
+   * same log scale, how often each position opens over the depth.
    */
   let {
     id,
@@ -44,8 +45,8 @@
     compare?: string | null;
   } = $props();
 
-  const CURVE_PAD = { l: 38, r: 54, t: 22, b: 8 };
-  const TICKS = [2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100];
+  const PAD = { l: 38, r: 54, t: 22, b: 8 };
+  const STEPS = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
 
   let width = $state(600);
   /** Narrow windows: the curve folds away behind a toggle, the slider stays. */
@@ -59,14 +60,14 @@
   let open = $state(false);
   let typed = $state("");
 
-  /** Without the curve the slider spans the card. */
   const curveShown = $derived(!folded || showCurve);
-  const PAD = $derived(curveShown ? CURVE_PAD : { l: 8, r: 8, t: 22, b: 8 });
   const plotW = $derived(Math.max(40, width - PAD.l - PAD.r));
   const lo = $derived(Math.log(stacks[0] ?? 1));
   const hi = $derived(Math.log(stacks[stacks.length - 1] ?? 100));
   const frac = (s: number) => (hi > lo ? (Math.log(s) - lo) / (hi - lo) : 0);
   const x = (s: number) => PAD.l + Math.min(1, Math.max(0, frac(s))) * plotW;
+  /** Under the curve the grip lines up with its x axis; alone the slider spans the card. */
+  const inset = $derived<[number, number]>(curveShown ? [PAD.l, PAD.r] : [16, 16]);
   const y = (p: number) => PAD.t + (1 - p / 100) * (H - PAD.t - PAD.b);
   const bb = (s: number) => s.toLocaleString("de-DE", { maximumFractionDigits: 2 });
 
@@ -135,13 +136,6 @@
       : [],
   );
 
-  // The deepest stack always gets its label, also off the round numbers (e.g. 25 BB).
-  const ticks = $derived.by(() => {
-    const last = stacks[stacks.length - 1] ?? 0;
-    const t = TICKS.filter((v) => v >= (stacks[0] ?? 0) && v <= last);
-    if (last && !t.includes(last)) t.push(last);
-    return t;
-  });
   const onGrid = $derived(stacks.includes(value));
   const parsed = $derived.by(() => {
     const v = Number(typed.replace(",", "."));
@@ -156,7 +150,11 @@
     <output class="val num" for={id}>{bb(value)} <small>BB</small></output>
   </div>
 
-  {#if !folded || showCurve}
+  <div class="pick">
+    <Slider {id} label="Dein Stack" unit="BB" log values={stacks} {value} onchange={onPick} steps={STEPS} format={bb} {inset} />
+  </div>
+
+  {#if curveShown}
   <p class="what" class:compare>
     {#if compare}<b>Nur zum Vergleich</b> – die Range unten gilt für „{compare}“. Die Linien zeigen, wie oft jede Position eröffnet.{:else}Zum Vergleich: wie oft jede Position eröffnet, wenn alle vor ihr gefoldet haben{/if}
   </p>
@@ -200,24 +198,6 @@
     {/if}
   </svg>
   {/if}
-
-  <input
-    {id}
-    type="range"
-    min="0"
-    max="1000"
-    step="1"
-    value={Math.round(frac(value) * 1000)}
-    style="margin-left:{PAD.l - 8}px;width:{plotW + 16}px;--f:{frac(value)}"
-    data-stacks={stacks.join(",")}
-    aria-valuetext="{bb(value)} BB"
-    oninput={(e) => onPick(nearest(Number(e.currentTarget.value) / 1000))}
-  />
-  <div class="ticks" aria-hidden="true">
-    {#each ticks as t (t)}
-      <span class:here={value === t} style="left:{x(t)}px">{t}</span>
-    {/each}
-  </div>
 
   <div class="foot">
   {#if folded}
@@ -329,6 +309,14 @@
     color: var(--amber);
     background: color-mix(in srgb, var(--amber) 12%, transparent);
   }
+  /* A sunken well of its own, so the control never reads as the chart's axis. */
+  .pick {
+    margin: var(--sp-2) 0 var(--sp-3);
+    padding: var(--sp-2) 0 var(--sp-3);
+    border-radius: var(--r-lg);
+    background: var(--surface-sunken);
+    box-shadow: inset 0 0 0 1px var(--line);
+  }
   svg {
     display: block;
     cursor: crosshair;
@@ -410,52 +398,6 @@
     font-size: var(--fs-sm);
     fill: var(--text-3);
     text-anchor: middle;
-  }
-  input[type="range"] {
-    -webkit-appearance: none;
-    appearance: none;
-    height: 20px;
-    margin: 4px 0 0;
-    background: transparent;
-    cursor: pointer;
-  }
-  input[type="range"]::-webkit-slider-runnable-track {
-    height: 4px;
-    border-radius: 2px;
-    background: linear-gradient(to right, var(--text-2) calc(var(--f) * 100%), var(--surface-3) calc(var(--f) * 100%));
-  }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    margin-top: -6px;
-    border-radius: 50%;
-    background: var(--text);
-    border: 3px solid var(--surface);
-    box-shadow: 0 0 0 1px var(--line-2);
-  }
-  input[type="range"]:focus-visible {
-    outline: none;
-  }
-  input[type="range"]:focus-visible::-webkit-slider-thumb {
-    box-shadow: 0 0 0 2px var(--focus);
-  }
-  .ticks {
-    position: relative;
-    height: 18px;
-  }
-  .ticks span {
-    position: absolute;
-    transform: translateX(-50%);
-    padding: 0 3px;
-    border: 0;
-    background: none;
-    color: var(--text-2);
-    font-family: var(--font-num);
-    font-size: var(--fs-sm);
-  }
-  .ticks span.here {
-    color: var(--text);
   }
   .foot {
     display: flex;
