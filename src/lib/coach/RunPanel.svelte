@@ -233,14 +233,12 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Ringside hat gerechnet" value="{Math.max(0, (p?.tool_calls ?? 0) - (p?.stage === "tool" ? 1 : 0))}-mal" meaning={used.length ? undefined : "Jede Zahl rechnet Ringside nach."} />
-            {#if used.length}
-              <span class="tools">
-                {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
-                    >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
-                  >{/each}
-              </span>
-            {/if}
+            <Stat label="Ringside hat gerechnet" value="{Math.max(0, (p?.tool_calls ?? 0) - (p?.stage === "tool" ? 1 : 0))}-mal" />
+            <span class="tools">
+              {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
+                  >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
+                >{:else}<span class="note">Jede Zahl rechnet Ringside nach.</span>{/each}
+            </span>
           </div>
         </Card>
       </div>

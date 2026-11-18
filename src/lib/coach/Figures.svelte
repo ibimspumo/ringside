@@ -84,6 +84,17 @@
     flex-shrink: 0;
   }
 
+  /* Words read from the left under their label; only numbers sit on the right. */
+  .guess {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--sp-1);
+  }
+  .guess dd {
+    max-width: none;
+    justify-content: space-between;
+    text-align: left;
+  }
   @container (max-width: 460px) {
     .fig {
       flex-direction: column;

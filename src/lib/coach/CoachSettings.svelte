@@ -192,7 +192,7 @@
                 ></span
               >
               <span class="opt"><label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label></span>
-              <Button size="sm" variant="quiet" onclick={() => (open = false)}>Fertig</Button>
+              <span class="done"><Button size="sm" variant="quiet" onclick={() => (open = false)}>Fertig</Button></span>
             </div>
             {#if modelsError}
               <p class="msg">{modelsError}</p>
@@ -402,6 +402,9 @@
   .search {
     flex: 1 1 220px;
     max-width: 320px;
+  }
+  .done {
+    margin-left: auto;
   }
   .opt {
     display: flex;

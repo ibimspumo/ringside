@@ -285,7 +285,7 @@
                 <li>
                   <span class="n num">1</span>
                   <div>
-                    <b>Key bei OpenRouter erstellen</b>
+                    <b>Key erstellen</b>
                     <p>
                       Konto auf <a href="https://openrouter.ai/keys" target="_blank" rel="noreferrer" onclick={open}
                         >openrouter.ai/keys</a
@@ -489,7 +489,7 @@
 
   .reports ul {
     gap: var(--sp-2);
-    max-height: min(52vh, 560px);
+    max-height: max(280px, calc(100vh - 420px));
     overflow-y: auto;
     overscroll-behavior: contain;
     mask-image: linear-gradient(to bottom, var(--text) calc(100% - 36px), transparent);
