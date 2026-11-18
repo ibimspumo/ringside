@@ -1,10 +1,12 @@
 //! Solves the tables of [`ringside_engine::preflop_table`] and writes
-//! `data/preflop_<n>max.bin`; rebuild the crate afterwards to embed them.
+//! `data/preflop_[limps_]<ante>_<n>max.bin`; rebuild the crate afterwards to embed them.
 //!
 //! ```text
-//! gen-preflop-tables [--ante none|classic|big_blind]... [--players 6]... [--stacks 15,20]
+//! gen-preflop-tables [--limps] [--ante none|classic|big_blind]... [--players 6]... [--stacks 15,20]
 //!                    [--jobs 2] [--cache DIR] [--no-write]
 //! ```
+//!
+//! `--limps` builds the family with limps from every seat, otherwise the plain one.
 //!
 //! Every solved entry is cached as its own file first (default
 //! `target/preflop-cache`), so an interrupted run continues where it stopped. A table
@@ -16,7 +18,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use ringside_engine::preflop::{Kind, solve};
-use ringside_engine::preflop_table::{self, Ante, PLAYERS, STACKS, encode_entry, params};
+use ringside_engine::preflop_table::{self, Ante, Family, STACKS, encode_entry};
 
 struct Job {
     ante: Ante,
@@ -24,8 +26,8 @@ struct Job {
     stack: f64,
 }
 
-fn cache_file(dir: &Path, job: &Job) -> PathBuf {
-    dir.join(format!("{}-{}-{}.bin", job.ante.key(), job.players, job.stack))
+fn cache_file(dir: &Path, family: Family, job: &Job) -> PathBuf {
+    dir.join(format!("{}{}-{}-{}.bin", family.key(), job.ante.key(), job.players, job.stack))
 }
 
 fn main() {
@@ -34,6 +36,7 @@ fn main() {
     let mut only_stacks: Option<Vec<f64>> = None;
     let mut jobs = 1usize;
     let mut write = true;
+    let mut family = Family::Plain;
     let mut cache = PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../target/preflop-cache"));
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
@@ -48,6 +51,7 @@ fn main() {
             "--jobs" => jobs = value().parse().expect("job count"),
             "--cache" => cache = PathBuf::from(value()),
             "--no-write" => write = false,
+            "--limps" => family = Family::Limps,
             _ => panic!("unknown argument {a}"),
         }
     }
@@ -55,7 +59,7 @@ fn main() {
         antes = Ante::ALL.to_vec();
     }
     if players.is_empty() {
-        players = PLAYERS.to_vec();
+        players = family.players().to_vec();
     }
     std::fs::create_dir_all(&cache).expect("create cache dir");
     ringside_engine::eval::init();
@@ -69,7 +73,7 @@ fn main() {
                     continue;
                 }
                 let job = Job { ante, players: n, stack };
-                if !cache_file(&cache, &job).exists() {
+                if !cache_file(&cache, family, &job).exists() {
                     todo.push(job);
                 }
             }
@@ -86,7 +90,7 @@ fn main() {
                 loop {
                     let i = next.fetch_add(1, Ordering::Relaxed);
                     let Some(job) = todo.get(i) else { break };
-                    let p = params(job.ante, job.players, job.stack);
+                    let p = family.params(job.ante, job.players, job.stack);
                     let t = Instant::now();
                     let result = solve(&p).map_err(|e| e.to_string()).and_then(|sol| {
                         let bytes = encode_entry(&p, &sol)?;
@@ -94,7 +98,7 @@ fn main() {
                     });
                     match result {
                         Ok((sol, bytes)) => {
-                            let file = cache_file(&cache, job);
+                            let file = cache_file(&cache, family, job);
                             let tmp = file.with_extension("tmp");
                             std::fs::write(&tmp, &bytes).expect("write cache entry");
                             std::fs::rename(&tmp, &file).expect("move cache entry");
@@ -144,7 +148,7 @@ fn main() {
             let mut entries = Vec::new();
             let mut missing = 0;
             for &stack in &STACKS {
-                match std::fs::read(cache_file(&cache, &Job { ante, players: n, stack })) {
+                match std::fs::read(cache_file(&cache, family, &Job { ante, players: n, stack })) {
                     Ok(b) => entries.push(b),
                     Err(_) => missing += 1,
                 }
@@ -155,7 +159,7 @@ fn main() {
             }
             let raw: usize = entries.iter().map(|e| e.len() + 4).sum();
             let file = preflop_table::write_file(ante, n, &entries);
-            let path = format!("{data}/preflop_{}_{n}max.bin", ante.key());
+            let path = format!("{data}/preflop_{}{}_{n}max.bin", family.key(), ante.key());
             std::fs::write(&path, &file).expect("write table");
             let info = preflop_table::file_info(&file).expect("fresh table");
             println!("{path}: {} entries, {raw} bytes raw, {} bytes compressed, checksum {:016x}", info.entries, file.len(), info.checksum);

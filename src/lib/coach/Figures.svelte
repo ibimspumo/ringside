@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CardText from "../ui/CardText.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import { ownCards, say, termsIn } from "./meaning";
   import type { Figure } from "./types";
@@ -10,11 +11,12 @@
 </script>
 
 <div class="wrap">
+  <div class="inner">
   <dl class="figures">
     {#each numbers as n, i (i)}
       {@const calc = n.source === "berechnet"}
       <div class="fig" class:guess={!calc}>
-        <dt>{say(hero ? ownCards(n.label, hero) : n.label)}</dt>
+        <dt><CardText hands text={say(hero ? ownCards(n.label, hero) : n.label)} /></dt>
         <dd>
           <b class:num={calc} class:big={calc}>{say(n.value)}</b>
           <span class="src"><SourceNote kind={calc ? "computed" : "opinion"} /></span>
@@ -27,15 +29,26 @@
       {#each terms as t (t.term)}<li><b>{t.term}</b><span>{t.meaning}</span></li>{/each}
     </ul>
   {/if}
+  </div>
 </div>
 
 <style>
   .wrap {
+    container-type: inline-size;
+  }
+  .inner {
     display: flex;
     flex-direction: column;
     gap: var(--sp-3);
-    max-width: 760px;
-    container-type: inline-size;
+  }
+  /* Wide cards: the terms stand beside the figures instead of below. */
+  @container (min-width: 900px) {
+    .inner {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      align-items: start;
+      gap: var(--sp-5);
+    }
   }
   .figures {
     display: flex;

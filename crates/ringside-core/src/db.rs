@@ -342,6 +342,8 @@ impl Db {
             ("player_hands", "bounty", "INTEGER NOT NULL DEFAULT 0"),
             ("tournaments", "name", "TEXT"),
             ("tournaments", "payouts", "TEXT NOT NULL DEFAULT ''"),
+            ("hero_decisions", "pot_bb", "REAL"),
+            ("hero_decisions", "reliability", "REAL"),
         ];
         for (table, column, decl) in added {
             let exists: bool = conn.query_row(
@@ -354,6 +356,10 @@ impl Db {
                 if (*table, *column) == ("tournaments", "payouts") {
                     // Summaries imported before carry no payouts; read them again.
                     conn.execute("DELETE FROM files WHERE path LIKE '%TournSummary%'", [])?;
+                }
+                if (*table, *column) == ("hero_decisions", "reliability") {
+                    // Ratings stored before have five levels instead of six; analyse again.
+                    conn.execute_batch("DELETE FROM hero_decisions; DELETE FROM hand_analysis; DELETE FROM postflop_queue;")?;
                 }
             }
         }

@@ -57,6 +57,17 @@ export function call<T>(cmd: string, args: Record<string, unknown>, fallback: ()
   return inTauri ? invoke<T>(cmd, args) : Promise.resolve(fallback());
 }
 
+/**
+ * Browser preview: `?data=empty` shows the analysis pages without hands, `?data=error` a failed load,
+ * `?data=big` long names, huge numbers and long lists.
+ */
+const previewData = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
+
+function sample<T>(cmd: string, args: Record<string, unknown>, full: () => T, none: () => T, big: () => T): Promise<T> {
+  if (!inTauri && previewData === "error") return Promise.reject(new Error("Vorschau: Laden fehlgeschlagen"));
+  return call<T>(cmd, args, previewData === "empty" ? none : previewData === "big" ? big : full);
+}
+
 /** Browser-only stand-in for saved settings, so the demo reacts to edits. */
 let demoStore: Settings = structuredClone(demo.demoSettings);
 
@@ -122,13 +133,20 @@ export const api = {
   liveTables: () => call<LiveTable[]>("live_tables", {}, demo.demoLiveTables),
   pokerClientRunning: () =>
     call<boolean>("poker_client_running", {}, () => new URLSearchParams(window.location.search).get("locked") === "1"),
-  tournaments: (filter: Filter) => call<Tournaments>("tournaments", { filter }, demo.demoTournaments),
+  tournaments: (filter: Filter) =>
+    sample<Tournaments>("tournaments", { filter }, demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () => call<string[]>("detected_dirs", {}, () => []),
-  dashboard: (filter: Filter) => call<Dashboard>("dashboard", { filter }, () => demo.demoDashboard(filter)),
+  dashboard: (filter: Filter) => sample<Dashboard>("dashboard", { filter }, () => demo.demoDashboard(filter), demo.emptyDashboard, () =>
+      demo.bigDashboard(filter),
+    ),
   reports: (filter: Filter) => call<Reports>("reports", { filter }, () => demo.demoReports(filter)),
-  leaks: (filter: Filter) => call<LeakReport>("leaks", { filter }, () => demo.demoLeaks(filter)),
+  leaks: (filter: Filter) =>
+    sample<LeakReport>("leaks", { filter }, () => demo.demoLeaks(filter), () => ({
+      ...demo.demoLeaks({ game: "cash", since: null, tournament_id: null }),
+      too_small: 0,
+    }), () => demo.bigLeaks(filter)),
   rangeGroups: (filter: Filter) => call<RangeGroup[]>("range_groups", { filter }, () => rangesDemo.demoGroups(filter)),
   rangeChart: (filter: Filter, range: RangeFilter) =>
     call<RangeChart>("range_chart", { filter, range }, () => rangesDemo.demoChart(filter, range)),

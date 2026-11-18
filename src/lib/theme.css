@@ -298,6 +298,13 @@ input[type="range"] {
   background-clip: padding-box;
 }
 
+/* Bars and meters grow in from their start when they appear. */
+@keyframes grow-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;

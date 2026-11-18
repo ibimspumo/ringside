@@ -23,7 +23,7 @@ use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use ringside_analysis::postflop::{JobError, TARGET_PCT, rate, settings, solve_spot};
-use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets};
+use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets, estimate_rest};
 use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, SolutionSource, Status};
 use ringside_core::model::Street;
 use ringside_solver::library::format::{Stored, View};
@@ -483,11 +483,17 @@ fn solve_next(app: &AppHandle, bulk: bool) -> bool {
         (Err(e), _) => Err(JobError::Failed(format!("Gespeicherter Spot unlesbar: {e}"))),
         (_, Err(e)) => Err(JobError::Failed(e)),
     };
-    let decisions = match result {
-        Ok(decisions) => decisions,
+    let (decisions, why) = match result {
+        Ok(decisions) => (decisions, String::new()),
         Err(JobError::Cancelled) => return true,
-        Err(JobError::Failed(reason)) => failed(&main, hand_id, &reason),
-        Err(JobError::NotStored) => failed(&main, hand_id, NOT_STORED),
+        Err(JobError::Failed(reason)) => (pending(&main, hand_id), reason),
+        Err(JobError::NotStored) => (pending(&main, hand_id), NOT_STORED.to_string()),
+    };
+    // What the solver leaves without a rating, the estimate rates.
+    let hand = main.db.lock().unwrap().hand(hand_id).ok().flatten();
+    let decisions = match hand {
+        Some(hand) => estimate_rest(&hand, decisions, &format!("Postflop-Solve nicht möglich: {why}")),
+        None => unrated(decisions, &why),
     };
     let saved = main.db.lock().unwrap().finish_postflop(hand_id, &decisions);
     publish(app, true, |s| {
@@ -501,14 +507,21 @@ fn solve_next(app: &AppHandle, bulk: bool) -> bool {
     true
 }
 
-/// The pending decisions of a hand, stored as not rated with `reason`.
-fn failed(main: &AppState, hand_id: u64, reason: &str) -> Vec<Decision> {
+/// The pending decisions of a hand.
+fn pending(main: &AppState, hand_id: u64) -> Vec<Decision> {
     let list = main.db.lock().unwrap().hand_decisions(hand_id).unwrap_or_default();
-    list.into_iter()
-        .filter(|d| d.status == Status::Pending)
+    list.into_iter().filter(|d| d.status == Status::Pending).collect()
+}
+
+/// Pending decisions of a hand that is gone, stored as not rated with `reason`.
+fn unrated(decisions: Vec<Decision>, reason: &str) -> Vec<Decision> {
+    decisions
+        .into_iter()
         .map(|mut d| {
-            d.status = Status::Unrated;
-            d.reason = Some(format!("Postflop-Solve nicht möglich: {reason}"));
+            if d.status == Status::Pending {
+                d.status = Status::Unrated;
+                d.reason = Some(format!("Postflop-Solve nicht möglich: {reason}"));
+            }
             d
         })
         .collect()

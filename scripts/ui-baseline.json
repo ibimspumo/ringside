@@ -1,9 +1,8 @@
 {
   "rules": {
     "color-literal": {
-      "total": 204,
+      "total": 203,
       "files": {
-        "analysis/DecisionCard.svelte": 1,
         "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
         "app/PlayerDetail.svelte": 2,
@@ -58,26 +57,18 @@
       }
     },
     "font-size": {
-      "total": 318,
+      "total": 283,
       "files": {
-        "analysis/DecisionCard.svelte": 7,
         "analysis/HandPanel.svelte": 2,
-        "analysis/Summary.svelte": 4,
         "app/ClientLock.svelte": 1,
-        "app/Dashboard.svelte": 5,
         "app/Hands.svelte": 7,
-        "app/Leaks.svelte": 4,
         "app/LiveTables.svelte": 3,
-        "app/Main.svelte": 5,
         "app/PlayerDetail.svelte": 9,
         "app/Players.svelte": 2,
         "app/Replayer.svelte": 10,
         "app/Reports.svelte": 3,
-        "app/ResultsChart.svelte": 1,
         "app/SettingsView.svelte": 5,
         "app/TournamentPicker.svelte": 1,
-        "app/Tournaments.svelte": 7,
-        "cloud/CloudNotice.svelte": 2,
         "cloud/CloudSettings.svelte": 1,
         "cloud/MalformedReports.svelte": 4,
         "hud/ClassicBox.svelte": 3,
@@ -137,20 +128,18 @@
       }
     },
     "button-style": {
-      "total": 168,
+      "total": 160,
       "files": {
-        "analysis/DecisionCard.svelte": 1,
         "analysis/HandPanel.svelte": 4,
-        "analysis/Summary.svelte": 6,
+        "analysis/Summary.svelte": 2,
         "app/Hands.svelte": 5,
         "app/LiveTables.svelte": 1,
-        "app/Main.svelte": 6,
+        "app/Main.svelte": 4,
         "app/PlayerDetail.svelte": 1,
         "app/Players.svelte": 1,
         "app/Replayer.svelte": 6,
         "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 6,
-        "cloud/CloudNotice.svelte": 1,
         "cloud/MalformedReports.svelte": 1,
         "hud/SeatAnatomy.svelte": 4,
         "jobs/JobsDock.svelte": 6,
@@ -188,13 +177,10 @@
       }
     },
     "global-class-override": {
-      "total": 127,
+      "total": 114,
       "files": {
-        "analysis/DecisionCard.svelte": 3,
-        "analysis/Summary.svelte": 1,
+        "analysis/DecisionCard.svelte": 2,
         "app/ClientLock.svelte": 1,
-        "app/Dashboard.svelte": 2,
-        "app/Leaks.svelte": 2,
         "app/LiveTables.svelte": 8,
         "app/Main.svelte": 3,
         "app/PlayerDetail.svelte": 3,
@@ -202,8 +188,6 @@
         "app/Reports.svelte": 3,
         "app/ResultsChart.svelte": 1,
         "app/SettingsView.svelte": 5,
-        "app/Tournaments.svelte": 7,
-        "cloud/CloudNotice.svelte": 1,
         "cloud/CloudSettings.svelte": 2,
         "cloud/MalformedReports.svelte": 1,
         "gpu/GpuTest.svelte": 1,
@@ -237,7 +221,8 @@
         "solver/Setup.svelte": 8,
         "solver/SizeChooser.svelte": 4,
         "solver/SolverTable.svelte": 2,
-        "solver/Study.svelte": 1
+        "solver/Study.svelte": 1,
+        "ui/ChoiceMenu.svelte": 1
       }
     },
     "kbd-style": {
@@ -245,12 +230,9 @@
       "files": {}
     },
     "motion": {
-      "total": 62,
+      "total": 58,
       "files": {
-        "analysis/AnalyzeBar.svelte": 1,
-        "analysis/DecisionCard.svelte": 2,
         "analysis/HandPanel.svelte": 1,
-        "app/Main.svelte": 1,
         "app/Replayer.svelte": 2,
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,

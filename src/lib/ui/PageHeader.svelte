@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import type { PageSections } from "./page.svelte";
+  import { pageFrame, type PageFrame, type PageSections } from "./page.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Tabs from "./Tabs.svelte";
 
@@ -16,6 +16,7 @@
     sections = null,
     demo = false,
     locked = false,
+    frame,
     actions,
   }: {
     title: string;
@@ -25,8 +26,12 @@
     demo?: boolean;
     /** The page is locked while PokerStars runs; the note stays whatever line the page shows. */
     locked?: boolean;
+    /** Lines the heading up with the page below; by default the page on screen (`followPage`). */
+    frame?: PageFrame | null;
     actions?: Snippet;
   } = $props();
+
+  const box = $derived(frame === undefined ? pageFrame.current : frame);
 
   const line = $derived(sections?.sub ?? sub);
   let tab = $state("");
@@ -35,7 +40,12 @@
   });
 </script>
 
-<header class="ui-page-header" class:tabbed={!!sections?.tabs?.length}>
+<header
+  class="ui-page-header"
+  class:tabbed={!!sections?.tabs?.length}
+  style:--frame-left={box ? `${box.left}px` : "var(--sp-6)"}
+  style:--frame-right={box ? `${box.right}px` : "var(--sp-6)"}
+>
   <div class="bar">
     <div class="title">
       {#if demo}<p class="h1">{title}</p>{:else}<h1 class="h1">{title}</h1>{/if}
@@ -58,6 +68,12 @@
     border-bottom: 1px solid var(--line);
     background: var(--bg);
   }
+  /* Title and tabs share the left and right edge of the page content below. */
+  .bar,
+  .sections {
+    padding-left: var(--frame-left);
+    padding-right: var(--frame-right);
+  }
   .bar {
     display: flex;
     align-items: center;
@@ -65,7 +81,7 @@
     flex-wrap: wrap;
     gap: var(--sp-2) var(--sp-5);
     min-height: 60px;
-    padding: var(--sp-2) var(--sp-6);
+    padding-block: var(--sp-2);
   }
   .title {
     display: flex;
@@ -84,13 +100,16 @@
     white-space: nowrap;
   }
   p:not(.h1) {
+    display: -webkit-box;
     margin: 0;
     min-width: 0;
     overflow: hidden;
     color: var(--text-2);
     font-size: var(--fs-md);
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    line-height: var(--lh-tight);
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
   .actions {
     display: flex;
@@ -99,7 +118,6 @@
     gap: var(--sp-2);
   }
   .sections {
-    padding: 0 var(--sp-6);
     margin-top: calc(-1 * var(--sp-1));
   }
   .sections :global(.ui-tabs) {

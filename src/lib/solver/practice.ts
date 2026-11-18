@@ -97,10 +97,13 @@ export function judge(hand: SolverHand, chosen: number, pot: number): Verdict {
   }
   const top = Math.max(...hand.evs);
   const best = hand.evs.indexOf(top);
-  const loss = Math.max(0, top - hand.evs[chosen]);
+  // Part of the mix: in an equilibrium its actions are worth the same, the rest is noise
+  // of the solve (crates/ringside-play/src/grade.rs decides the same way).
+  const mixed = frequency >= BEST_MIN_FREQUENCY;
+  const loss = mixed ? 0 : Math.max(0, top - hand.evs[chosen]);
   const lossPct = (loss / pot) * 100;
   const grade: Grade =
-    lossPct <= THRESHOLDS.best && frequency >= BEST_MIN_FREQUENCY
+    mixed
       ? "best"
       : lossPct <= THRESHOLDS.good
         ? "good"

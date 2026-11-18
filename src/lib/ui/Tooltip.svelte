@@ -50,10 +50,7 @@
   onfocusout={hide}
   onkeydown={(e) => e.key === "Escape" && anchor && (e.stopPropagation(), hide())}
   role={ownStop ? undefined : "presentation"}>{@render children()}</span
->
-{#if anchor}
-  <div class="ui-tooltip" {id} role="tooltip" use:floating={{ anchor, side }}>{text}</div>
-{/if}
+>{#if anchor}<div class="ui-tooltip" {id} role="tooltip" use:floating={{ anchor, side }}>{text}</div>{/if}
 
 <style>
   .ui-tooltip-anchor {

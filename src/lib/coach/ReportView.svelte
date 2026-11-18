@@ -18,11 +18,10 @@
   import SectionHead from "../ui/SectionHead.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
-  import { cost, duration, tokens } from "./api";
+  import { duration, tokens } from "./api";
   import { conceptName } from "./concepts";
   import type { Choice } from "./drill";
-  import { COACH_GRADES, VERDICTS, shortModel, toPractise, verdictOf, say } from "./meaning";
-  import { rise } from "./motion";
+  import { COACH_GRADES, VERDICTS, money, shortModel, toPractise, verdictOf, say } from "./meaning";
   import SpotCard from "./SpotCard.svelte";
   import type { CoachReport } from "./types";
 
@@ -176,12 +175,11 @@
         <div class="score">
           <div class="score-top">
             <ProgressRing value={spots.length ? good / spots.length : 0} size={76} stroke={7} tone="good" label="Gut gespielt">
-              <span class="ring"><span class="ring-n num">{good}/{spots.length}</span><span class="ring-l">gut</span></span>
+              <span class="ring"><span class="ring-n num">{good}</span><span class="ring-l">von {spots.length} gut</span></span>
             </ProgressRing>
             <p class="big">
               {#if weak.length}
-                <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span>
-                {spots.length === 1 ? "Entscheidung" : "Entscheidungen"} zum Üben
+                <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span> zum Üben
               {:else}
                 Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
               {/if}
@@ -201,7 +199,7 @@
                       <span class="txt"
                         >{#if s.spot.better}Besser: <CardText hands text={say(s.spot.better)} />{:else}<CardText hands text={say(s.spot.action)} />{/if}</span
                       >
-                      <span class="go num" aria-hidden="true">{s.n} →</span>
+                      <span class="go" aria-hidden="true">→</span>
                     </span>
                   </Card>
                 </li>
@@ -221,8 +219,8 @@
   </div>
 
   <div class="spots">
-    {#each shown as s, i (s.n)}
-      <div in:rise={{ delay: Math.min(i, 6) * 40 }}>
+    {#each shown as s (s.n)}
+      <div>
         <SpotCard
           spot={s.spot}
           index={s.n}
@@ -242,7 +240,7 @@
     <SectionHead level={3} title="So ist der Bericht entstanden" />
     <dl class="how">
       <div><dt>Modell</dt><dd class="num">{shortModel(report.meta.model)}</dd></div>
-      <div><dt>Kosten</dt><dd class="num">{cost(report.meta.cost_usd)}</dd></div>
+      <div><dt>Kosten</dt><dd class="num">{report.meta.cost_usd == null ? "–" : money(report.meta.cost_usd)}</dd></div>
       <div><dt>Dauer</dt><dd class="num">{duration(report.meta.seconds)}</dd></div>
       <div>
         <dt>Gesendet</dt>
@@ -337,7 +335,7 @@
     font-size: var(--fs-xl);
     line-height: 1.6;
     text-wrap: pretty;
-    max-width: 68ch;
+    max-width: 60ch;
   }
   .next {
     display: flex;

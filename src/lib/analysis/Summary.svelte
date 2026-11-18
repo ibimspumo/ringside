@@ -1,12 +1,19 @@
 <script lang="ts">
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import type { Filter } from "../types";
   import { int } from "../app/format";
-  import { EV_LOSS_EXPLAIN, LEARN, RATING, RATINGS, SOURCE, SPOT, SPOT_HINT, bb } from "./labels";
+  import Button from "../ui/Button.svelte";
+  import Card from "../ui/Card.svelte";
+  import GradeBars from "../ui/GradeBars.svelte";
+  import GradeIcon from "../ui/GradeIcon.svelte";
+  import type { Grade } from "../ui/poker";
+  import Term from "../ui/Term.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
+  import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING, RATING_RULE, RATINGS, SOURCE, SPOT, SPOT_HINT, bb, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
-  import type { AnalysisSummary, SpotType } from "./types";
+  import type { AnalysisSummary, Rating, SpotType } from "./types";
 
   /**
    * What the analysis found, as three things to work on: the spot types that cost the most,
@@ -45,9 +52,11 @@
   });
 
   const focus = $derived((data?.by_spot ?? []).filter((s) => s.spot && s.loss_bb > 0.5).slice(0, 3));
-  const flawed = $derived(data ? data.ratings.slice(2).reduce((a, b) => a + b, 0) : 0);
+  const flawed = $derived(data ? data.ratings.slice(RATINGS.indexOf("inaccuracy")).reduce((a, b) => a + b, 0) : 0);
   const cards = (s: string) => s.split(" ").filter(Boolean);
+  const grade = (r: Rating): Grade => GRADE_OF[r];
 </script>
+
 
 {#if data && data.rated > 0 && strip}
   <section class="band">
@@ -68,46 +77,63 @@
     {/if}
   </section>
 {:else if data && data.rated > 0}
+  {@const top = focus[0]?.loss_bb ?? 1}
+  {@const ratings = data.ratings}
   <section class="summary">
     <div class="totals">
-      <div class="big">
-        <span class="label"><abbr title={EV_LOSS_EXPLAIN}>Verlust durch Fehler</abbr></span>
-        <b class="num">{bb(data.loss_bb)}</b>
-        <span class="sub num">in {int(data.rated)} bewerteten Entscheidungen, {int(flawed)} davon mindestens ungenau</span>
-      </div>
-      <div class="dist" role="img" aria-label="Bewertungen">
-        {#each RATINGS as r, i (r)}
-          {#if data.ratings[i] > 0}
-            <span style="flex-grow:{data.ratings[i]}; background:{RATING[r].color}" title="{RATING[r].label}: {int(data.ratings[i])}"></span>
-          {/if}
-        {/each}
-      </div>
+      <span class="label"
+        ><Term tip={EV_LOSS_EXPLAIN}>Verlust durch Fehler</Term>{#if analysis.status?.progress?.state === "running"}&nbsp;– bisher{/if}</span
+      >
+      <b class="big num">{bb(data.loss_bb)}</b>
+      <p class="mean">
+        So viel haben dich Entscheidungen gekostet, die besser gegangen wären – auf lange Sicht gerechnet. Das ist dein Spielraum.
+      </p>
+      <h4 class="levels-head">
+        <Term tip={RATING_RULE}>So wurden deine {int(data.rated)} Entscheidungen bewertet</Term>
+      </h4>
+      <GradeBars
+        label="Bewertungen deiner Entscheidungen"
+        grades={RATINGS.map(grade)}
+        counts={Object.fromEntries(RATINGS.map((r, i) => [grade(r), ratings[i]]))}
+      />
+      <p class="flawed num">{int(flawed)} davon ungenau oder schlechter</p>
       <p class="sources">
+        <span class="faint">Bewertet mit</span>
         {#each data.by_source as [src, n] (src)}
-          <span title={SOURCE[src].explain}>{SOURCE[src].label} <b class="num">{int(n)}</b></span>
+          <span><Term tip={SOURCE[src].explain}>{SOURCE[src].label}</Term> <b class="num">{int(n)}</b></span>
         {/each}
       </p>
     </div>
 
     {#if focus.length}
       <div class="focus">
-        <h3>Deine {focus.length === 1 ? "wichtigste Baustelle" : `${focus.length} wichtigsten Baustellen`}</h3>
+        <h3>Fang hier an: {focus.length === 1 ? "deine wichtigste Baustelle" : `deine ${focus.length} wichtigsten Baustellen`}</h3>
         <ol>
-          {#each focus as f (f.spot)}
+          {#each focus as f, i (f.spot)}
             {@const spot = f.spot!}
             <li>
-              <button class="name" onclick={() => onSpot?.(spot)} title="{SPOT_HINT[spot]} Klick zeigt nur diese Hände.">
-                <b>{SPOT[spot]}</b>
-                <span class="num">kostet {bb(f.loss_bb)} · {int(f.flawed)} von {int(f.rated)} ungenau oder schlechter</span>
-              </button>
-              <span class="hint">{SPOT_HINT[spot]}</span>
-              {#if onLearn}
-                <span class="links">
-                  {#each LEARN[spot] as l (l.label)}
-                    <button class="btn ghost" onclick={() => onLearn(l.target)}>{l.label}</button>
-                  {/each}
+              <span class="rank num">{i + 1}</span>
+              <div class="body">
+                <div class="row">
+                  <b class="spot">{SPOT[spot]}</b>
+                  <b class="cost num">kostet {bb(f.loss_bb)}</b>
+                </div>
+                <span class="meter" aria-hidden="true"><i style="width:{Math.max(4, (f.loss_bb / top) * 100)}%"></i></span>
+                <span class="hint">
+                  {SPOT_HINT[spot]} <span class="num">{int(f.flawed)} von {int(f.rated)}</span> Entscheidungen waren ungenau oder schlechter.
                 </span>
-              {/if}
+                <span class="links">
+                  {#if onLearn}
+                    <!-- The first spot's exercise is already the next step above the summary. -->
+                    {#each LEARN[spot].filter((_, j) => i > 0 || LEARN[spot].length === 1 || j > 0) as l, j (l.label)}
+                      <Button size="sm" variant={j === 0 ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
+                    {/each}
+                  {/if}
+                  {#if onSpot}
+                    <Button size="sm" variant="quiet" onclick={() => onSpot(spot)}>Hände ansehen</Button>
+                  {/if}
+                </span>
+              </div>
             </li>
           {/each}
         </ol>
@@ -118,11 +144,24 @@
       <div class="costly">
         <h3>Teuerste Entscheidungen</h3>
         {#each data.costliest.slice(0, 3) as c (c.hand_id + ":" + c.action_index)}
-          <button class="hand" onclick={() => onOpen(c.hand_id, c.action_index)}>
-            <span class="hole">{#each cards(c.hero_cards) as card (card)}<PlayingCard {card} size={18} />{/each}</span>
-            <span class="what">{c.played} statt {c.best}</span>
-            <b class="num" style="color:{c.rating ? RATING[c.rating].color : 'inherit'}">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
-          </button>
+          <Card pad="sm" aria-label="Hand ansehen: {c.played} statt {c.best}" title="Hand ansehen" onclick={() => onOpen(c.hand_id, c.action_index)}>
+            <span class="hand">
+            <span class="hole">{#each cards(c.hero_cards) as card (card)}<PlayingCard {card} size={20} />{/each}</span>
+            <span class="what" style="--c:{c.rating ? `var(--grade-${grade(c.rating)})` : 'var(--text)'}">
+              <span class="detail">
+                <span class="decision">{c.played} statt {c.best}</span>
+                <b class="num loss">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
+              </span>
+              <span class="detail">
+                <small>{c.position ?? ""}</small>
+                {#if c.source && KIT_SOURCE[c.source]}
+                  <SourceNote kind={KIT_SOURCE[c.source]!} hint={c.source === "estimate" && c.reliability !== null ? reliabilityText(c.reliability, c.street) : SOURCE[c.source].explain} />
+                {/if}
+                {#if c.rating}<small class="loss"><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
+              </span>
+            </span>
+            </span>
+          </Card>
         {/each}
       </div>
     {/if}
@@ -132,167 +171,194 @@
 <style>
   .summary {
     display: grid;
-    grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.6fr) minmax(220px, 1fr);
-    gap: 14px 26px;
-    padding: 14px 18px;
+    grid-template-columns: minmax(230px, 0.85fr) minmax(0, 1.55fr) minmax(250px, 1fr);
+    gap: 18px 30px;
+    padding: 18px 20px;
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
     background: var(--surface);
-    font-size: 13px;
+    font-size: var(--fs-base);
   }
   h3 {
-    margin: 0 0 8px;
-    font-size: 12.5px;
+    margin: 0 0 10px;
+    font-size: var(--fs-base);
     font-weight: 600;
-    color: var(--text-2);
+    color: var(--text);
   }
   .totals {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-  }
-  .big {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    gap: 6px;
   }
   .label {
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
   }
   abbr {
     text-decoration: underline dotted;
     text-underline-offset: 3px;
     cursor: help;
   }
-  .big b {
+  .big {
     font-family: var(--font-num);
-    font-size: 26px;
+    font-size: var(--fs-4xl);
     font-weight: 600;
+    line-height: 1.1;
     color: var(--neg);
   }
-  .sub {
-    color: var(--text-3);
-    font-size: 12px;
+  .mean {
+    margin: 0 0 6px;
+    color: var(--text-2);
+    line-height: 1.5;
   }
-  .dist {
+  .levels-head {
+    margin: 4px 0 4px;
+    font-size: var(--fs-md);
+    font-weight: 400;
+    color: var(--text-2);
+  }
+  .flawed {
+    margin: 2px 0 0;
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .loss {
     display: flex;
-    gap: 2px;
-    height: 6px;
+    align-items: center;
+    gap: 4px;
+    color: var(--c);
+    white-space: nowrap;
   }
-  .dist span {
-    flex-basis: 0;
-    min-width: 3px;
-    border-radius: 2px;
+  .sources b {
+    font-weight: 500;
+    color: var(--text);
   }
   .sources {
     display: flex;
     flex-wrap: wrap;
     gap: 2px 12px;
-    margin: 0;
-    font-size: 12px;
-    color: var(--text-3);
-  }
-  .sources span {
-    cursor: help;
-  }
-  .sources b {
-    font-weight: 500;
+    margin: 6px 0 0;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   ol {
     display: grid;
-    gap: 10px;
+    gap: 14px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
-  li {
+  ol > li {
     display: grid;
-    gap: 2px;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 10px;
   }
-  .name {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: 2px 10px;
-    padding: 0;
-    border: 0;
-    background: none;
-    text-align: left;
+  .rank {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface-3);
     color: var(--text);
-    cursor: pointer;
-  }
-  .name b {
-    font-size: 14px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
-  .name:hover b {
-    text-decoration: underline;
-    text-underline-offset: 3px;
+  .body {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
   }
-  .name span {
+  .row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .spot {
+    font-size: var(--fs-base);
+    font-weight: 600;
+  }
+  .cost {
+    flex-shrink: 0;
     color: var(--neg);
-    font-size: 12.5px;
+    font-size: var(--fs-base);
+    font-weight: 600;
+  }
+  .meter {
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-2);
+  }
+  .meter i {
+    transform-origin: left;
+    animation: grow-x var(--dur-slow) var(--ease-enter) both;
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--neg) 75%, transparent);
   }
   .hint {
-    color: var(--text-3);
-    font-size: 12px;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    line-height: 1.5;
   }
   .links {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
-    margin-top: 2px;
-  }
-  .links .btn {
-    height: 26px;
-    padding: 0 9px;
-    font-size: 12px;
+    gap: 6px;
+    margin-top: 1px;
   }
   .costly {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--sp-2);
   }
   .hand {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: 46px minmax(0, 1fr);
     align-items: center;
-    gap: 8px;
-    padding: 5px 6px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    text-align: left;
-    color: var(--text-2);
-    cursor: pointer;
-  }
-  .hand:hover {
-    background: var(--surface-2);
-    color: var(--text);
+    gap: 10px;
   }
   .hole {
     display: flex;
     gap: 2px;
   }
   .what {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .decision {
+    line-height: 1.3;
+  }
+  .detail {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
+  }
+  .what small {
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .what small.loss {
+    color: var(--c);
   }
   .band {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 6px 10px;
-    font-size: 13px;
+    font-size: var(--fs-base);
     color: var(--text-2);
   }
   .lead b {
     margin-left: 4px;
     font-family: var(--font-num);
-    font-size: 16px;
+    font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--neg);
   }
@@ -311,7 +377,7 @@
     border: 0;
     background: transparent;
     color: var(--text);
-    font-size: 12.5px;
+    font-size: var(--fs-md);
     cursor: pointer;
   }
   .pair button:hover {
@@ -326,7 +392,7 @@
     border-left: 1px solid var(--line-2);
     color: var(--text-2);
   }
-  @container (max-width: 1100px) {
+  @container (max-width: 1180px) {
     .summary {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     }

@@ -17,6 +17,7 @@
     potShare,
     context,
     source,
+    lead,
     children,
     actions,
   }: {
@@ -32,6 +33,8 @@
     /** Where the decision was: "River · Q♠8♠". */
     context?: string;
     source?: Source;
+    /** Replaces the grade's standard line when the strategy is not a solution's. */
+    lead?: string;
     /** The reason in one or two sentences. */
     children?: Snippet;
     actions?: Snippet;
@@ -63,7 +66,7 @@
       </p>
     {:else}
       <p class="lead">
-        <b>{played}</b> – {g.lead}
+        <b>{played}</b> – {lead ?? g.lead}
         {#if better && !g.bad && grade !== "best"}
           Am meisten bringt <b>{better}</b>.
         {/if}

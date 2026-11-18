@@ -306,11 +306,26 @@ step("Hände: Replayer öffnet eine Hand", async () => {
 });
 
 // The demo's decisions link the solver with the line to them; the app's need a solved spot.
+// The demo hand with A♥Q♦ is heads-up after the flop, so the solver rates it.
 !TAURI &&
   step("Analyse: „Im Solver öffnen“ spielt die Hand bis zur Entscheidung", async () => {
-    await click("main .steps button", "Turn · Bet");
-    await click("main article.card button", "Im Solver öffnen");
-    await find("main nav.line button.card.on", "Turn", { exact: false, timeout: 120_000 });
+    const hand = await waitFor(
+      "the heads-up demo hand",
+      `return [...document.querySelectorAll("main [role='option']")].find((o) => o.querySelector("[aria-label='A Herz']") && o.querySelector("[aria-label='Q Karo']")) ?? null`,
+    );
+    await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, hand);
+    await s.click(hand);
+    await click("main .steps button", "Turn · Check");
+    await find("main .decision", "Solver", { exact: false });
+    await click("main article.ui-verdict button", "Im Solver öffnen");
+    // The line stands at the hero's turn decision: the turn card is dealt, the last step is on.
+    await waitFor(
+      "the line up to the turn decision",
+      `const line = document.querySelector("main nav.line"); const steps = line ? [...line.querySelectorAll("button")] : [];
+       return steps.some((b) => b.classList.contains("card") && b.textContent.includes("Turn")) && steps.at(-1)?.classList.contains("on") ? line : null`,
+      [],
+      120_000,
+    );
     await find("main [role='group'][aria-label='Aktionen']");
     await find("main .cell.hero");
   });
@@ -337,6 +352,8 @@ step("HUD", () => nav("HUD"));
 
 step("Training: Pot Odds, Stufe 1", async () => {
   await nav("Lernen");
+  // PokerStars is closed, so the header must not claim the page is locked.
+  if (await s.exec(`return !!document.querySelector("main .ui-source.locked")`)) throw new Error("lock note shown while PokerStars is closed");
   await click("main button", "Trainer");
   // Skill and level buttons also show the user's level and the level's name.
   await click("main button.skill", "Pot Odds", { exact: false });
@@ -590,8 +607,13 @@ step("Hände spielen: bis zum nächsten Zug steht jede Aktion im Verlauf", async
   );
   await s.click(move);
   await waitFor("your move in the history", `return document.querySelector("main nav.timeline button.move.hero") ?? null`);
-  // Your next decision or the end of the hand: everyone has acted on the street by then.
-  await waitFor("the next decision or the end", `return document.querySelector("main .actions button.act, main section.end") ?? null`, [], 60_000);
+  // Your next decision, a live solve of the flop or the end: everyone has acted preflop by then.
+  await waitFor(
+    "the next decision, a live solve or the end",
+    `return document.querySelector("main .actions button.act, main [data-part='solving'], main section.end") ?? null`,
+    [],
+    60_000,
+  );
   const preflop = await s.exec(
     `const street = document.querySelector("main nav.timeline section");
      return [...street.querySelectorAll("button.move")].map((b) => b.dataset.pos);`,

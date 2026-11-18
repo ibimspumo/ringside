@@ -1,5 +1,6 @@
 // Browser preview only: a few made-up tasks that move, so the task center can be designed
 // and screenshotted without the Rust backend. `?jobs=1` turns them on.
+import { demoStatus as analysisStatus, onStatus as onAnalysis } from "../analysis/demo";
 import type { Job, JobsView } from "./types";
 
 const listeners = new Set<(v: JobsView) => void>();
@@ -93,13 +94,32 @@ function tick() {
   emit();
 }
 
+/** The demo hand analysis as the app's backend reports it: one entry while it runs. */
+function analysisJob(): Job | null {
+  const p = analysisStatus().progress;
+  if (p.state !== "running" && p.state !== "paused_pokerstars") return null;
+  return job(90, {
+    kind: "analysis",
+    title: "Hand-Analyse",
+    detail: `${p.title} · ${p.detail}`,
+    status: p.state === "running" ? "running" : "paused",
+    progress: p.share,
+    eta_secs: p.eta_secs,
+    target: { page: "hands", id: null },
+  });
+}
+
 export function demoList(): JobsView {
   if (on && !jobs.length) seed();
   if (on && !timer) timer = setInterval(tick, 1000);
   const locked = new URLSearchParams(window.location.search).get("locked") === "1";
-  const view = structuredClone(jobs).map((j) => (locked && j.status === "running" ? { ...j, status: "paused" as const } : j));
+  const analysis = analysisJob();
+  const all = analysis ? [analysis, ...jobs] : jobs;
+  const view = structuredClone(all).map((j) => (locked && j.status === "running" ? { ...j, status: "paused" as const } : j));
   return { jobs: view, locked };
 }
+
+if (typeof window !== "undefined") onAnalysis(() => emit());
 
 export function demoCancel(id: number) {
   const j = jobs.find((x) => x.id === id);
