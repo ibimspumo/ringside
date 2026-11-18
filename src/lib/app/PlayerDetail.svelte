@@ -92,7 +92,7 @@
       <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte unten bleiben sichtbar.</SourceNote>
     {:else if r?.type}
       {@const t = TYPE[r.type]}
-      <section class="read" class:unsure={r.sure !== "sure"} aria-label="Spielertyp">
+      <section class="read" aria-label="Spielertyp">
         <div class="read-head">
           <span class="kicker">Spielertyp</span>
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
@@ -112,7 +112,7 @@
         </p>
       </section>
     {:else if r}
-      <section class="read unsure" aria-label="Spielertyp">
+      <section class="read" aria-label="Spielertyp">
         <div class="read-head"><span class="kicker">Spielertyp</span></div>
         <p class="type"><b>Kein klarer Typ</b> <span>Seine Werte liegen zwischen den vier Typen.</span></p>
         <p class="why">Spiel gegen ihn solide und achte auf einzelne Werte, die weit vom Üblichen abweichen.</p>
@@ -134,7 +134,7 @@
       <section class="group" aria-label={title}>
         <h3>{title}</h3>
         {#if unsure}
-          <p class="unsure"><i aria-hidden="true"></i>{unsure === ids.length ? "Alle" : `${unsure} von ${ids.length}`} Werten stammen aus weniger als {SMALL_SAMPLE} Gelegenheiten: noch unsicher.</p>
+          <p class="few"><i aria-hidden="true"></i>{unsure === ids.length ? "Alle" : `${unsure} von ${ids.length}`} Werten stammen aus weniger als {SMALL_SAMPLE} Gelegenheiten: noch unsicher.</p>
         {/if}
         <dl>
           {#each ids as id (id)}
@@ -398,7 +398,7 @@
   dl {
     margin: 0;
   }
-  .unsure {
+  .few {
     display: flex;
     align-items: baseline;
     gap: var(--sp-2);
@@ -406,7 +406,7 @@
     color: var(--text-2);
     font-size: var(--fs-md);
   }
-  .unsure i {
+  .few i {
     flex-shrink: 0;
     width: 8px;
     height: 8px;
