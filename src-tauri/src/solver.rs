@@ -273,6 +273,72 @@ pub async fn solver_start(
     .await
 }
 
+/// What the solver page picks: table, the two seats by position name, the pot type
+/// ("srp", "3bet", "limp") and the depth.
+#[derive(Debug, serde::Deserialize)]
+pub struct ModelPick {
+    players: usize,
+    ante: ringside_engine::pushfold_table::Ante,
+    stack: f64,
+    seats: [String; 2],
+    pot: String,
+}
+
+/// The model's own flop for the pick: its exact ranges, pot and stack and the preflop line.
+/// The page solves it as the practice table and the cloud know it, so it can be shared.
+#[derive(Debug, Serialize)]
+pub struct ModelSpot {
+    model: ringside_engine::preflop_table::ModelLine,
+    oop_range: String,
+    ip_range: String,
+    pot: f64,
+    stack: f64,
+}
+
+fn model_spot(pick: &ModelPick) -> Option<ModelSpot> {
+    use ringside_play::scenario::PotType;
+    let key = ringside_play::TableKey { players: pick.players, ante: pick.ante, stack_bb: pick.stack };
+    let table = ringside_play::table::deep(key)?;
+    let names = ringside_engine::multiway::position_names(pick.players);
+    let pot_type = match pick.pot.as_str() {
+        "srp" => PotType::Srp,
+        "3bet" => PotType::ThreeBet,
+        _ => PotType::Limped,
+    };
+    let seats = |sc: &ringside_play::scenario::Scenario| {
+        let mut got = [names.get(sc.oop).copied()?, names.get(sc.ip).copied()?];
+        let mut want = [pick.seats[0].as_str(), pick.seats[1].as_str()];
+        got.sort_unstable();
+        want.sort_unstable();
+        Some(got == want)
+    };
+    // The plainest line to this flop: an open and a call before a 4-bet pot.
+    let sc = table
+        .scenarios
+        .iter()
+        .filter(|sc| sc.pot_type == pot_type && seats(sc) == Some(true))
+        .min_by(|a, b| a.line.len().cmp(&b.line.len()).then(b.reach.total_cmp(&a.reach)))?;
+    Some(ModelSpot {
+        model: ringside_engine::preflop_table::ModelLine {
+            family: ringside_engine::preflop_table::Family::Plain,
+            ante: pick.ante,
+            players: pick.players,
+            stack_bb: pick.stack,
+            line: sc.line.clone(),
+        },
+        oop_range: sc.range(0),
+        ip_range: sc.range(1),
+        pot: sc.pot,
+        stack: sc.stack,
+    })
+}
+
+/// The model's own spot for the page's pick, if the model has a table at that depth.
+#[tauri::command]
+pub async fn solver_model_spot(pick: ModelPick, app: AppHandle) -> CmdResult<Option<ModelSpot>> {
+    blocking(app, move |_| Ok(model_spot(&pick))).await
+}
+
 /// Stops the running solve; it reports `cancelled` once the current iteration ends.
 #[tauri::command]
 pub fn solver_cancel() {
@@ -330,6 +396,24 @@ pub async fn solver_node(path: Vec<Step>, app: AppHandle) -> CmdResult<Node> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_page_gets_the_models_own_spot_and_it_is_shareable() {
+        let pick = ModelPick { players: 6, ante: ringside_engine::pushfold_table::Ante::BigBlind, stack: 40.0, seats: ["BB".into(), "BTN".into()], pot: "srp".into() };
+        let m = model_spot(&pick).expect("the model has BTN against BB");
+        let spot = Spot {
+            oop_range: m.oop_range.clone(),
+            ip_range: m.ip_range.clone(),
+            board: "Kh7c2h".into(),
+            pot: m.pot,
+            stack: m.stack,
+            sizes: Default::default(),
+            allin_threshold: 0.0,
+        };
+        let keyed = ringside_store::key_of(&spot, Some(&m.model)).unwrap();
+        assert!(keyed.key.starts_with("spot:"), "the page's spot is filed under its cloud key: {keyed:?}");
+        assert!(model_spot(&ModelPick { stack: 41.0, ..pick }).is_none(), "no table at that depth");
+    }
 
     #[test]
     fn a_solve_goes_when_idle_or_soon_after_the_page_closed() {

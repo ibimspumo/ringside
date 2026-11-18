@@ -730,6 +730,7 @@ pub fn run() {
             report::tournament_report,
             solver::solver_estimate,
             solver::solver_start,
+            solver::solver_model_spot,
             solver::solver_cancel,
             solver::solver_clear,
             solver::solver_node,
