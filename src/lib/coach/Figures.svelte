@@ -1,4 +1,5 @@
 <script lang="ts">
+  import CardText from "../ui/CardText.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import { ownCards, say, termsIn } from "./meaning";
   import type { Figure } from "./types";
@@ -14,7 +15,7 @@
     {#each numbers as n, i (i)}
       {@const calc = n.source === "berechnet"}
       <div class="fig" class:guess={!calc}>
-        <dt>{say(hero ? ownCards(n.label, hero) : n.label)}</dt>
+        <dt><CardText hands text={say(hero ? ownCards(n.label, hero) : n.label)} /></dt>
         <dd>
           <b class:num={calc} class:big={calc}>{say(n.value)}</b>
           <span class="src"><SourceNote kind={calc ? "computed" : "opinion"} /></span>
