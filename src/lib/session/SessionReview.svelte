@@ -234,7 +234,7 @@
       <section class="sr-locked">
         <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2" /></svg>
         <h2 class="sr-locked-title">Am Tisch – dein Rückblick kommt, sobald du PokerStars schließt.</h2>
-        <p class="sr-locked-text">Bewertungen, der Vergleich mit dem Modell und Tipps sind gesperrt, solange PokerStars läuft. So verlangen es die PokerStars-Regeln.</p>
+        <p class="sr-locked-text">Bewertungen, Vergleiche und Tipps sind gesperrt, solange PokerStars läuft. So verlangen es die PokerStars-Regeln.</p>
         <dl class="sr-facts">
           <div><dt>Hände</dt><dd>{int(rep.hands)}</dd></div>
           {#if pre.you_pct !== null}<div><dt>Gespielt</dt><dd>{num(pre.you_pct, 0)} %</dd></div>{/if}
