@@ -22,6 +22,7 @@
     modelFrom = null,
     custom = null,
     current = null,
+    compare = null,
   }: {
     id: string;
     /** Depths that can be picked, ascending. */
@@ -37,6 +38,8 @@
     custom?: { digits: number; example: string; range: string | null } | null;
     /** Your seat's share at the chosen depth, also for a depth off the curve. */
     current?: number | null;
+    /** The situation below when it is not "Eröffnen": the curve is then only a comparison. */
+    compare?: string | null;
   } = $props();
 
   const PAD = { l: 38, r: 54, t: 22, b: 8 };
@@ -136,7 +139,9 @@
   </div>
 
   {#if !narrow || showCurve}
-  <p class="what">Zum Vergleich: wie oft jede Position eröffnet, wenn alle vor ihr gefoldet haben</p>
+  <p class="what" class:compare>
+    {#if compare}<b>Nur zum Vergleich</b> – die Range unten gilt für „{compare}“. Die Linien zeigen, wie oft jede Position eröffnet.{:else}Zum Vergleich: wie oft jede Position eröffnet, wenn alle vor ihr gefoldet haben{/if}
+  </p>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_noninteractive_element_interactions (a mouse shortcut: keys reach depth and seat through the slider and the table) -->
   <svg
     width={width}
@@ -276,6 +281,10 @@
     font-size: 12px;
     color: var(--text-2);
   }
+  .what b {
+    color: var(--amber);
+    font-weight: 600;
+  }
   .val {
     margin-left: auto;
     font-size: 26px;
@@ -353,7 +362,7 @@
   }
   .end {
     font-family: var(--font-num);
-    font-size: 11.5px;
+    font-size: 12px;
     fill: var(--text-2);
   }
   .end.on {

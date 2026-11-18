@@ -71,6 +71,7 @@
   let fromHand = $state<number | null>(preview("fromhand") ? Number(preview("fromhand")) : null);
   /** The hand's cards as a class, e.g. "99", for the way back. */
   let fromLabel = $state<string | null>(null);
+  let fromNote = $state<{ played: string; best: string | null; loss: number | null } | null>(null);
   let pendingNode = $state<number | null>(null);
 
   onMount(() => {
@@ -101,6 +102,7 @@
     stack = t.stack_bb;
     fromHand = hand;
     fromLabel = t.hand;
+    fromNote = chartsHandoff.note;
     only = null;
     if (t.kind === "pushfold") {
       pfView = t.stack_bb >= (preGrid ? Math.min(...preGrid.stacks) : 15);
@@ -158,9 +160,12 @@
   let pfLoading = $state(false);
   let pfError = $state<string | null>(null);
   const pfCache = new Map<string, PfChart>();
+  /** "Weiterrechnen" after a cancelled or failed solve asks again. */
+  let attempt = $state(0);
 
   $effect(() => {
     if (engine !== "pushfold" || !pfGrid) return;
+    void attempt;
     const key = `${ante}|${players}|${stack}`;
     const hit = pfCache.get(key);
     if (hit) {
@@ -193,6 +198,7 @@
 
   $effect(() => {
     if (engine !== "preflop" || !preGrid) return;
+    void attempt;
     const key = `${ante}|${players}|${stack}`;
     const hit = spotCache.get(key);
     if (hit) {
@@ -222,6 +228,7 @@
 
   const loading = $derived(engine === "pushfold" ? pfLoading : preLoading);
   const error = $derived(engine === "pushfold" ? pfError : preError);
+  const cancelled = $derived(!!error && /abgebrochen/i.test(error));
   const live = $derived(!!preGrid && players <= preGrid.live_max_players);
   const onGrid = $derived(axis.includes(stack));
 
@@ -467,7 +474,9 @@
           <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M14.5 6l-6 6 6 6" /></svg>
           Zurück zur Hand{fromLabel ? ` · ${fromLabel}` : ""}
         </button>
-        <span>Du kommst aus einer gespielten Hand; sie ist im Raster markiert.</span>
+        <span>
+          {#if fromNote}Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played} · besser: <b>{fromNote.best}</b>{#if fromNote.loss}{" "}(kostet etwa {pct(fromNote.loss, 2)} BB){/if}{/if}. {/if}Deine Hand ist im Raster markiert.
+        </span>
       </div>
     {/if}
     <div class="intro">
@@ -484,6 +493,7 @@
             onPick={pickStack}
             series={curve}
             current={mine}
+            compare={seg === "open" ? null : SEG_LABEL[seg]}
             {seat}
             onPickSeat={pickSeat}
             modelFrom={modelPlayers && !pfView ? modelFrom : null}
@@ -532,7 +542,7 @@
           {#if !segments.length}
             <div class="situ">
               <span class="lbl">Situation</span>
-              <p class="seg-hint">{loading ? "Erscheint, sobald gerechnet ist." : "An diesem Platz gibt es hier keine Entscheidung."}</p>
+              <p class="seg-hint">{loading || error ? "Erscheint, sobald gerechnet ist." : "An diesem Platz gibt es hier keine Entscheidung."}</p>
             </div>
           {:else}
             <div class="situ">
@@ -592,8 +602,12 @@
               </h2>
               {#if situation}<p>{situation}</p>{/if}
             {:else if error}
-              <h2>Für {bb(stack)} BB gibt es gerade kein Ergebnis.</h2>
-              <p>Wähl einen anderen Stack oder geh zurück zur nächsten fertigen Tabelle.</p>
+              <h2>{cancelled ? `Berechnung für ${bb(stack)} BB abgebrochen.` : `Für ${bb(stack)} BB gibt es gerade kein Ergebnis.`}</h2>
+              <p>{cancelled ? "Du kannst weiterrechnen oder zur nächsten fertigen Tabelle gehen." : error}</p>
+              <div class="err-actions">
+                <button class="btn primary" onclick={() => (attempt += 1)}>{cancelled ? "Weiterrechnen" : "Nochmal versuchen"}</button>
+                {#if axis.length}<button class="btn ghost" onclick={() => pickStack(nearest(axis, stack))}>Zurück zu {bb(nearest(axis, stack))} BB</button>{/if}
+              </div>
             {:else if loading}
               <h2>{bb(stack)} BB werden gerade gerechnet.</h2>
               <p>Sobald es fertig ist, steht hier die Antwort für deinen Platz.</p>
@@ -642,12 +656,7 @@
                 <div class="placeholder" aria-hidden="true"></div>
               {/if}
             </div>
-            {#if error}
-              <div class="over" role="alert">
-                <p class="neg">{error}</p>
-                {#if axis.length}<button class="btn" onclick={() => pickStack(nearest(axis, stack))}>Zurück zu {bb(nearest(axis, stack))} BB</button>{/if}
-              </div>
-            {:else if onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
+            {#if !error && onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
               <div class="over quiet" role="status"><span class="spin" aria-hidden="true"></span><p>Wird geladen …</p></div>
             {/if}
           </div>
@@ -764,9 +773,13 @@
 <style>
   /* The grid is the point of the page: on wide screens it may grow past the usual page width. */
   .ranges-page {
-    max-width: 1600px;
+    max-width: 1800px;
   }
   /* Stays at the top while the page scrolls; it has its own row, so it covers nothing. */
+  .back-bar b {
+    color: var(--text);
+    font-weight: 600;
+  }
   .back-bar {
     position: sticky;
     top: 0;
@@ -800,7 +813,7 @@
   }
   .body {
     display: grid;
-    grid-template-columns: minmax(0, 880px) minmax(360px, 1fr);
+    grid-template-columns: minmax(0, 1000px) minmax(360px, 1fr);
     grid-template-areas:
       "axis setup"
       "chart setup"
@@ -949,8 +962,7 @@
     line-height: 1.45;
   }
   .spots {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     gap: 6px;
   }
   .spot {
@@ -981,7 +993,8 @@
     background: var(--surface-3);
   }
   .spot small {
-    color: var(--text-3);
+    margin-left: auto;
+    color: var(--text-2);
     font-size: 11.5px;
   }
   .spot:focus-visible {
@@ -1128,6 +1141,11 @@
     margin: 0;
     color: var(--text-2);
   }
+  .err-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+  }
   .live {
     display: flex;
     flex-direction: column;
@@ -1137,13 +1155,6 @@
     border-radius: var(--r);
     border: 1px solid var(--line-2);
     background: var(--surface-2);
-    animation: pop-live var(--dur) var(--ease-out);
-  }
-  @keyframes pop-live {
-    from {
-      opacity: 0;
-      transform: translateY(4px);
-    }
   }
   .calc {
     margin: 0;
@@ -1292,7 +1303,7 @@
       grid-area: rail;
       justify-content: flex-start;
     }
-    .intro p {
+    .intro {
       display: none;
     }
     .only-pf {

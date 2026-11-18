@@ -44,7 +44,7 @@
     title={locked
       ? "Die Ranges sind gesperrt, solange PokerStars läuft – so verlangen es die PokerStars-Regeln."
       : "Öffnet „Ranges nach Stack“ mit genau diesem Spot und zeigt, wo deine Hand liegt."}
-    onclick={() => target && openInCharts(target, d.hand_id)}
+    onclick={() => target && openInCharts(target, d.hand_id, { played: d.played, best: d.best, loss: d.ev_loss_bb })}
   >
     Range ansehen
   </button>

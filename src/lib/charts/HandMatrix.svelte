@@ -274,7 +274,7 @@
   }
   .v {
     align-self: flex-end;
-    font-size: 10.5px;
+    font-size: 11px;
     line-height: 1;
   }
 

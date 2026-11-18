@@ -92,7 +92,7 @@
   const taken = (h: Hand) => h.parts.filter((p) => p.freq >= 0.005).sort((a, b) => b.freq - a.freq);
 
   function verdict(h: Hand): string {
-    if (!h.inRange) return "Kommt hier nicht an";
+    if (!h.inRange) return "Im Modell schon vorher gefoldet";
     const t = taken(h);
     if (t.length === 1) return `Immer ${actionPhrase(actions[t[0].a], line)}`;
     return `Gemischt: ${t.map((p) => `${pct(p.freq)} ${actionPhrase(actions[p.a], line)}`).join(", ")}`;
