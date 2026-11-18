@@ -25,6 +25,7 @@
   import ProgressRing from "./ProgressRing.svelte";
   import RangeGrid, { type RangeCell } from "./RangeGrid.svelte";
   import SectionHead from "./SectionHead.svelte";
+  import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
   import SourceNote from "./SourceNote.svelte";
   import Stat from "./Stat.svelte";
@@ -387,11 +388,18 @@
 
     {#if show("auswahl")}
       <section id="auswahl">
-        <SectionHead title="Auswahl" sub="Segmente für wenige gleichrangige Optionen, Reiter für Bereiche einer Seite, Tags für Filter." />
+        <SectionHead
+          title="Auswahl"
+          sub="Segmente für wenige gleichrangige Optionen, das Auswahlmenü für dieselbe Wahl in schmalen Kopfzeilen, Reiter für Bereiche einer Seite, Tags für Filter."
+        />
         <div class="two">
           <div class="stack">
             <SegmentedControl label="Zeitraum" bind:value={period} options={[{ value: "today", label: "Heute" }, { value: "7d", label: "7 Tage" }, { value: "30d", label: "30 Tage" }, { value: "all", label: "Alles" }]} />
             <SegmentedControl label="Einheit" size="sm" bind:value={small} options={[{ value: "bb", label: "BB" }, { value: "money", label: "Geld" }, { value: "pct", label: "% vom Pot", disabled: true }]} />
+            <div class="row">
+              <ChoiceMenu label="Zeitraum" value={period} onchange={(v) => (period = v)} options={[["today", "Heute"], ["7d", "7 Tage"], ["30d", "30 Tage"], ["all", "Alles"]]} />
+              <ChoiceMenu label="Spielart" value={undefined} dim title="Gilt nicht, solange ein Turnier gewählt ist." onchange={() => {}} options={[["all", "Alle"], ["cash", "Cash"]]} />
+            </div>
             <Tabs label="Bereiche" bind:value={tab} tabs={[{ id: "hands", label: "Hände", count: 248 }, { id: "stats", label: "Statistik" }, { id: "leaks", label: "Leaks", count: 3 }]} />
           </div>
           <div class="stack">
