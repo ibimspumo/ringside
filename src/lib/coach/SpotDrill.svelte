@@ -380,6 +380,9 @@
     background: var(--surface-2);
     border: 1px solid var(--line);
   }
+  .compare dt {
+    white-space: nowrap;
+  }
   .compare > .mine {
     border-color: var(--text-2);
   }
