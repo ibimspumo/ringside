@@ -37,7 +37,8 @@ use flate2::write::DeflateEncoder;
 use ringside_engine::{Card, CardSet, Combo, HandClass, Range};
 use serde::{Deserialize, Serialize};
 
-use crate::library::format::{quantize, suit_map};
+use crate::library::format::quantize;
+use crate::suits;
 use crate::node::{ActionInfo, ActionKind, ClassInfo, HandInfo, Node, NodeKind, Player, PlayerSummary, Step, Street};
 use crate::solve::{Settings, Solution, Summary};
 use crate::spot::{Spot, bb, chips, parse_board};
@@ -325,17 +326,14 @@ impl Snapshot {
     pub fn renamed(&self, board: &str) -> Result<Snapshot, Error> {
         let from = parse_board(&self.meta.spot.board)?;
         let to = parse_board(board)?;
-        let perm = suit_map(&from, &to).ok_or_else(|| invalid("the boards are no suit renaming of each other"))?;
-        let rename = |c: Card| Card::new(c.rank(), perm[c.suit() as usize]);
+        let perm = suits::between(&from, &to).ok_or_else(|| invalid("the boards are no suit renaming of each other"))?;
+        let rename = |c: Card| suits::rename(c, &perm);
         let rename_index = |i: u8| rename(Card::from_index(i)).index();
         let dead = CardSet::from_cards(&from);
         for text in [&self.meta.spot.oop_range, &self.meta.spot.ip_range] {
             let range = Range::parse(text).map_err(|e| invalid(format!("Range: {e}")))?;
-            for (combo, weight) in range.live_combos(dead) {
-                let (a, b) = combo.cards();
-                if range.weight(Combo::new(rename(a), rename(b))) != weight {
-                    return Err(invalid("the ranges treat suits differently"));
-                }
+            if !suits::keeps(&range, dead, &perm) {
+                return Err(invalid("the ranges treat suits differently"));
             }
         }
         let combos = self.combos.clone().map(|list| {

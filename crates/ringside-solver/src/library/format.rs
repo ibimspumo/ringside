@@ -380,26 +380,6 @@ pub fn encode(solution: &mut Solution, catalog: &Catalog, scenario: &Scenario, f
 // -----------------------------------------------------------------------------------
 // Suit renaming.
 
-/// The suit renaming that turns the flop `from` into `to`, as new suit per old suit.
-pub fn suit_map(from: &[Card], to: &[Card]) -> Option<[u8; 4]> {
-    let target = CardSet::from_cards(to);
-    if from.len() != to.len() {
-        return None;
-    }
-    let mut perms = Vec::with_capacity(24);
-    for a in 0..4u8 {
-        for b in (0..4).filter(|&b| b != a) {
-            for c in (0..4).filter(|&c| c != a && c != b) {
-                perms.push([a, b, c, 6 - a - b - c]);
-            }
-        }
-    }
-    perms.into_iter().find(|p| {
-        let mapped: Vec<Card> = from.iter().map(|x| Card::new(x.rank(), p[x.suit() as usize])).collect();
-        CardSet::from_cards(&mapped) == target
-    })
-}
-
 impl Stored {
     /// The same spot on `flop`, a suit renaming of this one's flop: hands and turn cards
     /// move, nothing is recomputed. `scenario` gives the ranges, which must weigh every
@@ -407,7 +387,7 @@ impl Stored {
     pub fn renamed(&self, scenario: &Scenario, flop: &str) -> Result<Stored, Error> {
         let from = parse_board(&self.flop)?;
         let to = parse_board(flop)?;
-        let perm = suit_map(&from, &to).ok_or_else(|| invalid("the flops are no suit renaming of each other"))?;
+        let perm = crate::suits::between(&from, &to).ok_or_else(|| invalid("the flops are no suit renaming of each other"))?;
         let rename = |c: Card| Card::new(c.rank(), perm[c.suit() as usize]);
         // Per player: for each hand in this flop's storage order, its place on the new flop.
         let mut places: [Vec<usize>; 2] = [Vec::new(), Vec::new()];

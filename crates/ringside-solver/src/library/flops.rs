@@ -51,8 +51,8 @@ impl FlopClass {
 pub fn canonical(cards: [Card; 3]) -> [Card; 3] {
     let key = |c: Card| (12 - c.rank(), 3 - c.suit());
     let mut best: Option<[Card; 3]> = None;
-    for perm in permutations() {
-        let mut renamed = cards.map(|c| Card::new(c.rank(), perm[c.suit() as usize]));
+    for perm in crate::suits::all() {
+        let mut renamed = cards.map(|c| crate::suits::rename(c, &perm));
         renamed.sort_by_key(|&c| key(c));
         if best.is_none_or(|b| renamed.map(key) < b.map(key)) {
             best = Some(renamed);
@@ -61,17 +61,6 @@ pub fn canonical(cards: [Card; 3]) -> [Card; 3] {
     best.expect("24 permutations")
 }
 
-fn permutations() -> Vec<[u8; 4]> {
-    let mut out = Vec::with_capacity(24);
-    for a in 0..4u8 {
-        for b in (0..4).filter(|&b| b != a) {
-            for c in (0..4).filter(|&c| c != a && c != b) {
-                out.push([a, b, c, 6 - a - b - c]);
-            }
-        }
-    }
-    out
-}
 
 fn texture(c: &[Card; 3]) -> Texture {
     let ranks = [c[0].rank(), c[1].rank(), c[2].rank()];
