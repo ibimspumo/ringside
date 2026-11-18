@@ -298,7 +298,7 @@
       <p class="ov-title">Auf einen Blick</p>
       {#each GROUPS as g (g.id)}
         {@const o = overview[g.id]}
-        <Card pad="sm" selected={active === g.id} onclick={() => jump(g.id)} aria-current={active === g.id ? "location" : undefined}>
+        <Card pad="sm" tone={active === g.id ? "raised" : "default"} onclick={() => jump(g.id)} aria-current={active === g.id ? "location" : undefined}>
           <span class="ov-item">
             <b>{g.label}</b>
             <span class="ov-line"><span class="dot {o.tone}"></span>{o.line}</span>
@@ -445,7 +445,7 @@
       {@render head(1)}
       <Panel flush>
         <AutoAnalysisSettings onChange={(a) => (auto = a)} />
-        <LibrarySettings locked={clientRunning} />
+        <LibrarySettings />
         <GpuTest locked={clientRunning} />
       </Panel>
     </section>
@@ -522,9 +522,9 @@
   }
   .settings.wide {
     display: grid;
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 300px minmax(0, 1fr);
     gap: var(--sp-10);
-    max-width: 1560px;
+    max-width: 1680px;
   }
   .overview {
     position: sticky;

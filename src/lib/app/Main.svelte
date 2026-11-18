@@ -373,7 +373,8 @@
           <small class="num">{int(upgrade.done)} von {int(upgrade.total)} Händen</small>
         </div>
       {/if}
-      {#if status && !upgrade && status.dirs.length === 0}
+      <!-- The settings page says the same in its folder row, with the same button. -->
+      {#if status && !upgrade && status.dirs.length === 0 && tab !== "settings"}
         <div class="warn">
           <strong
             ><Term tip="In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst."

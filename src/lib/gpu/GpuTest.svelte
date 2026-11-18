@@ -138,7 +138,8 @@
                 <td class="r num">{time(spot.cpu)}<div class="soft small">{spot.cpu.iterations} Durchläufe</div></td>
                 {#if spot.gpu}
                   <td class="r num">{time(spot.gpu)}<div class="soft small">{spot.gpu.iterations} Durchläufe</div></td>
-                  <td class="r num strong">{de(spot.speedup_per_iteration ?? 0, 1)}×</td>
+                  {@const f = spot.speedup_per_iteration ?? 0}
+                  <td class="r num strong">{de(f, 1)}×<div class="soft small">{f >= 1.05 ? "GPU schneller" : f > 0.95 ? "etwa gleich" : "GPU langsamer"}</div></td>
                   <td class="r num">{de(Math.abs(spot.value_diff_pct ?? 0), 3)} %</td>
                   <td class="r" class:good={spot.matches} class:bad={!spot.matches}>{spot.matches ? "gleich" : "abweichend"}</td>
                 {:else}
@@ -220,8 +221,8 @@
   }
   th {
     font-weight: var(--fw-medium);
-    font-size: var(--fs-sm);
-    color: var(--text-3);
+    font-size: var(--fs-md);
+    color: var(--text-2);
     text-align: left;
     padding: 0 var(--sp-3) var(--sp-2) 0;
   }

@@ -79,9 +79,9 @@
     line-height: var(--lh-tight);
   }
   .sub {
-    margin: 0;
+    margin: 2px 0 0;
     color: var(--text-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     line-height: 1.5;
   }
   .more-toggle {
@@ -151,6 +151,10 @@
     margin-top: var(--sp-2);
   }
   .more-inner :global(summary) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+    list-style: none;
     width: fit-content;
     color: var(--text-2);
     font-size: var(--fs-md);
@@ -158,6 +162,24 @@
     text-decoration-color: var(--line-2);
     text-underline-offset: 3px;
     cursor: pointer;
+  }
+  .more-inner :global(summary::-webkit-details-marker) {
+    display: none;
+  }
+  /* The same small chevron as "Mehr dazu". */
+  .more-inner :global(summary::after) {
+    content: "";
+    width: 5px;
+    height: 5px;
+    margin: 0 2px 3px 3px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: rotate(45deg);
+    transition: transform var(--dur-fast) var(--ease-standard);
+  }
+  .more-inner :global(details[open] > summary::after) {
+    margin-bottom: -2px;
+    transform: rotate(225deg);
   }
   .more-inner :global(summary:hover) {
     color: var(--text);
@@ -193,6 +215,10 @@
     justify-content: flex-end;
     gap: var(--sp-2);
     min-height: 28px;
+  }
+  /* A quiet button keeps its padding inside: pulled out by it, its text ends where framed buttons end. */
+  .control > :global(.ui-btn.quiet.sm:last-child) {
+    margin-right: -10px;
   }
   .detail {
     grid-column: 1 / -1;

@@ -7,7 +7,7 @@
   import Panel from "../ui/Panel.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
-  import Tag from "../ui/Tag.svelte";
+  import Switch from "../ui/Switch.svelte";
   import KeyForm from "./KeyForm.svelte";
   import { modelLabel, money } from "./meaning";
   import type { CoachStatus, Effort, KeyInfo, ModelInfo } from "./types";
@@ -109,8 +109,8 @@
     return priced.length ? priced.reduce((a, b) => (perTournament(b)! < perTournament(a)! ? b : a)).id : null;
   });
   const dearest = $derived(Math.max(0, ...(models ?? []).map((m) => perTournament(m) ?? 0)));
-  /** Bar width on a square-root scale, so cheap models still show a sliver. */
-  const priceShare = (t: number | null) => (t == null || dearest <= 0 ? 0 : Math.max(4, Math.sqrt(t / dearest) * 100));
+  /** Bar width on a linear scale, so the bars compare like the prices; the cheapest still show a sliver. */
+  const priceShare = (t: number | null) => (t == null || dearest <= 0 ? 0 : Math.max(3, (t / dearest) * 100));
   const RICHTWERT = "Richtwert für ein Turnier mit rund 30 gesendeten Händen. Vor jeder Analyse siehst du die genaue Schätzung.";
   const provider = (m: ModelInfo) => m.name.split(":")[0];
   /** "DeepSeek: V4" → "V4" reads as nothing alone, so short names keep their maker. */
@@ -188,8 +188,8 @@
           <Button size="sm" onclick={() => (open = false)}>Fertig</Button>
         </div>
         <div class="opts">
-          <Tag selected={toolsOnly} onclick={() => (toolsOnly = !toolsOnly)}>Nur Modelle, die mit Ringside funktionieren</Tag>
-          <Tag selected={technical} onclick={() => (technical = !technical)}>Technische Angaben</Tag>
+          <label class="opt"><Switch label="Nur Modelle, die mit Ringside funktionieren" bind:checked={toolsOnly} />Nur Modelle, die mit Ringside funktionieren</label>
+          <label class="opt"><Switch label="Technische Angaben" bind:checked={technical} />Technische Angaben</label>
         </div>
         {#if modelsError}
           <p class="msg">{modelsError}</p>
@@ -235,7 +235,11 @@
               <p class="fine pad">Kein Modell gefunden.</p>
             {/each}
           </div>
-          <p class="fine">„Je Turnier“ ist ein Richtwert für rund 30 gesendete Hände; vor jeder Analyse siehst du die genaue Schätzung.</p>
+          <p class="fine">
+            Faustregel: Teurere Modelle besprechen meist gründlicher, günstige reichen für einen ersten Überblick. Im Zweifel bleib
+            bei der Empfehlung. „Je Turnier“ ist ein Richtwert für rund 30 gesendete Hände; vor jeder Analyse siehst du die genaue
+            Schätzung.
+          </p>
         {/if}
       </div>
     {/if}
@@ -368,7 +372,15 @@
   .opts {
     display: flex;
     flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-6);
+  }
+  .opt {
+    display: inline-flex;
+    align-items: center;
     gap: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    cursor: pointer;
   }
   .list {
     display: flex;
