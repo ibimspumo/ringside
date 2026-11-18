@@ -4,6 +4,7 @@ import * as analysisDemo from "./analysis/demo";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision } from "./analysis/types";
 import * as demo from "./demo";
 import * as learnDemo from "./learn/demo";
+import type { DrillResult, DrillSpot, PlayProfile } from "./learn/profile";
 import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
@@ -200,6 +201,16 @@ export const api = {
   /** Solves a push/fold spot's table ahead of the answer; seconds at a full table. */
   learnPrepareOwn: (spotId: string) => call<void>("learn_prepare_own", { spotId }, () => undefined),
   learnProgress: () => call<LearnProgress>("learn_progress", {}, learnDemo.demoProgress),
+  learnProfile: (filter: Filter) => call<PlayProfile>("learn_profile", { filter }, learnDemo.demoProfile),
+  learnDrillReal: (key: string, limit: number) => call<DrillSpot[]>("learn_drill_real", { key, limit }, () => learnDemo.demoDrillReal(key, limit)),
+  learnDrillVariant: (key: string, seed: number) =>
+    call<DrillSpot>("learn_drill_variant", { key, seed }, () => learnDemo.demoDrillVariant(key, seed)),
+  learnDrillCheck: (spot: DrillSpot, choice: number) =>
+    call<DrillResult>(
+      "learn_drill_check",
+      { key: spot.key, handId: spot.hand_id, actionIndex: spot.action_index, seed: spot.seed, choice },
+      () => learnDemo.demoDrillCheck(spot.key, spot.hand_id, spot.action_index, spot.seed, choice),
+    ),
   pushfoldGrid: () => call<PushFoldGrid>("pushfold_grid", {}, chartsDemo.demoGrid),
   pushfoldChart: (ante: PushFoldAnte, players: number, stackBb: number) =>
     call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, () => chartsDemo.demoChart(stackBb, players)),

@@ -243,6 +243,8 @@ export interface HandQuery extends Filter {
   sort_by_loss?: boolean;
   /** Hands with a matching preflop decision of yours. */
   range?: RangeFilter | null;
+  /** Hands with a decision of this kind of spot of the playing profile. */
+  profile?: string | null;
   limit: number;
   offset: number;
 }
@@ -402,7 +404,9 @@ export type LearnKind =
   | "open_fold"
   | "river_bet"
   | "stack_depth"
-  | "hud_read";
+  | "hud_read"
+  /** A decision of the playing profile decided again, real or a variation; never generated. */
+  | "own_decision";
 
 /**
  * exakt = exact maths; formel = formula / rule of thumb; modell = exact within the model in `model_note`;

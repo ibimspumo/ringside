@@ -56,7 +56,7 @@
       }
     },
     "font-size": {
-      "total": 264,
+      "total": 262,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/LiveTables.svelte": 3,
@@ -83,7 +83,6 @@
         "learn/Task.svelte": 5,
         "learn/Today.svelte": 13,
         "learn/Trainer.svelte": 3,
-        "learn/Weaknesses.svelte": 2,
         "learn/wissen/Article.svelte": 4,
         "learn/wissen/blocks/Bars.svelte": 2,
         "learn/wissen/blocks/Formula.svelte": 2,
@@ -124,7 +123,7 @@
       }
     },
     "button-style": {
-      "total": 154,
+      "total": 153,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
@@ -148,7 +147,6 @@
         "learn/Task.svelte": 8,
         "learn/Today.svelte": 5,
         "learn/Trainer.svelte": 8,
-        "learn/Weaknesses.svelte": 1,
         "learn/wissen/Article.svelte": 2,
         "learn/wissen/widgets/CbetRange.svelte": 2,
         "learn/wissen/widgets/Outs.svelte": 5,

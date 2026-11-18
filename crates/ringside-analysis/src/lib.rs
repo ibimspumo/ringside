@@ -15,6 +15,7 @@
 
 pub mod calibration;
 pub mod coverage;
+pub mod drill;
 pub mod estimate;
 mod fmt;
 pub mod grade;

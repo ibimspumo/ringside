@@ -476,6 +476,32 @@ step("Training: Bet oder Check am River, Stufe 1", async () => {
   await waitText("Gleichgewicht des River-Spiels");
 });
 
+// The app's fixture hands are too few to rank a kind of spot; there the page has to say why it is empty.
+step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async () => {
+  await click("main [role='tab']", "Heute");
+  await waitText("Runde starten");
+  if (TAURI && !/Zuerst: aus deinem Spiel/.test(await mainText())) {
+    await waitText("Schwachstellen erscheinen nach der Analyse|Deine Schwachstellen");
+    return;
+  }
+  await waitText("Zuerst: aus deinem Spiel");
+  const title = await s.exec(`return document.querySelector("main .rows .row .title")?.textContent.trim() ?? null`);
+  if (!title) throw new Error("no kind of spot among the weaknesses");
+  await click("main .rows .row button", "Üben", { exact: false });
+  await find("main .drill .origin", "Echte Hand", { exact: false });
+  await click("main .drill .choices button");
+  await find("main .drill .verdict");
+  await waitText("Damals hast du");
+  await click("main .drill button", "Weiter", { exact: false });
+  // The round goes on with the next spot of the same kind: real or dealt anew, it says which.
+  await find("main .drill .origin");
+  await click("main button", "Runde beenden");
+  await click("main button", "Noch eine Runde");
+  await click("main .rows .row button", "Hände ansehen", { exact: false });
+  await find("main h1", "Hände");
+  await waitFor("the weakness as filter chip", `return document.querySelector("main")?.innerText.includes(arguments[0])`, [title]);
+});
+
 /** Sets the table size with the − / + buttons in the middle of the table. */
 async function tableSize(n) {
   await s.exec(

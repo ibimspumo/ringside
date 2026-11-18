@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::allin::hero_all_in;
 use crate::model::{GameKind, Hand};
 use crate::parser::parse_hand;
+use crate::profile::{ProfileRow, kind_of};
 use crate::leaks::{self, Cell};
 use crate::stats::{Counters, StatId, analyze, hand_class, position_labels};
 use crate::tournament::{BuyIn, Summary, TournamentRow};
@@ -71,6 +72,9 @@ pub struct HandQuery {
     /// Hands with a matching preflop decision of the hero.
     #[serde(default)]
     pub range: Option<RangeFilter>,
+    /// Hands with a decision of this kind of spot of the playing profile (`SpotKind::key`).
+    #[serde(default)]
+    pub profile: Option<String>,
     pub limit: usize,
     pub offset: usize,
 }
@@ -742,6 +746,24 @@ impl Db {
         let decisions = q.decisions.clone().unwrap_or_default();
         let decision_sql = if decisions.is_empty() { String::new() } else { decisions.hands_sql() };
         let range_sql = q.range.as_ref().map(RangeFilter::hands_sql).unwrap_or_default();
+        // The kind of spot is computed, not stored: the matching decisions are looked up first.
+        let profile_rows: Option<Vec<ProfileRow>> = match &q.profile {
+            Some(key) => Some(
+                self.profile_rows(&q.filter)?
+                    .into_iter()
+                    .filter(|r| kind_of(r).is_some_and(|k| k.key() == *key))
+                    .collect(),
+            ),
+            None => None,
+        };
+        let profile_sql = match &profile_rows {
+            Some(rows) if rows.is_empty() => "AND 0".to_string(),
+            Some(rows) => {
+                let ids: std::collections::BTreeSet<u64> = rows.iter().map(|r| r.hand_id).collect();
+                format!("AND h.id IN ({})", ids.iter().map(u64::to_string).collect::<Vec<_>>().join(","))
+            }
+            None => String::new(),
+        };
         let order = match (q.sort_by_loss, decisions.is_empty()) {
             (false, _) => "h.played_at DESC, h.id DESC".to_string(),
             (true, true) => "(SELECT a.worst_loss_bb FROM hand_analysis a WHERE a.hand_id = h.id) DESC NULLS LAST, h.id DESC".into(),
@@ -763,6 +785,7 @@ impl Db {
                {spot}
                {decision_sql}
                {range_sql}
+               {profile_sql}
              ORDER BY {order} LIMIT ?8 OFFSET ?9"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
@@ -801,7 +824,18 @@ impl Db {
         )?;
         let mut list: Vec<HandSummary> = rows.collect::<Result<_, _>>()?;
         for h in &mut list {
-            h.worst = self.worst_decision(h.id, &decisions)?;
+            h.worst = match &profile_rows {
+                // The costliest decision of that kind in the hand.
+                Some(rows) => match rows
+                    .iter()
+                    .filter(|r| r.hand_id == h.id)
+                    .max_by(|a, b| a.ev_loss_bb.unwrap_or(-1.0).total_cmp(&b.ev_loss_bb.unwrap_or(-1.0)))
+                {
+                    Some(r) => self.decision_brief(r.hand_id, r.action_index)?,
+                    None => None,
+                },
+                None => self.worst_decision(h.id, &decisions)?,
+            };
         }
         Ok(list)
     }
@@ -1170,7 +1204,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
 }
 
 /// The hero's stack against the biggest other stack dealt in, in big blinds.
-fn effective_stack_bb(hand: &Hand, hero: &str) -> Option<f64> {
+pub fn effective_stack_bb(hand: &Hand, hero: &str) -> Option<f64> {
     if hand.big_blind <= 0 {
         return None;
     }

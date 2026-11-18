@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{Db, Error, FILTER_SQL, Filter};
 use crate::model::Street;
+use crate::profile::{ProfileRow, facing_bet};
 
 pub(super) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS hero_decisions (
@@ -49,7 +50,12 @@ pub(super) const SCHEMA: &str = "
         marked INTEGER NOT NULL DEFAULT 0,
         job TEXT NOT NULL
     );
-    CREATE INDEX IF NOT EXISTS postflop_queue_order ON postflop_queue(marked, priority);";
+    CREATE INDEX IF NOT EXISTS postflop_queue_order ON postflop_queue(marked, priority);
+    CREATE TABLE IF NOT EXISTS spot_practice (
+        key TEXT PRIMARY KEY,
+        first_at INTEGER NOT NULL,
+        after_hand INTEGER NOT NULL
+    );";
 
 /// How well a decision matches the recommendation, best first: the grades of the
 /// practice (`ringside_play::Grade`), stored by level.
@@ -719,5 +725,62 @@ impl Db {
         })?;
         out.costliest = rows.collect::<Result<_, _>>()?;
         Ok(out)
+    }
+    /// Every unforced decision of the hero in the hands of `filter`, with what the playing
+    /// profile needs of its hand.
+    pub fn profile_rows(&self, filter: &Filter) -> Result<Vec<ProfileRow>, Error> {
+        let mut stmt = self.conn.prepare_cached(&format!(
+            "SELECT d.hand_id, d.action_index, h.played_at, d.spot, d.status, d.rating, d.ev_loss_bb, d.source, d.reliability,
+                    d.strategy, h.hero_position, h.hero_stack_bb,
+                    (SELECT COUNT(*) FROM player_hands p WHERE p.hand_id = h.id)
+             FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
+             WHERE {FILTER_SQL} AND d.status <> 'forced'
+             ORDER BY d.hand_id, d.action_index"
+        ))?;
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament()], |r| {
+            let strategy: Vec<Choice> = serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default();
+            Ok(ProfileRow {
+                hand_id: r.get::<_, i64>(0)? as u64,
+                action_index: r.get::<_, i64>(1)? as usize,
+                played_at: r.get(2)?,
+                spot: SpotType::parse(&r.get::<_, String>(3)?).unwrap_or(SpotType::Flop),
+                status: Status::parse(&r.get::<_, String>(4)?),
+                rating: r.get::<_, Option<i64>>(5)?.and_then(Rating::from_level),
+                ev_loss_bb: r.get(6)?,
+                source: r.get::<_, Option<String>>(7)?.as_deref().and_then(Source::parse),
+                reliability: r.get(8)?,
+                facing_bet: facing_bet(&strategy),
+                position: r.get(10)?,
+                stack_bb: r.get(11)?,
+                players: r.get::<_, i64>(12)? as usize,
+            })
+        })?;
+        rows.collect()
+    }
+
+    /// Remembers the first practice of a kind of spot with the newest hand stored then, so
+    /// later hands show what changed. Later practice keeps the first.
+    pub fn mark_spot_practiced(&self, key: &str, at: i64) -> Result<(), Error> {
+        self.conn
+            .execute(
+                "INSERT OR IGNORE INTO spot_practice (key, first_at, after_hand) SELECT ?1, ?2, COALESCE(MAX(id), 0) FROM hands",
+                params![key, at],
+            )
+            .map(|_| ())
+    }
+
+    /// Kinds of spot practiced, with the newest hand stored at their first practice.
+    pub fn spot_practice(&self) -> Result<Vec<(String, u64)>, Error> {
+        let mut stmt = self.conn.prepare_cached("SELECT key, after_hand FROM spot_practice ORDER BY key")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as u64)))?;
+        rows.collect()
+    }
+
+    /// One stored decision in brief.
+    pub fn decision_brief(&self, hand_id: u64, action_index: usize) -> Result<Option<DecisionBrief>, Error> {
+        self.conn
+            .prepare_cached(&format!("SELECT {BRIEF_COLS} FROM hero_decisions d WHERE d.hand_id = ?1 AND d.action_index = ?2"))?
+            .query_row(params![hand_id as i64, action_index as i64], |r| brief_at(r, 0))
+            .optional()
     }
 }

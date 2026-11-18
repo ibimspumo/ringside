@@ -147,6 +147,12 @@ export const SKILLS: Record<LearnKind, SkillMeta> = {
     icon: "M4 6h16v12H4zM8 14v-3M12 14V9M16 14v-5",
     articles: ["stichprobe", "vpip", "pfr", "three-bet"],
   },
+  own_decision: {
+    short: "Aus deinem Spiel",
+    levels: ["Deine Spots", "Deine Spots", "Deine Spots"],
+    icon: "M4 19V5M4 19h16M8 15l3-4 3 2 5-6",
+    articles: ["ev"],
+  },
   full_hands: {
     short: "Ganze Hände",
     levels: ["Ganze Hände", "Ganze Hände", "Ganze Hände"],
@@ -303,7 +309,7 @@ export function daysSince(s: SkillProgress | undefined): number | null {
  * (sooner when the level is low). A simple stand-in until the backend schedules reviews.
  */
 export function isDue(s: SkillProgress): boolean {
-  if (s.attempts === 0 || s.id === "all_in" || s.id === "full_hands") return false;
+  if (s.attempts === 0 || s.id === "all_in" || s.id === "full_hands" || s.id === "own_decision") return false;
   const days = daysSince(s) ?? 0;
   const gap = [0, 0.5, 1, 3, 7][s.level];
   return days >= gap || (s.mean_score ?? 1) < 0.6;

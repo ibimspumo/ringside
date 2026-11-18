@@ -64,11 +64,13 @@ pub enum Kind {
     StackDepth,
     /// Player type and counter-move from HUD numbers, and when to trust them.
     HudRead,
+    /// A decision of the playing profile decided again: a real one or a variation of it.
+    OwnDecision,
 }
 
 impl Kind {
     /// New kinds go at the end: the position seeds each kind's random stream.
-    pub const ALL: [Kind; 20] = [
+    pub const ALL: [Kind; 21] = [
         Kind::Outs,
         Kind::PotOdds,
         Kind::Probability,
@@ -89,6 +91,7 @@ impl Kind {
         Kind::RiverBet,
         Kind::StackDepth,
         Kind::HudRead,
+        Kind::OwnDecision,
     ];
 
     /// The snake_case id used in JSON and in the database.
@@ -114,6 +117,7 @@ impl Kind {
             Kind::RiverBet => "river_bet",
             Kind::StackDepth => "stack_depth",
             Kind::HudRead => "hud_read",
+            Kind::OwnDecision => "own_decision",
         }
     }
 
@@ -143,12 +147,13 @@ impl Kind {
             Kind::RiverBet => "Bet oder Check am River",
             Kind::StackDepth => "Stacktiefe und M-Zahl",
             Kind::HudRead => "Gegner lesen mit HUD-Werten",
+            Kind::OwnDecision => "Aus deinem Spiel",
         }
     }
 
     /// Whether [`generate`] can make exercises of this kind.
     pub fn generated(self) -> bool {
-        !matches!(self, Kind::AllIn | Kind::FullHands)
+        !matches!(self, Kind::AllIn | Kind::FullHands | Kind::OwnDecision)
     }
 }
 
@@ -561,6 +566,7 @@ pub fn generate(kind: Kind, level: u8, seed: u64) -> Result<Exercise, String> {
         Kind::PushFoldOpen | Kind::PushFoldCall => multiway::generate(kind, level, &mut rng)?,
         Kind::AllIn => return Err("All-in-Übungen gibt es nur aus eigenen Händen".into()),
         Kind::FullHands => return Err("Ganze Hände gibt es im Übungsmodus „Hände spielen“".into()),
+        Kind::OwnDecision => return Err("Diese Spots kommen aus deinem Spielprofil".into()),
         Kind::BountyOdds => bounty::generate(level, &mut rng),
         Kind::IcmCall => icm::generate(level, &mut rng)?,
         Kind::OpenFold => open::generate(level, &mut rng)?,

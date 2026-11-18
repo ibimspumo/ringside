@@ -196,7 +196,7 @@
     if (id !== null) showHands(null, id);
   });
   /** Hands tab: a leak-finder spot to list. */
-  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; label: string } | null>(null);
+  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; label: string } | null>(null);
   /** Training tab: an article or exercise to open, set from the leak finder. */
   let learnOpen = $state<LearnTarget | null>(null);
 
@@ -482,7 +482,15 @@
       {:else if tab === "live"}
         <LiveTables onHands={(name, id) => showHands(name, id ?? null)} />
       {:else if tab === "training"}
-        <Training {hud} open={learnOpen} onOpened={() => (learnOpen = null)} />
+        <Training
+          {hud}
+          open={learnOpen}
+          onOpened={() => (learnOpen = null)}
+          onHands={(profile, label) => {
+            showHands(null);
+            handsSpot = { profile, label };
+          }}
+        />
       {:else if tab === "play"}
         <PlayPage />
       {:else if tab === "charts"}

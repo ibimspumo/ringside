@@ -13,16 +13,20 @@
   import Wissen from "./wissen/Wissen.svelte";
   import { preview } from "./preview";
   import { usePageHead } from "../ui/page.svelte";
+  import type { PlayProfile } from "./profile";
 
   let {
     hud = null,
     open = null,
     onOpened = () => {},
+    onHands,
   }: {
     hud?: HudConfig | null;
     /** An article or exercise to show first, e.g. from the leak finder. */
     open?: LearnTarget | null;
     onOpened?: () => void;
+    /** Opens the hands of a kind of spot of the playing profile. */
+    onHands?: (key: string, label: string) => void;
   } = $props();
 
   type Section = "today" | "path" | "own" | "trainer" | "wissen";
@@ -55,6 +59,10 @@
   let progress = $state<LearnProgress | null>(null);
   /** Coach concepts from stored reports; empty without reports. */
   let concepts = $state<ConceptCount[]>([]);
+  /** Kinds of spot from the analysed hands; null while loading or locked. */
+  let profile = $state<PlayProfile | null>(null);
+  /** A kind of spot "Heute" practises right away. */
+  let focus = $state<string | null>(preview("focus"));
   let loadError = $state<string | null>(null);
   let article = $state<string | null>(preview("article"));
   /** Skill and level the trainer opens with when coming from the path. */
@@ -79,6 +87,12 @@
     } catch (e) {
       loadError = errorText(e);
     }
+    api
+      .learnProfile({ game: null, since: null, tournament_id: null })
+      .then((p) => (profile = p))
+      .catch(() => {
+        // Locked or not analysed yet: the plan then works without the own game.
+      });
   }
 
   onMount(() => {
@@ -99,6 +113,11 @@
   function train(kind: LearnKind, level: number) {
     trainerPick = { kind, level };
     go("trainer");
+  }
+
+  function practice(key: string) {
+    focus = key;
+    go("today");
   }
 
   function read(id: string) {
@@ -133,13 +152,19 @@
       <Today
         {progress}
         {concepts}
+        {profile}
+        {focus}
+        onFocusDone={() => (focus = null)}
         onProgress={reload}
         onPath={() => go("path")}
         onOwn={() => go("own")}
         onTrainer={() => go("trainer")}
+        onTrain={train}
+        onRead={read}
+        {onHands}
       />
     {:else if section === "path"}
-      <Path {progress} {concepts} onTrain={train} onRead={read} />
+      <Path {progress} {concepts} {profile} onTrain={train} onRead={read} onPractice={practice} {onHands} />
     {:else if section === "own"}
       <OwnHands onProgress={reload} onRead={read} />
     {:else if section === "trainer"}

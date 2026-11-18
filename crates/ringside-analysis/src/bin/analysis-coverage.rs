@@ -1,16 +1,18 @@
 //! How much of a hand history the analysis rates, by situation and source:
 //!
 //! ```text
-//! cargo run --release -p ringside-analysis --bin analysis-coverage -- <dir or file>... [--solve THREADS]
+//! cargo run --release -p ringside-analysis --bin analysis-coverage -- <dir or file>... [--solve THREADS] [--profile]
 //! ```
 //!
 //! With `--solve` every postflop spot is solved as the app's queue would, so nothing
-//! waits any more. Hand histories stay where they are; nothing is written.
+//! waits any more. `--profile` adds the playing profile's costliest kinds of spot. Hand histories stay where they are; nothing is written.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use ringside_analysis::coverage::Coverage;
+use ringside_analysis::drill;
+use ringside_core::profile::profile;
 use ringside_analysis::{PostflopJob, analyze_hand, settle_job};
 use ringside_core::model::Hand;
 use ringside_core::{parse_hand, split_hands};
@@ -28,10 +30,12 @@ fn files(path: &Path, out: &mut Vec<PathBuf>) {
 fn main() {
     let mut paths = Vec::new();
     let mut threads: Option<usize> = None;
+    let mut with_profile = false;
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
             "--solve" => threads = Some(args.next().and_then(|v| v.parse().ok()).expect("--solve THREADS")),
+            "--profile" => with_profile = true,
             _ => files(Path::new(&a), &mut paths),
         }
     }
@@ -66,4 +70,26 @@ fn main() {
         }
     }
     print!("{cov}");
+    if with_profile {
+        let rows: Vec<_> = hands.iter().zip(&results).flat_map(|(h, r)| r.decisions.iter().map(|d| drill::row(h, d))).collect();
+        let p = profile(&rows, &[]);
+        println!("\nSpielprofil: {} bewertete Entscheidungen, {:.1} BB Verlust", p.decisions, p.loss_bb);
+        for g in p.groups.iter().filter(|g| g.rank.is_some()).take(10) {
+            println!(
+                "{:>2}. {}, {}: {}× gespielt, Fehlerquote {:.0} %, {:.1} BB gesamt, {:.2} BB pro Mal, berechnet {:.0} %, Einschätzung {:.0} % des Verlusts{}",
+                g.rank.unwrap_or(0),
+                g.title,
+                g.detail,
+                g.decisions,
+                g.error_pct,
+                g.loss_bb,
+                g.mean_loss_bb,
+                g.computed_pct,
+                g.estimate_loss_pct,
+                if g.unsure { " (unsicher)" } else { "" }
+            );
+        }
+        let ranked = p.groups.iter().filter(|g| g.rank.is_some()).count();
+        println!("{} Spot-Arten, {ranked} mit mindestens {} Entscheidungen", p.groups.len(), p.min_decisions);
+    }
 }

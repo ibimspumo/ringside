@@ -47,8 +47,8 @@
     openId: number | null;
     /** Decision of `openId` to stop at (action index), e.g. coming back from the ranges page. */
     openAt?: number | null;
-    /** Hands of a leak-finder spot or a range-chart cell, with a label for the chip. */
-    spot?: { filter?: SpotFilter | null; range?: RangeFilter | null; label: string } | null;
+    /** Hands of a leak-finder spot, a range-chart cell or a kind of spot of the playing profile, with a label for the chip. */
+    spot?: { filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; label: string } | null;
     onClearPlayer: () => void;
     onClearTournament: () => void;
     onClearSpot?: () => void;
@@ -151,6 +151,7 @@
     min_pot_bb: minPot && minPot > 0 ? minPot : null,
     spot: spot?.filter ?? null,
     range: spot?.range ?? null,
+    profile: spot?.profile ?? null,
     decisions: decisionFilter,
     sort_by_loss: view === "mistakes",
     limit: PAGE,
