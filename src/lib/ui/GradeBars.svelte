@@ -4,15 +4,20 @@
 
   /**
    * How a session went, grade by grade: icon, word, count and a bar of its share. Grades without
-   * decisions stay visible but faded, so the scale is always complete.
+   * decisions stay visible but faded, so the scale is always complete. `grades` narrows the scale
+   * for sources that never give a grade (the hand analysis has no "mix").
    */
-  let { counts, label = "Bewertungen" }: { counts: Partial<Record<Grade, number>>; label?: string } = $props();
+  let {
+    counts,
+    label = "Bewertungen",
+    grades = GRADES,
+  }: { counts: Partial<Record<Grade, number>>; label?: string; grades?: Grade[] } = $props();
 
-  const total = $derived(GRADES.reduce((s, g) => s + (counts[g] ?? 0), 0));
+  const total = $derived(grades.reduce((s, g) => s + (counts[g] ?? 0), 0));
 </script>
 
 <ul class="ui-grade-bars" aria-label={label}>
-  {#each GRADES as g (g)}
+  {#each grades as g (g)}
     {@const n = counts[g] ?? 0}
     <li class:none={n === 0} style:--c="var(--grade-{g})">
       <GradeIcon grade={g} size={15} />

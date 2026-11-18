@@ -31,6 +31,7 @@
   import Tabs from "./Tabs.svelte";
   import Tag from "./Tag.svelte";
   import Toast from "./Toast.svelte";
+  import Term from "./Term.svelte";
   import Tooltip from "./Tooltip.svelte";
   import Verdict from "./Verdict.svelte";
 
@@ -550,9 +551,9 @@
 
     {#if show("popups")}
       <section id="popups">
-        <SectionHead title="Hinweise & Popups" sub="Tooltip erklärt ein Wort, Popover zeigt Details an der Maus, Dialog fragt nach, Toast meldet Ergebnisse." />
+        <SectionHead title="Hinweise & Popups" sub="Term erklärt ein Wort im Satz (auch per Tastatur), Tooltip ein Element, Popover zeigt Details an der Maus, Dialog fragt nach, Toast meldet Ergebnisse." />
         <div class="row">
-          <Tooltip text="Wie oft du freiwillig Geld in den Pot legst."><span class="term">VPIP</span></Tooltip>
+          <span>Dein <Term tip="Wie oft du freiwillig Geld in den Pot legst. Die Blinds zählen nicht.">VPIP</Term> liegt bei 24 %.</span>
           <Tooltip text="Erscheint auch bei Tastaturfokus." open={only === "popups"}><Button size="sm">Mit Tooltip</Button></Tooltip>
           <span bind:this={popHost}><Button size="sm" onclick={(e) => (popAnchor = popAnchor ? null : rectOf(e.currentTarget as Element))}>Popover anheften</Button></span>
           <Button size="sm" onclick={() => (dialogOpen = true)}>Dialog öffnen</Button>
@@ -1021,10 +1022,6 @@
   }
   .small-grid {
     width: 260px;
-  }
-  .term {
-    border-bottom: 1px dotted var(--text-3);
-    cursor: help;
   }
   .toasts {
     display: flex;
