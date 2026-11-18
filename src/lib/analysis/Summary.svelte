@@ -125,7 +125,7 @@
                 <span class="links">
                   {#if onLearn}
                     {#each LEARN[spot] as l, j (l.label)}
-                      <Button size="sm" variant={i === 0 || j > 0 ? "quiet" : "secondary"} onclick={() => onLearn(l.target)}>{l.label}</Button>
+                      <Button size="sm" variant={j === (i === 0 && LEARN[spot].length > 1 ? 1 : 0) ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
                     {/each}
                   {/if}
                   {#if onSpot}
@@ -143,17 +143,17 @@
       <div class="costly">
         <h3>Teuerste Entscheidungen</h3>
         {#each data.costliest.slice(0, 3) as c (c.hand_id + ":" + c.action_index)}
-          <Card pad="sm" onclick={() => onOpen(c.hand_id, c.action_index)}>
+          <Card pad="sm" aria-label="Hand ansehen: {c.played} statt {c.best}" title="Hand ansehen" onclick={() => onOpen(c.hand_id, c.action_index)}>
             <span class="hand">
             <span class="hole">{#each cards(c.hero_cards) as card (card)}<PlayingCard {card} size={20} />{/each}</span>
-            <span class="what">
-              <span class="decision">{c.played} statt {c.best}</span>
+            <span class="what" style="--c:{c.rating ? `var(--grade-${grade(c.rating)})` : 'var(--text)'}">
               <span class="detail">
-                <small>{c.position ? `${c.position} · ` : ""}Hand ansehen</small>
-                <span class="loss" style="--c:{c.rating ? `var(--grade-${grade(c.rating)})` : 'var(--text)'}">
-                  {#if c.rating}<small><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
-                  <b class="num">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
-                </span>
+                <span class="decision">{c.played} statt {c.best}</span>
+                <b class="num loss">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
+              </span>
+              <span class="detail">
+                <small>{c.position ?? ""}</small>
+                {#if c.rating}<small class="loss"><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
               </span>
             </span>
             </span>
@@ -220,16 +220,9 @@
   }
   .loss {
     display: flex;
-    align-items: baseline;
-    gap: var(--sp-2);
-    color: var(--c);
-    white-space: nowrap;
-  }
-  .loss small {
-    display: flex;
     align-items: center;
     gap: 4px;
-    font-size: var(--fs-md);
+    color: var(--c);
     white-space: nowrap;
   }
   .sources b {
@@ -346,6 +339,9 @@
   .what small {
     color: var(--text-2);
     font-size: var(--fs-md);
+  }
+  .what small.loss {
+    color: var(--c);
   }
   .band {
     display: flex;
