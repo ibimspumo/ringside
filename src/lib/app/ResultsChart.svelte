@@ -30,6 +30,8 @@
   } = $props();
 
   const M = { top: 24, right: 16, bottom: 28, left: 56 };
+  /** Rough width of one tick character in the number face at 11.5 px. */
+  const CHAR = 6.6;
   const val = (p: P, key: keyof P) => p[key] as number;
 
   let width = $state(0);
@@ -52,7 +54,6 @@
 
   const chart = $derived.by(() => {
     if (data.length === 0 || width === 0) return null;
-    const w = width - M.left - M.right;
     const h = height - M.top - M.bottom;
     let lo = 0;
     let hi = 0;
@@ -69,11 +70,15 @@
     const yStep = niceStep(hi - lo, Math.max(3, Math.round(h / 56)));
     lo = Math.floor(lo / yStep) * yStep;
     hi = Math.ceil(hi / yStep) * yStep;
+    const longest = Math.max(tick(lo, yStep).length, tick(hi, yStep).length, xLabel.length);
+    // The left margin grows with the longest tick label, so seven-digit values stay readable.
+    const left = Math.max(M.left, Math.ceil(longest * CHAR) + 14);
+    const w = width - left - M.right;
     const maxN = Math.max(data[data.length - 1].n, 1);
     // Hands and tournaments are counted in whole numbers.
     const xStep = Math.max(1, Math.ceil(niceStep(maxN, Math.max(2, Math.round(w / 110)))));
 
-    const x = (n: number) => M.left + (n / maxN) * w;
+    const x = (n: number) => left + (n / maxN) * w;
     const y = (v: number) => M.top + h - ((v - lo) / (hi - lo)) * h;
 
     const yTicks: number[] = [];
@@ -85,7 +90,7 @@
       ...s,
       d: data.map((p, i) => `${i ? "L" : "M"}${x(p.n).toFixed(1)},${y(val(p, s.key)).toFixed(1)}`).join(""),
     }));
-    return { x, y, w, h, yTicks, xTicks, lines, yStep };
+    return { x, y, w, h, left, yTicks, xTicks, lines, yStep };
   });
 
   function move(e: PointerEvent) {
@@ -93,12 +98,12 @@
     const rect = (e.currentTarget as SVGElement).getBoundingClientRect();
     origin = { left: rect.left, top: rect.top };
     const px = e.clientX - rect.left;
-    if (px < M.left - 8 || px > M.left + chart.w + 8) {
+    if (px < chart.left - 8 || px > chart.left + chart.w + 8) {
       hover = null;
       return;
     }
     const maxN = data[data.length - 1].n || 1;
-    const n = ((px - M.left) / chart.w) * maxN;
+    const n = ((px - chart.left) / chart.w) * maxN;
     let a = 0;
     let b = data.length - 1;
     while (b - a > 1) {
@@ -125,8 +130,8 @@
       onpointerleave={() => (hover = null)}
     >
       {#each chart.yTicks as v (v)}
-        <line class="grid" class:zero={v === 0} x1={M.left} x2={M.left + chart.w} y1={chart.y(v)} y2={chart.y(v)} />
-        <text class="ylab" x={M.left - 10} y={chart.y(v)} dominant-baseline="central" text-anchor="end">{tick(v, chart.yStep)}</text>
+        <line class="grid" class:zero={v === 0} x1={chart.left} x2={chart.left + chart.w} y1={chart.y(v)} y2={chart.y(v)} />
+        <text class="ylab" x={chart.left - 10} y={chart.y(v)} dominant-baseline="central" text-anchor="end">{tick(v, chart.yStep)}</text>
       {/each}
       {#each chart.xTicks as n (n)}
         <text
@@ -136,8 +141,8 @@
           text-anchor={n === 0 ? "start" : "middle"}>{int(n)}</text
         >
       {/each}
-      <text class="axis" x={M.left - 10} y={M.top + chart.h + 18} text-anchor="end">{xLabel}</text>
-      <text class="axis" x={M.left - 10} y={M.top - 14} dominant-baseline="central" text-anchor="end">{unit}</text>
+      <text class="axis" x={chart.left - 10} y={M.top + chart.h + 18} text-anchor="end">{xLabel}</text>
+      <text class="axis" x={chart.left - 10} y={M.top - 14} dominant-baseline="central" text-anchor="end">{unit}</text>
 
       {#each [...chart.lines].reverse() as l (l.key)}
         <path d={l.d} stroke={l.color} stroke-width={l.width} stroke-dasharray={l.dash} fill="none" stroke-linejoin="round" />

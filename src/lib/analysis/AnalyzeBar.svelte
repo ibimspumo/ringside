@@ -17,6 +17,10 @@
     if (!p) return "";
     return p.eta_secs && p.eta_secs > 1 ? `${p.detail} · noch etwa ${duration(p.eta_secs)}` : p.detail;
   });
+  /** Phase one rates every hand before the flop; phase two solves the flop spots in the background. */
+  const preDone = $derived(!!c && c.hands > 0 && c.analyzed >= c.hands);
+  const postShare = $derived(preDone && p?.share != null ? p.share : 0);
+  const eta = $derived(p?.eta_secs && p.eta_secs > 1 ? `noch etwa ${duration(p.eta_secs)}` : "");
   let busy = $state(false);
 
   async function act(f: () => Promise<void>) {
@@ -44,13 +48,37 @@
       </button>
     {:else if p}
       <div class="text" role="status">
-        <b>{p.title}</b>
-        <span class="num">{detail}</span>
-        <div class="track" aria-hidden="true">
-          <i style="width:{share * 100}%"></i>
-          {#if c.pending > 0 && c.decisions > 0}
-            <i class="post" style="width:{(c.pending / c.decisions) * 100}%"></i>
-          {/if}
+        <b
+          >{p.state === "running" && !p.title.includes("#")
+            ? preDone
+              ? "Flop-Analyse läuft"
+              : "Analyse läuft – vor dem Flop"
+            : p.title}</b
+        >
+        {#if p.state !== "running"}<span class="num">{detail}</span>{/if}
+        <div class="phases">
+          <div class="phase" class:done={preDone}>
+            <span class="ph-head">
+              <span class="step num" aria-hidden="true">{#if preDone}✓{:else}1{/if}</span>Vor dem Flop
+            </span>
+            <span class="track" class:running={preDone && !!c.queued} aria-hidden="true"><i style="width:{share * 100}%"></i></span>
+            <small class="num"
+              >{preDone ? `fertig · alle ${int(c.hands)} gespeicherten Hände` : `${int(c.analyzed)} von ${int(c.hands)} Händen`}</small
+            >
+          </div>
+          <div class="phase" class:waiting={!preDone}>
+            <span class="ph-head"><span class="step num" aria-hidden="true">2</span>Nach dem Flop</span>
+            <span class="track" aria-hidden="true">
+              {#if preDone && c.queued}<i class="post busy"></i>{:else}<i class="post" style="width:{postShare * 100}%"></i>{/if}
+            </span>
+            <small class="num"
+              >{!preDone
+                ? "startet danach"
+                : c.queued
+                  ? `${int(c.queued)} Flop-Spots werden noch gerechnet${eta ? ` · ${eta}` : ""}`
+                  : "alles gerechnet"}</small
+            >
+          </div>
         </div>
       </div>
       {#if p.state === "running"}
@@ -96,10 +124,55 @@
   .go {
     flex-shrink: 0;
   }
+  .phases {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 24px;
+    margin-top: 6px;
+  }
+  .phase {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+  .ph-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .step {
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    font-size: 11px;
+  }
+  .done .step {
+    background: color-mix(in srgb, var(--pos) 25%, transparent);
+    color: var(--pos);
+  }
+  .waiting {
+    opacity: 0.6;
+  }
+  .phase small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .track.running {
+    height: 6px;
+    background: var(--surface-3);
+  }
   .track {
     position: relative;
     height: 4px;
-    margin-top: 5px;
     border-radius: 2px;
     background: var(--surface-3);
     overflow: hidden;
@@ -109,13 +182,26 @@
     inset: 0 auto 0 0;
     background: var(--pos);
     border-radius: 2px;
-    transition: width 0.4s ease;
+    transition: width var(--dur-slow) var(--ease-out);
   }
   .track i.post {
-    left: auto;
-    right: 0;
-    background: repeating-linear-gradient(-45deg, var(--amber) 0 4px, transparent 4px 7px);
-    opacity: 0.7;
+    background: var(--pos);
+  }
+  /* The flop spots have no reliable share: a calm shimmer over the whole track instead of a bar that looks almost done. */
+  .track i.busy {
+    width: 100%;
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--text-2) 55%, transparent) 0 6px,
+      transparent 6px 12px
+    );
+    background-size: 17px 100%;
+    animation: stripes 1.2s var(--ease-in-out) infinite;
+  }
+  @keyframes stripes {
+    to {
+      background-position: 17px 0;
+    }
   }
   .compact {
     padding: 8px 14px;
@@ -126,9 +212,9 @@
     align-items: baseline;
     column-gap: 12px;
   }
-  .compact .track {
+  .compact .phases {
     flex-basis: 100%;
-    margin-top: 3px;
+    margin-top: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
     .track i {
