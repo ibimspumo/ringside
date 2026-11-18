@@ -106,8 +106,8 @@
         <p class="verdict">Keine GPU gefunden. Du musst nichts tun – der Solver rechnet wie bisher auf der CPU.</p>
       {:else if result?.gpu}
         {#if verdict}
-          {#if verdict.same}<span class="same"><Tag><span class="ok-dot"></span>GPU und CPU kommen auf dieselbe Lösung</Tag></span>{/if}
           <p class="verdict" class:bad={!verdict.same}>{verdict.text}</p>
+          {#if verdict.same}<span class="same"><Tag><span class="ok-dot"></span>GPU und CPU kommen praktisch auf dieselbe Lösung</Tag></span>{/if}
         {/if}
         <div class="facts">
         <p class="soft">
@@ -143,7 +143,7 @@
                   {@const f = factor(spot) ?? 0}
                   <td class="r num strong">{de(f, 1)}×<div class="soft small">{f >= 1.05 ? "GPU schneller" : f > 0.95 ? "etwa gleich" : "GPU langsamer"}</div></td>
                   <td class="r num">{de(Math.abs(spot.value_diff_pct ?? 0), 3)} %</td>
-                  <td class="r" class:good={spot.matches} class:bad={!spot.matches}>{spot.matches ? "gleich" : "abweichend"}</td>
+                  <td class="r" class:good={spot.matches} class:bad={!spot.matches}>{spot.matches ? "praktisch gleich" : "abweichend"}</td>
                 {:else}
                   <td class="bad" colspan="4">{spot.gpu_error}</td>
                 {/if}
@@ -204,6 +204,9 @@
   }
   .note {
     max-width: 76ch;
+  }
+  .facts > :global(.ui-btn.quiet:last-child) {
+    margin-right: -10px;
   }
   .facts {
     display: flex;

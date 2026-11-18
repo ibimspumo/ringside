@@ -217,7 +217,7 @@
     min-height: 28px;
   }
   /* A quiet button keeps its padding inside: pulled out by it, its text ends where framed buttons end. */
-  .control > :global(.ui-btn.quiet.sm:last-child) {
+  .control > :global(.ui-btn.sm:is(.quiet, .danger-quiet):last-child) {
     margin-right: -10px;
   }
   .detail {

@@ -198,7 +198,7 @@
         {:else}
           <div class="list" class:technical role="group" aria-label="Modelle">
             <div class="lhead" aria-hidden="true">
-              <span>Modell</span><span title={RICHTWERT}>ca. je Turnier</span>{#if technical}<span>Ein / Aus je 1 Mio.</span><span
+              <span>Modell</span><span title={RICHTWERT}>Kosten je Turnier (ca.)</span>{#if technical}<span>Ein / Aus je 1 Mio.</span><span
                   >Kontext</span
                 >{/if}
             </div>
@@ -386,9 +386,6 @@
     gap: var(--sp-1);
     max-height: 380px;
     overflow: auto;
-    padding: 0 var(--sp-1) var(--sp-1);
-    border: 1px solid var(--line);
-    border-radius: var(--r-sm);
   }
   .lhead,
   .lgrid {

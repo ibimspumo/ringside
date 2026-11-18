@@ -90,10 +90,16 @@
   {#if current}
     <div class="report">
       <p class="hint">
-        So geht die Hand an Ringside Cloud, damit der Fehler im Lesen behoben werden kann: Spielernamen sind durch „Hero“ und
-        „Spieler 1 …“ ersetzt, Tisch-, Turnier- und Handnummern durch Platzhalter wie „#1“, Chat-Texte gelöscht. Sonst wird nichts gesendet
-        außer dem Grund und der Ringside-Version. Bitte prüf den Text, bevor du ihn sendest.
+        So geht die Hand anonymisiert an Ringside Cloud, damit der Fehler im Lesen behoben werden kann. Bitte prüf den Text,
+        bevor du ihn sendest.
       </p>
+      <details class="anon">
+        <summary>Was Ringside vorher entfernt</summary>
+        <p class="hint">
+          Spielernamen sind durch „Hero“ und „Spieler 1 …“ ersetzt, Tisch-, Turnier- und Handnummern durch Platzhalter wie
+          „#1“, Chat-Texte gelöscht. Sonst wird nichts gesendet außer dem Grund und der Ringside-Version.
+        </p>
+      </details>
       <div class="reason">
         <b title="Gesendet wird als Grund: {current.reason}">{REASONS[current.reason] ?? "Ringside konnte die Hand nicht lesen."}</b>
         {#if hands.length > 1}
@@ -134,6 +140,22 @@
   .reason {
     color: var(--text-2);
     font-size: var(--fs-md);
+  }
+  .anon summary {
+    width: fit-content;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    text-decoration: underline;
+    text-decoration-color: var(--line-2);
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+  .anon summary:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+  .anon[open] summary {
+    margin-bottom: var(--sp-2);
   }
   .reason {
     display: flex;
