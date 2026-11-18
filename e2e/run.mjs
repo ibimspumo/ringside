@@ -309,6 +309,23 @@ tauriOnly("Hand-Histories einlesen", async () => {
   log(`stored hands: ${n}`);
 });
 
+step("Rückblick: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick darunter", async () => {
+  await nav("Rückblick");
+  await waitText("Deine letzte Session");
+  await waitText(/Du hast \d+ % deiner Hände gespielt|Die Analyse läuft|keine Hand, die das Modell vergleichen kann/, 60_000);
+  // Tile titles are set in capitals.
+  await waitText(/ERGEBNIS UND GLÜCK|Ergebnis und Glück/);
+  if (TAURI) return;
+  await waitText("Gegen eine Erhöhung aus früher Position gehst du zu oft mit");
+  // One example per side here; every example, with equity, on the page below.
+  await waitText("Schlau entschieden, Pech gehabt");
+  await click("main button", "Alle ansehen", { exact: false });
+  await waitText("Gut entschieden, Pech gehabt");
+  await waitText(/Gewinnchance gegen die gezeigten Karten/);
+  await click("main button", "Zurück zum Rückblick", { exact: false });
+  await waitText("Deine teuersten Entscheidungen".toUpperCase());
+});
+
 step("Übersicht", () => nav("Übersicht"));
 step("Statistik", () => nav("Statistik"));
 step("Turniere", async () => {
@@ -472,6 +489,16 @@ step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", as
   await find("main h1", "Hände");
   await find("main .chip-name", name, { exact: false });
 });
+if (!TAURI)
+  step("Rückblick: ein Muster öffnet „Deine Ranges“ genau für diese Session", async () => {
+    await nav("Rückblick");
+    await click("main .sr-patterns button", "Ansehen");
+    await find("main h1", "Deine Ranges");
+    await waitText(/Session .*20:04–22:41/);
+    await click("main button[aria-label='Nur diese Session: aufheben']");
+    await waitFor("the session filter to go", `return !/Session .*20:04–22:41/.test(document.querySelector("main")?.innerText ?? "")`);
+  });
+
 step("Spieler", () => nav("Spieler"));
 // The demo has known opponents; PokerStars is closed there, so type and counter may show.
 !TAURI &&
@@ -1082,6 +1109,17 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
     await shows(on);
   }
 });
+
+if (!TAURI)
+  step("Rückblick: gesperrt, solange PokerStars läuft – nur Ergebnisse, keine Bewertung", async () => {
+    await s.navigate(new URL("?tab=dashboard&locked=1", DEMO_URL).href);
+    await waitText("Am Tisch – dein Rückblick kommt, sobald du PokerStars schließt.");
+    await waitText(/Hände\s+152/);
+    const text = (await mainText()).toLowerCase();
+    for (const advice of ["Vor dem Flop", "das Modell würde", "Schlau entschieden", "Glück gehabt", "Grober Fehler", "statt", "Als Nächstes üben"]) {
+      if (text.includes(advice.toLowerCase())) throw new Error(`„${advice}“ is shown while PokerStars runs`);
+    }
+  });
 
 // ---------------------------------------------------------------------------------
 // Run.
