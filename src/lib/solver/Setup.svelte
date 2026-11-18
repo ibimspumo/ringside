@@ -42,6 +42,7 @@
   // Scenario: seats, pot type, depth → ranges, pot and stack from the preflop model.
   let deriving = $state(false);
   let deriveNote = $state<string | null>(null);
+  let deriveDetail = $state("");
   let token = 0;
 
   async function apply(next: Scenario) {
@@ -63,7 +64,8 @@
     } catch (e) {
       d = template(next);
       origin = "Vorlage";
-      deriveNote = `Preflop-Modell nicht verfügbar (${e instanceof Error ? e.message : String(e)}). Die Ranges sind einfache Vorlagen.`;
+      deriveNote = "Preflop-Modell nicht verfügbar – die Ranges sind einfache Vorlagen.";
+      deriveDetail = e instanceof Error ? e.message : String(e);
     }
     if (mine !== token) return;
     deriving = false;
@@ -269,7 +271,7 @@
           Deine Hand <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>
           {#if !solver.source}<Button variant="quiet" size="sm" onclick={() => setHand([])}>Entfernen</Button>{/if}
         {:else}
-          <span class="faint">Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
+          <span>Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
         {/if}
       </span>
       <span class="spacer"></span>
@@ -346,7 +348,7 @@
           {originOf()}
         {/if}
       </p>
-      {#if deriveNote}<p class="warn small">{deriveNote}</p>{/if}
+      {#if deriveNote}<p class="warn small" title={deriveDetail || undefined}>{deriveNote}</p>{/if}
       <button class="btn ghost full" aria-expanded={editing} onclick={() => (editing = !editing)}>
         {editing ? "Ranges schließen" : "Ranges anpassen"}
       </button>

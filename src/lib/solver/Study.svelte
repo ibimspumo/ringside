@@ -19,7 +19,8 @@
   import type { SeatView } from "./SolverTable.svelte";
   import SolverTable from "./SolverTable.svelte";
   import Term from "./Term.svelte";
-  import type { SolverNode, SolverPlayer, SolverStep } from "./types";
+  import type { SolverHand, SolverNode, SolverPlayer, SolverStep } from "./types";
+  import Button from "../ui/Button.svelte";
 
   let { onEdit, onNew, onPractice }: { onEdit: () => void; onNew: () => void; onPractice: () => void } = $props();
 
@@ -222,6 +223,23 @@
   const startBoard = $derived(spot.board.replace(/[^AKQJT2-9cdhs]/gi, "").match(/.{2}/g) ?? []);
   const pct = (x: number) => `${Math.round(x * 100)} %`;
 
+  /** How your hand differs from the range it belongs to, in equity and in how often it bets. */
+  function handVsRange(n: SolverNode, h: SolverHand): string {
+    const aggressive = (k: number) => isAggressive(n.actions[k].kind);
+    const mine = h.strategy.reduce((s, f, k) => s + (aggressive(k) ? f : 0), 0);
+    const all = n.actions.reduce((s, a) => s + (isAggressive(a.kind) ? a.frequency : 0), 0);
+    const eq = n.players[side(n.player!)].equity;
+    const strength =
+      h.equity > eq + 0.08 ? "stärker als der Schnitt" : h.equity < eq - 0.08 ? "schwächer als der Schnitt" : "etwa so stark wie der Schnitt";
+    const play =
+      mine > all + 0.1
+        ? `Mit ihr setzt die Lösung deutlich öfter (${pct(mine)} statt ${pct(all)}).`
+        : mine < all - 0.1
+          ? `Mit ihr setzt die Lösung seltener (${pct(mine)} statt ${pct(all)}).`
+          : "Gespielt wird sie etwa wie der Rest der Range.";
+    return `Deine Hand ist ${strength} deiner Range (${pct(h.equity)} gegen ${pct(eq)} Equity). ${play}`;
+  }
+
   /** Every action the solution takes with your hand, most often first. */
   function handLine(n: SolverNode, strategy: number[]): string {
     const parts = strategy
@@ -314,7 +332,7 @@
             {#if heroAdvice.close}<p class="close">{heroAdvice.close}</p>{/if}
           </div>
         </div>
-        <p class="mixcap">So oft spielt die Lösung jede Aktion mit genau deiner Hand:</p>
+        <p class="mixcap"><b>Deine Hand</b> · so oft spielt die Lösung jede Aktion mit genau diesen zwei Karten</p>
         <div class="handmix" role="img" aria-label="So spielt die Lösung deine Hand">
           {#each h.strategy as f, k (k)}
             {#if f >= 0.005}
@@ -324,11 +342,10 @@
             {/if}
           {/each}
         </div>
-        <p class="whyrange">
-          <b>Warum?</b> Deine Hand ist ein Teil der Range von {pos(node.player)}, und die Lösung spielt alle Hände zusammen: {headline(node)
-            .replace(/^Hier /, "")
-            .replace(/\.$/, "")}. {why(node)}
-        </p>
+        <div class="whyrange">
+          <p><b>Warum deine Hand so?</b> {handVsRange(node, h)}</p>
+          <p><b>Ganze Range:</b> {cap(headline(node).replace(/^Hier /, ""))} {why(node)}</p>
+        </div>
       {:else if node.kind === "action" && node.player}
         <span class="who">
           <b>{pos(node.player)}</b> ist am Zug ·
@@ -355,7 +372,7 @@
     {#if node.kind === "action" && node.player}
       <section class="acts" class:busy={loading}>
         <div class="actor">
-          <span><b>Weiterspielen:</b> Klick auf eine Aktion. Die Breite zeigt, wie oft die ganze Range sie wählt.</span>
+          <span><b>Weiterspielen · ganze Range</b> – Klick auf eine Aktion. Zahl und Balken im Knopf zeigen, wie oft die ganze Range sie wählt.</span>
           <span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span>
         </div>
         <ActionBar {node} {colors} onAct={act} />
@@ -422,9 +439,9 @@
         {#if node.kind === "chance"}
           <div class="chance">
             <span><b>{node.board.length === 3 ? "Turn" : "River"}</b>: Karte am Tisch wählen</span>
-            <button class="btn" onclick={dealRandom}>Zufällige Karte <kbd>Z</kbd></button>
+            <Button onclick={dealRandom} kbd="Z">Zufällige Karte</Button>
           </div>
-        {:else}
+        {:else if node.kind === "terminal"}
           <div class="chance">
             <span>
               {#if folded}
@@ -433,7 +450,7 @@
                 Showdown um {bb(node.pot, 2)} BB.
               {/if}
             </span>
-            <button class="btn" onclick={() => back(line.length - 1)}>Einen Schritt zurück</button>
+            <Button onclick={() => back(line.length - 1)} kbd="⌫">Einen Schritt zurück</Button>
           </div>
         {/if}
       </div>
@@ -652,13 +669,24 @@
     font-size: var(--fs-sm);
     color: var(--text-2);
   }
+  .mixcap b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
   .whyrange {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--sp-2) var(--sp-6);
     margin: var(--sp-3) 0 0;
     padding-top: var(--sp-3);
     border-top: 1px solid var(--line);
     font-size: var(--fs-md);
     line-height: 1.5;
     color: var(--text-2);
+  }
+  .whyrange p {
+    margin: 0;
+    max-width: 72ch;
   }
   .whyrange b {
     color: var(--text);

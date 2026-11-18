@@ -5,6 +5,7 @@
   import { openSaved, solutionsApi, type SavedSolution, type SolutionsView } from "./solutions";
   import { solver } from "./store.svelte";
   import Term from "./Term.svelte";
+  import Button from "../ui/Button.svelte";
   import { cap, precision } from "./explain";
 
   let data = $state<SolutionsView | null>(null);
@@ -93,7 +94,6 @@
 <section class="saved">
   <header class="bar">
     <div class="intro">
-      <h2>Meine Lösungen</h2>
       <p>
         Jede Lösung, die du rechnest, landet hier und öffnet sich später sofort, ohne neu zu rechnen. Löst du denselben Spot
         noch einmal, nimmt Ringside die gespeicherte Lösung.
@@ -129,7 +129,7 @@
         <PlayingCard hidden size={40} /><PlayingCard hidden size={40} /><PlayingCard hidden size={40} />
       </div>
       <p><b>Noch keine Lösung gespeichert.</b> Bau einen Spot auf und lös ihn – er erscheint danach hier.</p>
-      <button class="btn primary" onclick={() => (solver.view = "setup")}>Spot aufbauen</button>
+      <Button variant="primary" onclick={() => (solver.view = "setup")}>Spot aufbauen</Button>
     </div>
   {:else if data}
     <ul class="grid">
@@ -199,12 +199,7 @@
   .intro {
     max-width: 62ch;
   }
-  h2 {
-    margin: 0;
-    font-family: var(--font-num);
-    font-size: 18px;
-    font-weight: 600;
-  }
+
   .intro p {
     margin: 4px 0 0;
     color: var(--text-2);
@@ -374,7 +369,7 @@
   .meta {
     margin: 0;
     font-size: 12px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .meta span {
     text-decoration: underline dotted;
