@@ -708,6 +708,7 @@ pub fn run() {
             analysis::analysis_cancel,
             analysis::analysis_cancel_hand,
             analysis::analysis_decisions,
+            analysis::analysis_chart_target,
             analysis::analysis_summary,
             solver::solver_estimate,
             solver::solver_start,

@@ -15,7 +15,7 @@ use ringside_learn::{Answer, Kind, OwnSpot, Prompt, TableSpot, detect_spots};
 
 use crate::fmt::{bb, num};
 use crate::seats::{ante_name, nearest};
-use crate::{rated, unrated};
+use crate::{ChartKind, ChartTarget, rated, unrated};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 64;
@@ -42,13 +42,14 @@ pub fn spot(hand: &Hand) -> Option<OwnSpot> {
     detect_spots(hand, Some(Kind::PushFoldOpen)).pop().or_else(|| detect_spots(hand, Some(Kind::PushFoldCall)).pop())
 }
 
-pub fn evaluate(hand: &Hand, own: &OwnSpot) -> Decision {
+/// The decision, and the chart spot it was rated against when there is one.
+pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
     let index = own.stop_before_action;
     let Prompt::PushFoldTable {
         hand: cards, stacks_bb, small_blind_bb, ante_bb, bb_ante_bb, dead_bb, hero, shover, callers, ..
     } = &own.exercise.prompt
     else {
-        return unrated(hand, index, SpotType::Shove, "Kein Push/Fold-Spot.");
+        return (unrated(hand, index, SpotType::Shove, "Kein Push/Fold-Spot."), None);
     };
     let spot_type = if shover.is_some() { SpotType::CallShove } else { SpotType::Shove };
     let ts = TableSpot {
@@ -72,11 +73,11 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> Decision {
     let effective = ts.effective_bb();
     let stack = nearest(pushfold_table::stacks(ante), effective);
     let Some(sol) = table(ante, players, stack) else {
-        return unrated(hand, index, spot_type, "Für diese Tischgröße gibt es keine Push/Fold-Tabelle.");
+        return (unrated(hand, index, spot_type, "Für diese Tischgröße gibt es keine Push/Fold-Tabelle."), None);
     };
     let class = ringside_engine::Combo::new(cards[0], cards[1]).class();
     let Some(s) = sol.spot(ts.hero, class, ts.shover, &ts.callers) else {
-        return unrated(hand, index, spot_type, "Diesen Spot (z. B. zu viele Caller) gibt es im Push/Fold-Modell nicht.");
+        return (unrated(hand, index, spot_type, "Diesen Spot (z. B. zu viele Caller) gibt es im Push/Fold-Modell nicht."), None);
     };
     let act = if shover.is_some() { "Call" } else { "All-in" };
     let did_act = !matches!(&own.played, Some(Answer::Choice(c)) if c == "fold");
@@ -128,5 +129,17 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> Decision {
         bb(effective),
         sol.act_pct(s.node).round()
     );
-    rated(hand, index, spot_type, Source::Equilibrium, strategy, note.join("; ") + ".", |_| reason)
+    let target = ChartTarget {
+        action_index: index,
+        kind: ChartKind::Pushfold,
+        ante,
+        players,
+        stack_bb: stack,
+        seat: ts.hero,
+        shover: ts.shover,
+        callers: ts.callers.clone(),
+        node: None,
+        hand: class.to_string(),
+    };
+    (rated(hand, index, spot_type, Source::Equilibrium, strategy, note.join("; ") + ".", |_| reason), Some(target))
 }

@@ -24,6 +24,8 @@ use rayon::prelude::*;
 pub use ringside_core::db::{Choice, Decision, HandAnalysis, Rating, Source, SpotType, Status};
 use ringside_core::model::{ActionKind, Hand, Street};
 use ringside_core::parse_hand;
+use ringside_engine::pushfold_table::Ante;
+use serde::Serialize;
 
 pub use grade::rate;
 pub use postflop::{PostflopJob, solve_job};
@@ -47,6 +49,44 @@ pub fn analyze_hand(hand: &Hand) -> HandAnalysis {
     }
     decisions.sort_by_key(|d| d.action_index);
     HandAnalysis { hand_id: hand.id, engine: ENGINE.into(), decisions, job }
+}
+
+/// Which bundled chart a rated preflop decision was measured against.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ChartKind {
+    Pushfold,
+    Preflop,
+}
+
+/// Where a rated preflop decision sits in the bundled charts, so the charts page can open
+/// exactly that spot with the hero's hand.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct ChartTarget {
+    pub action_index: usize,
+    pub kind: ChartKind,
+    pub ante: Ante,
+    /// Table size of the chart (the preflop model may be larger than the real table).
+    pub players: usize,
+    /// Tabulated stack the decision was measured at.
+    pub stack_bb: f64,
+    /// Hero's seat in the chart, in preflop action order.
+    pub seat: usize,
+    /// Push/fold: who shoved before the hero and who called it.
+    pub shover: Option<usize>,
+    pub callers: Vec<usize>,
+    /// Preflop model: id of the spot on the charts page.
+    pub node: Option<usize>,
+    /// Hero's hand class, e.g. "62o".
+    pub hand: String,
+}
+
+/// The chart spots of the hero's rated preflop decisions; empty without a hero.
+pub fn chart_targets(hand: &Hand) -> Vec<ChartTarget> {
+    match hand.hero.as_deref() {
+        Some(hero) => preflop::analyze(hand, hero).targets,
+        None => Vec::new(),
+    }
 }
 
 /// Analyses raw hands in parallel; unparsable hands get an empty analysis, so they are

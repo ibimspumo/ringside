@@ -18,7 +18,7 @@ use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use ringside_analysis::postflop::JobError;
-use ringside_analysis::{ENGINE, PostflopJob, analyze_hand, analyze_raw, solve_job};
+use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets, solve_job};
 use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, Status};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -575,6 +575,17 @@ pub async fn analysis_hands(hand_ids: Vec<u64>, app: AppHandle) -> CmdResult<Vec
 #[tauri::command]
 pub async fn analysis_decisions(hand_id: u64, app: AppHandle) -> CmdResult<Vec<Decision>> {
     blocking(app, move |state| state.db.lock().unwrap().hand_decisions(hand_id).map_err(err)).await
+}
+
+/// The chart spot a rated preflop decision was measured against, for "In den Charts
+/// öffnen"; None when no bundled table fits.
+#[tauri::command]
+pub async fn analysis_chart_target(hand_id: u64, action_index: usize, app: AppHandle) -> CmdResult<Option<ChartTarget>> {
+    blocking(app, move |state| {
+        let hand = state.db.lock().unwrap().hand(hand_id).map_err(err)?;
+        Ok(hand.and_then(|h| chart_targets(&h).into_iter().find(|t| t.action_index == action_index)))
+    })
+    .await
 }
 
 #[tauri::command]
