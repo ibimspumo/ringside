@@ -17,11 +17,11 @@
 </script>
 
 {#if variant === "inline"}
-  <span class="ui-source inline" class:locked={kind === "locked"} title={s.text}>
+  <span class="ui-source inline" class:locked={kind === "locked"} class:fact={kind === "computed"} title={s.text}>
     {@render mark()}{s.label}
   </span>
 {:else}
-  <div class="ui-source block" class:locked={kind === "locked"} role="note">
+  <div class="ui-source block" class:locked={kind === "locked"} class:fact={kind === "computed"} role="note">
     {@render mark()}
     <p><b>{s.label}.</b> {#if children}{@render children()}{:else}{s.text}{/if}</p>
   </div>
@@ -31,6 +31,8 @@
   <svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true">
     {#if kind === "locked"}
       <rect x="3" y="7" width="10" height="7" rx="1.6" /><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
+    {:else if kind === "computed"}
+      <path d="M3.5 8.5l3 3 6-7" />
     {:else}
       <circle cx="8" cy="8" r="6" /><path d="M8 7.2v4" /><circle cx="8" cy="4.9" r=".4" class="pt" />
     {/if}
@@ -44,6 +46,16 @@
   }
   .locked {
     --c: var(--amber);
+  }
+  /* A computed figure is a fact: solid frame and text colour instead of the dashed "where from". */
+  .fact {
+    --c: var(--text-2);
+  }
+  .inline.fact {
+    border-style: solid;
+    border-color: var(--line-2);
+    background: var(--surface-2);
+    color: var(--text);
   }
   svg {
     flex-shrink: 0;

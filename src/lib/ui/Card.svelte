@@ -10,6 +10,7 @@
     pad = "md",
     tone = "default",
     selected = false,
+    disabled = false,
     onclick,
     children,
     ...rest
@@ -17,13 +18,15 @@
     pad?: "sm" | "md" | "lg";
     tone?: "default" | "raised" | "sunken";
     selected?: boolean;
+    /** A clickable card that cannot be chosen right now; say why in a title. */
+    disabled?: boolean;
     onclick?: (e: MouseEvent) => void;
     children: Snippet;
   } & HTMLAttributes<HTMLElement> = $props();
 </script>
 
 {#if onclick}
-  <button type="button" class="ui-card {pad} {tone} action" class:selected aria-pressed={selected} {onclick} {...rest}>
+  <button type="button" class="ui-card {pad} {tone} action" class:selected aria-pressed={selected} {disabled} {onclick} {...rest}>
     {@render children()}
   </button>
 {:else}
@@ -57,14 +60,23 @@
   .sunken {
     background: var(--surface-sunken);
   }
+  /* A button centres its content vertically; a card reads from the top like the plain one. */
   .action {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: stretch;
     width: 100%;
     cursor: pointer;
     transition:
       border-color var(--dur-fast) var(--ease-standard),
       background var(--dur-fast) var(--ease-standard);
   }
-  .action:is(:hover, [data-force="hover"]) {
+  .action:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+  .action:is(:hover, [data-force="hover"]):not(:disabled) {
     border-color: var(--line-2);
     background: var(--surface-2);
   }

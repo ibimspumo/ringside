@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import { call, inTauri, on } from "../api";
-import type { TournamentRow } from "../types";
+import type { Hand, TournamentRow } from "../types";
 import * as demo from "./demo";
 import type {
+  CoachSpot,
   CoachProgress,
   CoachReport,
   CoachStatus,
@@ -23,7 +24,8 @@ export const coachApi = {
   setModel: (model: string) => call<void>("coach_set_model", { model }, () => demo.setModel(model)),
   setEffort: (effort: Effort) => call<void>("coach_set_effort", { effort }, () => demo.setEffort(effort)),
   /** Picks the hands and estimates the cost; nothing is sent. */
-  prepare: (tournamentId: number) => call<Estimate>("coach_prepare", { tournamentId }, () => demo.estimate(tournamentId)),
+  prepare: (tournamentId: number): Promise<Estimate> =>
+    inTauri ? invoke<Estimate>("coach_prepare", { tournamentId }) : demo.prepare(tournamentId),
   /** Sends the analysis of the estimate that carried `token`. */
   run: (token: string, tournamentId: number): Promise<CoachReport> =>
     inTauri ? invoke<CoachReport>("coach_run", { token }) : demo.run(tournamentId),
@@ -32,9 +34,15 @@ export const coachApi = {
     call<ReportListItem[]>("coach_reports", {}, () => demo.list(new Map(tournaments.map((t) => [t.id, t])))),
   report: (tournamentId: number) => call<CoachReport | null>("coach_report", { tournamentId }, () => demo.get(tournamentId)),
   deleteReport: (tournamentId: number) => call<boolean>("coach_delete_report", { tournamentId }, () => demo.remove(tournamentId)),
+  /** The hand of a spot, for practising its decision. */
+  spotHand: (spot: CoachSpot): Promise<Hand | null> =>
+    inTauri ? invoke<Hand | null>("hand", { id: spot.hand_id }) : Promise.resolve(demo.spotHand(spot)),
   /** Concepts of all stored reports, weakest first ("Deine Schwachstellen"). */
   concepts: () => call<ConceptCount[]>("coach_concepts", {}, demo.concepts),
 };
+
+/** Browser demo only: states the screenshots open directly. */
+export const preview = inTauri ? { run: null, setup: false } : demo.preview;
 
 export async function onProgress(handler: (p: CoachProgress) => void): Promise<() => void> {
   return inTauri ? on<CoachProgress>("coach-progress", handler) : demo.onProgress(handler);

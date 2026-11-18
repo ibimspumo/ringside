@@ -12,7 +12,12 @@
     counts,
     label = "Bewertungen",
     grades = GRADES,
-  }: { counts: Partial<Record<Grade, number>>; label?: string; grades?: Grade[] } = $props();
+  }: {
+    counts: Partial<Record<Grade, number>>;
+    label?: string;
+    /** The scale shown; a source that only grades in some steps (the coach) passes those. */
+    grades?: Grade[];
+  } = $props();
 
   const total = $derived(grades.reduce((s, g) => s + (counts[g] ?? 0), 0));
 </script>

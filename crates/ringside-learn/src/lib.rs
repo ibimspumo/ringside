@@ -5,17 +5,23 @@
 //! exercise from those three numbers and grades against that, so nothing a client
 //! sends back can change the expected answer.
 
+mod bounty;
 mod deal;
+mod equity;
 pub mod fmt;
+mod hud;
+mod icm;
 mod math;
 pub mod mastery;
 mod multiway;
+mod open;
 pub mod own;
 mod pushfold;
+mod river;
 mod score;
 mod showdown;
+mod stack;
 mod table;
-mod equity;
 
 use ringside_engine::Card;
 use serde::{Deserialize, Serialize};
@@ -46,10 +52,23 @@ pub enum Kind {
     AllIn,
     /// Whole random hands in the practice mode (`ringside-play`), one attempt per hand.
     FullHands,
+    /// Pot odds against an all-in when knocking the player out pays a bounty.
+    BountyOdds,
+    /// Prize value of stacks (ICM) and calls against a shove near the money.
+    IcmCall,
+    /// Open or fold once everyone before folded, by the preflop model.
+    OpenFold,
+    /// Bet or check on the river, solved live.
+    RiverBet,
+    /// Stack in big blinds, M and the ante's effect on pot odds.
+    StackDepth,
+    /// Player type and counter-move from HUD numbers, and when to trust them.
+    HudRead,
 }
 
 impl Kind {
-    pub const ALL: [Kind; 14] = [
+    /// New kinds go at the end: the position seeds each kind's random stream.
+    pub const ALL: [Kind; 20] = [
         Kind::Outs,
         Kind::PotOdds,
         Kind::Probability,
@@ -64,6 +83,12 @@ impl Kind {
         Kind::PushFoldCall,
         Kind::AllIn,
         Kind::FullHands,
+        Kind::BountyOdds,
+        Kind::IcmCall,
+        Kind::OpenFold,
+        Kind::RiverBet,
+        Kind::StackDepth,
+        Kind::HudRead,
     ];
 
     /// The snake_case id used in JSON and in the database.
@@ -83,6 +108,12 @@ impl Kind {
             Kind::PushFoldCall => "push_fold_call",
             Kind::AllIn => "all_in",
             Kind::FullHands => "full_hands",
+            Kind::BountyOdds => "bounty_odds",
+            Kind::IcmCall => "icm_call",
+            Kind::OpenFold => "open_fold",
+            Kind::RiverBet => "river_bet",
+            Kind::StackDepth => "stack_depth",
+            Kind::HudRead => "hud_read",
         }
     }
 
@@ -106,6 +137,12 @@ impl Kind {
             Kind::PushFoldCall => "Call gegen einen Shove",
             Kind::AllIn => "All-ins eigener Hände",
             Kind::FullHands => "Ganze Hände",
+            Kind::BountyOdds => "Pot Odds mit Kopfgeld",
+            Kind::IcmCall => "ICM und Bubble-Calls",
+            Kind::OpenFold => "Öffnen oder folden",
+            Kind::RiverBet => "Bet oder Check am River",
+            Kind::StackDepth => "Stacktiefe und M-Zahl",
+            Kind::HudRead => "Gegner lesen mit HUD-Werten",
         }
     }
 
@@ -125,6 +162,8 @@ pub enum Grading {
     Formel,
     /// Exact within a stated model; `model_note` names the assumptions.
     Modell,
+    /// A solved equilibrium of the stated game; `model_note` names ranges and sizes.
+    Gleichgewicht,
 }
 
 /// One exercise as shown to the user. `prompt` holds what to draw, `answer` what kind
@@ -263,6 +302,98 @@ pub enum Prompt {
         board: Vec<Card>,
         pots: Vec<PotView>,
     },
+    /// Hero faces an all-in and may win the shover's bounty. Hero is not in the blinds.
+    Bounty {
+        /// Blinds and antes before the all-in.
+        dead_bb: f64,
+        /// The shover's all-in.
+        shove_bb: f64,
+        hero_stack_bb: f64,
+        /// Bounty on the shover's head and on the hero's, in dollars (levels 2 and 3).
+        villain_bounty: Option<f64>,
+        hero_bounty: Option<f64>,
+        /// What one dollar is worth in big blinds, and where that comes from.
+        rate: Option<BountyRate>,
+        /// Level 1 names the bounty in big blinds directly.
+        bounty_bb: Option<f64>,
+        equity_pct: Option<f64>,
+    },
+    /// Stacks and payouts near the money. Level 1 asks the prize value of seat `ask`;
+    /// otherwise `hero` faces `shover`'s all-in.
+    Icm {
+        positions: Vec<String>,
+        /// In big blinds, in preflop action order (the big blind last).
+        stacks_bb: Vec<f64>,
+        /// Prize per place in dollars, first place first.
+        payouts: Vec<f64>,
+        ask: Option<usize>,
+        hero: Option<usize>,
+        shover: Option<usize>,
+        hand: Vec<Card>,
+        class: Option<String>,
+        ante_bb: f64,
+    },
+    /// Everyone before the hero folded; open or fold at a table of 6, 8 or 9.
+    OpenFold {
+        positions: Vec<String>,
+        hero: usize,
+        hand: Vec<Card>,
+        class: String,
+        stack_bb: f64,
+        ante_bb: f64,
+        bb_ante_bb: f64,
+        /// The model's open size.
+        open_to_bb: f64,
+    },
+    /// Hero bets or checks on the river. In position the other player has checked.
+    RiverBet {
+        /// Library scenario the ranges come from, e.g. "srp-btn-bb-40".
+        scenario: String,
+        board: Vec<Card>,
+        hand: Vec<Card>,
+        class: String,
+        /// Positions of the players out of and in position.
+        oop: String,
+        ip: String,
+        hero_ip: bool,
+        /// "srp" or "3bp".
+        pot_type: String,
+        pot_bb: f64,
+        stack_bb: f64,
+        bet_bb: f64,
+    },
+    /// `ask`: "bb" (stack in big blinds), "m" (M ratio) or "ante_odds" (needed equity
+    /// against a shove with antes). Chips for "bb" and "m", big blinds for "ante_odds".
+    StackDepth {
+        ask: String,
+        stack: f64,
+        small_blind: f64,
+        big_blind: f64,
+        /// Ante per player, or the big blind's ante with `bb_ante`.
+        ante: f64,
+        bb_ante: bool,
+        players: u8,
+        shove_bb: Option<f64>,
+        shover: Option<String>,
+    },
+    /// HUD numbers of one opponent over `hands` hands. `ask`: "type", "counter" or
+    /// "trust" (the type, or too few hands to say).
+    HudRead {
+        vpip: f64,
+        pfr: f64,
+        three_bet: f64,
+        hands: u32,
+        ask: String,
+    },
+}
+
+/// One dollar of bounty in big blinds: start stack ÷ prize-pool share of the buy-in ÷ big blind.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct BountyRate {
+    pub start_chips: f64,
+    pub prize_dollars: f64,
+    pub big_blind_chips: f64,
+    pub bb_per_dollar: f64,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -345,6 +476,21 @@ pub struct Feedback {
     pub ev_loss_bb: Option<f64>,
     pub grading: Grading,
     pub model_note: Option<String>,
+    /// A strategy over the 13×13 hand classes, shown with the answer.
+    pub grid: Option<Grid>,
+}
+
+/// How often each hand class takes `action` (0–1, by `HandClass::index`); `None` for
+/// classes that cannot be here.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Grid {
+    pub title: String,
+    pub action: String,
+    pub cells: Vec<Option<f64>>,
+    /// Class index of the hero's hand.
+    pub hero: usize,
+    /// Share of all combos here that take the action, in percent.
+    pub pct: f64,
 }
 
 /// One explaining line, e.g. `{label: "Benötigte Equity", value: "22,7 %",
@@ -415,6 +561,12 @@ pub fn generate(kind: Kind, level: u8, seed: u64) -> Result<Exercise, String> {
         Kind::PushFoldOpen | Kind::PushFoldCall => multiway::generate(kind, level, &mut rng)?,
         Kind::AllIn => return Err("All-in-Übungen gibt es nur aus eigenen Händen".into()),
         Kind::FullHands => return Err("Ganze Hände gibt es im Übungsmodus „Hände spielen“".into()),
+        Kind::BountyOdds => bounty::generate(level, &mut rng),
+        Kind::IcmCall => icm::generate(level, &mut rng)?,
+        Kind::OpenFold => open::generate(level, &mut rng)?,
+        Kind::RiverBet => river::generate(level, &mut rng)?,
+        Kind::StackDepth => stack::generate(level, &mut rng),
+        Kind::HudRead => hud::generate(level, &mut rng),
     };
     Ok(Exercise {
         kind,
@@ -451,6 +603,12 @@ fn grade(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {
         Prompt::PushFold { .. } => pushfold::grade(ex, answer)?,
         Prompt::PushFoldTable { .. } => multiway::grade(ex, answer)?,
         Prompt::AllIn { .. } => equity::grade_all_in(ex, answer)?,
+        Prompt::Bounty { .. } => bounty::grade(ex, answer)?,
+        Prompt::Icm { .. } => icm::grade(ex, answer)?,
+        Prompt::OpenFold { .. } => open::grade(ex, answer)?,
+        Prompt::RiverBet { .. } => river::grade(ex, answer)?,
+        Prompt::StackDepth { .. } => stack::grade(ex, answer)?,
+        Prompt::HudRead { .. } => hud::grade(ex, answer)?,
     };
     feedback.grading = ex.grading;
     feedback.model_note = ex.model_note.clone();
@@ -483,5 +641,22 @@ fn feedback(correct: bool, score: f64, truth: Answer, truth_text: String, facts:
         ev_loss_bb: None,
         grading: Grading::Exakt,
         model_note: None,
+        grid: None,
     }
+}
+
+/// "Bet (immer)", "Fold (immer)", "Gemischt: 62,0 % Bet".
+fn strategy_text(freq: f64, act: &str, other: &str) -> String {
+    if freq >= 1.0 {
+        format!("{act} (immer)")
+    } else if freq <= 0.0 {
+        format!("{other} (immer)")
+    } else {
+        format!("Gemischt: {} {act}", fmt::pct(100.0 * freq))
+    }
+}
+
+/// The two choices of a decision.
+fn options(act: (&str, &str), other: (&str, &str)) -> AnswerSpec {
+    AnswerSpec::Choice { options: vec![ChoiceOption::new(act.0, act.1), ChoiceOption::new(other.0, other.1)] }
 }

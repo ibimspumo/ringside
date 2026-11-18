@@ -1,22 +1,26 @@
 import type { PreflopAction, PreflopKind, PreflopSpot, PreflopStep } from "./preflop-types";
+import { byPos } from "./words";
 
 export function bb(x: number): string {
   return x.toLocaleString("de-DE", { maximumFractionDigits: 2 });
 }
 
+/** Fill of an action, from the kit's action colours; the grid keeps labels readable on each. */
 export function actionColor(kind: PreflopKind): string {
   switch (kind) {
     case "all_in":
-      return "color-mix(in srgb, var(--neg) 82%, var(--surface-2))";
+      return "var(--act-allin)";
     case "raise":
-      return "color-mix(in srgb, var(--amber) 80%, var(--surface-2))";
+      return "var(--act-raise)";
     case "call":
+      return "var(--act-call)";
     case "check":
-      return "color-mix(in srgb, var(--pos) 70%, var(--surface-2))";
+      return "var(--act-check)";
+    // Passive like a call; the kit's limp blue is too close to fold blue in one grid.
     case "limp":
-      return "color-mix(in srgb, var(--focus) 72%, var(--surface-2))";
+      return "var(--act-call)";
     default:
-      return "var(--surface-2)";
+      return "var(--act-fold)";
   }
 }
 
@@ -41,12 +45,39 @@ export function actionName(a: PreflopAction, line: PreflopStep[] = []): string {
     case "limp":
       return "Limp";
     case "call":
-      return `Call ${bb(a.to_bb)}`;
+      return `Call ${bb(a.to_bb)} BB`;
     case "all_in":
-      return `All-in ${bb(a.to_bb)}`;
+      return `All-in ${bb(a.to_bb)} BB`;
     case "raise":
-      return `${raiseName(line)} ${bb(a.to_bb)}`;
+      return `${raiseName(line)} ${bb(a.to_bb)} BB`;
   }
+}
+
+/** An action as a verb phrase: "auf 2,2 BB eröffnen", "callen", "3-Bet auf 7 BB". */
+export function actionPhrase(a: PreflopAction, line: PreflopStep[] = []): string {
+  switch (a.kind) {
+    case "fold":
+      return "folden";
+    case "check":
+      return "checken";
+    case "limp":
+      return "limpen";
+    case "call":
+      return "callen";
+    case "all_in":
+      return "all-in";
+    case "raise": {
+      const name = raiseName(line);
+      if (name === "Open") return `auf ${bb(a.to_bb)} BB eröffnen`;
+      if (name === "Raise") return `auf ${bb(a.to_bb)} BB raisen`;
+      return `${name} auf ${bb(a.to_bb)} BB`;
+    }
+  }
+}
+
+/** Colour word for the answer sentence, matching `actionColor`. */
+export function colorWord(kind: PreflopKind): string {
+  return kind === "all_in" ? "dunkelrote" : kind === "raise" ? "orange" : kind === "limp" ? "grüne" : kind === "fold" ? "blaue" : "grüne";
 }
 
 /** One step of a line, from the point of view of `seat` ("du" for its own actions). */
@@ -54,7 +85,7 @@ function stepName(s: PreflopStep, before: PreflopStep[], seat: number): string {
   const who = s.seat === seat ? "du" : s.position;
   switch (s.kind) {
     case "raise":
-      return `${who} ${raiseName(before)} ${bb(s.to_bb)}`;
+      return `${who} ${raiseName(before)} ${bb(s.to_bb)} BB`;
     case "all_in":
       return `${who} All-in`;
     case "call":
@@ -68,43 +99,35 @@ function stepName(s: PreflopStep, before: PreflopStep[], seat: number): string {
   }
 }
 
+/** Short tag for a seat on the small table: "Open", "3-Bet", "Call"; the size is in the situation. */
+export function stepTag(s: PreflopStep, before: PreflopStep[]): string {
+  switch (s.kind) {
+    case "raise":
+      return raiseName(before);
+    case "all_in":
+      return "All-in";
+    case "call":
+      return "Call";
+    case "limp":
+      return "Limp";
+    case "check":
+      return "Check";
+    default:
+      return "Fold";
+  }
+}
+
 /** The situation in words. */
 export function spotLabel(spot: PreflopSpot): string {
   if (!spot.line.length) return "Open – alle vor dir haben gefoldet";
   return spot.line.map((s, i) => stepName(s, spot.line.slice(0, i), spot.seat)).join(" → ");
 }
 
-/** Short title for the chart header. */
-export function spotTitle(spot: PreflopSpot): string {
-  if (!spot.line.length) return `${spot.position} · Open`;
+/** What you face, for the answer sentence: "gegen Open vom Button", or null when it is your first action. */
+export function facing(spot: PreflopSpot): string | null {
+  if (!spot.line.length) return null;
   const last = spot.line[spot.line.length - 1];
   const before = spot.line.slice(0, -1);
-  const what =
-    last.kind === "raise"
-      ? raiseName(before)
-      : last.kind === "all_in"
-        ? "All-in"
-        : last.kind === "limp"
-          ? "Limp"
-          : last.kind === "call"
-            ? "Call"
-            : "Check";
-  return `${spot.position} · gegen ${what} von ${last.seat === spot.seat ? "dir" : last.position}`;
-}
-
-export type SpotGroup = "open" | "vs_open" | "vs_3bet" | "later";
-
-export const GROUP_LABEL: Record<SpotGroup, string> = {
-  open: "Erste Aktion",
-  vs_open: "Gegen Open oder Limp",
-  vs_3bet: "Gegen 3-Bet oder All-in",
-  later: "Gegen 4-Bet und später",
-};
-
-export function spotGroup(spot: PreflopSpot): SpotGroup {
-  if (!spot.line.length) return "open";
-  const raises = raisesIn(spot.line);
-  if (raises <= 1 && !spot.line.some((s) => s.kind === "all_in")) return "vs_open";
-  if (raises <= 2) return "vs_3bet";
-  return "later";
+  const what = last.kind === "raise" ? raiseName(before) : last.kind === "all_in" ? "All-in" : last.kind === "limp" ? "Limp" : "Call";
+  return `gegen ${what} ${last.seat === spot.seat ? "von dir" : byPos(last.position)}`;
 }

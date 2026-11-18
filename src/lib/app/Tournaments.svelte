@@ -1,5 +1,6 @@
 <script lang="ts">
   import { api } from "../api";
+  import { notAnalyzable } from "../coach/meaning";
   import { buyInText, cash, tournamentName } from "../stats";
   import type { Filter, TournamentRow, Tournaments } from "../types";
   import { dateTime, int, sign, signed } from "./format";
@@ -22,14 +23,6 @@
     onHands: (tournament: number) => void;
     onAnalyze: (tournament: number) => void;
   } = $props();
-
-  /** Why the coach cannot analyse this tournament yet, or null. */
-  function notAnalyzable(r: TournamentRow): string | null {
-    if (r.prize === null) return "Erst wenn das Turnier für dich vorbei ist";
-    if (r.game && !r.game.includes("Hold")) return "Der Coach analysiert bisher nur Hold'em";
-    if (r.hands === 0) return "Keine Hände von diesem Turnier gespeichert";
-    return null;
-  }
 
   type Point = { n: number; played_at: string; profit: number; bounties: number };
   type Col = "date" | "game" | "buy_in" | "entrants" | "place" | "prize" | "bounties" | "profit" | "hands";
@@ -169,6 +162,10 @@
     return `Noch kein Ausscheiden in deinen Händen: Das Turnier läuft noch, oder die letzte Hand ist nicht importiert.${chips}`;
   }
 </script>
+
+{#snippet coachIcon()}<svg class="coach-icon" viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"
+    ><path d="M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" /></svg
+  >{/snippet}
 
 <div class="page tours">
   {#if failed}
@@ -358,20 +355,13 @@
                     <Button
                       size="sm"
                       variant="quiet"
-                      aria-label="Analysieren"
+                      icon={coachIcon}
                       title="Vom KI-Coach analysieren lassen. Vorher siehst du, was gesendet wird und was es kostet."
                       onclick={(e: MouseEvent) => {
                         e.stopPropagation();
                         onAnalyze(r.id);
-                      }}
+                      }}>Analyse</Button
                     >
-                      {#snippet icon()}<svg class="spark" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"
-                          ><path
-                            d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.7 1.8 1.8.7-1.8.7L19 21l-.7-1.8-1.8-.7 1.8-.7z"
-                          /></svg
-                        >{/snippet}
-                      Analyse
-                    </Button>
                   {:else}
                     <span class="na" title={notAnalyzable(r)}>–</span>
                   {/if}
@@ -636,7 +626,13 @@
     width: 1%;
     padding-right: 12px;
   }
-
+  .coach-icon {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
   .na {
     color: var(--text-3);
     cursor: help;

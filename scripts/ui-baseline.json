@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 209,
+      "total": 204,
       "files": {
         "analysis/DecisionCard.svelte": 1,
         "app/LiveTables.svelte": 1,
@@ -11,12 +11,7 @@
         "app/Reports.svelte": 1,
         "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 1,
-        "charts/PreflopChart.svelte": 1,
-        "charts/PushFoldChart.svelte": 1,
         "cloud/MalformedReports.svelte": 1,
-        "coach/CoachSettings.svelte": 1,
-        "coach/RunPanel.svelte": 1,
-        "coach/SpotCard.svelte": 1,
         "demo.ts": 3,
         "Felt.svelte": 9,
         "hud/ClassicBox.svelte": 15,
@@ -63,7 +58,7 @@
       }
     },
     "font-size": {
-      "total": 314,
+      "total": 290,
       "files": {
         "analysis/DecisionCard.svelte": 7,
         "analysis/HandPanel.svelte": 2,
@@ -76,16 +71,8 @@
         "app/Reports.svelte": 3,
         "app/SettingsView.svelte": 5,
         "app/TournamentPicker.svelte": 1,
-        "charts/PreflopChart.svelte": 4,
-        "charts/PreflopCharts.svelte": 4,
-        "charts/PushFoldChart.svelte": 2,
-        "charts/PushFoldCharts.svelte": 3,
         "cloud/CloudSettings.svelte": 1,
         "cloud/MalformedReports.svelte": 4,
-        "coach/CoachSettings.svelte": 2,
-        "coach/ReportView.svelte": 5,
-        "coach/RunPanel.svelte": 2,
-        "coach/SpotCard.svelte": 2,
         "hud/ClassicBox.svelte": 3,
         "hud/DetailPopup.svelte": 2,
         "hud/GraphicSeat.svelte": 6,
@@ -143,7 +130,7 @@
       }
     },
     "button-style": {
-      "total": 167,
+      "total": 161,
       "files": {
         "analysis/DecisionCard.svelte": 1,
         "analysis/HandPanel.svelte": 4,
@@ -157,9 +144,6 @@
         "app/SettingsView.svelte": 2,
         "app/TournamentPicker.svelte": 6,
         "cloud/MalformedReports.svelte": 1,
-        "coach/Coach.svelte": 3,
-        "coach/RunPanel.svelte": 1,
-        "coach/SpotCard.svelte": 2,
         "hud/SeatAnatomy.svelte": 4,
         "jobs/JobsDock.svelte": 6,
         "jobs/JobToasts.svelte": 3,
@@ -196,7 +180,7 @@
       }
     },
     "global-class-override": {
-      "total": 131,
+      "total": 115,
       "files": {
         "analysis/DecisionCard.svelte": 3,
         "app/ClientLock.svelte": 1,
@@ -207,15 +191,8 @@
         "app/Reports.svelte": 3,
         "app/ResultsChart.svelte": 1,
         "app/SettingsView.svelte": 5,
-        "charts/PreflopChart.svelte": 6,
-        "charts/PreflopCharts.svelte": 2,
-        "charts/PushFoldCharts.svelte": 2,
         "cloud/CloudSettings.svelte": 2,
         "cloud/MalformedReports.svelte": 1,
-        "coach/Coach.svelte": 1,
-        "coach/CoachSettings.svelte": 2,
-        "coach/ReportView.svelte": 1,
-        "coach/SpotCard.svelte": 2,
         "gpu/GpuTest.svelte": 1,
         "hud/GraphicSeat.svelte": 1,
         "hud/ThresholdScale.svelte": 1,
@@ -256,14 +233,11 @@
       "files": {}
     },
     "motion": {
-      "total": 65,
+      "total": 60,
       "files": {
         "analysis/DecisionCard.svelte": 2,
         "analysis/HandPanel.svelte": 1,
         "app/Replayer.svelte": 2,
-        "charts/PreflopCharts.svelte": 2,
-        "charts/PushFoldCharts.svelte": 1,
-        "coach/RunPanel.svelte": 2,
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
         "jobs/ChipRing.svelte": 2,
@@ -300,10 +274,8 @@
       }
     },
     "page-heading": {
-      "total": 2,
-      "files": {
-        "charts/PushFoldCharts.svelte": 2
-      }
+      "total": 0,
+      "files": {}
     }
   }
 }

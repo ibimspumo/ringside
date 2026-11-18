@@ -79,12 +79,13 @@ function demoHandDecisions(id: number): Decision[] {
     rated(
       6,
       "preflop",
-      "vs_open",
+      "open",
       "model",
-      "Call 0,5 BB",
-      [choice("Fold", 0.04, 0), choice("Call", 0.22, 0.86, true), choice("Raise auf 4 BB", 0.74, 1.47)],
-      "inaccuracy",
-      "Hier wäre Raise auf 4 BB besser gewesen – dein Call kostet dich etwa 0,6 BB. Grund: Mit 99 im Small Blind spielt das Modell bei 100 BB Tiefe hier zu 74 % Raise auf 4 BB.",
+      "Limp",
+      // The same numbers as the sample range for 99 in the small blind at 100 BB (charts demo).
+      [choice("Fold", 0, -0.5), choice("Limp", 0, 2.9, true), choice("Raise auf 3 BB", 1, 2.92)],
+      "good",
+      "Fast gleich gut: Raise auf 3 BB bringt nur etwa 0,02 BB mehr. Grund: Mit 99 im Small Blind spielt das Modell bei 100 BB Tiefe hier zu 100 % Raise auf 3 BB.",
     ),
     rated(
       8,

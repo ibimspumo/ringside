@@ -40,6 +40,25 @@ pub fn money(x: f64) -> String {
     num(x, 2)
 }
 
+/// Dollars to the cent, whole amounts without decimals: "500 $", "7,50 $".
+pub fn dollars(x: f64) -> String {
+    let rounded = (x * 100.0).round() / 100.0;
+    format!("{} $", num(rounded, if rounded.fract() == 0.0 { 0 } else { 2 }))
+}
+
+/// Chips with a thousands dot: "12.500".
+pub fn chips(x: f64) -> String {
+    let s = (x.round() as u64).to_string();
+    let mut out = String::new();
+    for (i, ch) in s.chars().enumerate() {
+        if i > 0 && (s.len() - i).is_multiple_of(3) {
+            out.push('.');
+        }
+        out.push(ch);
+    }
+    out
+}
+
 pub fn cards(cards: &[Card]) -> String {
     cards.iter().map(Card::to_string).collect::<Vec<_>>().join(" ")
 }
@@ -74,5 +93,10 @@ mod tests {
         assert_eq!(signed_bb(1.234), "+1,23 bb");
         assert_eq!(signed_bb(-0.5), "−0,50 bb");
         assert_eq!(money(15.7), "15,70");
+        assert_eq!(dollars(500.0), "500 $");
+        assert_eq!(dollars(7.5), "7,50 $");
+        assert_eq!(dollars(212.404), "212,40 $");
+        assert_eq!(chips(12_500.0), "12.500");
+        assert_eq!(chips(500.0), "500");
     }
 }

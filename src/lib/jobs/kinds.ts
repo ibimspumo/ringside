@@ -16,7 +16,7 @@ export const KIND_LABEL: Record<JobKind, string> = {
 
 export const PAGE_LABEL: Record<string, string> = {
   solver: "Solver",
-  charts: "Charts",
+  charts: "Ranges nach Stack",
   library: "Bibliothek",
   coach: "Coach",
   hands: "Hände",

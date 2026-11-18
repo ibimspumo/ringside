@@ -59,7 +59,7 @@
   let article = $state<string | null>(preview("article"));
   /** Skill and level the trainer opens with when coming from the path. */
   let trainerPick = $state<{ kind: LearnKind; level: number } | null>(
-    preview("skill") ? { kind: preview("skill") as LearnKind, level: 1 } : null,
+    preview("skill") ? { kind: preview("skill") as LearnKind, level: Number(preview("level") ?? 1) } : null,
   );
   let top = $state<HTMLElement>();
 
