@@ -38,6 +38,7 @@
     onClearTournament,
     onClearSpot = () => {},
     onLearn,
+    onCoachSetup,
   }: {
     filter: Filter;
     refresh: number;
@@ -53,6 +54,8 @@
     onClearTournament: () => void;
     onClearSpot?: () => void;
     onLearn?: (target: LearnTarget) => void;
+    /** Opens the coach's setup, for "Frag den Coach" without a key. */
+    onCoachSetup?: () => void;
   } = $props();
 
   watchAnalysis();
@@ -433,7 +436,7 @@
 {/snippet}
 
 {#snippet panel()}
-  <HandPanel {decisions} selected={chosen} {busy} {locked} analyzed={analyzedId === selected?.id} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} main={started} />
+  <HandPanel {decisions} selected={chosen} {busy} {locked} analyzed={analyzedId === selected?.id} onAnalyze={() => analyze()} onSelect={select} {onLearn} {caption} main={started} {onCoachSetup} />
 {/snippet}
 
 {#snippet close()}<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>{/snippet}

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import AskCoach from "../report/AskCoach.svelte";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
@@ -22,6 +23,7 @@
     onLearn,
     caption = null,
     main = true,
+    onCoachSetup = () => {},
   }: {
     decisions: Decision[] | null;
     selected: number | null;
@@ -36,7 +38,18 @@
     caption?: { text: string; ahead: boolean } | null;
     /** Whether analysing this hand is the main action of the screen. */
     main?: boolean;
+    /** Opens the coach's setup, for "Frag den Coach" without a key. */
+    onCoachSetup?: () => void;
   } = $props();
+
+  /** The question offered first: why the recommendation beats what was played, or why it was right. */
+  function presets(d: Decision): string[] {
+    const first =
+      d.best && d.best !== d.played && d.rating && !["best", "mix", "good"].includes(d.rating)
+        ? `Warum ist „${d.best}“ hier besser als „${d.played}“?`
+        : `Warum ist „${d.played}“ hier richtig?`;
+    return [first, "Was sagt mir die Strategie?"];
+  }
 
   const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
   const current = $derived(decisions?.find((d) => d.action_index === selected) ?? null);
@@ -115,6 +128,16 @@
     {#if current}
       {#if caption}<p class="caption" class:ahead={caption.ahead}>{caption.text}</p>{/if}
       <DecisionCard decision={current} {onLearn} />
+      {#if current.status === "rated" && handId !== null}
+        {#key `${handId}:${current.action_index}`}
+          <AskCoach
+            compact
+            about={{ kind: "hand", hand_id: handId, action_index: current.action_index }}
+            presets={presets(current)}
+            onSetup={onCoachSetup}
+          />
+        {/key}
+      {/if}
     {/if}
   </div>
 {/if}
