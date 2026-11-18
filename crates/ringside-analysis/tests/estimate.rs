@@ -50,3 +50,31 @@ fn a_mix_of_the_solver_is_never_a_mistake() {
     }
     assert!(mixed >= 50, "only {mixed} mixed options");
 }
+
+/// What the hand analysis stores for an estimated decision: folding brings 0,00 BB, as the
+/// legend under the table says, and the played move costs its gap to the best one.
+#[test]
+fn an_estimated_fold_brings_nothing() {
+    use ringside_analysis::{Source, Status, analyze_hand, estimate_rest};
+    use ringside_core::{parse_hand, split_hands};
+    let mut folds = 0;
+    for raw in split_hands(include_str!("fixtures/hands.txt")) {
+        let Ok(hand) = parse_hand(raw) else { continue };
+        let decisions = analyze_hand(&hand).decisions;
+        let pending = decisions.iter().filter(|d| d.status == Status::Pending).cloned().collect();
+        for d in decisions.iter().chain(&estimate_rest(&hand, pending, "Für den Test geschätzt.")) {
+            if d.source != Some(Source::Estimate) || d.status != Status::Rated {
+                continue;
+            }
+            let top = d.strategy.iter().filter_map(|c| c.ev_bb).fold(f64::NEG_INFINITY, f64::max);
+            if let Some(fold) = d.strategy.iter().find(|c| c.kind == "fold") {
+                assert_eq!(fold.ev_bb, Some(0.0), "#{} @{}: {:?}", d.hand_id, d.action_index, d.strategy);
+                folds += 1;
+            }
+            let played = d.strategy.iter().find(|c| c.played).and_then(|c| c.ev_bb).unwrap();
+            let loss = d.ev_loss_bb.unwrap();
+            assert!(loss == 0.0 || (loss - (top - played)).abs() < 1e-9, "#{} @{}: {loss} vs {}", d.hand_id, d.action_index, top - played);
+        }
+    }
+    assert!(folds > 0, "no estimated decision with a fold in the fixtures");
+}
