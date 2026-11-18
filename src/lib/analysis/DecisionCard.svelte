@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { LearnTarget } from "../app/Leaks.svelte";
   import ChartsButton from "../charts/ChartsButton.svelte";
-  import { mixText, often, playsLine, type MoveKind, type Who } from "../play/words";
+  import { mixText, playsLine, type MoveKind, type Who } from "../play/words";
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import Button from "../ui/Button.svelte";
@@ -48,7 +48,7 @@
   const mainBelowTop = $derived.by(() => {
     const top = d.strategy.reduce<Choice | null>((a, c) => (c.ev_bb !== null && (!a || c.ev_bb > (a.ev_bb ?? -Infinity)) ? c : a), null);
     if (!main || !top || top === main || main.ev_bb === null || d.source === "estimate") return null;
-    return `Darum zählt „${main.label}“ als Empfehlung: Das spielt es ${often(main.freq)}. „${top.label}“ bringt rechnerisch ${bb(bestEv - main.ev_bb, 2)} mehr, kommt aber nur in ${pct(top.freq)} der Fälle vor – beides ist hier richtig.`;
+    return `„${top.label}“ bringt rechnerisch ${bb(bestEv - main.ev_bb, 2)} mehr, kommt aber nur in ${pct(top.freq)} der Fälle vor – empfohlen wird der Hauptzug, beides ist hier richtig.`;
   });
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
 
