@@ -1,7 +1,7 @@
 // The practice session lives here, so a hand in progress and the session's numbers survive
 // switching tabs. The stock of postflop spots keeps filling in the backend meanwhile.
-import { playApi, onPoolStatus } from "./api";
-import type { Grade, HandView, Lesson, PlayConfig, PoolStatus } from "./types";
+import { onHand, onLive, onPoolStatus, playApi } from "./api";
+import type { Grade, HandView, Lesson, LiveStatus, PlayConfig, PoolStatus } from "./types";
 
 const STORE = "ringside.play.config";
 
@@ -35,6 +35,8 @@ export const session = $state({
   look: null as number | null,
   hands: [] as SessionHand[],
   pool: null as PoolStatus | null,
+  /** The live solve the hand waits for. */
+  live: null as LiveStatus | null,
   busy: false,
   error: null as string | null,
   /** A hand from the session list opened for review. */
@@ -57,7 +59,27 @@ export function listen() {
   listening = true;
   onPoolStatus((s) => (session.pool = s));
   playApi.poolStatus().then((s) => (session.pool = s)).catch(() => {});
+  onLive((s) => {
+    if (s.urgency === "now") session.live = s;
+  });
+  // The hand on the table went on after its live solve.
+  onHand((v) => {
+    if (session.hand && session.hand.seed === v.seed && session.hand.solving) goOn(v);
+  });
 }
+
+function goOn(v: HandView) {
+  session.hand = v;
+  session.live = null;
+  remember(v, currentRepeat);
+}
+
+/** Stops the live solve; the hand plays on without a grade. */
+export const cancelLive = () =>
+  guarded(async () => {
+    const v = await playApi.liveCancel();
+    if (v && session.hand?.solving && v.seed === session.hand.seed) goOn(v);
+  });
 
 function errorText(e: unknown): string {
   const msg = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
@@ -90,6 +112,7 @@ let currentRepeat = false;
 export function show(view: HandView, repeat = currentRepeat) {
   currentRepeat = repeat;
   session.hand = view;
+  if (!view.solving) session.live = null;
   session.look = null;
   session.hint = null;
   session.review = null;
@@ -117,9 +140,10 @@ export const prepare = (c: PlayConfig) => playApi.prepare(c).then((s) => (sessio
 /** Picks up a hand left on another page. */
 export async function resume() {
   const view = await playApi.current().catch(() => null);
-  if (view && !session.hand) {
+  if (view && (!session.hand || (session.hand.seed === view.seed && session.hand.solving))) {
     session.hand = view;
     session.playing = true;
+    if (view.solving) session.live = await playApi.liveStatus().catch(() => null);
   } else if (!view && session.hand?.outcome) {
     // Freed while the page was closed; the hand stays in the session list.
     session.hand = null;

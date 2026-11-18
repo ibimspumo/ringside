@@ -4,7 +4,7 @@ import { actionColors } from "../solver/actions";
 import { lesson as postflopLesson } from "../solver/explain";
 import type { SolverAction } from "../solver/types";
 import { betterLine, mixText, playsLine, sameEv, type Who } from "./words";
-import type { Choice, EndReason, Grade, HandView, Lesson, PlayAnte, PlayConfig, PlayMode, Source, Verdict } from "./types";
+import type { Choice, FreeInfo, Grade, HandView, Lesson, PlayAnte, PlayConfig, PlayMode, SolveWhy, Source, Unrated, Verdict } from "./types";
 
 export const num = (x: number, d = 1) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
 export const bbText = (x: number, d = 1) => `${num(x, d)} BB`;
@@ -86,18 +86,42 @@ const SOURCE_NAME: Record<Source, string> = {
   model: "Preflop-Modell",
   equilibrium: "Push/Fold-Gleichgewicht",
   solver: "Solver",
+  live: "Solver, live gerechnet",
   library: "Spot-Bibliothek",
   saved: "Gespeicherte Lösung",
+  estimate: "Einschätzung",
+};
+
+/** Why a move has no grade, in one sentence. */
+export const UNRATED_TEXT: Record<Unrated, string> = {
+  not_reached: "Diese Hand kommt in der Lösung hier gar nicht an – sie wäre vorher anders gespielt worden. Deshalb gibt es für diesen Zug keine Bewertung.",
+  multiway: "Nicht bewertet: Mehrweg-Pot. Für drei Spieler nach dem Flop gibt es keinen Solver – die Einschätzung dafür folgt.",
+  off_model: "Nicht bewertet: Diese Linie kennt das Preflop-Modell nicht. Es lässt hier nur zwei Spieler weiterspielen; du entscheidest trotzdem selbst.",
+  no_solve: "Nicht bewertet: Der Spot wurde nicht fertig gerechnet.",
+};
+
+/** The short tag in lists. */
+export const UNRATED_SHORT: Record<Unrated, string> = {
+  not_reached: "nicht bewertet",
+  multiway: "nicht bewertet: Mehrweg-Pot",
+  off_model: "nicht bewertet: Linie ohne Modell",
+  no_solve: "nicht bewertet: nicht gerechnet",
 };
 
 /** The small line under every verdict: where the answer comes from and what it assumes. */
-export function sourceLine(source: Source, config: PlayConfig, stack: number, exploit: number | null): string {
+export function sourceLine(source: Source | null, config: PlayConfig, stack: number, exploit: number | null): string {
   const table = `${config.players} Spieler, ${num(stack, 0)} BB, ${ANTE_LABEL[config.ante]}`;
   switch (source) {
+    case null:
+      return "Quelle: keine – dieser Zug wird nicht bewertet.";
     case "model":
       return `Quelle: Preflop-Modell von Ringside (${table}) – ein Modell, kein exaktes Gleichgewicht.`;
     case "equilibrium":
       return `Quelle: Push/Fold-Gleichgewicht (${table}, Chip-EV).`;
+    case "estimate":
+      return "Quelle: Einschätzung (Equity gegen wahrscheinliche Ranges gegen Pot Odds).";
+    case "live":
+      return `Quelle: Solver, live gerechnet (Heads-up, gewählte Größen) – schnell gerechnet${exploit !== null ? `, Genauigkeit ${num(exploit, 1)} % des Pots` : ""}.`;
     default: {
       const acc = exploit !== null ? `, Genauigkeit ${num(exploit, 1)} % des Pots` : "";
       return `Quelle: ${SOURCE_NAME[source]} (Heads-up, gewählte Größen${acc}).`;
@@ -107,12 +131,43 @@ export function sourceLine(source: Source, config: PlayConfig, stack: number, ex
 
 export const SOURCE_SHORT = SOURCE_NAME;
 
-const WHO: Record<Source, Who> = { model: "model", equilibrium: "equilibrium", solver: "solution", library: "solution", saved: "solution" };
+const WHO: Record<Source, Who> = {
+  model: "model",
+  equilibrium: "equilibrium",
+  solver: "solution",
+  live: "solution",
+  library: "solution",
+  saved: "solution",
+  estimate: "solution",
+};
+
+/** What the table says while a spot is solved live. */
+export function solvingLine(why: SolveWhy): string {
+  switch (why) {
+    case "new_line":
+      return "Neue Linie – Ringside rechnet den Spot jetzt.";
+    case "no_spot":
+      return "Für diesen Flop war kein Spot vorbereitet – Ringside rechnet ihn jetzt.";
+    case "deeper":
+      return "Die gespeicherte Lösung endet hier – Ringside rechnet den Spot zu Ende.";
+  }
+}
+
+/** The banner once a hand plays on without a solution. */
+export function freeLine(f: FreeInfo): string {
+  const why =
+    f.why === "multiway"
+      ? "Mehrweg-Pot: Für drei Spieler nach dem Flop gibt es keinen Solver. Deine Züge werden nicht bewertet – die Einschätzung folgt."
+      : f.why === "off_model"
+        ? "Diese Linie kennt das Preflop-Modell nicht. Deine Züge ab hier werden nicht bewertet."
+        : `Ohne fertige Lösung${f.note ? ` (${f.note})` : ""}: Deine Züge ab hier werden nicht bewertet.`;
+  return `${why} ${f.rule}`;
+}
 
 /** The headline of a graded move: what was better and what it cost, the mix, or nothing. */
 export function headlineOf(v: Verdict, cards: string[]): string | null {
   const j = v.judgement;
-  if (!j || !v.strategy) return null;
+  if (!j || !v.strategy || !v.source) return null;
   const chosen = v.choices[v.chosen];
   if (j.grade === "mix") {
     const main = v.choices[j.main];
@@ -132,9 +187,7 @@ function handName(v: Verdict | Lesson, cards: string[]): string {
 
 /** The plain-language reason for a verdict: what the solution does with this hand, and why. */
 export function reason(v: Verdict | Lesson, chosen: number | null, cards: string[]): string {
-  if (!v.strategy) {
-    return "Diese Hand kommt in der Lösung hier gar nicht an – sie wäre vorher anders gespielt worden. Deshalb gibt es für diesen Zug keine Bewertung.";
-  }
+  if (!v.strategy || !v.source) return UNRATED_TEXT[v.unrated ?? "not_reached"];
   const strategy = v.strategy;
   const best = v.evs ? v.evs.indexOf(Math.max(...v.evs)) : strategy.indexOf(Math.max(...strategy));
   if (v.node) {
@@ -165,19 +218,9 @@ function sameCards(combo: string, cards: string[]): boolean {
 
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export const END_TEXT: Record<EndReason, string> = {
-  folded: "",
-  showdown: "",
-  left_line:
-    "Hier wäre die Hand anders weitergegangen. Für diese Linie ist kein Spot vorbereitet – dein Zug ist trotzdem bewertet.",
-  flop_unsolved: "Am Flop endet diese Hand: Es war noch kein passender Spot vorbereitet. Der Vorrat füllt sich im Hintergrund.",
-  not_stored: "Ab hier ist in der gespeicherten Lösung nichts mehr hinterlegt, deshalb endet die Hand an dieser Stelle.",
-};
-
 export function resultLine(h: HandView): string {
   const o = h.outcome;
   if (!o) return "";
-  if (o.reason !== "folded" && o.reason !== "showdown") return END_TEXT[o.reason];
   const net = o.net[h.hero];
   const won = o.winners.includes(h.hero);
   if (o.reason === "folded") {
@@ -187,6 +230,11 @@ export function resultLine(h: HandView): string {
       : `${h.positions[o.winners[0]]} gewinnt den Pot (${signedBB(net)}).`;
   }
   const made = o.made[h.hero];
+  const folded = h.events.some((e) => e.type === "action" && e.seat === h.hero && e.choice.kind === "fold");
+  if (folded) {
+    const w = o.winners.map((s) => h.positions[s]).join(" und ");
+    return `Du foldest (${signedBB(net)}). Ohne dich checken die anderen bis zum Showdown durch: ${w} ${o.winners.length > 1 ? "teilen" : "gewinnt"}.`;
+  }
   if (won && o.winners.length > 1) return `Geteilter Pot${made ? ` mit ${made}` : ""} (${signedBB(net)}).`;
   if (won) return `Du gewinnst beim Showdown${made ? ` mit ${made}` : ""} (${signedBB(net)}).`;
   const w = o.winners[0];
