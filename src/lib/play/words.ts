@@ -10,7 +10,7 @@ export const signed = (x: number, d = 2) => `${x > 0.005 ? "+" : x < -0.005 ? "â
 
 /** How often, in words. */
 export function often(f: number): string {
-  if (f >= 0.97) return "immer";
+  if (f >= 0.995) return "immer";
   if (f >= 0.85) return "fast immer";
   if (f >= 0.6) return "meistens";
   if (f >= 0.35) return "oft";

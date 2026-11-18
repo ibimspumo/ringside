@@ -92,7 +92,7 @@
   function gap(c: Choice): string {
     if (c.ev_bb === null || !isFinite(bestEv)) return "–";
     const loss = bestEv - c.ev_bb;
-    return loss < 0.005 ? "beste" : `−${bb(loss, 2)}`;
+    return loss < 0.005 ? (mainBelowTop ? "höchster EV" : "beste") : `−${bb(loss, 2)}`;
   }
 </script>
 
@@ -147,10 +147,10 @@
       {#each d.strategy as c (c.label)}
         <li class:mine={c.played}>
           <span class="dot {tone(c)}"></span>
-          <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
+          <span class="label">{c.label}{#if c.played}<em>du</em>{/if}{#if mainBelowTop && c === main}<em class="main-tag">Hauptzug</em>{/if}</span>
           <span class="num freq">{d.source === "estimate" ? "" : c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
           <span class="num gain" title={EV_EXPLAIN}>{gain(c)}</span>
-          <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
+          <span class="num ev" class:best={gap(c) === "beste" || gap(c) === "höchster EV"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
         </li>
       {/each}
     </ul>
@@ -266,7 +266,7 @@
   }
   .options li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 36px 72px 64px;
+    grid-template-columns: 10px minmax(0, 1fr) 36px 72px 80px;
     align-items: center;
     gap: 6px;
     padding: 2px var(--sp-1);
@@ -293,6 +293,10 @@
     letter-spacing: 0.04em;
     color: var(--bg);
     background: var(--text);
+  }
+  .label em.main-tag {
+    color: var(--text);
+    background: var(--surface-3);
   }
   .freq,
   .gain,

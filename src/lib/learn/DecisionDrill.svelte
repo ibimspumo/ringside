@@ -202,27 +202,31 @@
     {#if view.board.length}
       <p class="board-line"><span>{view.street}</span><CardText text={view.board.join(" ")} /></p>
     {/if}
+    {#if !result && facing}
+      <p class="brief num">Call {bb(view.toCallBB)} · Pot {bb(view.potBB)} · du brauchst {pct(view.toCallBB / (view.potBB + view.toCallBB))} Equity</p>
+    {/if}
 
     {#if !result}
       <section class="lage" aria-label="Die Lage" in:appear>
         <div class="figures">
           {#if facing}
             <Stat
+              size="sm"
               label="Call kostet"
               value={bb(view.toCallBB)}
               meaning={allIn ? "Das ist dein ganzer Stack." : `${pct(view.toCallBB / view.behindBB)} deines Stacks von ${bb(view.behindBB)}.`}
             />
             {#if river}
-              <Stat label="Pot nach dem Call" value={bb(view.potBB + view.toCallBB)} meaning="Keine Karte kommt mehr: Callst du, werden die Karten gezeigt." />
+              <Stat size="sm" label="Pot nach dem Call" value={bb(view.potBB + view.toCallBB)} meaning="Keine Karte kommt mehr: Callst du, werden die Karten gezeigt." />
             {:else}
-              <Stat label={allIn ? "Stack zu Pot" : "Stack zu Pot nach dem Call"} value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
+              <Stat size="sm" label={allIn ? "Stack zu Pot" : "Stack zu Pot nach dem Call"} value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
             {/if}
           {:else}
-            <Stat label="Pot" value={bb(view.potBB)} meaning="liegt schon in der Mitte, Blinds und Antes eingerechnet." />
+            <Stat size="sm" label="Pot" value={bb(view.potBB)} meaning="liegt schon in der Mitte, Blinds und Antes eingerechnet." />
             {#if view.street === "Vor dem Flop"}
-              <Stat label="Dein Stack" value={bb(view.behindBB)} meaning={stackMeaning} />
+              <Stat size="sm" label="Dein Stack" value={bb(view.behindBB)} meaning={stackMeaning} />
             {:else}
-              <Stat label="Stack zu Pot" value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
+              <Stat size="sm" label="Stack zu Pot" value={num(spr, spr < 10 ? 1 : 0)} meaning={sprMeaning} help={SPR_HELP} />
             {/if}
           {/if}
         </div>
@@ -330,7 +334,7 @@
   }
   .question {
     margin: 0;
-    font-size: var(--fs-2xl);
+    font-size: var(--fs-xl);
     font-weight: var(--fw-semibold);
     line-height: 1.35;
   }
@@ -342,14 +346,21 @@
     color: var(--text-2);
     font-size: var(--fs-lg);
   }
+  /* The figures in one line, for narrow windows where the choices come before them. */
+  .brief {
+    display: none;
+    margin: calc(-1 * var(--sp-2)) 0 0;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
   .board-line span {
     font-size: var(--fs-md);
   }
   .lage {
     display: flex;
     flex-direction: column;
-    gap: var(--sp-4);
-    padding: var(--sp-4);
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     background: var(--surface-2);
@@ -450,6 +461,9 @@
     }
     .why {
       order: 2;
+    }
+    .brief {
+      display: block;
     }
   }
 </style>
