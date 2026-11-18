@@ -70,6 +70,9 @@
 
   /** "A7" reads like the hand's name, not "7A". */
   const highFirst = (cards: string[]) => [...cards].sort((a, b) => "23456789TJQKA".indexOf(b[0]) - "23456789TJQKA".indexOf(a[0]));
+  /** "Call" and "Limp" carry their price, as raises and all-ins carry their size. */
+  const priced = (c: { label: string; kind: string }) =>
+    (c.kind === "call" || c.kind === "limp") && !/\d/.test(c.label) && view.toCallBB > 0 ? `${c.label} ${bb(view.toCallBB)}` : c.label;
   const MOVE: Record<string, ActionKind> = { fold: "fold", check: "check", call: "call", limp: "limp", bet: "bet", raise: "raise", all_in: "allin" };
 
   // The table takes the window's height below it, so table, controls and choices fit without scrolling.
@@ -204,7 +207,7 @@
     {/if}
     {#if !result}
       <p class="brief num">
-        {#if facing}Call {bb(view.toCallBB)} · Pot {bb(view.potBB)} · du brauchst {pct(view.toCallBB / (view.potBB + view.toCallBB))} Equity
+        {#if facing}Call {bb(view.toCallBB)} · Pot {bb(view.potBB)} · lohnt sich, wenn du in mehr als {Math.round((view.toCallBB / (view.potBB + view.toCallBB)) * 100)} von 100 Fällen gewinnst
         {:else}Pot {bb(view.potBB)} · dein Stack {bb(view.behindBB)} · {view.unopened ? "noch niemand eröffnet" : "niemand hat gesetzt"}{/if}
       </p>
     {/if}
@@ -248,7 +251,7 @@
         {#each spot.choices as c, i (i)}
           {@const kind = MOVE[c.kind]}
           {#snippet mark()}<i class="mark" style:--c={kind ? actionColor(kind) : "var(--text-3)"}></i>{/snippet}
-          <Button size="lg" full kbd={String(i + 1)} icon={mark} disabled={busy} onclick={() => choose(i)}>{c.label}</Button>
+          <Button size="lg" full kbd={String(i + 1)} icon={mark} disabled={busy} onclick={() => choose(i)}>{priced(c)}</Button>
         {/each}
       </div>
       {#if error}<p class="error" role="alert">{error}</p>{/if}

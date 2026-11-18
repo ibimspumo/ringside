@@ -92,8 +92,11 @@
 
   function gap(c: Choice): string {
     if (c.ev_bb === null || !isFinite(bestEv)) return "–";
+    // Both are right here: the source's main move, and the rare one that brings a little more.
+    if (mainBelowTop && c === main) return "Hauptzug";
+    if (mainBelowTop && c.ev_bb >= bestEv - 0.005) return "auch richtig";
     const loss = bestEv - c.ev_bb;
-    return loss < 0.005 ? (mainBelowTop ? "höchster EV" : "beste") : `−${bb(loss, 2)}`;
+    return loss < 0.005 ? "beste" : `−${bb(loss, 2)}`;
   }
 </script>
 
@@ -151,7 +154,7 @@
           <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
           <span class="num freq">{d.source === "estimate" ? "" : c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
           <span class="num gain" title={EV_EXPLAIN}>{gain(c)}</span>
-          <span class="num ev" class:best={gap(c) === "beste" || gap(c) === "höchster EV"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
+          <span class="num ev" class:best={["beste", "Hauptzug", "auch richtig"].includes(gap(c))} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
         </li>
       {/each}
     </ul>
