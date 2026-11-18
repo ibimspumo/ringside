@@ -99,12 +99,12 @@
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
   const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
-    tournaments: "Klick auf ein Turnier filtert alle Ansichten darauf und zeigt seine Hände.",
+    tournaments: "Klick auf ein Turnier zeigt seine Hände und filtert alle Seiten darauf.",
     live: "Deine Gegner an den offenen Tischen, mit den Werten aus dem HUD.",
     hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, eine Coach-Analyse und Ringside Cloud (abschaltbar, siehe unten).",
-    leaks: "Deine Werte je Position und Stacktiefe gegen veröffentlichte Richtwerte.",
+    leaks: "Deine Werte gegen veröffentlichte Richtwerte.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Ein Sprachmodell bespricht deine Turniere. Jede Zahl darin rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",

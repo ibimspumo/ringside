@@ -265,16 +265,16 @@
         {#if rank !== null}<span class="rank num">{rank}</span>{/if}
         <h3>{STAT_META[l.stat].name}</h3>
         <Badge tone={high ? "warn" : "info"}>{high ? "zu hoch" : "zu niedrig"}</Badge>
-      </div>
-      <div class="tags">
-        <Tag>{where(l)}</Tag>
-        <Tag><Term tip={BAND_HELP}>{data?.bands[l.band]}</Term></Tag>
-        <Tag>{game(l)}</Tag>
         {#if l.uncertain}
           <Badge tone="warn"
             ><Term tip="Unter 30 Gelegenheiten oder weniger als 90 % sicher. Spiel mehr Hände, bevor du daran arbeitest.">noch unsicher</Term></Badge
           >
         {/if}
+      </div>
+      <div class="tags">
+        <Tag>{where(l)}</Tag>
+        <Tag><Term tip={BAND_HELP}>{data?.bands[l.band]}</Term></Tag>
+        <Tag>{game(l)}</Tag>
       </div>
     </header>
 
@@ -395,7 +395,7 @@
           </p>
         {/if}
         <p class="honest">
-          Richtwerte stammen aus veröffentlichten Quellen (unten) – eine Orientierung, keine „richtige“ Strategie. Die teuersten
+          Richtwerte stammen aus veröffentlichten Quellen – eine Orientierung, keine „richtige“ Strategie. Die teuersten
           Einzelentscheidungen aus der Hand-Analyse zeigt die Übersicht.
         </p>
       </div>
@@ -530,7 +530,9 @@
   }
   .verdict.bare {
     grid-template-columns: 1fr;
+    width: 100%;
     max-width: 820px;
+    margin-inline: auto;
   }
   .answer h2 {
     margin: 0;
@@ -895,7 +897,7 @@
 
   .fine-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 10px;
     margin: 0;
     padding: 0 20px 18px;
@@ -951,6 +953,7 @@
   .sources-line {
     margin: 0;
     padding: 0 4px;
+    text-align: center;
     font-size: var(--fs-md);
     color: var(--text-2);
   }

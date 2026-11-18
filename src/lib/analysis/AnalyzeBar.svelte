@@ -51,7 +51,7 @@
         <b
           >{p.state === "running" && !p.title.includes("#")
             ? preDone
-              ? "Flop-Analyse läuft"
+              ? "Vor dem Flop fertig · nach dem Flop läuft"
               : "Analyse läuft – vor dem Flop"
             : p.title}</b
         >
