@@ -15,7 +15,7 @@ use ringside_learn::{Answer, Kind, OwnSpot, Prompt, TableSpot, detect_spots};
 
 use crate::fmt::{bb, num};
 use crate::seats::{ante_name, nearest};
-use crate::{pot_before, rated, unrated};
+use crate::{base_at, pot_before, score, unrated};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 64;
@@ -128,5 +128,5 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> Decision {
         bb(effective),
         sol.act_pct(s.node).round()
     );
-    rated(hand, index, spot_type, Source::Equilibrium, strategy, pot_before(hand, index), note.join("; ") + ".", |_| reason)
+    score(base_at(hand, index, spot_type), Source::Equilibrium, strategy, pot_before(hand, index), note.join("; ") + ".", |_| reason)
 }

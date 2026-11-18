@@ -121,8 +121,10 @@ pub enum SpotType {
     Steal,
     /// Re-raising an open.
     ThreeBet,
-    /// Calling or folding against an open or a limp.
+    /// Calling or folding against an open.
     VsOpen,
+    /// Behind one or two limps: isolate, limp along, check in the big blind or shove.
+    VsLimp,
     /// Facing a 3-bet or more.
     VsThreeBet,
     /// All-in or fold, everyone before folded.
@@ -139,11 +141,12 @@ pub enum SpotType {
 }
 
 impl SpotType {
-    pub const ALL: [SpotType; 12] = [
+    pub const ALL: [SpotType; 13] = [
         SpotType::Open,
         SpotType::Steal,
         SpotType::ThreeBet,
         SpotType::VsOpen,
+        SpotType::VsLimp,
         SpotType::VsThreeBet,
         SpotType::Shove,
         SpotType::CallShove,
@@ -160,6 +163,7 @@ impl SpotType {
             SpotType::Steal => "steal",
             SpotType::ThreeBet => "three_bet",
             SpotType::VsOpen => "vs_open",
+            SpotType::VsLimp => "vs_limp",
             SpotType::VsThreeBet => "vs_three_bet",
             SpotType::Shove => "shove",
             SpotType::CallShove => "call_shove",

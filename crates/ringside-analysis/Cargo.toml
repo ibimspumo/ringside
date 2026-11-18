@@ -6,6 +6,8 @@ license.workspace = true
 description = "Rates the hero's decisions in stored hands with Ringside's push/fold equilibrium, preflop model and postflop solver"
 
 [dependencies]
+rand = { version = "0.9", default-features = false }
+rand_chacha = "0.9"
 rayon = "1"
 ringside-core = { path = "../ringside-core" }
 ringside-engine = { path = "../ringside-engine" }
@@ -16,6 +18,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
-rand = { version = "0.9", default-features = false }
-rand_chacha = "0.9"
 tempfile = "3"

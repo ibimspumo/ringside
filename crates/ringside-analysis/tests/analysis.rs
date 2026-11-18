@@ -81,20 +81,55 @@ fn model_comparison_names_the_nearest_configuration() {
 }
 
 #[test]
-fn limps_and_multiway_pots_are_not_rated_with_a_reason() {
+fn an_isolation_raise_behind_a_limp_is_rated_by_the_model() {
+    let deep: Vec<(&str, i64)> = SIX.iter().map(|&(name, _)| (name, 8000)).collect();
     let limp = hand(
         3,
-        &SIX,
+        &deep,
         4,
         200,
         25,
         "9s 9d",
-        "P1: calls 200\nP2: folds\nP3: folds\nP4: folds\nHero: raises 800 to 1000\nP6: folds\nP1: folds\nUncalled bet (800) returned to Hero\nHero collected 850 from pot\n*** SUMMARY ***\nTotal pot 850 | Rake 0\n",
+        "P1: calls 200\nP2: folds\nP3: folds\nP4: folds\nHero: raises 700 to 900\nP6: folds\nP1: folds\nUncalled bet (700) returned to Hero\nHero collected 850 from pot\n*** SUMMARY ***\nTotal pot 850 | Rake 0\n",
     );
     let a = analyze_hand(&parsed(&limp));
     let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
-    assert_eq!(d.status, Status::Unrated);
-    assert!(d.reason.as_deref().unwrap().contains("Limp"), "{d:?}");
+    assert_eq!((d.status, d.source, d.spot), (Status::Rated, Some(Source::Model), SpotType::VsLimp), "{d:?}");
+}
+
+#[test]
+fn a_three_way_flop_is_estimated_with_its_reliability() {
+    let raw = hand(
+        6,
+        &SIX,
+        4,
+        200,
+        25,
+        "Ah Kh",
+        "P1: calls 200\nP2: folds\nP3: folds\nP4: folds\nHero: calls 100\nP6: checks\n*** FLOP *** [Kd 7s 2c]\nHero: bets 300\nP6: folds\nP1: folds\nUncalled bet (300) returned to Hero\nHero collected 750 from pot\n*** SUMMARY ***\nTotal pot 750 | Rake 0\nBoard [Kd 7s 2c]\n",
+    );
+    let a = analyze_hand(&parsed(&raw));
+    let flop = a.decisions.iter().find(|d| d.street == Street::Flop).unwrap();
+    assert_eq!((flop.status, flop.source), (Status::Rated, Some(Source::Estimate)), "{flop:?}");
+    assert!(flop.reliability.is_some_and(|r| r > 0.0), "{flop:?}");
+    assert!(a.job.is_none());
+}
+
+#[test]
+fn calling_the_last_chips_is_no_decision() {
+    let seats: Vec<(&str, i64)> = vec![("P1", 6200), ("P2", 9800), ("P3", 7400), ("Hero", 650), ("P5", 11200), ("P6", 8300)];
+    let raw = hand(
+        7,
+        &seats,
+        3,
+        600,
+        75,
+        "8d 3s",
+        "P6: folds\nP1: folds\nP2: raises 900 to 1500\nP3: folds\nHero: calls 275 and is all-in\nP5: folds\nUncalled bet (900) returned to P2\n*** FLOP *** [Kd 9s 4c]\n*** TURN *** [Kd 9s 4c] [2h]\n*** RIVER *** [Kd 9s 4c 2h] [Jd]\n*** SHOW DOWN ***\nP2 collected 2225 from pot\n*** SUMMARY ***\nTotal pot 2225 | Rake 0\n",
+    );
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!((d.status, d.source), (Status::Forced, Some(Source::Forced)), "{d:?}");
 }
 
 /// Button opens, big blind calls, the button c-bets and the big blind folds.

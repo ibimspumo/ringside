@@ -13,8 +13,9 @@ use ringside_engine::pushfold_table::{BB_ANTE_BB, CLASSIC_ANTE_BB};
 use ringside_engine::range::NUM_CLASSES;
 
 use crate::fmt::bb;
+use crate::replay::FlopRanges;
 use crate::seats::{Table, ante_name, nearest, table};
-use crate::{hero_actions, pot_before, pushfold, rated, unrated};
+use crate::{base_at, hero_actions, pot_before, pushfold, score, unrated};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 24;
@@ -52,6 +53,8 @@ pub struct Preflop {
     pub decisions: Vec<Decision>,
     /// Ranges for a heads-up flop, or why there are none.
     pub flop: Result<Flop, String>,
+    /// The model's range of every player who sees the flop, when the line is in the model.
+    pub ranges: Option<FlopRanges>,
 }
 
 pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
@@ -60,6 +63,7 @@ pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
     let fail = |reason: &str| Preflop {
         decisions: indices.iter().map(|&i| unrated(hand, i, SpotType::VsOpen, reason)).collect(),
         flop: Err(reason.to_string()),
+        ranges: None,
     };
     let t = match table(hand, hero) {
         Ok(t) => t,
@@ -71,7 +75,7 @@ pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
             .iter()
             .map(|&i| if i == first.action_index { first.clone() } else { unrated(hand, i, first.spot, "Nach dem Push/Fold-Spot nicht bewertet.") })
             .collect();
-        return Preflop { decisions, flop: Err("Push/Fold-Hand".into()) };
+        return Preflop { decisions, flop: Err("Push/Fold-Hand".into()), ranges: None };
     }
     walk(hand, &t, &indices)
 }
@@ -136,8 +140,8 @@ fn spot_type(line: &[Step], played: Kind, hero_position: &str) -> SpotType {
     let raises: Vec<&Step> = line.iter().filter(|s| matches!(s.action.kind, Kind::Raise | Kind::AllIn)).collect();
     let last_all_in = raises.last().is_some_and(|s| s.action.kind == Kind::AllIn);
     match raises.len() {
+        0 if line.iter().any(|s| s.action.kind == Kind::Limp) => SpotType::VsLimp,
         0 if played == Kind::AllIn => SpotType::Shove,
-        0 if line.iter().any(|s| s.action.kind == Kind::Limp) => SpotType::VsOpen,
         0 if matches!(hero_position, "CO" | "BTN" | "SB") => SpotType::Steal,
         0 => SpotType::Open,
         _ if last_all_in => SpotType::CallShove,
@@ -155,6 +159,10 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
     // Equal stacks: the hero's stack against the deepest opponent dealt in.
     let deepest = (0..n).filter(|&i| i != t.hero).map(|i| t.stack_bb(i)).fold(0.0, f64::max);
     let effective = t.stack_bb(t.hero).min(deepest);
+    // Far below the shallowest table the model's lines (sized raises, flops) mean nothing.
+    if effective < STACKS[0] * 2.0 / 3.0 {
+        return unrated_all(hand, indices, "Zu wenig Chips für das Preflop-Modell und kein reiner Push/Fold-Spot.");
+    }
     let stack = nearest(&STACKS, effective);
     let Some(sol) = model(t.ante, players, stack) else {
         return unrated_all(hand, indices, "Diese Modell-Konfiguration ist nicht vorgerechnet.");
@@ -208,7 +216,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
         };
         let seat = model_seat(t, players, real);
         let Some(v) = sol.node(seat, &line) else {
-            let reason = "Diese Linie kommt im Preflop-Modell nicht vor (z. B. Limp außerhalb des Small Blinds oder ein zweiter Caller).";
+            let reason = "Diese Linie kommt im Preflop-Modell nicht vor (z. B. ein dritter Limper, ein Call hinter einer Isolation oder ein zweiter Caller).";
             broken = Some(reason.into());
             if is_hero {
                 decisions.push(unrated(hand, index, SpotType::VsOpen, reason));
@@ -219,7 +227,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
         let Some((ai, size_note)) = map_action(a, &node.actions, t.big_blind, t.stack_bb(real)) else {
             let limp = a.kind == ActionKind::Call && !line.iter().any(|s| matches!(s.action.kind, Kind::Raise | Kind::AllIn));
             let reason = if limp {
-                "Limp: das Preflop-Modell kennt Limps nur aus dem Small Blind."
+                "Ein weiterer Limp: das Preflop-Modell rechnet mit höchstens zwei Limpern."
             } else {
                 "Diese Aktion bietet das Preflop-Modell hier nicht an."
             };
@@ -260,7 +268,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                 note.push('.');
                 let pos = position(&a.player);
                 let pot = pot_before(hand, index);
-                decisions.push(rated(hand, index, spot, Source::Model, strategy, pot, note, |_| {
+                decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |_| {
                     format!("Gerechnet für {pos} mit {} Tiefe.", bb(stack))
                 }));
             }
@@ -282,6 +290,9 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
         }
     }
 
+    let ranges: Option<FlopRanges> = broken.is_none().then(|| {
+        (0..n).filter(|&i| !folded[i]).map(|i| (t.order[i].name.clone(), weights[model_seat(t, players, i)].clone())).collect()
+    });
     let flop = match broken {
         Some(reason) => Err(format!("Preflop-Linie außerhalb des Modells, daher keine Ranges: {reason}")),
         None => {
@@ -312,7 +323,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
             }
         }
     };
-    Preflop { decisions, flop }
+    Preflop { decisions, flop, ranges }
 }
 
 fn range_note(line: &[Step], seat: usize, position: &str) -> String {
@@ -328,5 +339,6 @@ fn unrated_all(hand: &Hand, indices: &[usize], reason: &str) -> Preflop {
     Preflop {
         decisions: indices.iter().map(|&i| unrated(hand, i, SpotType::VsOpen, reason)).collect(),
         flop: Err(reason.to_string()),
+        ranges: None,
     }
 }

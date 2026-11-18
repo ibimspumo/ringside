@@ -1,0 +1,35 @@
+{
+  "preflop_tuning": {
+    "shrink": 0.2,
+    "strength": 0.5,
+    "defend": 4.0,
+    "tie_pct": 0.5
+  },
+  "postflop_tuning": {
+    "shrink": 0.25,
+    "strength": 0.0,
+    "defend": 1.6,
+    "tie_pct": 0.5
+  },
+  "preflop": {
+    "samples": 1170,
+    "same": 0.369,
+    "within_one": 0.764,
+    "balanced": 0.74,
+    "spots": 358
+  },
+  "postflop": {
+    "samples": 8752,
+    "same": 0.495,
+    "within_one": 0.731,
+    "balanced": 0.742,
+    "spots": 27
+  },
+  "real": {
+    "samples": 54,
+    "same": 0.463,
+    "within_one": 0.685,
+    "balanced": 0.414,
+    "spots": 20
+  }
+}
