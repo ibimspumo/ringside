@@ -28,7 +28,7 @@
         {feature} ist gesperrt, solange PokerStars läuft – so verlangen es die PokerStars-Regeln für Hilfsprogramme. HUD und
         Statistiken laufen normal weiter.
       </p>
-      <p class="faint">Sobald du PokerStars schließt, ist alles wieder da.</p>
+      <p class="dim">Sobald du PokerStars schließt, ist alles wieder da.</p>
     </div>
   </div>
 {/if}
@@ -64,7 +64,7 @@
     color: var(--text);
     text-wrap: balance;
   }
-  .faint {
+  .dim {
     font-size: 13px;
   }
 </style>

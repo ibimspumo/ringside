@@ -292,7 +292,7 @@
         </p>
       {/if}
       {#if phase === "me" && node}
-        <div class="actor"><span>{#if lastOther}<span class="dim">{pos(other)}: {lastOther} – </span>{/if}<b>Du bist am {STREET_NAME[node.street]} dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
+        <div class="actor"><span>{#if lastOther}<span class="dim">{pos(other)}: {lastOther}{" – "}</span>{/if}<b>Du bist am {STREET_NAME[node.street]} dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
         <ActionBar {node} {colors} onAct={choose} blind />
       {:else if phase === "wait"}
         <div class="actor"><span class="dim">{node?.kind === "chance" ? "Die nächste Karte kommt …" : `${pos(other)} überlegt …`}</span></div>
@@ -429,7 +429,7 @@
     align-items: start;
   }
   .left {
-    --stage-vh: min(52vh, 600px);
+    --stage-vh: min(46vh, 600px);
     display: flex;
     flex-direction: column;
     gap: 8px;

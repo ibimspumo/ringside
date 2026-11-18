@@ -28,7 +28,7 @@
   const parts = $derived(node.actions.map((a) => actionParts(a, node)));
   const shown = $derived(node.actions.map((a) => a.frequency));
   // Rare actions keep a clickable width; the rest shares the strip by frequency.
-  const grow = $derived(shown.map((f) => (blind ? 1 : 0.25 + f)));
+  const grow = $derived(shown.map((f) => (blind ? 1 : 1 + f)));
   const pct = (x: number) => `${Math.round(x * 100)} %`;
 </script>
 
@@ -48,11 +48,11 @@
       <span class="what">{parts[k].label}</span>
       <span class="chips num">
         {#if parts[k].chips}<span>{parts[k].chips}</span>{/if}
-        {#if mine}<span class="mine">du {mine[k]} %</span>{/if}
+        {#if mine}<span class="mine">deine Hand {mine[k]} %</span>{/if}
         {#if !parts[k].chips && !mine}&nbsp;{/if}
       </span>
       {#if !blind}
-        <b class="freq num">{pct(shown[k])}</b>
+        <b class="freq num">{#if mine}<small>Range</small>{/if}{pct(shown[k])}</b>
         <i class="fill" style="width:{Math.max(0, Math.min(1, shown[k])) * 100}%"></i>
       {/if}
     </button>
@@ -133,6 +133,14 @@
     font-size: var(--fs-xs);
     color: var(--text-2);
     white-space: nowrap;
+  }
+  .freq small {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    text-align: right;
   }
   .mine {
     color: var(--text);

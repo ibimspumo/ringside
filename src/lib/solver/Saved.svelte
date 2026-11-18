@@ -154,7 +154,7 @@
               <dd class="num" title="Abweichung vom perfekten Spiel: {num(s.exploitability_pct, 2)} % des Pots">{cap(precision(s.exploitability_pct))}</dd>
             </div>
           </dl>
-          <p class="line"><span>Größen</span>{s.sizes}</p>
+          <p class="line"><span>Größen</span>{s.sizes.replace(/ %/g, "\u00a0%")}</p>
           <p class="line"><span>Ranges</span>{s.ranges || "eigene"}</p>
           {#if s.shared}
             <p class="cloud" title={markText(s.shared, data.share)}>
