@@ -191,19 +191,23 @@
       {@const p = st.progress}
       {@const max = st.estimate.max_cost_usd}
       {@const live = p && (p.stage === "thinking" || p.stage === "writing" || p.stage === "calling")}
-      <div class="line big">
-        <span class="spinner" aria-hidden="true"></span>
-        <span>{p?.message ?? "Verbindung zu OpenRouter …"}</span>
-      </div>
-      <div class="bar" role="progressbar" aria-label="Fortschritt, grob geschätzt" aria-valuemin={0} aria-valuemax={100}
-        aria-valuenow={Math.round(p ? Math.min(100, (p.step / 4) * 100) : 4)}>
-        <i style="width:{p ? Math.min(100, (p.step / 4) * 100) : 4}%"></i>
+      <div class="now-row">
+        <div class="line big">
+          <span class="spinner" aria-hidden="true"></span>
+          <span>{p?.message ?? "Verbindung zu OpenRouter …"}</span>
+        </div>
+        <div class="track" aria-label="Schritt {p?.step ?? 1} von höchstens {p?.max_steps ?? 12}">
+          {#each Array.from({ length: Math.max(1, p?.step ?? 1) }, (_, k) => k) as k (k)}
+            <i class:now={k === Math.max(1, p?.step ?? 1) - 1}></i>
+          {/each}
+          <span>Schritt <b class="num">{p?.step ?? 1}</b> · höchstens <span class="num">{p?.max_steps ?? 12}</span></span>
+        </div>
       </div>
       <div class="figs">
         <div>
           <span class="label">Läuft seit</span>
           <b class="num">{duration(p?.total_seconds ?? 0)}</b>
-          <span class="note">Schritt <span class="num">{p?.step ?? 0}</span> von höchstens <span class="num">{p?.max_steps ?? 12}</span>, seit <span class="num">{duration(p?.step_seconds ?? 0)}</span></span>
+          <span class="note">dieser Schritt seit <span class="num">{duration(p?.step_seconds ?? 0)}</span></span>
         </div>
         <div>
           <span class="label">Bisher bezahlt</span>
@@ -576,17 +580,38 @@
       opacity: 0.5;
     }
   }
-  .bar {
+  .now-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+  }
+  .track {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  .track i {
+    width: 18px;
     height: 6px;
     border-radius: 3px;
-    background: var(--surface-3);
-    overflow: hidden;
+    background: var(--text-2);
   }
-  .bar i {
-    display: block;
-    height: 100%;
+  .track i.now {
     background: var(--text);
-    transition: width 0.4s;
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+  .track span {
+    margin-left: 6px;
+  }
+  .track b {
+    color: var(--text);
+    font-weight: 600;
   }
   .figs {
     display: grid;
@@ -667,7 +692,8 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .spinner,
-    .skeleton i {
+    .skeleton i,
+    .track i.now {
       animation: none;
     }
   }

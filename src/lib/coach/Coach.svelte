@@ -379,8 +379,8 @@
     white-space: nowrap;
   }
   .sub {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   .pad {
     margin: 0;

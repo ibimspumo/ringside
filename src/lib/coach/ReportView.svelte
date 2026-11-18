@@ -213,7 +213,7 @@
         <dt>Gesendet</dt>
         <dd><span class="num">{report.meta.hands_sent}</span> von <span class="num">{report.meta.hands_total}</span> Händen</dd>
       </div>
-      <div><dt>Ringside hat gerechnet</dt><dd><span class="num">{report.meta.tool_calls}</span>-mal</dd></div>
+      <div><dt>Nachgerechnet</dt><dd><span class="num">{report.meta.tool_calls}</span>-mal</dd></div>
       <div>
         <dt>Tokens</dt><dd class="num">{tokens(report.meta.prompt_tokens + report.meta.completion_tokens)}</dd>
       </div>
@@ -242,7 +242,7 @@
   .sub {
     margin: 0;
     font-size: 12.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   .hero {
@@ -303,7 +303,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 10px 18px;
-    margin-top: auto;
   }
   .next .btn {
     height: 36px;

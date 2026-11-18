@@ -16,6 +16,7 @@
   let search = $state("");
   let toolsOnly = $state(true);
   let open = $state(false);
+  let technical = $state(false);
 
   function setStatus(s: CoachStatus) {
     status = s;
@@ -94,6 +95,13 @@
   /** Rough cost of one tournament (about 30 hands sent), to compare models; each run shows its own estimate. */
   const perTournament = (m: ModelInfo) =>
     m.prompt_per_m == null || m.completion_per_m == null ? null : (30000 * m.prompt_per_m + 8000 * m.completion_per_m) / 1e6;
+  const cheapest = $derived.by(() => {
+    const priced = (models ?? []).filter((m) => m.tools && perTournament(m) != null);
+    return priced.length ? priced.reduce((a, b) => (perTournament(b)! < perTournament(a)! ? b : a)).id : null;
+  });
+  const dearest = $derived(Math.max(0, ...(models ?? []).map((m) => perTournament(m) ?? 0)));
+  /** Bar width on a square-root scale, so cheap models still show a sliver. */
+  const priceShare = (t: number | null) => (t == null || dearest <= 0 ? 0 : Math.max(4, Math.sqrt(t / dearest) * 100));
   const RICHTWERT = "Richtwert für ein Turnier mit rund 30 gesendeten Händen. Vor jeder Analyse siehst du die genaue Schätzung.";
   const provider = (m: ModelInfo) => m.name.split(":")[0];
   const modelName = (m: ModelInfo) => m.name.slice(m.name.indexOf(":") + 1).trim();
@@ -179,6 +187,7 @@
               <label class="check"
                 ><input type="checkbox" bind:checked={toolsOnly} /> Nur Modelle, die Ringside rechnen lassen können</label
               >
+              <label class="check"><input type="checkbox" bind:checked={technical} /> Technische Angaben</label>
               <button class="btn small ghost" onclick={() => (open = false)}>Fertig</button>
             </div>
             {#if modelsError}
@@ -186,9 +195,11 @@
             {:else if !models}
               <p class="fine">Lade die Modelle von OpenRouter …</p>
             {:else}
-              <div class="list" role="listbox" aria-label="Modelle">
+              <div class="list" class:technical role="listbox" aria-label="Modelle">
                 <div class="lhead" aria-hidden="true">
-                  <span>Modell</span><span title={RICHTWERT}>je Turnier</span><span>Ein / Aus je 1 Mio.</span><span>Kontext</span>
+                  <span>Modell</span><span title={RICHTWERT}>ca. je Turnier</span>{#if technical}<span>Ein / Aus je 1 Mio.</span><span
+                      >Kontext</span
+                    >{/if}
                 </div>
                 {#each filtered.slice(0, 200) as m (m.id)}
                   {@const t = perTournament(m)}
@@ -202,12 +213,21 @@
                     title={m.tools ? m.id : "Ohne Werkzeuge kann der Coach nicht rechnen."}
                   >
                     <span class="mname">
-                      <span>{modelName(m)}</span>
+                      <span class="mtitle">
+                        {modelName(m)}
+                        {#if m.id === status?.model}<em class="tag on">deine Wahl</em>{/if}
+                        {#if m.id === cheapest}<em class="tag">am günstigsten</em>{/if}
+                      </span>
                       <small>{provider(m)}{m.tools ? "" : " · kann nicht rechnen"}</small>
                     </span>
-                    <span class="num strong">{t == null ? "–" : cost(t)}</span>
-                    <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>
-                    <span class="num">{ctx(m.context_length)}</span>
+                    <span class="cost">
+                      <span class="pbar" aria-hidden="true"><i style="width:{priceShare(t)}%"></i></span>
+                      <span class="num strong">{t == null ? "–" : cost(t)}</span>
+                    </span>
+                    {#if technical}
+                      <span class="num">{perM(m.prompt_per_m)} / {perM(m.completion_per_m)}</span>
+                      <span class="num">{ctx(m.context_length)}</span>
+                    {/if}
                   </button>
                 {:else}
                   <p class="fine pad">Kein Modell gefunden.</p>
@@ -410,10 +430,14 @@
   .lhead,
   .lrow {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 90px 130px 76px;
+    grid-template-columns: minmax(0, 1fr) 190px;
     gap: 12px;
     align-items: center;
     padding: 7px 12px;
+  }
+  .technical .lhead,
+  .technical .lrow {
+    grid-template-columns: minmax(0, 1fr) 190px 130px 76px;
   }
   .lhead {
     position: sticky;
@@ -456,11 +480,49 @@
     flex-direction: column;
     min-width: 0;
   }
-  .mname span {
+  .mtitle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
     color: var(--text);
-    overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .tag {
+    padding: 0 6px;
+    border-radius: 4px;
+    border: 1px solid var(--line-2);
+    font-size: 11px;
+    font-style: normal;
+    line-height: 17px;
+    color: var(--text-2);
+  }
+  .tag.on {
+    border-color: var(--text-2);
+    color: var(--text);
+  }
+  .cost {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+  .pbar {
+    width: 90px;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+  .pbar i {
+    display: block;
+    height: 100%;
+    border-radius: 3px;
+    background: var(--text-2);
+  }
+  .lrow .strong {
+    min-width: 52px;
+    text-align: right;
   }
   .mname small {
     font-size: 12px;
@@ -515,13 +577,16 @@
     .choices {
       grid-template-columns: minmax(0, 1fr);
     }
-    .lhead,
-    .lrow {
-      grid-template-columns: minmax(0, 1fr) 80px 110px;
+    .technical .lhead,
+    .technical .lrow {
+      grid-template-columns: minmax(0, 1fr) 150px 110px;
     }
-    .lhead span:last-child,
-    .lrow > span:last-child {
+    .technical .lhead span:last-child,
+    .technical .lrow > span:last-child {
       display: none;
+    }
+    .pbar {
+      width: 60px;
     }
   }
 </style>

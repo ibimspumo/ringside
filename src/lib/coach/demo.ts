@@ -17,10 +17,10 @@ import { CONCEPT_NAMES } from "./concepts";
 const param = (name: string) =>
   typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get(name);
 
+const ROWS = new Map(demoTournaments().rows.map((t) => [t.id, t]));
 /** The first two finished Hold'em tournaments of the demo data. */
-const [T1, T2] = demoTournaments()
-  .rows.filter((t) => t.prize !== null && t.game.includes("Hold"))
-  .map((t) => t.id);
+const [T1, T2] = [...ROWS.values()].filter((t) => t.prize !== null && t.game.includes("Hold")).map((t) => t.id);
+const handsOf = (tournament: number) => ROWS.get(tournament)?.hands ?? 126;
 const hand = (tournament: number, n: number) => tournament * 1000 + 999 - n;
 
 let hasKey = param("coach") !== "nokey";
@@ -145,7 +145,7 @@ function report(tournament: number, created: number): CoachReport {
       seconds: 183.5,
       steps: 2,
       tool_calls: 4,
-      hands_total: 126,
+      hands_total: handsOf(tournament),
       hands_sent: 29,
       downgraded: 0,
     },
@@ -194,7 +194,7 @@ export const models = (): ModelInfo[] => [
 export async function prepare(tournament: number): Promise<Estimate> {
   if (preview.run === "preparing") return new Promise(() => {});
   if (preview.run === "error")
-    throw "OpenRouter hat nicht geantwortet (Zeitüberschreitung nach 30 s). Prüf deine Internetverbindung und versuch es noch einmal.";
+    throw "OpenRouter ist gerade nicht erreichbar. Prüf deine Internetverbindung und versuch es noch einmal.";
   if (!hasKey) throw "Hinterleg zuerst in den Einstellungen einen OpenRouter-Key.";
   await new Promise((r) => setTimeout(r, 300));
   return estimate(tournament);
@@ -212,9 +212,9 @@ function estimate(tournament: number): Estimate {
     tournament_id: tournament,
     model,
     effort: reasons ? effort : null,
-    hands_total: 126,
+    hands_total: handsOf(tournament),
     hands_sent: 29,
-    hands_without_decision: 97,
+    hands_without_decision: handsOf(tournament) - 29,
     hands_dropped: 0,
     spots: 3,
     input_tokens: 9690,
@@ -266,7 +266,8 @@ export async function run(tournament: number): Promise<CoachReport> {
   cancelled = false;
   const stalled = preview.run === "stalled";
   const slow = param("coach") === "slow" || preview.run !== null;
-  const started = Date.now();
+  // A stalled step has been waiting a while already.
+  const started = Date.now() - (stalled ? 95_000 : 0);
   let tools = 0;
   let billed = { prompt: 0, completion: 0, reasoning: 0, cost: 0 };
   let step = 0;
@@ -276,7 +277,7 @@ export async function run(tournament: number): Promise<CoachReport> {
     if (ph.step !== step) {
       if (step) billed = { prompt: 10840, completion: 4721, reasoning: 3980, cost: 0.0688 };
       step = ph.step;
-      stepStarted = Date.now();
+      stepStarted = stalled && ph.long ? Date.now() - 52_000 : Date.now();
       live = { reasoning: 0, output: 0 };
     }
     if (ph.stage === "tool") tools++;
@@ -300,7 +301,7 @@ export async function run(tournament: number): Promise<CoachReport> {
         live_output_tokens: Math.round(live.output),
         step_seconds: (Date.now() - stepStarted) / 1000,
         total_seconds: (Date.now() - started) / 1000,
-        idle_seconds: stalled && ph.long ? (Date.now() - stepStarted) / 1000 + 38 : 0.3,
+        idle_seconds: stalled && ph.long ? (Date.now() - stepStarted) / 1000 - 14 : 0.3,
         idle_limit: 120,
       };
       listeners.forEach((f) => f(p));
@@ -325,9 +326,9 @@ export function list(names: Map<number, { name: string | null; game: string; sta
       spots: r.spots.length,
       mistakes: r.spots.filter((s) => s.verdict === "fehler" || s.verdict === "fraglich").length,
       cost_usd: r.meta.cost_usd,
-      name: names.get(r.tournament_id)?.name ?? null,
-      game: names.get(r.tournament_id)?.game ?? "NL Hold'em",
-      started_at: names.get(r.tournament_id)?.started_at ?? "2026/11/16 20:00:00",
+      name: (names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.name ?? null,
+      game: (names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.game ?? "NL Hold'em",
+      started_at: (names.get(r.tournament_id) ?? ROWS.get(r.tournament_id))?.started_at ?? "2026/11/16 20:00:00",
     }));
 }
 

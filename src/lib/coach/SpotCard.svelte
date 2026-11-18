@@ -80,7 +80,7 @@
       </dl>
       {#if terms.length}
         <ul class="terms" aria-label="Begriffe">
-          {#each terms as t (t.term)}<li><b>{t.term}</b> {t.meaning}</li>{/each}
+          {#each terms as t (t.term)}<li><b>{t.term}</b><span>{t.meaning}</span></li>{/each}
         </ul>
       {/if}
     {/if}
@@ -265,7 +265,7 @@
   }
   .figures {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 6px;
     margin: 2px 0 0;
   }
@@ -317,19 +317,19 @@
 
   .terms {
     list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: 2px 14px;
     margin: 0;
     padding: 0;
     font-size: 12.5px;
     line-height: 1.5;
     color: var(--text-2);
   }
+  .terms li {
+    display: contents;
+  }
   .terms b {
-    display: inline-block;
-    min-width: 9.5em;
-    margin-right: 6px;
     font-weight: 600;
     color: var(--text);
   }
