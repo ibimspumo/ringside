@@ -103,7 +103,7 @@
     if (c.ev_bb === null || !isFinite(bestEv)) return "–";
     // Both are right here: the source's main move, and the rare one that brings a little more.
     if (mainBelowTop && c === main) return "Hauptzug";
-    if (mainBelowTop && c.ev_bb >= bestEv - 0.005) return "auch richtig";
+    if (mainBelowTop && c.ev_bb >= bestEv - 0.005) return "auch gut";
     const loss = bestEv - c.ev_bb;
     return loss < 0.005 ? "beste" : `−${bb(loss, 2)}`;
   }
@@ -164,7 +164,7 @@
           <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
           <span class="num freq">{d.source === "estimate" ? "" : c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
           <span class="num gain" title={EV_EXPLAIN}>{gain(c)}</span>
-          <span class="num ev" class:best={["beste", "Hauptzug", "auch richtig"].includes(gap(c))} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
+          <span class="num ev" class:best={["beste", "Hauptzug", "auch gut"].includes(gap(c))} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
         </li>
       {/each}
     </ul>
@@ -293,7 +293,7 @@
   }
   .options li {
     display: grid;
-    grid-template-columns: 10px minmax(0, 1fr) 36px 72px 80px;
+    grid-template-columns: 10px minmax(0, 1fr) 36px 72px 64px;
     align-items: center;
     gap: 6px;
     padding: 2px var(--sp-1);
