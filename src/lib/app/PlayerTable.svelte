@@ -47,6 +47,7 @@
     onPick,
     sort,
     label,
+    maxHeight,
   }: {
     rows: PlayerRow[];
     hud: HudConfig;
@@ -59,6 +60,8 @@
     /** Sortable headers; without it the rows keep their order (seats at a table). */
     sort?: { by: StatId | "name"; asc: boolean; on: (id: StatId | "name") => void };
     label: string;
+    /** Scrolls vertically beyond this height, header stays. */
+    maxHeight?: string;
   } = $props();
 
   const SHORT: Partial<Record<StatId, string>> = { pfr: "PFR", three_bet: "3-Bet", af: "AF" };
@@ -67,6 +70,21 @@
   const after = $derived(extra.filter((c) => c.at === "after"));
   const reads = $derived(new Map(rows.map((r) => [r.key, read(r.stats)])));
   let body = $state<HTMLElement>();
+  let scroller = $state<HTMLElement>();
+  /** More columns to the right than fit: say so instead of cutting them silently. */
+  let more = $state(false);
+
+  function measure() {
+    if (scroller) more = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;
+  }
+  $effect(() => {
+    if (!scroller) return;
+    void columns;
+    const ro = new ResizeObserver(measure);
+    ro.observe(scroller);
+    if (scroller.firstElementChild) ro.observe(scroller.firstElementChild);
+    return () => ro.disconnect();
+  });
 
   const ariaSort = (id: StatId | "name") => (sort?.by === id ? (sort.asc ? "ascending" : "descending") : undefined);
 
@@ -80,16 +98,17 @@
 </script>
 
 {#snippet head(id: StatId | "name", text: string)}
-  <SortHeader active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
+  <SortHeader term active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
 {/snippet}
 
-<div class="wrap">
+<div class="frame" class:more>
+<div class="wrap" bind:this={scroller} onscroll={measure} style:max-height={maxHeight}>
 <table class:all={columns === "all"} aria-label={label}>
   <thead>
     <tr>
       <th class="name" aria-sort={ariaSort("name")}>{@render head("name", "Spieler")}</th>
-      {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Mit wenigen Händen noch unsicher." side="bottom"><SortHeader>Typ</SortHeader></Tooltip></th>{/if}
-      {#each before as c (c.key)}<th class="extra" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="bottom"><SortHeader>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
+      {#if advice}<th class="type"><Tooltip text="Faustregel aus VPIP und PFR. Ein hohler Ring heißt: noch zu wenig Hände für ein sicheres Urteil." side="bottom"><SortHeader term>Typ</SortHeader></Tooltip></th>{/if}
+      {#each before as c (c.key)}<th class="extra" class:wide={c.wide}>{#if c.help}<Tooltip text={c.help} side="bottom"><SortHeader term>{c.head}</SortHeader></Tooltip>{:else}<SortHeader>{c.head}</SortHeader>{/if}</th>{/each}
       <th class="hands" aria-sort={ariaSort("hands")}>
         <Tooltip text={STAT_META.hands.help} side="bottom">{@render head("hands", "Hände")}</Tooltip>
       </th>
@@ -140,10 +159,41 @@
   </tbody>
 </table>
 </div>
+{#if more}<span class="more-hint" aria-hidden="true">Weitere Werte →</span>{/if}
+</div>
 
 <style>
+  .frame {
+    position: relative;
+  }
   .wrap {
     container: player-list / inline-size;
+    overflow: auto;
+  }
+  .more::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 28px;
+    background: linear-gradient(to left, var(--shadow-edge), transparent);
+    pointer-events: none;
+  }
+  .more-hint {
+    position: absolute;
+    z-index: var(--z-sticky);
+    top: 6px;
+    right: var(--sp-2);
+    padding: 3px var(--sp-2);
+    border: 1px solid var(--line-2);
+    border-radius: var(--r-pill);
+    background: var(--surface-3);
+    color: var(--text);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    box-shadow: var(--shadow-2);
+    pointer-events: none;
   }
   table {
     width: 100%;

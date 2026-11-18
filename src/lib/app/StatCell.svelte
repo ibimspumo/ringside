@@ -24,6 +24,7 @@
 
 <span class="cell" class:thin class:meter {title}>
   <span class="val num" style={id === "hands" ? "" : `color:${toneColor(hud, s, "var(--text-3)")}`}>{fmt(s)}</span>
+  {#if thin && !meter && s?.value != null}<i class="ring" aria-hidden="true"></i>{/if}
   {#if meter && range}
     <StatMeter size="sm" value={s?.value ?? null} low={range.low} high={range.high} {max} color={toneColor(hud, s, "var(--text-3)")} {thin} label={title ?? STAT_META[id].name} />
   {/if}
@@ -53,7 +54,12 @@
     font-size: var(--fs-base);
     font-variant-numeric: tabular-nums;
   }
-  .thin .val {
-    opacity: 0.72;
+  .ring {
+    order: -1;
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 1.5px var(--text-2);
   }
 </style>

@@ -75,7 +75,7 @@
 <div class="page roomy">
   {#if tables.some((t) => t.table)}
     <div class="tools">
-      <MeterLegend />
+      <MeterLegend meters={columns === "core"} />
       <SegmentedControl
         label="Spalten"
         size="sm"
@@ -103,7 +103,6 @@
       </header>
       {#if t.table}
         {@const table = t.table}
-        <div class="scroll">
           <PlayerTable
             label={`Spieler an ${t.title}`}
             rows={rowsOf(table)}
@@ -113,7 +112,6 @@
             selected={selected?.key ?? null}
             onPick={(k) => pick(table, k)}
           />
-        </div>
       {:else}
         <div class="wait"><EmptyState inline tone="loading" title="Warte auf die erste Hand" text="Die Werte erscheinen, sobald Ringside die erste Hand von diesem Tisch gelesen hat." /></div>
       {/if}
@@ -185,13 +183,6 @@
     color: var(--text-2);
     font-size: var(--fs-md);
     white-space: nowrap;
-  }
-  /* A shadow at the right edge says that more columns are hidden. */
-  .scroll {
-    overflow-x: auto;
-    background:
-      linear-gradient(to left, var(--surface) 40%, transparent) right / 32px 100% no-repeat local,
-      linear-gradient(to left, var(--shadow-edge), transparent) right / 16px 100% no-repeat scroll;
   }
   .wait {
     padding: var(--sp-3) var(--sp-4);

@@ -103,11 +103,11 @@
         <p class="sure" class:warn={r.sure !== "sure"}>
           <i aria-hidden="true"></i>
           {#if r.sure === "sure"}
-            Bei {int(r.hands)} Händen sicher: Auch mit Zufall bleibt er in diesem Typ.
+            Stabil nach {int(r.hands)} Händen: Mehr Hände ändern den Typ sehr wahrscheinlich nicht mehr.
           {:else if r.sure === "maybe"}
-            Bei {int(r.hands)} Händen knapp: Er liegt nah an der Grenze zum Nachbartyp.
+            Knapp nach {int(r.hands)} Händen: Er liegt nah an der Grenze zu einem anderen Typ.
           {:else}
-            Bei {int(r.hands)} Händen noch unsicher: Beobachte ihn weiter, bevor du dich darauf verlässt.
+            Noch unsicher nach {int(r.hands)} Händen: Mit mehr Händen kann sich der Typ noch ändern. Beobachte ihn weiter.
           {/if}
         </p>
       </section>

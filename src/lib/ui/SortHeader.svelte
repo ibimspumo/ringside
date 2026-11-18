@@ -8,16 +8,25 @@
   let {
     active = false,
     asc = false,
+    term = false,
     title,
     onclick,
     children,
-  }: { active?: boolean; asc?: boolean; title?: string; onclick?: () => void; children: Snippet } = $props();
+  }: {
+    active?: boolean;
+    asc?: boolean;
+    /** Has an explanation on hover: dotted underline like a Term. */
+    term?: boolean;
+    title?: string;
+    onclick?: () => void;
+    children: Snippet;
+  } = $props();
 </script>
 
 {#if onclick}
-  <button type="button" class="ui-sort" class:on={active} class:asc {title} {onclick}>{@render children()}</button>
+  <button type="button" class="ui-sort" class:on={active} class:asc class:term {title} {onclick}><span>{@render children()}</span></button>
 {:else}
-  <span class="ui-sort" {title}>{@render children()}</span>
+  <span class="ui-sort" class:term {title}><span>{@render children()}</span></span>
 {/if}
 
 <style>
@@ -39,6 +48,11 @@
   }
   button {
     cursor: pointer;
+  }
+  .term > span {
+    text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent);
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
   }
   button:hover,
   .on {

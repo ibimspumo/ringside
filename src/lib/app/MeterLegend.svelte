@@ -1,10 +1,17 @@
 <script lang="ts">
   import { SMALL_SAMPLE } from "./reads";
+
+  /** `meters`: the list shows scales; without, only numbers. */
+  let { meters = true }: { meters?: boolean } = $props();
 </script>
 
-<p class="legend">
-  <span class="item"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>
-  <span class="item"><i class="dot" aria-hidden="true"></i>Wert; die Farbe sagt niedrig, mittel oder hoch wie im HUD – keine Note</span>
+<p class="legend" class:meters>
+  {#if meters}
+    <span class="item scale"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>
+    <span class="item scale"><i class="dot" aria-hidden="true"></i>Wert; die Farbe sagt niedrig, mittel oder hoch wie im HUD – keine Note</span>
+  {:else}
+    <span class="item">Alle Werte in %, Aggression (AF) als Faktor ×. Fahr über einen Spaltenkopf für die Erklärung.</span>
+  {/if}
   <span class="item"><i class="dot hollow" aria-hidden="true"></i>hohl: unter {SMALL_SAMPLE} Gelegenheiten, noch unsicher</span>
 </p>
 
@@ -20,7 +27,7 @@
   }
   /* Without the scales (narrow list) there is nothing to explain. */
   @container player-list (max-width: 760px) {
-    .legend {
+    .scale {
       display: none;
     }
   }

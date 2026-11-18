@@ -75,7 +75,7 @@ export interface Read {
   type: PlayerType | null;
   hands: number;
   sure: Sureness;
-  /** "bei 412 Händen sicher", "bei 27 Händen noch unsicher". */
+  /** "nach 412 Händen stabil", "nach 27 Händen noch unsicher". */
   note: string;
 }
 
@@ -87,8 +87,8 @@ export function read(stats: StatValue[]): Read | null {
   const type = classify(vpip.value, pfr.value);
   const ok = type ? trusted(type, vpip.value, hands) : false;
   const sure: Sureness = ok === true ? "sure" : ok === null ? "maybe" : "unsure";
-  const word = sure === "sure" ? "sicher" : sure === "maybe" ? "knapp" : "noch unsicher";
-  return { type, hands, sure, note: `bei ${hands.toLocaleString("de-DE")} ${hands === 1 ? "Hand" : "Händen"} ${word}` };
+  const word = sure === "sure" ? "stabil" : sure === "maybe" ? "knapp" : "noch unsicher";
+  return { type, hands, sure, note: `nach ${hands.toLocaleString("de-DE")} ${hands === 1 ? "Hand" : "Händen"} ${word}` };
 }
 
 /** Below this many chances a value is still noise; it stays visible but recedes. */

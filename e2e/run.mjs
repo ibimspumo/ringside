@@ -467,7 +467,30 @@ step("Deine Ranges: Chart mit Modell, Klick auf eine Hand zeigt ihre Hände", as
   await find("main .chip-name", name, { exact: false });
 });
 step("Spieler", () => nav("Spieler"));
+// The demo has known opponents; PokerStars is closed there, so type and counter may show.
+!TAURI &&
+  step("Spieler: Suche filtert, das Detail nennt Typ, Gegenzug und Stichprobe", async () => {
+    await find("main tbody td.name button", "Rüdiger", { exact: false });
+    await s.exec(`const i = document.querySelector("main input[type=search]"); i.value = "Rüd"; i.dispatchEvent(new Event("input", { bubbles: true }));`);
+    await waitFor("nur Rüdiger in der Liste", `return document.querySelectorAll("main tbody tr").length === 1`);
+    await click("main tbody td.name button", "Rüdiger", { exact: false });
+    const text = await waitFor("das Detail von Rüdiger", `return document.querySelector("aside[aria-label='Spieler Rüdiger'] .read")?.closest("aside").innerText ?? null`);
+    for (const want of ["Calling Station", "Gegenzug", "Viele Value-Bets, kaum bluffen.", "nach 96 Händen", "aus PokerStars"])
+      // Kickers are upper case on screen, so compare without case.
+      if (!text.toLowerCase().includes(want.toLowerCase())) throw new Error(`detail lacks „${want}“`);
+    await s.exec(`const i = document.querySelector("main input[type=search]"); i.value = ""; i.dispatchEvent(new Event("input", { bubbles: true }));`);
+    await waitFor("die ganze Liste", `return document.querySelectorAll("main tbody tr").length > 1`);
+    await s.exec(`document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }))`);
+  });
 step("Live-Tische", () => nav("Live-Tische"));
+!TAURI &&
+  step("Live-Tische: ein Gegner zeigt seine Werte mit Stichprobe", async () => {
+    await click("main tbody td.name button", "Kestrel", { exact: false });
+    const text = await waitFor("das Detail von Kestrel", `return document.querySelector("aside[aria-label='Spieler Kestrel']")?.innerText ?? null`);
+    if (!/aus 27 Händen/.test(text)) throw new Error("detail lacks the sample size");
+    await s.exec(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
+    await waitFor("Detail geschlossen", `return !document.querySelector("aside[aria-label='Spieler Kestrel']")`);
+  });
 step("HUD", () => nav("HUD"));
 
 step("Training: Pot Odds, Stufe 1", async () => {

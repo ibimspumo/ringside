@@ -127,7 +127,6 @@
       {/if}
 
       {#if rows.length && hud}
-        <div class="scroll">
           <PlayerTable
             label="Spieler"
             rows={sorted.map((p) => ({ key: p.name, name: p.name, stats: p.stats, hero: heroes.includes(p.name) }))}
@@ -137,9 +136,9 @@
             selected={selected?.name ?? null}
             onPick={(k) => (picked = k)}
             sort={{ by: sortBy, asc, on: sortOn }}
+            maxHeight="calc(100vh - 290px)"
           />
-        </div>
-        {#if columns === "core"}<div class="foot"><MeterLegend /></div>{/if}
+        <div class="foot"><MeterLegend meters={columns === "core"} /></div>
       {:else if loaded}
         <EmptyState
           title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in dieser Auswahl"}
@@ -198,14 +197,6 @@
   }
   .lock {
     padding: var(--sp-3) var(--sp-4) 0;
-  }
-  /* Shadows at the edges say that more columns or rows are hidden. */
-  .scroll {
-    overflow: auto;
-    max-height: calc(100vh - 260px);
-    background:
-      linear-gradient(to left, var(--surface) 40%, transparent) right / 32px 100% no-repeat local,
-      linear-gradient(to left, var(--shadow-edge), transparent) right / 16px 100% no-repeat scroll;
   }
   .foot {
     padding: var(--sp-3) var(--sp-4);
