@@ -21,7 +21,7 @@
   import { usePageHead } from "../ui/page.svelte";
   import { preview } from "../learn/preview";
   import { actionColor, actionName, actionPhrase, bb, colorWord, facing, spotLabel, stepTag } from "./preflop-labels";
-  import { TERM, byPos, fromPos, pct, type SeatMark } from "./words";
+  import { TERM, byPos, fromPos, pct, tablePositions, type SeatMark } from "./words";
   import { backToHand, chartsHandoff, type ChartTarget } from "./handoff.svelte";
 
   /** Spots reached less often than this are left out. */
@@ -49,17 +49,6 @@
     vs_shove: "Ein Spieler vor dir ist all-in gegangen. Du callst oder foldest.",
   };
   /** Standard names in preflop action order, while no chart is loaded yet. */
-  const NAMES: Record<number, string[]> = {
-    2: ["SB", "BB"],
-    3: ["BTN", "SB", "BB"],
-    4: ["CO", "BTN", "SB", "BB"],
-    5: ["HJ", "CO", "BTN", "SB", "BB"],
-    6: ["LJ", "HJ", "CO", "BTN", "SB", "BB"],
-    7: ["UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
-    8: ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
-    9: ["UTG", "UTG+1", "UTG+2", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
-  };
-
   let pfGrid = $state<PushFoldGrid | null>(null);
   let preGrid = $state<PreflopGrid | null>(null);
   let ante = $state<PushFoldAnte>("big_blind");
@@ -179,6 +168,7 @@
   $effect(() => {
     if (engine !== "pushfold" || !pfGrid) return;
     void attempt;
+    if (untrack(() => pf)?.players !== players) pf = null;
     const key = `${ante}|${players}|${stack}`;
     const hit = pfCache.get(key);
     if (hit) {
@@ -212,6 +202,7 @@
   $effect(() => {
     if (engine !== "preflop" || !preGrid) return;
     void attempt;
+    if (untrack(() => spots)?.players !== players) spots = null;
     const key = `${ante}|${players}|${stack}`;
     const hit = spotCache.get(key);
     if (hit) {
@@ -332,7 +323,7 @@
   const positions = $derived.by(() => {
     if (engine === "pushfold" && pf && pf.players === players) return range(0, players - 1).map((s) => ({ seat: s, name: pfPos(s) }));
     if (engine === "preflop" && spots && spots.players === players) return spots.positions.map((name, s) => ({ seat: s, name }));
-    return (NAMES[players] ?? []).map((name, s) => ({ seat: s, name }));
+    return tablePositions(players).map((name, s) => ({ seat: s, name }));
   });
   const marks = $derived.by(() => {
     const m: Record<number, SeatMark> = {};
@@ -356,7 +347,7 @@
   const shove = $derived(pfNode?.shover === null);
   const answer = $derived.by(() => {
     if (engine === "pushfold" && pfNode && pf) {
-      const where = `${fromPos(pfNode.position)} mit ${bb(pf.stack_bb)} BB`;
+      const where = `${fromPos(myName)} mit ${bb(pf.stack_bb)} BB`;
       const vs = pfNode.shover === null ? "" : ` gegen All-in ${byPos(pfPos(pfNode.shover))}`;
       if (pfNode.act_pct < 0.05) return { where: `${where}${vs}`, parts: [], rest: "immer folden", share: 0 };
       return {
@@ -368,7 +359,7 @@
     }
     if (engine === "preflop" && spot && spots) {
       const vs = facing(spot);
-      const where = `${fromPos(spot.position)} mit ${bb(spots.stack_bb)} BB${vs ? ` ${vs}` : ""}`;
+      const where = `${fromPos(myName)} mit ${bb(spots.stack_bb)} BB${vs ? ` ${vs}` : ""}`;
       const plays = spot.actions.filter((a) => a.kind !== "fold" && a.pct >= 0.05).sort((a, b) => b.pct - a.pct);
       const fold = spot.actions.find((a) => a.kind === "fold");
       return {

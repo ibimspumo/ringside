@@ -1,7 +1,9 @@
 // Browser-only sample: the preflop model for 6 players at 40 BB, one per ante structure,
-// cut to the open spots and the most frequent answers. Every grid request gets this sample;
-// a stack off the grid plays a short made-up live solve with progress and cancel.
+// cut to the open spots and the most frequent answers. Every grid request gets this sample,
+// seated at the requested table; a stack off the grid plays a short made-up live solve with
+// progress and cancel.
 import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./preflop-types";
+import { tablePositions } from "./words";
 
 const STACKS = [15, 20, 25, 30, 40, 50, 75, 100];
 
@@ -41,8 +43,35 @@ export function demoCancel() {
   cancelled = true;
 }
 
+/** Ids of the made-up first-in spots of seats before the sample's first seat. */
+const EARLY = 10_000;
+
+/**
+ * The 6-player sample seated at another table: seats keep their distance to the big blind, so
+ * the button stays the button; seats before the sample's first seat open like it.
+ */
+function atTable(sample: PreflopSpots, players: number): PreflopSpots {
+  if (players === sample.players) return sample;
+  const names = tablePositions(players);
+  const shift = players - sample.players;
+  const name = (old: string) => names[sample.positions.indexOf(old) + shift];
+  const fits = (seat: number) => seat + shift >= 0;
+  const step = <T extends { seat: number; position: string }>(x: T): T => ({ ...x, seat: x.seat + shift, position: names[x.seat + shift] });
+  const first = sample.nodes.find((n) => n.seat === 0 && !n.line.length);
+  const early = first ? Array.from({ length: Math.max(0, shift) }, (_, s) => ({ ...first, id: EARLY + s, seat: s, position: names[s] })) : [];
+  return {
+    ...sample,
+    players,
+    positions: names,
+    nodes: [...early, ...sample.nodes.filter((n) => fits(n.seat) && n.line.every((st) => fits(st.seat))).map((n) => ({ ...step(n), line: n.line.map(step) }))],
+    realized: sample.realized
+      .filter((r) => r.positions.every((p) => name(p)) && r.line.every((st) => fits(st.seat)))
+      .map((r) => ({ ...r, positions: r.positions.map(name), line: r.line.map(step) })),
+  };
+}
+
 export async function demoSpots(ante: PreflopAnte, players: number, stackBb: number): Promise<PreflopSpots> {
-  const sample = DATA[ante].spots;
+  const sample = atTable(DATA[ante].spots, players);
   if (STACKS.includes(stackBb)) return atDepth(sample, stackBb);
   cancelled = false;
   let expl = 0.4;
@@ -57,9 +86,9 @@ export async function demoSpots(ante: PreflopAnte, players: number, stackBb: num
 }
 
 export function demoNode(ante: PreflopAnte, _players: number, _stackBb: number, node: number): PreflopNode {
-  const hit = DATA[ante].nodes[node];
+  const hit = DATA[ante].nodes[node >= EARLY ? 0 : node];
   if (!hit) throw new Error("Diesen Spot gibt es in der Vorschau nicht.");
-  return hit;
+  return { ...hit, id: node };
 }
 
 // prettier-ignore

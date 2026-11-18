@@ -677,6 +677,22 @@ step("Ranges nach Stack: Modell mit 50 BB", async () => {
   await waitText("Modell");
 });
 
+step("Ranges nach Stack: Satz oben und Range nennen denselben Platz, auch nach dem Wechsel der Tischgröße", async () => {
+  for (const n of [9, 6]) {
+    await tableSize(n);
+    await stackTo(25);
+    await find(".stepper span", `${n} Spieler`);
+    const names = await waitFor(
+      `beide Sätze bei ${n} Spielern`,
+      `const seat = (el) => el?.textContent.replace(/\\s+/g, " ").match(/^(?:Von|Vom|Aus dem) (\\S+) mit 25 BB/)?.[1];
+       const top = seat(document.querySelector(".pfr b"));
+       const range = seat(document.querySelector("section.chart-panel:not([aria-busy='true']) header.answer h2"));
+       return top && range ? { top, range } : null;`,
+    );
+    if (names.top !== names.range) throw new Error(`${n} Spieler: oben ${names.top}, Range ${names.range}`);
+  }
+});
+
 step("Ranges nach Stack: Tischgrößen-Vergleich, Klick auf heads-up wechselt den Tisch", async () => {
   const panel = "main section[aria-label='Andere Tischgröße']";
   await find(panel);

@@ -15,6 +15,23 @@ const POS_NAME: Record<string, string> = {
   BB: "Big Blind",
 };
 
+/** Seat names from the first to act preflop to the big blind, as `position_names` in the engine names them. */
+const TABLE: Record<number, string[]> = {
+  2: ["SB", "BB"],
+  3: ["BTN", "SB", "BB"],
+  4: ["CO", "BTN", "SB", "BB"],
+  5: ["HJ", "CO", "BTN", "SB", "BB"],
+  6: ["LJ", "HJ", "CO", "BTN", "SB", "BB"],
+  7: ["UTG", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+  8: ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+  9: ["UTG", "UTG+1", "UTG+2", "LJ", "HJ", "CO", "BTN", "SB", "BB"],
+};
+
+/** Names of the seats at a table of `players`, seat 0 first. */
+export function tablePositions(players: number): string[] {
+  return TABLE[players] ?? [];
+}
+
 /** "Vom Button", "Aus dem Big Blind", "Von UTG". */
 export function fromPos(pos: string): string {
   if (pos === "SB" || pos === "BB") return `Aus dem ${POS_NAME[pos]}`;
