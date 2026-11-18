@@ -160,7 +160,7 @@ export const POSTFLOP_FLOPS: readonly string[] = `
   5s3s3h 4s2s2h JsJhJd 5s5h5d
 `.trim().split(/\s+/);
 /** Largest stored spot in bytes (MAX_BYTES in kinds/postflop.rs), as base64 characters. */
-const POSTFLOP_MAX_BASE64 = Math.ceil(180_000 / 3) * 4;
+const POSTFLOP_MAX_BASE64 = Math.ceil(720_000 / 3) * 4;
 const BASE64_RE = /^[A-Za-z0-9+/]*={0,2}$/;
 
 /** Largest exploitability a postflop file may report, percent of the pot (TOLERANCE in kinds/postflop.rs). */

@@ -40,9 +40,9 @@ pub struct PostflopSolution {
     pub data: String,
 }
 
-/// Largest stored spot the cloud takes; the biggest catalog spots are about 150 KB, and
-/// the API takes bodies up to 256 KB, which base64 fills at 192 KB.
-pub const MAX_BYTES: usize = 180_000;
+/// Largest stored spot the cloud takes: deep 40–75 BB flops pass 180 KB, and the API takes
+/// bodies up to 1 MiB, which base64 fills at 768 KiB.
+pub const MAX_BYTES: usize = 720_000;
 /// The verifier's limits per solve: a GitHub runner has 4 cores and 16 GB.
 const CHECK_MEMORY: u64 = 8 << 30;
 const CHECK_ITERATIONS: u32 = 300;

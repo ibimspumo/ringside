@@ -15,7 +15,8 @@ use ringside_cloud::kinds::{
     PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution, Verdict,
 };
 use ringside_cloud::operator::{
-    Attempt, Db, Penalty, SqlValue, ban_client, check_here, check_keys, load_env, need, now, purge, unban_client,
+    ACCEPTED_MAX_AGE_S, Attempt, Db, Penalty, SqlValue, ban_client, check_here, check_keys, load_env, need, now, purge,
+    purge_confirmed, unban_client,
 };
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
 use ringside_engine::preflop_table::{self, Ante, Family};
@@ -109,25 +110,27 @@ fn served<K: Kind>(client: &Client, input: &K::Input) -> Result<Option<K::Soluti
     Ok(None)
 }
 
-/// Whether the API stops serving `input` within a minute and a half (replicas, CDN purge).
+/// Whether the API no longer serves `input`: [`verify`] returns only once the CDN answers
+/// 404 for a withdrawn key, so the first look has to tell.
 fn gone<K: Kind>(client: &Client, input: &K::Input) -> bool {
-    (0..45).any(|_| {
-        let none = matches!(client.get_solution::<K>(input), Ok(None));
-        if !none {
-            std::thread::sleep(Duration::from_secs(2));
-        }
-        none
-    })
+    matches!(client.get_solution::<K>(input), Ok(None))
 }
 
 /// Re-solves this run's accepted keys in this process, as the hourly sample does, but
-/// withdraws only a failed row: the smoke client is the operator's. Drops the checked
-/// URLs from the CDN, whose copies show the accepted state.
+/// withdraws only a failed row: the smoke client is the operator's. Purges the checked
+/// URLs, whose CDN copies show the accepted state, until the CDN answers 404 for the
+/// withdrawn and serves the verified for good, as the verifier does.
 fn verify(base: &str, db: &Db, api_key: &str, keys: &[(&str, String)]) -> Result<Vec<(String, Option<Verdict>)>, String> {
     let plain: Vec<String> = keys.iter().map(|(_, k)| k.clone()).collect();
     let checked = check_keys(db, &plain, &check_here, Penalty::RowOnly)?;
-    let urls: Vec<(String, String)> = checked.iter().map(|c| (c.kind.clone(), c.key.clone())).collect();
-    purge(base, api_key, &urls)?;
+    let withdrawn: Vec<(String, String)> = checked.iter().flat_map(|c| c.withdrawn.iter().cloned()).collect();
+    let verified: Vec<(String, String)> = checked
+        .iter()
+        .filter(|c| matches!(c.attempt, Attempt::Verdict(Verdict::Verified { .. })))
+        .map(|c| (c.kind.clone(), c.key.clone()))
+        .collect();
+    purge_confirmed(base, api_key, &withdrawn, |status, _| status == 404)?;
+    purge_confirmed(base, api_key, &verified, |status, cache| status == 200 && cache.contains("immutable"))?;
     Ok(checked
         .into_iter()
         .map(|c| (c.key, match c.attempt {
@@ -168,7 +171,9 @@ fn run(base: &str, db: &Db, api_key: &str, keys: &mut Vec<(&'static str, String)
         .call()
         .map_err(|e| e.to_string())?;
     let cache = again.header("Cache-Control").unwrap_or("").to_string();
-    step("accepted is cached for a while only", cache.contains("max-age") && !cache.contains("immutable"), cache)?;
+    let max_age = cache.split("max-age=").nth(1).and_then(|s| s.split(',').next()?.trim().parse::<u64>().ok());
+    let minutes = max_age.is_some_and(|s| s <= ACCEPTED_MAX_AGE_S) && !cache.contains("immutable");
+    step("accepted is cached for minutes only, so a withdrawal reaches every edge", minutes, cache)?;
     let r = client.submit_solution::<PushFoldHu>(&bad_input, &bad).map_err(|e| e.to_string())?;
     step("submit manipulated (AA folds), form is fine", submitted(r), format!("{r:?} key {bad_key}"))?;
     let r = (0..45).find_map(|_| match client.get_solution::<PushFoldHu>(&bad_input) {
@@ -187,20 +192,12 @@ fn run(base: &str, db: &Db, api_key: &str, keys: &mut Vec<(&'static str, String)
     let v = verdict(&bad_key);
     step("sample check fails manipulated", matches!(v, Some(Verdict::Rejected { .. })), format!("{v:?}"))?;
     step("withdrawn is no longer served", gone::<PushFoldHu>(client, &bad_input), "404")?;
-    let cache = (0..45)
-        .map(|_| {
-            let c = ureq::get(&format!("{base}/v1/solutions/{}/{good_key}", PushFoldHu::NAME))
-                .call()
-                .ok()
-                .and_then(|r| r.header("Cache-Control").map(str::to_string))
-                .unwrap_or_default();
-            if !c.contains("immutable") {
-                std::thread::sleep(Duration::from_secs(2));
-            }
-            c
-        })
-        .find(|c| c.contains("immutable"))
-        .unwrap_or_default();
+    let cache = ureq::get(&format!("{base}/v1/solutions/{}/{good_key}", PushFoldHu::NAME))
+        .call()
+        .map_err(|e| e.to_string())?
+        .header("Cache-Control")
+        .unwrap_or_default()
+        .to_string();
     step("verified is cached for good", cache.contains("immutable"), cache)?;
     let r = client.submit_solution::<PushFoldHu>(&good_input, &good).map_err(|e| e.to_string())?;
     step("resubmit verified", r == SubmitStatus::AlreadyVerified, format!("{r:?}"))?;

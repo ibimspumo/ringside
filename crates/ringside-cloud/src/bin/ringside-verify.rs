@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use ringside_cloud::kinds::{self, KINDS, KindEntry, Verdict};
 use ringside_cloud::operator::{
-    Attempt, Db, Form, SampleOptions, accept_submitted, ban_client, is_client_id, load_env, now, prune, purge_public,
+    ACCEPTED_MAX_AGE_S, Attempt, Db, Form, SampleOptions, accept_submitted, ban_client, is_client_id, load_env, now, prune, purge_withdrawn,
     sample, unban_client, withdraw_client,
 };
 use serde::{Deserialize, Serialize};
@@ -34,7 +34,8 @@ Ringside Cloud serves every solution whose form checks out at once. A run of thi
      entries older than 90 days and queue entries whose spot is served.
 Reads BUNNY_DATABASE_URL and BUNNY_DATABASE_AUTH_TOKEN from .env (searched from the
 working directory upwards) or the environment; with BUNNY_API_KEY it also drops
-withdrawn solutions from the CDN, else they leave it within a day.
+withdrawn solutions from the CDN and waits until it answers 404 for them, else they leave
+it within five minutes.
 
   --samples N          clients to sample (default 5)
   --minutes M          start no check that could end after M minutes (same as
@@ -123,9 +124,10 @@ fn run() -> Result<(), String> {
             return Ok(());
         }
         match &api_key {
-            Some(key) => purge_public(key, withdrawn).map(|()| println!("cdn: purged {} URL(s)", withdrawn.len())),
+            Some(key) => purge_withdrawn(key, withdrawn)
+                .map(|()| println!("cdn: purged {} URL(s), each answers 404", withdrawn.len())),
             None => {
-                println!("cdn: BUNNY_API_KEY not set, withdrawn solutions leave the CDN within a day");
+                println!("cdn: BUNNY_API_KEY not set, withdrawn solutions leave the CDN within {ACCEPTED_MAX_AGE_S} s");
                 Ok(())
             }
         }
