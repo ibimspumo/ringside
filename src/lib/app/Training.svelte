@@ -8,9 +8,10 @@
     hud = null,
     open = null,
     onOpened = () => {},
-  }: { hud?: HudConfig | null; open?: LearnTarget | null; onOpened?: () => void } = $props();
+    onHands,
+  }: { hud?: HudConfig | null; open?: LearnTarget | null; onOpened?: () => void; onHands?: (key: string, label: string) => void } = $props();
 </script>
 
 <ClientLock feature="Der Lernbereich">
-  <Learn {hud} {open} {onOpened} />
+  <Learn {hud} {open} {onOpened} {onHands} />
 </ClientLock>

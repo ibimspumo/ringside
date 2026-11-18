@@ -13,7 +13,11 @@ import type {
   OwnSpot,
   SkillProgress,
 } from "../types";
+import type { Decision, Rating } from "../analysis/types";
+import { DEMO_DECISIONS } from "../analysis/demo-hands";
+import { demoHandById } from "../demo";
 import { parseRange } from "./catalog";
+import type { DrillResult, DrillSpot, PlayProfile, SpotGroup } from "./profile";
 import { combosOf, deckWithout, matrixHand, score, categoryOf, CATEGORY } from "./wissen/poker";
 
 const NAMES: Record<LearnKind, string> = {
@@ -37,6 +41,7 @@ const NAMES: Record<LearnKind, string> = {
   river_bet: "Bet oder Check am River",
   stack_depth: "Stacktiefe und M-Zahl",
   hud_read: "Gegner lesen mit HUD-Werten",
+  own_decision: "Aus deinem Spiel",
 };
 const KINDS = Object.keys(NAMES) as LearnKind[];
 const LEVEL_NAMES = ["neu", "kennengelernt", "mit Hilfe", "selbstständig", "bestätigt"] as const;
@@ -882,4 +887,159 @@ export function demoProgress(): LearnProgress {
 export function demoSpotHand(id: number): Hand | null {
   const s = SPOT_SEEDS.find((x) => x.id === id);
   return s ? spotHandOf(s).hand : null;
+}
+
+/* Playing profile and practice from it ------------------------------------------------------------ */
+
+type DemoGroup = Omit<SpotGroup, "error_pct" | "mean_loss_bb" | "few" | "unsure" | "computed_pct" | "estimate_loss_pct"> & {
+  computed: number;
+  estimate_loss: number;
+};
+
+const g = (x: DemoGroup): SpotGroup => {
+  const { computed, estimate_loss, ...rest } = x;
+  return {
+    ...rest,
+    error_pct: (100 * x.flawed) / x.decisions,
+    mean_loss_bb: x.loss_bb / x.decisions,
+    few: x.decisions < 10,
+    computed_pct: (100 * computed) / x.decisions,
+    estimate_loss_pct: (100 * estimate_loss) / x.loss_bb,
+    unsure: estimate_loss / x.loss_bb > 0.5,
+  };
+};
+
+const DEMO_GROUPS: SpotGroup[] = [
+  g({
+    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River gegen Bet", detail: "ab 40 BB · 3–6 Spieler",
+    decisions: 23, flawed: 9, loss_bb: 14.6, open: 2, sources: [["estimate", 15], ["solver", 8]], computed: 8, estimate_loss: 9.9,
+    estimate_reliability: 0.73, rank: 1, last_played_at: "2026/11/17 22:41:05", change: null,
+  }),
+  g({
+    key: "vs_limp|SB|3|6", lage: "vs_limp", seat: "SB", band: 3, table: "short", title: "Gegen Limper im Small Blind", detail: "ab 40 BB · 3–6 Spieler",
+    decisions: 31, flawed: 9, loss_bb: 11.2, open: 0, sources: [["model", 31]], computed: 31, estimate_loss: 0,
+    estimate_reliability: null, rank: 2, last_played_at: "2026/11/17 21:12:44",
+    change: { before: 21, before_error_pct: 38, after: 10, after_error_pct: 20 },
+  }),
+  g({
+    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 3–6 Spieler",
+    decisions: 44, flawed: 6, loss_bb: 8.4, open: 0, sources: [["equilibrium", 44]], computed: 44, estimate_loss: 0,
+    estimate_reliability: null, rank: 3, last_played_at: "2026/11/16 23:02:10", change: null,
+  }),
+  g({
+    key: "turn_bet|-|3|6", lage: "turn_bet", seat: null, band: 3, table: "short", title: "Turn: setzen oder checken", detail: "ab 40 BB · 3–6 Spieler",
+    decisions: 19, flawed: 5, loss_bb: 6.1, open: 3, sources: [["solver", 12], ["estimate", 7]], computed: 12, estimate_loss: 2.5,
+    estimate_reliability: 0.71, rank: 4, last_played_at: "2026/11/17 20:55:31", change: null,
+  }),
+  g({
+    key: "first_in|CO|3|6", lage: "first_in", seat: "CO", band: 3, table: "short", title: "Eröffnen im Cutoff", detail: "ab 40 BB · 3–6 Spieler",
+    decisions: 52, flawed: 3, loss_bb: 2.3, open: 0, sources: [["model", 52]], computed: 52, estimate_loss: 0,
+    estimate_reliability: null, rank: 5, last_played_at: "2026/11/17 22:10:00", change: null,
+  }),
+  g({
+    key: "vs_three_bet|BTN|3|6", lage: "vs_three_bet", seat: "BTN", band: 3, table: "short", title: "Gegen 3-Bet am Button", detail: "ab 40 BB · 3–6 Spieler",
+    decisions: 6, flawed: 2, loss_bb: 1.9, open: 0, sources: [["model", 6]], computed: 6, estimate_loss: 0,
+    estimate_reliability: null, rank: null, last_played_at: "2026/11/15 19:40:00", change: null,
+  }),
+];
+
+/** The demo hands' decisions behind each group: hand id and action index. */
+const DEMO_DRILLS: Record<string, [number, number][]> = {
+  "river_vs_bet|-|3|6": [[250000000000, 14], [250000000002, 18]],
+  "vs_limp|SB|3|6": [[250000000002, 6]],
+  "push_fold|BTN|1|6": [[250000000001, 11]],
+  "turn_bet|-|3|6": [[250000000000, 12]],
+  "first_in|CO|3|6": [[250000000000, 5]],
+};
+
+export function demoProfile(): PlayProfile {
+  if (previewEmptyProfile()) return { decisions: 0, loss_bb: 0, open: 0, min_decisions: 10, groups: [] };
+  const decisions = DEMO_GROUPS.reduce((a, x) => a + x.decisions, 0) + 412;
+  return { decisions, loss_bb: DEMO_GROUPS.reduce((a, x) => a + x.loss_bb, 0) + 9.7, open: 5, min_decisions: 10, groups: DEMO_GROUPS };
+}
+
+function previewEmptyProfile(): boolean {
+  return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("profile") === "0";
+}
+
+function drillDecision(hand_id: number, action_index: number): Decision | null {
+  return DEMO_DECISIONS[hand_id]?.find((d) => d.action_index === action_index) ?? null;
+}
+
+function drillSpot(key: string, hand_id: number, action_index: number, seed: number | null): DrillSpot | null {
+  const group = DEMO_GROUPS.find((x) => x.key === key);
+  const d = drillDecision(hand_id, action_index);
+  if (!group || !d) return null;
+  const base = demoHandById(hand_id);
+  const hand: Hand = structuredClone(base);
+  hand.actions = hand.actions.slice(0, action_index + 1);
+  hand.shown = [];
+  if (seed !== null) {
+    hand.hero_cards = rng(seed).deal(new Set([...base.board, ...base.hero_cards]), 2);
+  }
+  return {
+    key,
+    title: group.title,
+    detail: group.detail,
+    hand_id,
+    action_index,
+    seed,
+    played_at: base.played_at,
+    hand,
+    hero_cards: hand.hero_cards,
+    position: group.seat === "EP" || group.seat === "MP" ? null : group.seat,
+    choices: d.strategy.map((c) => ({ label: c.label, kind: c.kind })),
+    source: d.source,
+    reliability: d.reliability,
+    pot_bb: d.pot_bb,
+  };
+}
+
+export function demoDrillReal(key: string, limit: number): DrillSpot[] {
+  return (DEMO_DRILLS[key] ?? [])
+    .map(([h, a]) => drillSpot(key, h, a, null))
+    .filter((s): s is DrillSpot => !!s)
+    .slice(0, limit);
+}
+
+export function demoDrillVariant(key: string, seed: number): DrillSpot {
+  const list = DEMO_DRILLS[key] ?? [];
+  if (!list.length) throw "Für diese Lage gibt es noch keine bewerteten Hände";
+  const [h, a] = list[seed % list.length];
+  const s = drillSpot(key, h, a, seed);
+  if (!s) throw "Für diese Lage konnte keine neue Hand bewertet werden";
+  return s;
+}
+
+/** The practice's grades (crates/ringside-play/src/grade.rs), in percent of the pot. */
+function demoRating(strategy: Decision["strategy"], chosen: number, pot: number): { rating: Rating; loss: number; points: number } {
+  const freq = strategy[chosen].freq;
+  const main = strategy.reduce((m, c, i) => (c.freq > strategy[m].freq ? i : m), 0);
+  const isMain = chosen === main || freq >= 0.5;
+  const evs = strategy.map((c) => c.ev_bb ?? 0);
+  const best = Math.max(...evs);
+  const mixed = freq >= 0.1;
+  const loss = mixed ? 0 : Math.max(0, best - evs[chosen]);
+  const pct = (loss / Math.max(pot, 1e-9)) * 100;
+  const rating: Rating =
+    (pct <= 0.5 || mixed) && isMain && freq > 0 ? "best" : mixed ? "mix" : pct <= 2 ? "good" : pct <= 6 ? "inaccuracy" : pct <= 15 ? "mistake" : "blunder";
+  const points = { best: 1, mix: 1, good: 0.7, inaccuracy: 0.3, mistake: 0, blunder: 0 }[rating];
+  return { rating, loss, points };
+}
+
+export function demoDrillCheck(key: string, hand_id: number, action_index: number, seed: number | null, choice: number): DrillResult {
+  const d = drillDecision(hand_id, action_index);
+  if (!d || !DEMO_GROUPS.some((x) => x.key === key)) throw "Spot nicht gefunden";
+  const { rating, loss, points } = demoRating(d.strategy, choice, d.pot_bb ?? 1);
+  const decision: Decision = {
+    ...d,
+    strategy: d.strategy.map((c, i) => ({ ...c, played: i === choice })),
+    played: d.strategy[choice].label,
+    played_freq: d.strategy[choice].freq,
+    rating,
+    ev_loss_bb: loss,
+    why: "",
+  };
+  attempts.push({ kind: "own_decision", level: 1, score: points, at: now() });
+  return { decision, score: points, correct: ["best", "mix", "good"].includes(rating), then: seed === null ? d : null };
 }

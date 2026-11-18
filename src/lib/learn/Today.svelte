@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { api } from "../api";
   import type { ConceptCount } from "../coach/types";
   import type { Exercise, LearnKind, LearnProgress, SkillProgress } from "../types";
@@ -8,26 +9,49 @@
   import Task from "./Task.svelte";
   import { openPlay } from "../play/nav.svelte";
   import { preview } from "./preview";
+  import DecisionDrill from "./DecisionDrill.svelte";
+  import { bbText, weakGroups, type DrillSpot, type PlayProfile, type SpotGroup } from "./profile";
+  import Weaknesses from "./Weaknesses.svelte";
 
   let {
     progress,
     concepts,
+    profile,
+    focus = null,
+    onFocusDone = () => {},
     onProgress,
     onPath,
     onOwn,
     onTrainer,
+    onTrain,
+    onRead,
+    onHands,
   }: {
     progress: LearnProgress | null;
     concepts: ConceptCount[];
+    /** The playing profile; null while it loads or while locked. */
+    profile: PlayProfile | null;
+    /** A kind of spot to practise right away (from "Üben" elsewhere). */
+    focus?: string | null;
+    onFocusDone?: () => void;
     onProgress: () => Promise<void>;
     onPath: () => void;
     onOwn: () => void;
     onTrainer: () => void;
+    onTrain: (kind: LearnKind, level: number) => void;
+    onRead: (id: string) => void;
+    onHands?: (key: string, label: string) => void;
   } = $props();
 
-  type Why = "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
-  type Item = { kind: LearnKind; level: number; why: Why };
+  type Why = "Spiel" | "Schwachstelle" | "Wiederholen" | "Neu" | "Festigen";
+  type SkillItem = { type: "skill"; kind: LearnKind; level: number; why: Why };
+  /** A decision of the playing profile: a real one, or a variation with another hand. */
+  type DrillItem = { type: "drill"; key: string; real: boolean; why: "Spiel" };
+  type Item = SkillItem | DrillItem;
+  type Current = { type: "skill"; exercise: Exercise } | { type: "drill"; spot: DrillSpot };
   const LENGTH = 8;
+  /** Tasks of a round on one kind of spot. */
+  const FOCUS_LENGTH = 6;
   const GOALS = [20, 50, 100];
   const GOAL_STORE = "ringside.learn.goal";
 
@@ -51,75 +75,133 @@
 
   const byKind = $derived(new Map((progress?.skills ?? []).map((s) => [s.id, s])));
 
-  /** Weak spots from coach reports first, then due reviews, something new and the weakest skills; no skill twice in a row. */
-  function buildPlan(p: LearnProgress | null, weak: ConceptCount[]): Item[] {
+  /** What the item trains: the skill, or "own_decision" for a spot of the playing profile. */
+  const kindOf = (x: Item): LearnKind => (x.type === "skill" ? x.kind : "own_decision");
+  /** Items of the same id are not asked twice in a row. */
+  const idOf = (x: Item) => (x.type === "skill" ? x.kind : x.key);
+
+  /**
+   * The costliest kinds of spot from the user's own hands first (a real decision and a variation of
+   * each), then weak spots from coach reports, due reviews, something new and the weakest skills.
+   */
+  function buildPlan(p: LearnProgress | null, weak: ConceptCount[], own: SpotGroup[]): Item[] {
     const skills = TRAINABLE.map((k) => p?.skills.find((s) => s.id === k)).filter((s): s is SkillProgress => !!s);
     const items: Item[] = [];
-    // The two weakest concepts with an exercise get two tasks each.
+    const top = own.slice(0, 2);
+    for (const g of top) {
+      items.push({ type: "drill", key: g.key, real: true, why: "Spiel" });
+      items.push({ type: "drill", key: g.key, real: false, why: "Spiel" });
+    }
+    if (top.length === 1) items.push({ type: "drill", key: top[0].key, real: false, why: "Spiel" });
+    // With spots from the own game, coach concepts get one task each, else two.
+    const perConcept = top.length ? 1 : 2;
     const weakKinds = [...new Set(weakConcepts(weak).map(trainableKind).filter((k): k is LearnKind => !!k))].slice(0, 2);
     for (const k of weakKinds) {
       const s = skills.find((x) => x.id === k);
-      for (let n = 0; n < 2; n++) items.push({ kind: k, level: nextLevel(s), why: "Schwachstelle" });
+      for (let n = 0; n < perConcept; n++) items.push({ type: "skill", kind: k, level: nextLevel(s), why: "Schwachstelle" });
     }
     const due = skills.filter(isDue).sort((a, b) => a.level - b.level || (a.last_at ?? 0) - (b.last_at ?? 0));
-    for (const s of due.filter((x) => !weakKinds.includes(x.id)).slice(0, 4)) items.push({ kind: s.id, level: nextLevel(s), why: "Wiederholen" });
+    for (const s of due.filter((x) => !weakKinds.includes(x.id)).slice(0, 4))
+      items.push({ type: "skill", kind: s.id, level: nextLevel(s), why: "Wiederholen" });
     const fresh = skills.filter((s) => s.attempts === 0).slice(0, 2);
     // A new skill gets two tries, so the first one is not the only impression.
     fresh.forEach((s, i) => {
-      for (let n = 0; n < (i === 0 ? 2 : 1); n++) items.push({ kind: s.id, level: 1, why: "Neu" });
+      for (let n = 0; n < (i === 0 ? 2 : 1); n++) items.push({ type: "skill", kind: s.id, level: 1, why: "Neu" });
     });
     const weakest = skills
       .filter((s) => s.attempts > 0)
       .sort((a, b) => (a.mean_score ?? 0) - (b.mean_score ?? 0) || a.level - b.level);
     for (let i = 0; items.length < LENGTH && weakest.length; i++) {
       const s = weakest[i % weakest.length];
-      items.push({ kind: s.id, level: nextLevel(s), why: "Festigen" });
+      items.push({ type: "skill", kind: s.id, level: nextLevel(s), why: "Festigen" });
     }
-    for (let i = 0; items.length < LENGTH; i++) items.push({ kind: TRAINABLE[i % TRAINABLE.length], level: 1, why: "Neu" });
+    for (let i = 0; items.length < LENGTH; i++) items.push({ type: "skill", kind: TRAINABLE[i % TRAINABLE.length], level: 1, why: "Neu" });
     return interleave(items.slice(0, LENGTH));
+  }
+
+  /** A round on one kind of spot: its real decisions first, then variations. */
+  function focusPlan(key: string): Item[] {
+    return Array.from({ length: FOCUS_LENGTH }, (_, i) => ({ type: "drill", key, real: i < 2, why: "Spiel" }) as DrillItem);
   }
 
   function interleave(items: Item[]): Item[] {
     const rest = [...items];
     const out: Item[] = [];
     while (rest.length) {
-      const i = rest.findIndex((x) => x.kind !== out.at(-1)?.kind);
+      const last = out.at(-1);
+      const i = rest.findIndex((x) => !last || idOf(x) !== idOf(last));
       out.push(...rest.splice(i < 0 ? 0 : i, 1));
     }
     return out;
   }
 
-  const plan = $derived(buildPlan(progress, concepts));
-  const planGroups = $derived(
-    [...new Map(plan.map((x) => [x.kind, x])).values()].map((x) => ({ ...x, n: plan.filter((y) => y.kind === x.kind).length })),
+  const own = $derived(weakGroups(profile));
+  const plan = $derived(buildPlan(progress, concepts, own));
+  const groupOf = (key: string) => profile?.groups.find((g) => g.key === key) ?? null;
+  const skillGroups = $derived(
+    [...new Map(plan.filter((x): x is SkillItem => x.type === "skill").map((x) => [x.kind, x])).values()].map((x) => ({
+      ...x,
+      n: plan.filter((y) => y.type === "skill" && y.kind === x.kind).length,
+    })),
+  );
+  const drillGroups = $derived(
+    [...new Set(plan.filter((x): x is DrillItem => x.type === "drill").map((x) => x.key))].map((key) => ({
+      key,
+      group: groupOf(key),
+      real: plan.filter((y) => y.type === "drill" && y.key === key && y.real).length,
+      made: plan.filter((y) => y.type === "drill" && y.key === key && !y.real).length,
+    })),
   );
 
   let phase = $state<"start" | "run" | "done">("start");
   let items = $state<Item[]>([]);
   let index = $state(0);
-  let exercise = $state<Exercise | null>(null);
+  let current = $state<Current | null>(null);
   let error = $state<string | null>(null);
   let scores = $state<(number | null)[]>([]);
   let correct = $state<boolean[]>([]);
   let before = $state<Map<LearnKind, SkillProgress>>(new Map());
 
-  /** Exercises fetched ahead by index: table push/fold may solve for seconds. */
-  let ahead = new Map<number, Promise<Exercise>>();
-  function fetchAt(i: number): Promise<Exercise> {
-    const p = ahead.get(i) ?? api.learnExercise(items[i].kind, items[i].level);
+  /** Real decisions per kind of spot, fetched once per round; each is asked once. */
+  let reals = new Map<string, Promise<DrillSpot[]>>();
+  let realsUsed = new Map<string, number>();
+  const seed = () => Math.floor(Math.random() * 2 ** 52);
+
+  async function fetchDrill(x: DrillItem): Promise<DrillSpot> {
+    if (x.real) {
+      if (!reals.has(x.key)) reals.set(x.key, api.learnDrillReal(x.key, FOCUS_LENGTH));
+      const list = await reals.get(x.key)!;
+      const n = realsUsed.get(x.key) ?? 0;
+      realsUsed.set(x.key, n + 1);
+      // Without another real decision the item becomes a variation.
+      if (n < list.length) return list[n];
+    }
+    return api.learnDrillVariant(x.key, seed());
+  }
+
+  function fetchItem(x: Item): Promise<Current> {
+    return x.type === "skill"
+      ? api.learnExercise(x.kind, x.level).then((exercise) => ({ type: "skill", exercise }) as Current)
+      : fetchDrill(x).then((spot) => ({ type: "drill", spot }) as Current);
+  }
+
+  /** Tasks fetched ahead by index: table push/fold may solve for seconds, a variation is analysed first. */
+  let ahead = new Map<number, Promise<Current>>();
+  function fetchAt(i: number): Promise<Current> {
+    const p = ahead.get(i) ?? fetchItem(items[i]);
     ahead.delete(i);
     return p;
   }
 
   async function load(i: number) {
-    exercise = null;
+    current = null;
     error = null;
     try {
-      const ex = await fetchAt(i);
+      const c = await fetchAt(i);
       if (i !== index) return;
-      exercise = ex;
+      current = c;
       if (i + 1 < items.length && !ahead.has(i + 1)) {
-        const next = api.learnExercise(items[i + 1].kind, items[i + 1].level);
+        const next = fetchItem(items[i + 1]);
         next.catch(() => {
           // Reported when it is used.
         });
@@ -130,9 +212,11 @@
     }
   }
 
-  function start() {
+  function start(list: Item[] = plan) {
     ahead = new Map();
-    items = plan;
+    reals = new Map();
+    realsUsed = new Map();
+    items = list;
     before = new Map(byKind);
     xpBefore = progress?.xp_week ?? 0;
     scores = items.map(() => null);
@@ -159,17 +243,30 @@
   const answered = $derived(scores.filter((s) => s !== null).length);
   const mean = $derived(answered ? scores.reduce((a: number, s) => a + (s ?? 0), 0) / answered : 0);
   const rights = $derived(correct.filter(Boolean).length);
-  const practiced = $derived([...new Set(items.slice(0, Math.max(answered, 1)).map((x) => x.kind))]);
+  const practiced = $derived([...new Set(items.slice(0, Math.max(answered, 1)).map(kindOf))]);
   /** Progress reloads after a round; until it has, this round's answers still count toward the week. */
   let xpBefore = $state(0);
   const xpWeek = $derived(Math.max(progress?.xp_week ?? 0, phase === "done" ? xpBefore + answered : 0));
   /** This round's answers grouped by skill, in the order they came. */
   const trail = $derived(
-    [...new Set(items.slice(0, answered).map((x) => x.kind))].map((kind) => ({
+    [...new Set(items.slice(0, answered).map(kindOf))].map((kind) => ({
       kind,
-      at: items.slice(0, answered).flatMap((x, i) => (x.kind === kind ? [i] : [])),
+      at: items.slice(0, answered).flatMap((x, i) => (kindOf(x) === kind ? [i] : [])),
     })),
   );
+
+  /** "Üben" on a kind of spot starts a round on it. */
+  function practice(key: string) {
+    start(focusPlan(key));
+  }
+  $effect(() => {
+    if (!focus) return;
+    const key = focus;
+    untrack(() => {
+      practice(key);
+      onFocusDone();
+    });
+  });
 
   const previewSession = preview("session");
   $effect(() => {
@@ -183,12 +280,12 @@
   });
 
   const LANES: { why: Why; label: string }[] = [
-    { why: "Schwachstelle", label: "Zuerst: deine Schwachstellen" },
+    { why: "Schwachstelle", label: "Aus deinen Coach-Berichten" },
     { why: "Wiederholen", label: "Wiederholen, damit es sitzt" },
     { why: "Festigen", label: "Festigen" },
     { why: "Neu", label: "Neu für dich" },
   ];
-  const lanes = $derived(LANES.map((l) => ({ ...l, groups: planGroups.filter((g) => g.why === l.why) })).filter((l) => l.groups.length));
+  const lanes = $derived(LANES.map((l) => ({ ...l, groups: skillGroups.filter((g) => g.why === l.why) })).filter((l) => l.groups.length));
   const unit = $derived(currentUnit(byKind));
   /** Why a weak skill is in the round, from the coach concept behind it (weakest first). */
   const weakWhy = $derived(
@@ -221,17 +318,39 @@
         <span class="eyebrow">Deine Runde für heute · etwa 5 Minuten</span>
         <h2 class="lead-title">{LENGTH} kurze Aufgaben</h2>
         <p class="dim lead">
-          {#if lanes.some((l) => l.why === "Schwachstelle")}Zusammengestellt aus deinen Coach-Berichten und deinem Stand.{:else}Zusammengestellt aus
-            deinem Stand.{/if} Nach jeder Antwort siehst du sofort, warum.
+          Zusammengestellt aus {[drillGroups.length ? "deinen eigenen Händen" : "", lanes.some((l) => l.why === "Schwachstelle") ? "deinen Coach-Berichten" : "", "deinem Stand"]
+            .filter(Boolean)
+            .join(", ")
+            .replace(/, ([^,]*)$/, " und $1")}. Nach jeder Antwort siehst du sofort, warum.
         </p>
         <div class="cta">
-          <button class="btn primary go" onclick={start} disabled={!progress}>
+          <button class="btn primary go" onclick={() => start()} disabled={!progress}>
             Runde starten
             <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
           </button>
           <span class="dim small">Fehler kosten nichts. Was danebengeht, kommt bald zur Übung wieder.</span>
         </div>
         <div class="plan" aria-label="Plan für heute">
+          {#if drillGroups.length}
+            <div class="lane own" data-lane="spiel">
+              <span class="lane-label weak">Zuerst: aus deinem Spiel</span>
+              <ul>
+                {#each drillGroups as d (d.key)}
+                  <li>
+                    <span class="own-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg></span>
+                    <span class="pname">
+                      <b>{d.group?.title ?? "Deine Spots"}</b>
+                      <span class="sub"
+                        >{[d.real ? `${d.real} echte ${d.real === 1 ? "Hand" : "Hände"}` : "", d.made ? `${d.made} neu gegeben` : ""].filter(Boolean).join(" + ")}{d.group
+                          ? ` · kostet dich etwa ${bbText(d.group.mean_loss_bb)} pro Mal`
+                          : ""}</span
+                      >
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
           {#each lanes as l (l.why)}
             <div class="lane">
               <span class="lane-label" class:weak={l.why === "Schwachstelle"}>
@@ -278,6 +397,8 @@
       </aside>
     </section>
 
+    <Weaknesses {profile} {concepts} {progress} limit={4} empty onPractice={practice} {onHands} {onTrain} {onRead} />
+
     <div class="doors">
       <button class="door" onclick={onOwn}>
         <span class="door-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path d="M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" /></svg></span>
@@ -312,7 +433,11 @@
       <span class="count num">{index + 1} / {items.length}</span>
       <ol class="steps" aria-label="Fortschritt der Runde">
         {#each items as it, i (i)}
-          <li class={tone(scores[i])} class:now={i === index} title="{SKILLS[it.kind].short} · {it.why}"></li>
+          <li
+            class={tone(scores[i])}
+            class:now={i === index}
+            title={it.type === "skill" ? `${SKILLS[it.kind].short} · ${it.why}` : `${groupOf(it.key)?.title ?? "Dein Spot"} · ${it.real ? "echte Hand" : "neu gegeben"}`}
+          ></li>
         {/each}
       </ol>
       <button class="btn ghost" onclick={finish}>Runde beenden</button>
@@ -321,11 +446,12 @@
       {#if error}
         <p class="error" role="alert">{error}</p>
         <button class="btn" onclick={() => load(index)}>Nochmal versuchen</button>
-      {:else if exercise}
+      {:else if current?.type === "skill"}
+        {@const exercise = current.exercise}
         {#key `${index}:${exercise.seed}`}
           <Task
             {exercise}
-            check={(a) => api.learnCheck(exercise as Exercise, a)}
+            check={(a) => api.learnCheck(exercise, a)}
             onGraded={(fb) => {
               scores[index] = fb.score;
               correct[index] = fb.correct;
@@ -334,8 +460,22 @@
             nextLabel={index + 1 < items.length ? "Weiter" : "Zum Ergebnis"}
           />
         {/key}
+      {:else if current?.type === "drill"}
+        {@const spot = current.spot}
+        {#key `${index}:${spot.hand_id}:${spot.seed}`}
+          <DecisionDrill
+            {spot}
+            check={(choice) => api.learnDrillCheck(spot, choice)}
+            onGraded={(r) => {
+              scores[index] = r.score;
+              correct[index] = r.correct;
+            }}
+            onNext={next}
+            nextLabel={index + 1 < items.length ? "Weiter" : "Zum Ergebnis"}
+          />
+        {/key}
       {:else}
-        <p class="faint loading">Aufgabe wird gemischt …</p>
+        <p class="faint loading">{items[index]?.type === "drill" ? "Spot aus deinem Spiel wird vorbereitet …" : "Aufgabe wird gemischt …"}</p>
       {/if}
     </div>
   </div>
@@ -467,6 +607,21 @@
   }
   .lane-label.weak {
     color: var(--neg);
+  }
+  .own li {
+    border-color: color-mix(in srgb, var(--neg) 35%, var(--line));
+  }
+  .own-mark {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--neg) 14%, var(--surface-3));
+  }
+  .pname .sub {
+    font-size: var(--fs-sm);
+    color: var(--text-2);
   }
   .lane-link {
     margin-left: 8px;
