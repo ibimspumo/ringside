@@ -57,6 +57,14 @@
     return `${base} In etwa ${Math.round(spot.reliability * 10)} von 10 Prüf-Spots lag sie höchstens eine Stufe neben der Lösung.`;
   });
   const then = $derived(result?.then ?? null);
+  /**
+   * The verdict with the reason from the hand analysis: the drill drops it because it may speak of
+   * the action played then, but the estimate's reason is about the hand (equity, pot odds) and holds
+   * for the same cards.
+   */
+  const decision = $derived(
+    result && real && result.decision.source === "estimate" && !result.decision.why && then?.why ? { ...result.decision, why: then.why } : (result?.decision ?? null),
+  );
   /** "Verlässlichkeit 7 von 10" beside an estimate, so its weight is seen without hovering. */
   const reliability = $derived(spot.source === "estimate" && spot.reliability !== null ? `trifft in ${Math.round(spot.reliability * 10)} von 10 Prüf-Spots` : null);
 
@@ -191,6 +199,10 @@
       <CardText hands text={highFirst(spot.hero_cards).join("")} />{#if result}.{:else}. Was spielst du?{/if}
     </h2>
 
+    {#if view.board.length}
+      <p class="board-line"><span>{view.street}</span><CardText text={view.board.join(" ")} /></p>
+    {/if}
+
     {#if !result}
       <section class="lage" aria-label="Die Lage" in:appear>
         <div class="figures">
@@ -241,7 +253,7 @@
       {/if}
     {:else}
       <div class="after" in:rise>
-        <div class="verdict"><DecisionCard decision={result.decision} quiet /></div>
+        {#if decision}<div class="verdict"><DecisionCard {decision} quiet /></div>{/if}
         {#if then && then.rating}
           <p class="then">
             <span>Damals hast du <b>{then.played}</b> gespielt</span>
@@ -321,6 +333,17 @@
     font-size: var(--fs-2xl);
     font-weight: var(--fw-semibold);
     line-height: 1.35;
+  }
+  .board-line {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: calc(-1 * var(--sp-2)) 0 0;
+    color: var(--text-2);
+    font-size: var(--fs-lg);
+  }
+  .board-line span {
+    font-size: var(--fs-md);
   }
   .lage {
     display: flex;

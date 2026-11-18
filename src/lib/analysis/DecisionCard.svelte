@@ -44,6 +44,12 @@
   const main = $derived(d.strategy.length ? d.strategy.reduce((a, b) => (b.freq > a.freq ? b : a)) : null);
   const bestEv = $derived(Math.max(...d.strategy.map((c) => c.ev_bb ?? -Infinity)));
   const potShare = $derived(d.ev_loss_bb !== null && d.pot_bb ? d.ev_loss_bb / d.pot_bb : undefined);
+  /** The source's main move need not bring the most: a rare move may be a little ahead. */
+  const mainBelowTop = $derived.by(() => {
+    const top = d.strategy.reduce<Choice | null>((a, c) => (c.ev_bb !== null && (!a || c.ev_bb > (a.ev_bb ?? -Infinity)) ? c : a), null);
+    if (!main || !top || top === main || main.ev_bb === null || d.source === "estimate") return null;
+    return `„${main.label}“ ist der Hauptzug; „${top.label}“ bringt rechnerisch ${bb(bestEv - main.ev_bb, 2)} mehr, wird aber nur in ${pct(top.freq)} der Fälle gespielt.`;
+  });
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
 
   /** The reason under the verdict: the practice's sentences, then what the source adds. */
@@ -101,6 +107,7 @@
       {potShare}
       {context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
+      source={quiet && kit ? kit : undefined}
     >
       <p>{reason}</p>
       {#snippet actions()}
@@ -150,6 +157,7 @@
     <p class="legend">
       {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if}
       {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
+      {#if mainBelowTop}{mainBelowTop}{/if}
     </p>
 
     {#if kit && !quiet}
