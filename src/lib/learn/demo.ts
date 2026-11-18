@@ -1044,7 +1044,8 @@ export function demoDrillCheck(key: string, hand_id: number, action_index: numbe
     played_freq: d.strategy[choice].freq,
     rating,
     ev_loss_bb: loss,
-    why: "",
+    // The stored reason names the real hand's cards; a dealt variation has others.
+    why: seed === null ? d.why : "",
   };
   attempts.push({ kind: "own_decision", level: 1, score: points, at: now() });
   return { decision, score: points, correct: ["best", "mix", "good"].includes(rating), then: seed === null ? d : null };
