@@ -483,6 +483,11 @@
           <Card onclick={() => {}} selected><SectionHead level={3} title="Ausgewählt" sub="Rahmen in Textfarbe." /></Card>
           <Card onclick={() => {}} disabled title="Gerade nicht wählbar"><SectionHead level={3} title="Gesperrt" sub="Klickbar, aber gerade nicht wählbar." /></Card>
         </div>
+        <div class="tiles">
+          <span class="muted">Kacheln im Raster (<code>pad="xs"</code>):</span>
+          <Card pad="xs" onclick={() => {}}><span class="tile">{#each ["Ah", "Kd", "7c"] as c (c)}<MiniCard card={c} />{/each}</span></Card>
+          <Card pad="xs" onclick={() => {}} disabled><span class="tile">{#each ["Qs", "Qh", "5d"] as c (c)}<MiniCard card={c} />{/each}</span></Card>
+        </div>
         <div class="two">
           <Panel title="Wert auf seiner Skala" sub="Band = üblicher Bereich, Punkt = Wert in HUD-Farbe; hohl heißt: zu wenig Gelegenheiten.">
             <div class="meters">
@@ -595,7 +600,16 @@
           <Verdict grade="good" played="Bet 4,8 BB" better="Bet 2,4 BB" cost={0.04} context="Turn · 6♣">
             <p>Die kleine Größe bringt minimal mehr, weil schwächere Hände öfter mitgehen.</p>
           </Verdict>
-          <Verdict grade="inaccurate" played="Call" better="Raise auf 14 BB" cost={0.18} potShare={0.02} context="Turn · 6♣" source="solver">
+          <Verdict
+            grade="inaccurate"
+            played="Call"
+            better="Raise auf 14 BB"
+            cost={0.18}
+            potShare={0.02}
+            context="Turn · 6♣"
+            source="solver"
+            reason="Deine Hand gehört zum schwächsten Drittel deiner Range und hat gegen die Range des Gegners 31 % Equity. Auf Raise auf 14 BB gibt der Gegner in 47 % der Fälle auf. Raise auf 14 BB bringt 0,18 BB mehr als Call."
+          >
             <p>Mit deinem Flush-Draw kannst du selbst Druck machen.</p>
           </Verdict>
           <Verdict grade="mistake" played="Bet" better="Check" cost={1.15} potShare={0.12} context="River · Q♠8♠" source="solver">
@@ -1158,6 +1172,19 @@
     border-bottom: 1px solid var(--line);
   }
 
+  .tiles {
+    display: grid;
+    grid-template-columns: auto repeat(2, 112px);
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    margin: var(--sp-3) 0;
+  }
+  .tile {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    font-size: var(--fs-base);
+  }
   .cards-row {
     align-items: flex-end;
   }

@@ -21,7 +21,7 @@
     };
   });
 
-  function set(key: "fetch" | "share", on: boolean) {
+  function set(key: "fetch" | "share" | "practice_ready", on: boolean) {
     if (!cloud) return;
     cloud[key] = on;
     cloudApi.saveSettings($state.snapshot(cloud));
@@ -33,13 +33,18 @@
     {#if cloud}<Switch label="Fertige Lösungen abrufen" checked={cloud.fetch} onchange={(on) => set("fetch", on)} />{/if}
   {/snippet}
   {#snippet more()}
-    <p>Ringside nimmt nur Lösungen, die geprüft sind. Du musst dafür nichts tun.</p>
+    <p>
+      Die Lösungen hat die Community mit Ringside gerechnet. Ringside nimmt nur, was richtig aufgebaut ist. Du musst dafür
+      nichts tun.
+    </p>
     <details>
       <summary>Technische Details</summary>
       <p>
-        Push/Fold-Lösungen rechnet Ringside vor der Nutzung mit der eigenen Engine nach. Spots der Bibliothek misst vor der
-        Freigabe ein Prüfer mit dem Solver; auf deinem PC prüft Ringside dann nur noch, ob die Lösung richtig aufgebaut ist.
-        Die Grundausstattung der Bibliothek (Grundstock-Pakete) muss die Signatur von Ringside tragen.
+        Push/Fold-Lösungen rechnet Ringside vor der Nutzung mit der eigenen Engine nach. Bei Spots der Bibliothek prüft
+        Ringside auf deinem PC nur, ob die Lösung richtig aufgebaut ist und ob ihre gemeldete Genauigkeit reicht; nachgerechnet
+        wird nur eine Stichprobe pro Stunde. Ist eine Stichprobe falsch, zieht Ringside Cloud alle Lösungen dieses
+        Internetanschlusses zurück und nimmt von dort keine mehr an. Die Grundausstattung der Bibliothek (Grundstock-Pakete)
+        muss die Signatur von Ringside tragen.
       </p>
     </details>
   {/snippet}
@@ -64,15 +69,35 @@
     <details>
       <summary>Technische Details</summary>
       <p>
-        Flop-Spots aus der Handanalyse und aus „Hände spielen“ teilt Ringside nur, wenn ihre Ranges aus Ringsides
-        Preflop-Modell stammen. Dann gehen Flop, Pot, Stack, Einsatzgrößen und die Modell-Linie hoch, also der Weg durchs
+        Flop-Spots aus der Handanalyse, aus „Hände spielen“ und von der Solver-Seite teilt Ringside nur, wenn ihre Ranges
+        aus Ringsides Preflop-Modell stammen. Dann gehen Flop, Pot, Stack, Einsatzgrößen und die Modell-Linie hoch, also der Weg durchs
         Modell, aus dem die Ranges folgen.
       </p>
       <p>
-        Ein Prüfer misst jede Lösung, bevor andere sie bekommen. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots, die
-        andere noch brauchen. Das Teilen läuft im Hintergrund.
+        Andere bekommen deine Lösung, sobald sie oben ist; Ringside Cloud prüft dafür nur ihren Aufbau und rechnet Stichproben
+        nach. Mit „Mitrechnen“ hilft dein PC außerdem bei Spots, die andere noch brauchen. Das Teilen läuft im Hintergrund.
       </p>
     </details>
+  {/snippet}
+</SettingRow>
+
+<SettingRow
+  title="Üben mit fertigen Spots anderer"
+  sub="„Hände spielen“ nimmt zuerst Spots, die schon gerechnet sind – auch von anderen Spielern. So wartest du nicht."
+>
+  {#snippet control()}
+    {#if cloud}<Switch
+        label="Üben mit fertigen Spots anderer"
+        checked={cloud.practice_ready}
+        onchange={(on) => set("practice_ready", on)}
+      />{/if}
+  {/snippet}
+  {#snippet more()}
+    <p>
+      Aus: nur eigene, frisch gegebene Spots. Dann kommen die Flops zufällig, und dein PC rechnet jeden Spot selbst – das
+      dauert länger.
+    </p>
+    <p>Geteilt wird in beiden Fällen, wenn „Eigene Lösungen teilen“ an ist.</p>
   {/snippet}
 </SettingRow>
 

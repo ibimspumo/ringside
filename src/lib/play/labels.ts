@@ -1,12 +1,14 @@
 // Words for the practice with whole hands: grades, choices, sources and the plain-language
 // "why" after each move. Postflop reasons come from the solver page's explain.ts.
+import { madeHand } from "../learn/wissen/poker";
 import { actionColors } from "../solver/actions";
 import { lesson as postflopLesson } from "../solver/explain";
 import type { SolverAction } from "../solver/types";
-import { betterLine, mixText, playsLine, sameEv, type Who } from "./words";
+import { betterLine, infinitive, mixText, playsLine, sameEv, type Who } from "./words";
 import type { Choice, FreeInfo, Grade, HandView, Lesson, PlayAnte, PlayConfig, PlayMode, SolveWhy, Source, Unrated, Verdict } from "./types";
 
-export const num = (x: number, d = 1) => x.toLocaleString("de-DE", { maximumFractionDigits: d });
+// Float noise first (6.05 − 2.2 is 3.8499…), so one amount reads the same wherever it is written.
+export const num = (x: number, d = 1) => Number(x.toFixed(9)).toLocaleString("de-DE", { maximumFractionDigits: d });
 export const bbText = (x: number, d = 1) => `${num(x, d)} BB`;
 export const signedBB = (x: number) => `${x > 0.04 ? "+" : x < -0.04 ? "−" : "±"}${num(Math.abs(x))} BB`;
 
@@ -36,8 +38,9 @@ export const MODE_LABEL: Record<PlayMode, string> = {
 };
 export const ANTE_LABEL: Record<PlayAnte, string> = { none: "Ohne Ante", classic: "Ante für alle", big_blind: "BB-Ante" };
 
-export function choiceLabel(c: Choice): { label: string; size: string } {
-  const pct = c.pct_pot !== null ? ` · ${Math.round(c.pct_pot)} %` : "";
+/** `withPct: false` leaves the share of the pot out, e.g. before the flop where sizes read in BB. */
+export function choiceLabel(c: Choice, withPct = true): { label: string; size: string } {
+  const pct = withPct && c.pct_pot !== null ? ` · ${Math.round(c.pct_pot)} % Pot` : "";
   switch (c.kind) {
     case "fold":
       return { label: "Fold", size: "" };
@@ -52,7 +55,7 @@ export function choiceLabel(c: Choice): { label: string; size: string } {
     case "raise":
       return { label: "Raise", size: `auf ${bbText(c.to_bb)}${pct}` };
     case "all_in":
-      return { label: "All-in", size: bbText(c.to_bb) };
+      return { label: "All-in", size: c.to_bb > c.add_bb + 0.005 ? `auf ${bbText(c.to_bb)}` : bbText(c.to_bb) };
   }
 }
 
@@ -95,7 +98,7 @@ const SOURCE_NAME: Record<Source, string> = {
 /** Why a move has no grade, in one sentence. */
 export const UNRATED_TEXT: Record<Unrated, string> = {
   not_reached: "Diese Hand kommt in der Lösung hier gar nicht an – sie wäre vorher anders gespielt worden. Deshalb gibt es für diesen Zug keine Bewertung.",
-  multiway: "Nicht bewertet: Mehrweg-Pot. Für drei Spieler nach dem Flop gibt es keinen Solver – die Einschätzung dafür folgt.",
+  multiway: "Nicht bewertet: Mehrweg-Pot, und du hattest hier nur eine Möglichkeit.",
   off_model: "Nicht bewertet: Diese Linie kennt das Preflop-Modell nicht. Es lässt hier nur zwei Spieler weiterspielen; du entscheidest trotzdem selbst.",
   no_solve: "Nicht bewertet: Der Spot wurde nicht fertig gerechnet.",
 };
@@ -157,10 +160,10 @@ export function solvingLine(why: SolveWhy): string {
 export function freeLine(f: FreeInfo): string {
   const why =
     f.why === "multiway"
-      ? "Mehrweg-Pot: Für drei Spieler nach dem Flop gibt es keinen Solver. Deine Züge werden nicht bewertet – die Einschätzung folgt."
+      ? "Mehrweg-Pot: Für drei Spieler nach dem Flop gibt es keinen Solver. Deine Züge bewertet hier die Einschätzung – eine Richtung, nicht exakt."
       : f.why === "off_model"
-        ? "Diese Linie kennt das Preflop-Modell nicht. Deine Züge ab hier werden nicht bewertet."
-        : `Ohne fertige Lösung${f.note ? ` (${f.note})` : ""}: Deine Züge ab hier werden nicht bewertet.`;
+        ? "Diese Linie kennt das Preflop-Modell nicht. Vor dem Flop werden deine Züge nicht bewertet, danach bewertet sie die Einschätzung."
+        : `Ohne fertige Lösung${f.note ? ` (${f.note})` : ""}: Deine Züge ab hier bewertet die Einschätzung – eine Richtung, nicht exakt.`;
   return `${why} ${f.rule}`;
 }
 
@@ -189,6 +192,11 @@ function handName(v: Verdict | Lesson, cards: string[]): string {
 export function reason(v: Verdict | Lesson, chosen: number | null, cards: string[]): string {
   if (!v.strategy || !v.source) return UNRATED_TEXT[v.unrated ?? "not_reached"];
   const strategy = v.strategy;
+  if (v.source === "estimate") {
+    // The estimate rates the kind of move, not its size; its reason stands in "Warum?".
+    const kinds = [...new Set(v.choices.filter((_, k) => strategy[k] > 0).map((c) => cap(infinitive(c.kind))))];
+    return `Nach der Einschätzung ist hier ${kinds.join(" oder ")} am besten; die Größe bewertet sie nicht.`;
+  }
   const best = v.evs ? v.evs.indexOf(Math.max(...v.evs)) : strategy.indexOf(Math.max(...strategy));
   if (v.node) {
     const hand = v.node.hands.find((h) => sameCards(h.combo, cards));
@@ -218,27 +226,37 @@ function sameCards(combo: string, cards: string[]): boolean {
 
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
-export function resultLine(h: HandView): string {
+/** A player's hand at the showdown in words, from the cards where they are known. */
+export function madeOf(h: HandView, seat: number): string | null {
+  const cards = seat === h.hero ? h.hero_cards : h.outcome?.shown[seat];
+  if (cards && h.board.length === 5) return madeHand([...cards, ...h.board]);
+  return h.outcome?.made[seat] ?? null;
+}
+
+/** What the hand brought you; `withNet: false` leaves the amount out where it stands beside the line. */
+export function resultLine(h: HandView, withNet = true): string {
   const o = h.outcome;
   if (!o) return "";
   const net = o.net[h.hero];
+  const amount = withNet ? ` (${signedBB(net)})` : "";
   const won = o.winners.includes(h.hero);
   if (o.reason === "folded") {
-    if (won) return `Alle anderen folden – du gewinnst den Pot (${signedBB(net)}).`;
+    if (won) return `Alle anderen folden – du gewinnst den Pot${amount}.`;
     return h.events.some((e) => e.type === "action" && e.seat === h.hero && e.choice.kind === "fold")
-      ? `Du foldest (${signedBB(net)}).`
-      : `${h.positions[o.winners[0]]} gewinnt den Pot (${signedBB(net)}).`;
+      ? `Du foldest${amount}.`
+      : `${h.positions[o.winners[0]]} gewinnt den Pot${amount}.`;
   }
-  const made = o.made[h.hero];
+  const made = madeOf(h, h.hero);
   const folded = h.events.some((e) => e.type === "action" && e.seat === h.hero && e.choice.kind === "fold");
   if (folded) {
     const w = o.winners.map((s) => h.positions[s]).join(" und ");
-    return `Du foldest (${signedBB(net)}). Ohne dich checken die anderen bis zum Showdown durch: ${w} ${o.winners.length > 1 ? "teilen" : "gewinnt"}.`;
+    return `Du foldest${amount}. Ohne dich checken die anderen bis zum Showdown durch: ${w} ${o.winners.length > 1 ? "teilen" : "gewinnt"}.`;
   }
-  if (won && o.winners.length > 1) return `Geteilter Pot${made ? ` mit ${made}` : ""} (${signedBB(net)}).`;
-  if (won) return `Du gewinnst beim Showdown${made ? ` mit ${made}` : ""} (${signedBB(net)}).`;
+  if (won && o.winners.length > 1) return `Geteilter Pot${made ? ` mit ${made}` : ""}${amount}.`;
+  if (won) return `Du gewinnst beim Showdown${made ? ` mit ${made}` : ""}${amount}.`;
   const w = o.winners[0];
-  return `${h.positions[w]} gewinnt${o.made[w] ? ` mit ${o.made[w]}` : ""} (${signedBB(net)}).`;
+  const theirs = madeOf(h, w);
+  return `${h.positions[w]} gewinnt${theirs ? ` mit ${theirs}` : ""}${amount}.`;
 }
 
 export function etaText(secs: number | null): string {

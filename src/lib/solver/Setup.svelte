@@ -75,6 +75,7 @@
     solver.notes = { oop: d.oopNote, ip: d.ipNote };
     solver.labels = d.labels;
     solver.origin = origin;
+    solver.model = d.model;
     solver.custom = { oop: false, ip: false };
     // A hand handed over belongs to that hand's spot; your own pick stays with you.
     if (solver.source) solver.hero = null;
@@ -220,7 +221,7 @@
     const threads = solver.settings.threads;
     if (cardsOf(spot.board).length < 3) {
       estimate = null;
-      estimateError = "Wähle mindestens drei Boardkarten – Klick auf die Plätze in der Tischmitte.";
+      estimateError = null;
       return;
     }
     let live = true;
@@ -303,7 +304,9 @@
             {#if board.length}<span class="cards">{#each board as c (c)}<MiniCard card={c} />{/each}</span>{:else}· kein Board{/if}
             {#if solver.hero}· Du <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>{/if}</span
           >
-          {#if estimate}
+          {#if board.length < 3}
+            <span class="neg">Wähle mindestens drei Boardkarten – Klick auf die Plätze in der Tischmitte.</span>
+          {:else if estimate}
             <span>Rechnet <b class="num">ca. {duration(seconds)}</b></span>
             <span title={estimate.compressed ? "Passt nur mit platzsparendem 16-Bit-Speicher" : undefined}
               >braucht <b class="num" class:neg={!estimate.fits}>{bytes(estimate.memory_bytes)}</b> Arbeitsspeicher</span

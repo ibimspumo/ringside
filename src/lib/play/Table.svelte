@@ -4,7 +4,7 @@
   import { fit, minHeight, placeOf } from "../table/seats";
   import MiniCard from "../ui/MiniCard.svelte";
   import ProgressRing from "../ui/ProgressRing.svelte";
-  import { num } from "./labels";
+  import { madeOf, num } from "./labels";
   import type { Choice, HandView } from "./types";
 
   /**
@@ -48,14 +48,14 @@
           { box: { w: 116, h: 28 }, dy: 37.5 },
         ],
   );
-  const heightFor = (vw: number) => Math.round(Math.max(minHeight(SIZES, MIDDLE), Math.min(vw * 0.62, vh * 0.52)));
+  const heightFor = (vw: number) => Math.round(Math.max(minHeight(SIZES, MIDDLE), Math.min(vw * 0.6, vh * (vh < 800 ? 0.36 : 0.46), 540)));
   const fitted = $derived(fit(n, w, heightFor, SIZES, MIDDLE, placeOf(button, view.hero, n)));
   const geo = $derived(fitted.geo);
   const scale = $derived(fitted.scale);
   const h = $derived(geo.h);
   const at_ = (seat: number) => geo.places[placeOf(seat, view.hero, n)];
 
-  type Kind = Choice["kind"] | "made";
+  type Kind = Choice["kind"];
   /** Each seat's last action on the street shown; folds stay for the rest of the hand. */
   const badges = $derived.by(() => {
     const out: ({ text: string; kind: Kind } | null)[] = new Array(n).fill(null);
@@ -66,11 +66,6 @@
       } else {
         out[e.seat] = { text: badgeText(e.choice), kind: e.choice.kind };
       }
-    }
-    if (final && view.outcome) {
-      view.outcome.made.forEach((m, s) => {
-        if (m) out[s] = { text: m, kind: "made" };
-      });
     }
     return out;
   });
@@ -86,6 +81,8 @@
   });
 
   const outcome = $derived(final ? view.outcome : null);
+  /** At the showdown each player's hand in words, on their plate instead of the stack. */
+  const made = (s: number) => (outcome?.reason === "showdown" && outcome.made[s] && !snap.folded[s] ? (madeOf(view, s) ?? outcome.made[s]) : null);
   const winners = $derived(outcome?.winners ?? []);
   /** Cards turned up at the end: only players still in the hand show theirs. */
   const shown = (s: number) => (outcome?.reason === "showdown" && !snap.folded[s] ? outcome.shown[s] : null);
@@ -111,14 +108,14 @@
   }
 
   const seats = $derived(Array.from({ length: n }, (_, s) => s));
-  const KIND_NAME: Record<Kind, string> = { fold: "k-fold", check: "k-check", call: "k-call", limp: "k-call", bet: "k-bet", raise: "k-bet", all_in: "k-allin", made: "k-made" };
+  const KIND_NAME: Record<Kind, string> = { fold: "k-fold", check: "k-check", call: "k-call", limp: "k-call", bet: "k-bet", raise: "k-bet", all_in: "k-allin" };
 </script>
 
 <svelte:window bind:innerHeight={vh} />
 
 <div class="wrap" bind:clientWidth={w}>
   <div class="frame" style="height:{h * scale}px">
-  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 11.5 : 12.5}px" aria-label="Pokertisch">
+  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 'var(--fs-xs)' : 'var(--fs-sm)'}" aria-label="Pokertisch">
     <OvalFelt felt={geo.felt} />
 
     <div class="board" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y + MIDDLE[0].dy}px" aria-label="Board">
@@ -153,7 +150,7 @@
             in:slide|global={{ dx: p.seat.x - p.bet.x, dy: p.seat.y - p.bet.y }}
             out:slide|global={{ dx: geo.center.x - p.bet.x, dy: geo.center.y - p.bet.y, out: true }}
           >
-            <span class="chip" aria-hidden="true"></span>{num(snap.bets[s])} BB
+            <span class="coin" aria-hidden="true"></span>{num(snap.bets[s])} BB
           </div>
         {/key}
       {/if}
@@ -171,7 +168,7 @@
     {#if payout}
       {@const p = at_(winners[0])}
       <div class="bet win num" data-part="bet" style="left:{p.bet.x}px; top:{p.bet.y}px" in:slide|global={{ dx: geo.center.x - p.bet.x, dy: geo.center.y - p.bet.y }}>
-        <span class="chip" aria-hidden="true"></span>{payout}
+        <span class="coin" aria-hidden="true"></span>{payout}
       </div>
     {/if}
 
@@ -190,7 +187,7 @@
         data-seat={s}
         style="left:{p.seat.x}px; top:{p.seat.y}px; width:{p.box.w}px; height:{p.box.h}px"
       >
-        <div class="hole" class:big={me}>
+        <div class="hole" class:big={me} class:open={!me && !!shown(s)}>
           {#if me}
             {#key view.seed}
               <span class="deal" style:--d="0ms"><PlayingCard card={view.hero_cards[0]} size={small ? 46 : 54} /></span>
@@ -204,7 +201,13 @@
         </div>
         <div class="plate">
           <b>{me ? `Du · ${view.positions[s]}` : view.positions[s]}</b>
-          <span class="num">{num(snap.stacks[s])} BB</span>
+          {#if made(s)}
+            <span class="made" title="Hand beim Showdown">{made(s)}</span>
+          {:else if winners.includes(s)}
+            <span class="made">gewinnt</span>
+          {:else}
+            <span class="num">{num(snap.stacks[s])} BB</span>
+          {/if}
         </div>
       </div>
     {/each}
@@ -278,9 +281,9 @@
     align-items: center;
     gap: 5px;
     white-space: nowrap;
-    font-size: 13px;
+    font-size: var(--fs-md);
     color: var(--text-2);
-    background: rgba(10, 12, 14, 0.6);
+    background: color-mix(in srgb, var(--bg) 60%, transparent);
     padding: 3px 12px;
     border-radius: 999px;
   }
@@ -289,7 +292,7 @@
   }
   .pot b {
     color: var(--text);
-    font-size: 15px;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
   .seat {
@@ -303,20 +306,24 @@
     z-index: 2;
   }
   .seat.out {
-    opacity: 0.45;
+    opacity: 0.6;
   }
   .hole {
     display: flex;
     gap: 3px;
     margin-bottom: -12px;
   }
+  /* Cards turned up stand almost clear of the plate, so both ranks and suits read. */
+  .hole.open {
+    margin-bottom: -3px;
+  }
   .hole.big {
     gap: 5px;
-    margin-bottom: -14px;
+    margin-bottom: -8px;
   }
   .flip {
     display: inline-flex;
-    animation: flip calc(var(--ms) + 150ms) var(--ease-move) both;
+    animation: flip calc(var(--ms) + var(--dur-fast)) var(--ease-move) both;
   }
   @keyframes flip {
     from {
@@ -334,8 +341,8 @@
     background: var(--plate);
     box-shadow:
       inset 0 0 0 1px var(--plate-edge),
-      0 6px 16px rgba(0, 0, 0, 0.4);
-    font-size: 12.5px;
+      var(--shadow-2);
+    font-size: var(--fs-md);
     line-height: 1.3;
     transition: box-shadow calc(var(--ms) * 0.4) var(--ease-move);
   }
@@ -347,6 +354,14 @@
     color: var(--text-2);
     font-size: 13px;
   }
+  .plate .made {
+    color: var(--text);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .won .plate .made {
+    color: var(--pos);
+  }
   .me .plate {
     background: var(--surface-3);
   }
@@ -354,7 +369,7 @@
     box-shadow:
       inset 0 0 0 2px var(--focus),
       0 0 0 4px color-mix(in srgb, var(--focus) 22%, transparent),
-      0 6px 16px rgba(0, 0, 0, 0.4);
+      var(--shadow-2);
   }
   .just .plate {
     animation: pulse calc(var(--ms) * 1.2) var(--ease-move);
@@ -363,13 +378,13 @@
     from {
       box-shadow:
         inset 0 0 0 2px var(--text-2),
-        0 6px 16px rgba(0, 0, 0, 0.4);
+        var(--shadow-2);
     }
   }
   .won .plate {
     box-shadow:
       inset 0 0 0 2px var(--pos),
-      0 6px 16px rgba(0, 0, 0, 0.4);
+      var(--shadow-2);
   }
   .badge {
     --k: var(--text-3);
@@ -384,7 +399,7 @@
     display: inline-flex;
     align-items: center;
     border-radius: 999px;
-    font-size: calc(var(--fs) - 0.5px);
+    font-size: var(--fs);
     font-weight: 600;
     line-height: 1;
     white-space: nowrap;
@@ -407,10 +422,6 @@
   .badge.k-allin {
     --k: var(--act-allin);
   }
-  .badge.k-made {
-    --k: var(--text-2);
-    max-width: none;
-  }
   .bet {
     position: absolute;
     z-index: 2;
@@ -424,7 +435,7 @@
     font-weight: 600;
     white-space: nowrap;
     border-radius: 999px;
-    background: rgba(10, 12, 14, 0.62);
+    background: color-mix(in srgb, var(--bg) 62%, transparent);
     color: var(--text);
   }
   .bet.stack {
@@ -437,19 +448,19 @@
     border-radius: 8px;
     font-size: 11px;
   }
-  .bet.stack .chip {
+  .bet.stack .coin {
     width: 13px;
     height: 13px;
   }
   .bet.win {
     color: var(--pos);
   }
-  .chip {
+  .coin {
     width: 16px;
     height: 16px;
     border-radius: 50%;
-    background: radial-gradient(circle, var(--amber) 0 36%, color-mix(in srgb, var(--amber) 70%, #000) 38% 62%, var(--amber) 64%);
-    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5);
+    background: radial-gradient(circle, var(--amber) 0 36%, color-mix(in srgb, var(--amber) 70%, var(--bg)) 38% 62%, var(--amber) 64%);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--bg) 50%, transparent);
   }
   .dealer {
     position: absolute;
@@ -464,7 +475,7 @@
     font-weight: 700;
     display: grid;
     place-items: center;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-1);
   }
   .reveal {
     display: flex;

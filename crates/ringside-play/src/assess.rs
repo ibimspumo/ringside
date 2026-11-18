@@ -25,9 +25,26 @@ pub struct Situation<'a> {
     pub to_call: f64,
     /// Chips behind of each seat, BB.
     pub stacks: &'a [f64],
+    /// Chips in front of each seat on this street, BB.
+    pub bets: &'a [f64],
+    /// For each of `opponents`: its range from the preflop model's line, weight per hand
+    /// class; `None` once the line left the model.
+    pub ranges: Vec<Option<Vec<f64>>>,
+    /// Every move after the flop so far, in order.
+    pub moves: Vec<Move>,
+    /// The seat that bet or raised last.
+    pub aggressor: Option<usize>,
     pub choices: &'a [Choice],
     /// Why no solution covers the decision.
     pub why: Unrated,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Move {
+    pub street: Street,
+    pub seat: usize,
+    /// As [`Choice::kind`].
+    pub kind: &'static str,
 }
 
 /// A grade source's answer: the frequency of each choice and, if known, its EV in BB.
@@ -36,6 +53,11 @@ pub struct Assessment {
     pub strategy: Vec<f64>,
     pub evs: Option<Vec<f64>>,
     pub equity: Option<f64>,
+    /// Share of the calibration spots where the source's grade was within one step of the
+    /// solver's, shown beside the verdict.
+    pub reliability: Option<f64>,
+    /// Why the best move is best, in plain words.
+    pub why: Option<String>,
 }
 
 pub trait Assess: Send + Sync {

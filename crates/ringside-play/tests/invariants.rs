@@ -289,13 +289,13 @@ fn a_stored_spot_is_solved_again_where_it_ends() {
     assert!(deeper > 0, "some hands went deeper than the stored spot");
 }
 
-/// Stands in for the calibrated estimate that will grade multiway decisions.
+/// Stands in for the calibrated estimate (tested with it in `ringside-analysis`).
 struct Fixed;
 
 impl Assess for Fixed {
     fn assess(&self, s: &Situation) -> Option<Assessment> {
         let n = s.choices.len();
-        Some(Assessment { strategy: (0..n).map(|k| if k == 0 { 1.0 } else { 0.0 }).collect(), evs: None, equity: None })
+        Some(Assessment { strategy: (0..n).map(|k| if k == 0 { 1.0 } else { 0.0 }).collect(), evs: None, equity: None, reliability: None, why: None })
     }
 }
 

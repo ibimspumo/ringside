@@ -21,7 +21,7 @@ use ringside_engine::{Card, CardSet, Combo, HandCategory, evaluate};
 use ringside_solver::{ActionKind, Node, NodeKind, Player, Spot, Step as PostStep};
 use serde::Serialize;
 
-use crate::assess::{Assess, Situation};
+use crate::assess::{Assess, Move, Situation};
 use crate::free::{self, Round};
 use crate::grade::{HINT_FACTOR, Judgement, judge};
 use crate::model::{End, Walk};
@@ -308,6 +308,10 @@ pub struct Lesson {
     /// Path of the postflop node, for opening it in the solver.
     pub path: Option<Vec<PostStep>>,
     pub exploitability_pct: Option<f64>,
+    /// For [`Source::Estimate`]: how often its grade was within one step of the solver's.
+    pub reliability: Option<f64>,
+    /// Why the best move is best, where the source says it.
+    pub why: Option<String>,
     /// The postflop spot `path` belongs to.
     #[serde(skip)]
     pub spot_id: Option<u64>,
@@ -1189,6 +1193,8 @@ impl Hand {
             grid: None,
             path: None,
             exploitability_pct: None,
+            reliability: None,
+            why: None,
             spot_id: None,
         };
         match &self.phase {
@@ -1235,6 +1241,7 @@ impl Hand {
                 let why = self.free_why.unwrap_or(Unrated::NoSolve);
                 let opponents: Vec<usize> = (0..self.n).filter(|&s| s != me && !self.folded[s]).collect();
                 let stacks = self.stacks();
+                let ranges = opponents.iter().map(|&s| self.model_range(s)).collect();
                 let situation = Situation {
                     street: self.street,
                     board: &self.deal.board[..self.board_len],
@@ -1245,12 +1252,21 @@ impl Hand {
                     pot,
                     to_call: r.to_call(me),
                     stacks: &stacks,
+                    bets: &self.street_put,
+                    ranges,
+                    moves: self.postflop_moves(),
+                    aggressor: self.aggressor(),
                     choices: &choices,
                     why,
                 };
                 let found = self.assess.as_ref().and_then(|a| a.assess(&situation)).filter(|x| x.strategy.len() == choices.len());
                 let mut l = match found {
-                    Some(x) => base(Source::Estimate, Some(x.strategy), x.evs, x.equity),
+                    Some(x) => {
+                        let mut l = base(Source::Estimate, Some(x.strategy), x.evs, x.equity);
+                        l.reliability = x.reliability;
+                        l.why = x.why;
+                        l
+                    }
                     None => base(Source::Estimate, None, None, None),
                 };
                 if l.strategy.is_none() {
@@ -1261,6 +1277,34 @@ impl Hand {
             }
             Phase::Solve { .. } | Phase::Over => None,
         }
+    }
+
+    /// The preflop model's range of `seat` along the hand's line, weight per class.
+    fn model_range(&self, seat: usize) -> Option<Vec<f64>> {
+        let sol = &self.deep.as_ref()?.solution;
+        let steps: Vec<(usize, usize)> = self.pre_path.iter().copied().filter(|&(v, _)| sol.nodes[v].seat == seat).collect();
+        Some(
+            (0..NUM_CLASSES)
+                .map(|c| steps.iter().map(|&(v, a)| sol.nodes[v].freq[a][c]).map(|f| if ringside_engine::preflop::taken(f) { f } else { 0.0 }).product())
+                .collect(),
+        )
+    }
+
+    fn postflop_moves(&self) -> Vec<Move> {
+        self.events
+            .iter()
+            .filter_map(|e| match e {
+                Event::Action { street, seat, choice, .. } if *street != Street::Preflop => Some(Move { street: *street, seat: *seat, kind: choice.kind }),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn aggressor(&self) -> Option<usize> {
+        self.events.iter().rev().find_map(|e| match e {
+            Event::Action { seat, choice, .. } if matches!(choice.kind, "bet" | "raise" | "all_in") => Some(*seat),
+            _ => None,
+        })
     }
 
     /// Shows the strategy before the move; the decision then counts only partly.

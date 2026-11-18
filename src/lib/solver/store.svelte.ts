@@ -2,7 +2,17 @@ import { api, onSolverDone, onSolverProgress, onSolverReleased } from "../api";
 import type { Crumb } from "./play";
 import { defaultSpot } from "./presets";
 import { oopIp, positionsFor, type Scenario } from "./scenario";
-import type { SolveInfo, SolverPlayer, SolverPrefill, SolverProgress, SolverSettings, SolverSpot, SolverStep, SolverSummary } from "./types";
+import type {
+  ModelLine,
+  SolveInfo,
+  SolverPlayer,
+  SolverPrefill,
+  SolverProgress,
+  SolverSettings,
+  SolverSpot,
+  SolverStep,
+  SolverSummary,
+} from "./types";
 
 /** What the table shows around a spot: its size, seats and the preflop action. */
 export interface TableInfo {
@@ -38,6 +48,8 @@ export const solver = $state({
   custom: { oop: false, ip: false },
   /** Where the derived ranges came from, e.g. "aus dem Preflop-Modell, 8-max, 40 BB". */
   origin: "",
+  /** The preflop line of ranges that are exactly the model's; such a spot is shared. */
+  model: null as ModelLine | null,
   labels: {} as Record<string, string>,
   view: "setup" as "setup" | "result" | "practice" | "saved",
   status: "idle" as Status,
@@ -83,6 +95,7 @@ function solveInfo(): SolveInfo {
     ranges,
     source: fromLibrary ? "library" : solver.source ? "hand" : "own",
     hand_id: null,
+    model: solver.custom.oop || solver.custom.ip || solver.source ? null : solver.model,
   };
 }
 
@@ -168,6 +181,7 @@ export function applyPrefill(p: SolverPrefill) {
   solver.positions = { oop: p.oop.position, ip: p.ip.position };
   solver.custom = { oop: false, ip: false };
   solver.origin = "";
+  solver.model = null;
   solver.labels = {};
   const players = tableFor(p.players ?? solver.scenario.players, [p.oop.position, p.ip.position]);
   // Roughly the depth the hand started at: what is left plus each player's half of the pot.

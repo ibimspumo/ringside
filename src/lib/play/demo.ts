@@ -3,6 +3,7 @@
 // the page can be seen without Tauri. Calling the 3-bet leaves the prepared line: the flop is
 // "solved live" for a few seconds, and cancelling plays the hand on without grades.
 import { CLASSES, classCombos, classLabel, comboClass } from "../solver/range";
+import { positionsFor } from "../solver/scenario";
 import type { SolverNode } from "../solver/types";
 import type {
   Choice,
@@ -310,6 +311,32 @@ function handHeadsUp(): Script {
   return { seat: 0, stack: 40, ante: [0, 1], cards: [["Kh", "9h"], ["Qd", "7c"]], positions: ["SB", "BB"], script: [{ kind: "decide", d: pre }], auto: 2 };
 }
 
+/**
+ * The 6-max hand at a fuller table: `extra` early seats in front, who fold before the LJ.
+ * Every seat of the script moves up by `extra`.
+ */
+function wider(hand: Script, extra: number): Script {
+  if (extra <= 0) return hand;
+  const seat = (s: number) => s + extra;
+  const steps = (list: Step[]): Step[] =>
+    list.map((st) => {
+      if (st.kind === "act") return { ...st, seat: seat(st.seat) };
+      if (st.kind === "decide") return { ...st, d: { ...st.d, after: (k: number) => steps(st.d.after(k)) } };
+      if (st.kind === "end") return { ...st, winners: st.winners.map(seat), shown: st.shown.map(seat), made: st.made.length ? [...new Array(extra).fill(null), ...st.made] : [] };
+      return st;
+    });
+  const folds: Step[] = Array.from({ length: extra }, (_, s) => ({ kind: "act", seat: s, choice: c("fold", 0, 0) }));
+  const deck = ["Qh", "4s", "7c", "5d", "6c", "2h"];
+  return {
+    ...hand,
+    seat: seat(hand.seat),
+    ante: [...new Array(extra).fill(0), ...hand.ante],
+    cards: [...Array.from({ length: extra }, (_, s) => [deck[2 * s], deck[2 * s + 1]]), ...hand.cards],
+    positions: positionsFor(hand.cards.length + extra),
+    script: [...folds, ...steps(hand.script)],
+  };
+}
+
 // --- A tiny engine that plays a script into hand views ---------------------------------------
 
 type State = {
@@ -353,9 +380,10 @@ function lessonOf(s: State, d: Decide): Lesson {
   const top = Math.max(...s.streetPut);
   const toCall = Math.max(0, top - s.streetPut[s.hand.seat]);
   const cls = comboClass(s.hand.cards[s.hand.seat][0], s.hand.cards[s.hand.seat][1]);
+  if (s.unrated && d.street !== "preflop") return estimated(d, snap.pot, toCall, classLabel(cls));
   if (s.unrated) {
     const none = { street: d.street, choices: d.choices, source: null, strategy: null, unrated: s.unrated, evs: null, pot: snap.pot, to_call: toCall, equity: null };
-    return { ...none, class: classLabel(cls), node: null, grid: null, path: null, exploitability_pct: null };
+    return { ...none, class: classLabel(cls), node: null, grid: null, path: null, exploitability_pct: null, reliability: null, why: null };
   }
   const isPost = d.street !== "preflop";
   return {
@@ -373,6 +401,47 @@ function lessonOf(s: State, d: Decide): Lesson {
     grid: isPost ? null : d.source === "equilibrium" ? grid(2, 1, 0.42) : grid(d.choices.length, d.agg ?? 1, 0.5),
     path: isPost ? [] : null,
     exploitability_pct: isPost ? (d.source === "live" ? 1.8 : 0.8) : null,
+    reliability: null,
+    why: null,
+  };
+}
+
+/** Measured agreement of the estimate with the solver per street, as the app stores it. */
+const RELIABILITY: Record<Street, number> = { preflop: 0.87, flop: 0.76, turn: 0.74, river: 0.66 };
+
+/** After a stopped solve the app grades by the estimate; the demo reuses the spot's numbers in its sentences. */
+function estimated(d: Decide, pot: number, toCall: number, cls: string): Lesson {
+  // As the app's estimate: folding brings 0, every other move what it brings over it.
+  const fold = d.choices.findIndex((c) => c.kind === "fold");
+  const evs = fold < 0 ? d.evs : d.evs.map((e) => e - d.evs[fold]);
+  const top = Math.max(...evs);
+  const near = evs.map((e) => ((top - e) / pot) * 100 <= 0.5);
+  const share = 1 / near.filter(Boolean).length;
+  const equity = d.equity ?? 0.5;
+  const pct = (x: number) => `${Math.round(x * 100)} %`;
+  const why = [`Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt ${pct(equity)} Equity.`];
+  if (toCall > 0) {
+    const need = toCall / (pot + toCall);
+    why.push(equity >= need + 0.05 ? `Ein Call braucht nur ${pct(need)}, das reicht klar.` : equity > need - 0.05 ? `Ein Call braucht ${pct(need)}, das ist knapp.` : `Ein Call bräuchte ${pct(need)}, das reicht nicht.`);
+    if (Math.abs(equity - need) <= 0.05) why.push("Equity und Preis liegen so nah beieinander, dass die Schätzung hier unsicher ist.");
+  }
+  return {
+    street: d.street,
+    choices: d.choices,
+    source: "estimate",
+    strategy: near.map((x) => (x ? share : 0)),
+    unrated: null,
+    evs,
+    pot,
+    to_call: toCall,
+    equity,
+    class: cls,
+    node: null,
+    grid: null,
+    path: null,
+    exploitability_pct: null,
+    reliability: RELIABILITY[d.street],
+    why: why.join(" "),
   };
 }
 
@@ -424,7 +493,7 @@ function run(s: State) {
         pot: s.view.snapshots[s.view.snapshots.length - 1].pot,
         to_call: Math.max(0, top - s.streetPut[s.hand.seat]),
         hinted: s.hinted,
-        graded: !s.unrated,
+        graded: !s.unrated || s.street !== "preflop",
       };
       break;
     } else if (step.kind === "solve") {
@@ -525,7 +594,8 @@ export function liveCancel(): HandView | null {
 
 function start(config: PlayConfig, seed: number): HandView {
   stopSolve();
-  const hand = config.players === 2 ? handHeadsUp() : config.mode === "push_fold" ? handB() : handA(config.mode === "full");
+  const six = config.mode === "push_fold" ? handB() : handA(config.mode === "full");
+  const hand = config.players === 2 ? handHeadsUp() : wider(six, Math.min(3, config.players - 6));
   const n = hand.cards.length;
   const put = new Array(n).fill(0);
   put[n - 2] = 0.5;

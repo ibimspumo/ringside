@@ -18,6 +18,7 @@
   import MiniCard from "../ui/MiniCard.svelte";
   import { usePageHead } from "../ui/page.svelte";
   import Panel from "../ui/Panel.svelte";
+  import Reason from "../ui/Reason.svelte";
   import { GRADES, type Grade } from "../ui/poker";
   import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
@@ -177,7 +178,7 @@
     {:else}
       <p class="better">Richtig gespielt.</p>
     {/if}
-    {#if m.why}<p class="why">{m.why}</p>{/if}
+    {#if m.why && bad}<Reason text={m.why} />{:else if m.why}<p class="why">{m.why}</p>{/if}
     <footer>
       {#if m.source}<span class="src">{SOURCE[m.source].label}</span>{/if}
       <Button size="sm" onclick={() => onHand(m.hand_id, m.action_index)}>Abspielen</Button>

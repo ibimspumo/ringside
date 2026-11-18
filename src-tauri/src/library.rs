@@ -7,7 +7,7 @@
 //! while PokerStars runs; a solve stops within an iteration when that changes and starts
 //! over later. Before it solves a spot it asks the cloud, and afterwards it shares the
 //! spot if the user allows it. `shared.json` remembers what became of every shared spot;
-//! now and then the worker asks the cloud whether the verifier has checked them. Solves
+//! now and then the worker asks the cloud about the ones still waiting for it. Solves
 //! take the cores the power setting allows and at most a quarter of the memory. Progress
 //! survives a restart because every finished spot is a file.
 
@@ -24,8 +24,9 @@ use ringside_cloud::kinds::{Postflop, PostflopInput, PostflopSolution};
 use ringside_cloud::packs::{self, Packs, newest_version};
 use ringside_cloud::worker::{self, Power, Solved, Task};
 use ringside_cloud::{Client, Error as CloudError, Kind as _, KeyStatus, SubmitStatus, Work};
-use ringside_solver::library::format::{Stored, unpack};
+use ringside_solver::library::format::{Stored, encode, unpack};
 use ringside_solver::library::{PotType, SpotId, catalog, solve_spot};
+use ringside_solver::gate::Priority;
 use ringside_solver::{Error as SolverError, Progress, Spot, Summary};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -113,6 +114,8 @@ pub enum Wait {
     IdleUnknown,
     /// The user works with the app.
     InUse,
+    /// A more urgent calculation runs: what the user looks at, new hands, practice.
+    Busy,
 }
 
 /// Why the worker may not solve now; `None` when it may.
@@ -206,30 +209,12 @@ fn due(last: &Mutex<Option<Instant>>, every: Duration) -> bool {
 // -----------------------------------------------------------------------------------
 // Files.
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Source {
-    /// Solved on this computer.
-    Local,
-    /// From a signed pack or Ringside Cloud.
-    Cloud,
-}
+pub(crate) use crate::store::Source;
+use crate::store::{library_path as spot_path, library_status as status_of, read_library, write_atomic as write_file};
 
+/// The library's folder in the data folder.
 pub(crate) fn root(app: &AppHandle) -> Option<PathBuf> {
-    Some(crate::data_dir(app).ok()?.join("library").join(format!("v{}", catalog().version)))
-}
-
-pub(crate) fn spot_path(root: &Path, source: Source, id: SpotId) -> PathBuf {
-    let c = catalog();
-    let dir = match source {
-        Source::Local => "local",
-        Source::Cloud => "cloud",
-    };
-    root.join(dir).join(&c.scenarios[id.scenario].id).join(format!("{}.rsls", c.flops[id.flop]))
-}
-
-pub(crate) fn status_of(root: &Path, id: SpotId) -> Option<Source> {
-    [Source::Local, Source::Cloud].into_iter().find(|&s| spot_path(root, s, id).is_file())
+    Some(crate::store::library_root(&crate::data_dir(app).ok()?))
 }
 
 fn all_spots() -> impl Iterator<Item = SpotId> {
@@ -237,16 +222,10 @@ fn all_spots() -> impl Iterator<Item = SpotId> {
     (0..c.scenarios.len()).flat_map(move |scenario| (0..c.flops.len()).map(move |flop| SpotId { scenario, flop }))
 }
 
-/// Writes next to the real name first, so a crash never leaves half a file under it.
-fn write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    std::fs::create_dir_all(path.parent().expect("library files have a directory")).map_err(err)?;
-    let tmp = path.with_extension("part");
-    std::fs::write(&tmp, bytes).map_err(err)?;
-    std::fs::rename(&tmp, path).map_err(err)
-}
-
-fn write(root: &Path, source: Source, id: SpotId, bytes: &[u8]) -> Result<(), String> {
-    write_file(&spot_path(root, source, id), bytes)
+/// Writes a library spot through the store, which files it in its index.
+fn write(app: &AppHandle, root: &Path, source: Source, id: SpotId, bytes: &[u8]) -> Result<(), String> {
+    let data = crate::data_dir(app).map_err(err)?;
+    crate::store::write_library(&app.state::<AppState>(), &data, root, source, id, bytes)
 }
 
 fn disk_bytes(dir: &Path) -> u64 {
@@ -267,11 +246,12 @@ fn disk_bytes(dir: &Path) -> u64 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShareState {
-    /// Uploaded, waits for the verifier.
+    /// Uploaded, waits for the verifier (a server from before accepting at once).
     Submitted,
-    /// Checked by the verifier and served to everyone.
-    Verified,
-    /// The verifier refused it.
+    /// Served to everyone: its form checked out, or the verifier re-solved it.
+    #[serde(alias = "verified")]
+    Served,
+    /// Refused, or withdrawn after a failed sample check.
     Rejected,
     /// The upload failed; tried again later.
     Failed,
@@ -323,7 +303,7 @@ fn share(app: &AppHandle, root: &Path, id: SpotId, stored: &Stored, size: usize)
                 update(app, |s| s.shared += 1);
                 let state = match status {
                     SubmitStatus::Submitted => ShareState::Submitted,
-                    SubmitStatus::AlreadyVerified => ShareState::Verified,
+                    SubmitStatus::Accepted | SubmitStatus::AlreadyVerified => ShareState::Served,
                 };
                 Shared { state, at, note: None }
             }
@@ -346,7 +326,7 @@ fn share(app: &AppHandle, root: &Path, id: SpotId, stored: &Stored, size: usize)
 fn after_check(known: Option<&Shared>, status: KeyStatus, now: u64) -> Option<Shared> {
     let at = known.map_or(now, |s| s.at);
     match (status, known) {
-        (KeyStatus::Verified, _) => Some(Shared { state: ShareState::Verified, at, note: None }),
+        (KeyStatus::Accepted | KeyStatus::Verified, _) => Some(Shared { state: ShareState::Served, at, note: None }),
         (KeyStatus::Submitted, _) => Some(Shared { state: ShareState::Submitted, at, note: None }),
         (KeyStatus::Rejected(note), Some(_)) => Some(Shared { state: ShareState::Rejected, at, note }),
         // Someone else's copy was rejected or the server has none; ours never went up.
@@ -412,7 +392,7 @@ fn upload_next(app: &AppHandle, root: &Path) {
         })
     });
     let Some(id) = id else { return };
-    let Ok(bytes) = std::fs::read(spot_path(root, Source::Local, id)) else { return };
+    let Ok(bytes) = read_library(root, Source::Local, id) else { return };
     match Stored::from_bytes(&bytes, catalog()) {
         Ok(stored) => share(app, root, id, &stored, bytes.len()),
         Err(e) => update(app, |s| s.last_error = Some(format!("{}: {e}", shared_key(id)))),
@@ -605,10 +585,10 @@ fn tick(app: &AppHandle, offset: usize) -> bool {
         }
         let found = match ahead {
             Some((next, looking)) if next == id => looking.join().ok().flatten(),
-            _ => lookup(app, id),
+            _ => download(app, id),
         };
         if let Some(bytes) = found
-            && write(&root, Source::Cloud, id, &bytes).is_ok()
+            && write(app, &root, Source::Cloud, id, &bytes).is_ok()
         {
             update(app, |s| s.fetched += 1);
             count_manual(app);
@@ -616,12 +596,17 @@ fn tick(app: &AppHandle, offset: usize) -> bool {
         }
         if let Some(next) = next_open(app, &root, offset, Some(id)) {
             let app = app.clone();
-            *state.ahead.lock().unwrap() = Some((next, std::thread::spawn(move || lookup(&app, next))));
+            *state.ahead.lock().unwrap() = Some((next, std::thread::spawn(move || download(&app, next))));
         }
     }
 
     let power = app.state::<AppState>().settings.lock().unwrap().library.power;
     let threads = threads_for(power, cores());
+    let ticket = crate::store::gate().enter(Priority::Community);
+    if !ticket.hold(TICK) {
+        update(app, |s| (s.state, s.reason, s.progress) = ("waiting", Some(Wait::Busy), None));
+        return false;
+    }
     update(app, |s| (s.state, s.reason, s.threads) = ("solving", None, threads));
     let task = match &manual {
         Some(job) => {
@@ -659,14 +644,15 @@ fn tick(app: &AppHandle, offset: usize) -> bool {
     };
     let stop_app = app.clone();
     let stop_task = task.clone();
-    let stop = move || {
+    let stop = || {
         if stop_task.cancelled() {
             HALTED.store(true, Ordering::Relaxed);
         }
-        blocked(&stop_app, mode_of(&stop_app)).is_some()
+        blocked(&stop_app, mode_of(&stop_app)).is_some() || ticket.should_yield()
     };
     let limit = crate::solver::memory_limit() / 2;
     let result = solve_spot(c, id, threads, limit, on_progress, stop);
+    drop(ticket);
     // The user's run is one task for all its spots; it ends in `end_manual`.
     if !is_manual {
         match &result {
@@ -678,7 +664,7 @@ fn tick(app: &AppHandle, offset: usize) -> bool {
     match result {
         Ok(stored) => {
             let bytes = stored.to_bytes();
-            if let Err(e) = write(&root, Source::Local, id, &bytes) {
+            if let Err(e) = write(app, &root, Source::Local, id, &bytes) {
                 update(app, |s| s.last_error = Some(format!("Speichern: {e}")));
                 state.skip.lock().unwrap().insert(id);
                 return true;
@@ -699,14 +685,37 @@ fn tick(app: &AppHandle, offset: usize) -> bool {
     }
 }
 
-/// The spot's file if the cloud has a verified solution of it.
-fn lookup(app: &AppHandle, id: SpotId) -> Option<Vec<u8>> {
+/// The spot's file if the cloud has a solution of it whose form checks out.
+pub(crate) fn download(app: &AppHandle, id: SpotId) -> Option<Vec<u8>> {
     match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<Postflop>(&input_of(id)) {
         Ok(found) => found.and_then(|f| f.bytes().ok()),
         Err(e) => {
             note(app, &e);
             None
         }
+    }
+}
+
+/// A catalog spot solved elsewhere in the app (practice, the solver page): kept in the
+/// library unless it is there already, and shared like the library's own solves when it
+/// is as exact as the library's.
+pub(crate) fn offer(app: &AppHandle, id: SpotId, solution: &mut ringside_solver::Solution) {
+    let c = catalog();
+    let Some(root) = root(app) else { return };
+    if status_of(&root, id).is_some() || solution.summary.exploitability_pct > c.target_pct + 1e-6 {
+        return;
+    }
+    let stored = match encode(solution, c, &c.scenarios[id.scenario], &c.flops[id.flop]) {
+        Ok(s) => s,
+        Err(e) => return eprintln!("library: keeping {}: {e}", shared_key(id)),
+    };
+    let bytes = stored.to_bytes();
+    if let Err(e) = write(app, &root, Source::Local, id, &bytes) {
+        return eprintln!("library: keeping {}: {e}", shared_key(id));
+    }
+    let cloud = app.state::<AppState>().settings.lock().unwrap().cloud;
+    if cloud.share && may_talk(app) {
+        share_aside(app, &root, id, stored, bytes.len());
     }
 }
 
@@ -790,7 +799,7 @@ fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, lab
     if let Task::Postflop { id, .. } = task {
         match status_of(root, id) {
             Some(Source::Local) => {
-                let bytes = std::fs::read(spot_path(root, Source::Local, id)).map_err(err)?;
+                let bytes = read_library(root, Source::Local, id)?;
                 let stored = Stored::from_bytes(&bytes, catalog()).map_err(err)?;
                 share(app, root, id, &stored, bytes.len());
                 return Ok(true);
@@ -818,19 +827,25 @@ fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, lab
             progress_job.detail(format!("Für die Community: {label_text} – {} %", (share.unwrap_or(0.0) * 100.0).round()));
         }
     };
+    let ticket = crate::store::gate().enter(Priority::Community);
+    if !ticket.hold(TICK) {
+        return Ok(false);
+    }
     let stop_app = app.clone();
     let stop_job = job.clone();
-    let stop = move || {
+    let stop = || {
         if stop_job.cancelled() {
             HALTED.store(true, Ordering::Relaxed);
         }
-        stop_job.cancelled() || blocked(&stop_app, mode_of(&stop_app)).is_some()
+        stop_job.cancelled() || blocked(&stop_app, mode_of(&stop_app)).is_some() || ticket.should_yield()
     };
     let power = Power { threads, memory: crate::solver::memory_limit() / 2 };
-    let Some(solved) = worker::solve(&task, power, on_progress, stop)? else { return Ok(false) };
+    let solved = worker::solve(&task, power, on_progress, stop)?;
+    drop(ticket);
+    let Some(solved) = solved else { return Ok(false) };
     if let Solved::Postflop { id, stored, .. } = &solved {
         let bytes = stored.to_bytes();
-        write(root, Source::Local, *id, &bytes)?;
+        write(app, root, Source::Local, *id, &bytes)?;
         share(app, root, *id, stored, bytes.len());
         return Ok(true);
     }
@@ -895,7 +910,7 @@ fn import_packs(app: &AppHandle, root: &Path) -> Result<usize, String> {
                     t.fail(e.to_string());
                 }
             })?;
-            imported += import_pack(root, &bytes)?;
+            imported += import_pack(&app.state::<AppState>(), &crate::data_dir(app).map_err(err)?, root, &bytes)?;
             done += 1;
         }
         seen.imported.push(format!("{name}@{version}"));
@@ -911,7 +926,7 @@ fn import_packs(app: &AppHandle, root: &Path) -> Result<usize, String> {
 
 /// Stores the spots of a pack that are not on this computer yet; each is read and checked
 /// against the catalog first.
-fn import_pack(root: &Path, bytes: &[u8]) -> Result<usize, String> {
+fn import_pack(state: &AppState, data: &Path, root: &Path, bytes: &[u8]) -> Result<usize, String> {
     let c = catalog();
     let mut n = 0;
     for spot in unpack(bytes).map_err(err)? {
@@ -921,7 +936,7 @@ fn import_pack(root: &Path, bytes: &[u8]) -> Result<usize, String> {
             flop: c.flop(&stored.flop).ok_or("flop")?,
         };
         if status_of(root, id).is_none() {
-            write(root, Source::Cloud, id, spot)?;
+            crate::store::write_library(state, data, root, Source::Cloud, id, spot)?;
             n += 1;
         }
     }
@@ -1086,7 +1101,7 @@ pub async fn library_open(scenario: String, flop: String, app: AppHandle) -> Cmd
         };
         let root = root(&app).ok_or("Kein Datenordner")?;
         let source = status_of(&root, id).ok_or("Dieser Spot ist noch nicht in der Bibliothek.")?;
-        let bytes = std::fs::read(spot_path(&root, source, id)).map_err(err)?;
+        let bytes = read_library(&root, source, id)?;
         let stored = Stored::from_bytes(&bytes, c).map_err(err)?;
         let s = &c.scenarios[id.scenario];
         let spot = s.spot(&flop);
@@ -1122,11 +1137,12 @@ mod tests {
     fn packs_import_only_new_catalog_spots() {
         let dir = std::env::temp_dir().join(format!("ringside-library-test-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        assert!(import_pack(&dir, b"not a pack").is_err());
+        let state = crate::solutions::test_state();
+        assert!(import_pack(&state, &dir, &dir, b"not a pack").is_err());
         let empty = ringside_solver::library::format::pack(&[]);
-        assert_eq!(import_pack(&dir, &empty).unwrap(), 0);
+        assert_eq!(import_pack(&state, &dir, &dir, &empty).unwrap(), 0);
         let id = SpotId { scenario: 0, flop: 3 };
-        write(&dir, Source::Local, id, b"x").unwrap();
+        write_file(&spot_path(&dir, Source::Local, id), b"x").unwrap();
         assert_eq!(status_of(&dir, id), Some(Source::Local));
         assert_eq!(status_of(&dir, SpotId { scenario: 0, flop: 4 }), None);
         assert_eq!(disk_bytes(&dir), 1);
@@ -1148,8 +1164,10 @@ mod tests {
     #[test]
     fn cloud_answers_update_what_was_shared() {
         let sent = Shared { state: ShareState::Submitted, at: 100, note: None };
-        let verified = after_check(Some(&sent), KeyStatus::Verified, 500).unwrap();
-        assert_eq!((verified.state, verified.at), (ShareState::Verified, 100), "keeps the upload time");
+        for status in [KeyStatus::Accepted, KeyStatus::Verified] {
+            let served = after_check(Some(&sent), status, 500).unwrap();
+            assert_eq!((served.state, served.at), (ShareState::Served, 100), "keeps the upload time");
+        }
         let rejected = after_check(Some(&sent), KeyStatus::Rejected(Some("why".into())), 500).unwrap();
         assert_eq!((rejected.state, rejected.note.as_deref()), (ShareState::Rejected, Some("why")));
         assert_eq!(after_check(Some(&sent), KeyStatus::Unknown, 500), None, "lost upload goes up again");
@@ -1183,6 +1201,7 @@ mod tests {
     fn downloads_the_signed_library_pack() {
         let dir = std::env::temp_dir().join(format!("ringside-library-pack-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
+        let state = crate::solutions::test_state();
         let client = Packs::new(packs::DEFAULT_BASE_URL);
         let index = client.index(0).expect("signed index");
         let mut imported = 0;
@@ -1190,7 +1209,7 @@ mod tests {
             let version = newest_version(versions.keys()).expect("a version");
             for f in &versions[version].files {
                 let bytes = client.file(name, version, f).expect("file matches the index");
-                let n = import_pack(&dir, &bytes).expect("spots read against the catalog");
+                let n = import_pack(&state, &dir, &dir, &bytes).expect("spots read against the catalog");
                 println!("{name} {version} {}: {n} spots, {} bytes", f.path, bytes.len());
                 imported += n;
             }

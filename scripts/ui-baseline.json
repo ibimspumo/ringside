@@ -1,11 +1,9 @@
 {
   "rules": {
     "color-literal": {
-      "total": 161,
+      "total": 144,
       "files": {
-        "app/LiveTables.svelte": 1,
         "app/Main.svelte": 1,
-        "app/PlayerDetail.svelte": 2,
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
         "demo.ts": 3,
@@ -35,11 +33,7 @@
         "learn/wissen/Preview.svelte": 1,
         "learn/wissen/widgets/Outs.svelte": 4,
         "learn/wissen/widgets/StackRuler.svelte": 1,
-        "library/Library.svelte": 1,
-        "library/RunControl.svelte": 2,
         "Logo.svelte": 5,
-        "play/Start.svelte": 2,
-        "play/Table.svelte": 9,
         "play/VerdictCard.svelte": 1,
         "ranges/labels.ts": 2,
         "ranges/RangeGrid.svelte": 1,
@@ -50,12 +44,9 @@
       }
     },
     "font-size": {
-      "total": 235,
+      "total": 181,
       "files": {
         "app/ClientLock.svelte": 1,
-        "app/LiveTables.svelte": 3,
-        "app/PlayerDetail.svelte": 9,
-        "app/Players.svelte": 2,
         "app/Reports.svelte": 3,
         "app/TournamentPicker.svelte": 1,
         "hud/ClassicBox.svelte": 3,
@@ -88,14 +79,7 @@
         "learn/wissen/widgets/PotOdds.svelte": 1,
         "learn/wissen/widgets/StackRuler.svelte": 3,
         "learn/wissen/Wissen.svelte": 4,
-        "library/Library.svelte": 14,
-        "library/RunControl.svelte": 5,
         "play/InfoPanel.svelte": 5,
-        "play/Play.svelte": 10,
-        "play/SessionStats.svelte": 3,
-        "play/Start.svelte": 4,
-        "play/Table.svelte": 3,
-        "play/Timeline.svelte": 1,
         "play/VerdictCard.svelte": 4,
         "ranges/RangeGrid.svelte": 3,
         "ranges/Ranges.svelte": 10,
@@ -110,15 +94,12 @@
       }
     },
     "button-style": {
-      "total": 146,
+      "total": 130,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
         "app/Hands.svelte": 1,
-        "app/LiveTables.svelte": 1,
         "app/Main.svelte": 4,
-        "app/PlayerDetail.svelte": 1,
-        "app/Players.svelte": 1,
         "app/Replayer.svelte": 6,
         "app/TournamentPicker.svelte": 6,
         "hud/SeatAnatomy.svelte": 4,
@@ -136,12 +117,9 @@
         "learn/wissen/widgets/CbetRange.svelte": 2,
         "learn/wissen/widgets/Outs.svelte": 5,
         "learn/wissen/Wissen.svelte": 3,
-        "library/Library.svelte": 7,
-        "library/RunControl.svelte": 1,
         "play/InfoPanel.svelte": 4,
-        "play/Play.svelte": 7,
-        "play/PoolChip.svelte": 1,
-        "play/Start.svelte": 4,
+        "play/Play.svelte": 5,
+        "play/Start.svelte": 2,
         "play/Timeline.svelte": 4,
         "ranges/Ranges.svelte": 8,
         "solver/ActionBar.svelte": 4,
@@ -155,13 +133,10 @@
       }
     },
     "global-class-override": {
-      "total": 93,
+      "total": 63,
       "files": {
         "app/ClientLock.svelte": 1,
-        "app/LiveTables.svelte": 8,
         "app/Main.svelte": 3,
-        "app/PlayerDetail.svelte": 3,
-        "app/Players.svelte": 7,
         "app/Reports.svelte": 3,
         "app/ResultsChart.svelte": 1,
         "hud/GraphicSeat.svelte": 1,
@@ -179,12 +154,7 @@
         "learn/wissen/blocks/TableDiagram.svelte": 4,
         "learn/wissen/widgets/Combos.svelte": 3,
         "learn/wissen/Wissen.svelte": 3,
-        "library/RunControl.svelte": 1,
         "play/InfoPanel.svelte": 3,
-        "play/Play.svelte": 1,
-        "play/SessionStats.svelte": 2,
-        "play/Start.svelte": 6,
-        "play/Table.svelte": 2,
         "ranges/RangeGrid.svelte": 1,
         "ranges/Ranges.svelte": 3,
         "solver/HandDetail.svelte": 1,
@@ -201,7 +171,7 @@
       "files": {}
     },
     "motion": {
-      "total": 50,
+      "total": 44,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -227,11 +197,6 @@
         "learn/wissen/widgets/PotOdds.svelte": 2,
         "learn/wissen/widgets/StackRuler.svelte": 2,
         "learn/wissen/Wissen.svelte": 1,
-        "library/Library.svelte": 1,
-        "library/RunControl.svelte": 2,
-        "play/PoolChip.svelte": 1,
-        "play/Start.svelte": 1,
-        "play/Table.svelte": 1,
         "solver/Term.svelte": 1
       }
     },

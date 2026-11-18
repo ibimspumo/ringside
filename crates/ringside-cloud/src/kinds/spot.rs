@@ -29,7 +29,7 @@ use ringside_engine::Card;
 use ringside_play::scenario::{PotType, Scenario as ModelScenario, heads_up, steer};
 use ringside_solver::library::catalog::{Catalog, PotType as LibraryPot, Scenario};
 use ringside_solver::library::flops::canonical;
-use ringside_solver::library::format::Stored;
+use ringside_solver::library::format::{Stored, reported_exploitability};
 use ringside_solver::library::check;
 use ringside_solver::{Spot, StreetSizes, estimate};
 use serde::{Deserialize, Serialize};
@@ -356,6 +356,11 @@ impl Kind for SpotKind {
         // The memory estimate in `check_input` builds the tree; the form check suffices.
         input.model()?;
         solution.stored(input).map(|_| ())
+    }
+
+    fn reported(solution: &SpotSolution) -> Result<Option<f64>, String> {
+        let bytes = solution.bytes()?;
+        Ok(Some(reported_exploitability(&bytes).map_err(|e| e.to_string())? as f64))
     }
 }
 

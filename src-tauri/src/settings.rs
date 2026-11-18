@@ -201,11 +201,14 @@ pub struct CloudSettings {
     /// Offer own solutions: calculation input and result, nothing about the user.
     pub share: bool,
     pub notice_seen: bool,
+    /// Practice takes spots that are solved already, also by other players; off: only
+    /// spots this computer solved, on freshly dealt flops.
+    pub practice_ready: bool,
 }
 
 impl Default for CloudSettings {
     fn default() -> Self {
-        CloudSettings { fetch: true, share: true, notice_seen: false }
+        CloudSettings { fetch: true, share: true, notice_seen: false, practice_ready: true }
     }
 }
 
@@ -348,7 +351,8 @@ mod tests {
         assert_eq!(s.hand_history_dirs, ["C:/HH"]);
         assert_eq!(s.hud.scale, 1.2);
         assert_eq!(s.hud.mode, OverlayMode::Graphic);
-        assert_eq!(s.cloud, CloudSettings { fetch: true, share: true, notice_seen: false }, "cloud on, notice not seen");
+        assert_eq!(s.cloud, CloudSettings::default(), "cloud on, notice not seen");
+        assert!(s.cloud.practice_ready && !s.cloud.notice_seen);
         assert!(s.analysis.auto, "new hands are rated automatically unless switched off");
     }
 

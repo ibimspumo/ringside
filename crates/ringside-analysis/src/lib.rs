@@ -13,6 +13,7 @@
 //!   a queue ([`postflop`]). Source [`Source::Solver`].
 //! - Everything else is stored as not rated, with the reason.
 
+pub mod assess;
 pub mod calibration;
 pub mod coverage;
 pub mod drill;
@@ -25,6 +26,7 @@ mod pushfold;
 pub mod ranges;
 pub mod replay;
 mod seats;
+pub mod why;
 
 use rayon::prelude::*;
 pub use ringside_core::db::{Choice, Decision, HandAnalysis, Rating, Source, SpotType, Status};
@@ -36,7 +38,7 @@ use serde::Serialize;
 pub use postflop::{PostflopJob, solve_job};
 
 /// Stored with every decision; a hand analysed with another version is analysed again.
-pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.3");
+pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.5");
 
 /// The analysis of one hand. Postflop decisions are pending until their job is solved;
 /// what neither the tables nor the solver cover is estimated ([`replay::rate`]), forced

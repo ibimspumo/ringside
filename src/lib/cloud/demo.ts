@@ -5,6 +5,7 @@ let store: CloudSettings = {
   fetch: true,
   share: true,
   notice_seen: new URLSearchParams(window.location.search).has("cloudseen"),
+  practice_ready: true,
 };
 
 let hands: MalformedHand[] = [

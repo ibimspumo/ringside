@@ -15,7 +15,7 @@ use ringside_learn::{Answer, Kind, OwnSpot, Prompt, TableSpot, detect_spots};
 
 use crate::fmt::{bb, num};
 use crate::seats::{ante_name, nearest};
-use crate::{ChartKind, ChartTarget, base_at, pot_before, score, unrated};
+use crate::{ChartKind, ChartTarget, base_at, pot_before, score, unrated, why};
 
 type Key = (Ante, usize, u64);
 const CACHE_LIMIT: usize = 64;
@@ -116,19 +116,23 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
     if !sol.converged {
         note.push(format!("Lösung nicht voll konvergiert (bis {})", bb(sol.exploitability)));
     }
-    let (range, verb) = if shover.is_some() { ("Call-Range", "gecallt") } else { ("Shove-Range", "geschoben") };
-    let fits = if s.freq >= 0.9 {
-        "gehört deine Hand in die"
-    } else if s.freq > 0.1 {
-        "liegt deine Hand an der Grenze der"
-    } else {
-        "gehört deine Hand nicht in die"
+    let node = &sol.nodes[s.node];
+    let margin = |c: usize| node.ev_act[c] - node.ev_fold[c];
+    let mine = margin(class.index());
+    let combos = |c: &ringside_engine::HandClass| c.combo_count() as f64 / 1326.0;
+    let rank = ringside_engine::HandClass::all()
+        .map(|c| if margin(c.index()) > mine { combos(&c) } else if c == class { combos(&c) / 2.0 } else { 0.0 })
+        .sum::<f64>();
+    let seat = ringside_engine::multiway::seat_name(players, ts.hero);
+    let facts = why::Ranked {
+        chart: why::Chart::Equilibrium,
+        place: if shover.is_some() { format!("Als {seat} gegen den Shove bei {} effektiv", bb(effective)) } else { format!("Als {seat} bei {} effektiv", bb(effective)) },
+        act: Some(if shover.is_some() { why::Move::Call } else { why::Move::AllIn }),
+        share: sol.act_pct(s.node) / 100.0,
+        all_hands: true,
+        class: class.to_string(),
+        rank,
     };
-    let reason = format!(
-        "Mit {class} bei {} effektiv {fits} {range} – {verb} werden hier die besten {} % aller Hände.",
-        bb(effective),
-        sol.act_pct(s.node).round()
-    );
     let target = ChartTarget {
         action_index: index,
         kind: ChartKind::Pushfold,
@@ -141,5 +145,5 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
         node: None,
         hand: class.to_string(),
     };
-    (score(base_at(hand, index, spot_type), Source::Equilibrium, strategy, pot_before(hand, index), note.join("; ") + ".", |_| reason), Some(target))
+    (score(base_at(hand, index, spot_type), Source::Equilibrium, strategy, pot_before(hand, index), note.join("; ") + ".", |d| why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0))), Some(target))
 }

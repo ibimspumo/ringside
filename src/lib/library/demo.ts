@@ -2,6 +2,11 @@ import { demoShow } from "../solver/demo";
 import type { LibraryMode, LibraryOverview, LibraryPower, LibraryScenario, OpenedSpot, Shared, SpotSource } from "./types";
 
 // Browser preview only: a few scenarios of the real catalog with made-up progress.
+// `?lib=` picks states, comma-separated: running, community, empty, done, noshare, error, settings.
+export const preview = new Set(
+  (typeof window === "undefined" ? "" : (new URLSearchParams(window.location.search).get("lib") ?? "")).split(",").filter(Boolean),
+);
+const complete = preview.has("done") || preview.has("community");
 const FLOPS = `AsKhTd AsKh5d AsQhTd AsQh5d AsJh9d AsJh4d AsTh7d AsTh2d As9h4d As8h5d As7h5d As6h4d As5h2d KsQhTd KsQh5d
 KsJh9d KsJh4d KsTh7d KsTh2d Ks9h4d Ks8h5d Ks7h3d Ks6h2d QsJhTd QsJh5d QsTh8d Qs9h7d Qs9h3d Qs8h4d Qs7h2d Qs6h3d JsTh9d
 JsTh4d Js9h6d Js8h5d Js7h2d Ts9h8d Ts9h4d Ts8h3d Ts7h2d 9s8h6d 9s7h3d 9s5h2d 8s7h5d 8s6h2d 7s6h4d 7s4h2d 6s5h3d 5s4h2d
@@ -29,6 +34,8 @@ const SCENARIOS: Omit<LibraryScenario, "status" | "shared">[] = [
 
 function statuses(i: number): (SpotSource | null)[] {
   return FLOPS.map((_, f) => {
+    if (preview.has("empty")) return null;
+    if (complete) return i === 0 && f >= 104 && f < 112 ? "local" : "cloud";
     if (i === 0) return f < 104 ? "cloud" : f < 112 ? "local" : null;
     if (i === 1) return f < 23 ? "local" : null;
     if (i === 4) return f % 3 === 0 ? "cloud" : null;
@@ -38,30 +45,33 @@ function statuses(i: number): (SpotSource | null)[] {
 
 const NOW = Math.floor(Date.now() / 1000);
 const MIXED: (Shared | null)[] = [
-  { state: "verified", at: NOW - 86_400 * 3 },
-  { state: "verified", at: NOW - 86_400 * 2 },
+  { state: "served", at: NOW - 86_400 * 3 },
+  { state: "served", at: NOW - 86_400 * 2 },
   { state: "submitted", at: NOW - 1_800 },
   { state: "submitted", at: NOW - 600 },
   { state: "rejected", at: NOW - 86_400, note: "exploitability 1.84% of the pot is above the 1% limit" },
   { state: "failed", at: NOW - 300, note: "network error: timed out" },
   null,
-  { state: "verified", at: NOW - 86_400 * 4 },
+  { state: "served", at: NOW - 86_400 * 4 },
 ];
 
 function shared(i: number, status: (SpotSource | null)[]): (Shared | null)[] {
   return status.map((st, f) => {
     if (st !== "local") return null;
     if (i === 0) return MIXED[(f - 104) % MIXED.length];
-    return f < 18 ? { state: "verified", at: NOW - 86_400 * 5 } : { state: "submitted", at: NOW - 3_600 };
+    return f < 18 ? { state: "served", at: NOW - 86_400 * 5 } : { state: "submitted", at: NOW - 3_600 };
   });
 }
 
 let mode: LibraryMode = "idle";
 let power: LibraryPower = "normal";
-let running = false;
+let running = preview.has("running") || preview.has("community");
 let halted = false;
 
 export function overview(): LibraryOverview {
+  if (preview.has("error")) throw new Error("Die Bibliothek auf der Festplatte ist nicht lesbar (Zugriff verweigert).");
+  const done = complete;
+  const community = done && running;
   return {
     catalog: 1,
     target_pct: 0.5,
@@ -75,13 +85,13 @@ export function overview(): LibraryOverview {
     mode,
     power,
     cores: 16,
-    share: true,
+    share: !preview.has("noshare"),
     worker: {
-      state: running ? "solving" : mode === "off" ? "off" : "waiting",
+      state: running ? "solving" : done ? "done" : mode === "off" ? "off" : "waiting",
       reason: running ? null : halted ? "halted" : mode === "off" ? "off" : "in_use",
       manual: running,
-      scenario: running ? "srp-co-bb-40" : null,
-      flop: running ? FLOPS[23] : null,
+      scenario: running && !community ? "srp-co-bb-40" : null,
+      flop: running && !community ? FLOPS[23] : null,
       iteration: running ? 60 : 0,
       exploitability_pct: running ? 0.81 : 0,
       progress: running ? 0.63 : null,
@@ -90,8 +100,8 @@ export function overview(): LibraryOverview {
       solved: 23,
       fetched: 104,
       shared: 21,
-      community: null,
-      community_done: 0,
+      community: community ? "Du im Small Blind gegen den Big Blind, 60 BB, Flop Q♠ 9♥ 3♦" : null,
+      community_done: done ? 6 : 0,
       last_error: null,
     },
   };

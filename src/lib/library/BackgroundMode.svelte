@@ -22,6 +22,7 @@
       text: "Immer, wenn PokerStars zu ist – auch während du anderes am PC machst. Während du Ringside benutzt, wartet die Automatik; sofort rechnen kannst du mit „Jetzt mitrechnen“ auf der Seite Bibliothek.",
     },
   ];
+  /** For the settings page; the library's own dialog has the power choice right above. */
   export const COST =
     "Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel Kraft Ringside nimmt, stellst du auf der Seite Bibliothek ein. Solange PokerStars läuft, wird nie gerechnet.";
 </script>
@@ -36,7 +37,7 @@
 <div class="mode">
   <SegmentedControl label="Automatik" value={mode} options={MODES} onchange={onChange} />
   <p>{current.text}</p>
-  <p class="cost">{COST}</p>
+  <p>Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel, wählst du oben unter Kraft. Solange PokerStars läuft, wird nie gerechnet.</p>
 </div>
 
 <style>
@@ -52,8 +53,5 @@
     font-size: var(--fs-md);
     line-height: 1.5;
     max-width: 68ch;
-  }
-  .cost {
-    color: var(--text-3);
   }
 </style>

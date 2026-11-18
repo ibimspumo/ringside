@@ -1,6 +1,7 @@
-import { assert, assertEquals, assertThrows } from "jsr:@std/assert@1";
+import { assert, assertEquals, assertRejects, assertThrows } from "jsr:@std/assert@1";
 import { canonicalize, solutionKey } from "./canonical.ts";
 import { canonicalFlop, InvalidError, kindSpec, SPOT_FAMILIES } from "./kinds.ts";
+import { storedSpot } from "./stored_testutil.ts";
 
 interface Shared {
   keys: { input: Record<string, unknown>; canonical: string; key: string }[];
@@ -67,16 +68,13 @@ Deno.test("every family takes the table sizes of Rust", () => {
   }
 });
 
-Deno.test("a stored spot must carry the spot header with the input's board", () => {
+Deno.test("a stored spot must carry the spot header with the input's board", async () => {
   const input = shared.keys[0].input;
-  const head = (catalog: number, scenario: string, flop: string) => {
-    const bytes = [..."RSLS"].map((c) => c.charCodeAt(0));
-    bytes.push(1, catalog & 255, catalog >> 8, scenario.length, ...[...scenario + flop].map((c) => c.charCodeAt(0)));
-    while (bytes.length % 3 !== 0) bytes.push(0);
-    return btoa(String.fromCharCode(...bytes));
-  };
-  spec.normalizeResult({ data: head(0, "spot", input.board as string) }, input);
-  assertThrows(() => spec.normalizeResult({ data: head(1, "spot", input.board as string) }, input), InvalidError);
-  assertThrows(() => spec.normalizeResult({ data: head(0, "srp-btn-bb-40", input.board as string) }, input), InvalidError);
-  assertThrows(() => spec.normalizeResult({ data: head(0, "spot", "AsKs2h") }, input), InvalidError);
+  const board = input.board as string;
+  const data = (catalog: number, scenario: string, flop: string) => storedSpot(scenario, flop, { catalog });
+  const ok = await data(0, "spot", board);
+  assertEquals((await spec.normalizeResult({ data: ok }, input)).result, { data: ok });
+  for (const bad of [await data(1, "spot", board), await data(0, "srp-btn-bb-40", board), await data(0, "spot", "AsKs2h")]) {
+    await assertRejects(() => spec.normalizeResult({ data: bad }, input), InvalidError);
+  }
 });

@@ -8,12 +8,15 @@
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
   import GradeBadge from "../ui/GradeBadge.svelte";
+  import IconButton from "../ui/IconButton.svelte";
   import Kbd from "../ui/Kbd.svelte";
+  import MiniCard from "../ui/MiniCard.svelte";
+  import { usePageHead } from "../ui/page.svelte";
   import ProgressRing from "../ui/ProgressRing.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { playApi } from "./api";
   import InfoPanel from "./InfoPanel.svelte";
-  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, etaText, freeLine, num, resultLine, signedBB, solvingLine } from "./labels";
+  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, etaText, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
   import { openSolverTab } from "./nav.svelte";
   import PoolChip from "./PoolChip.svelte";
   import { act, askHint, cancelLive, listen, nextHand, prepare, repeatHand, resume, saveConfig, session, stats, type SessionHand } from "./session.svelte";
@@ -24,6 +27,13 @@
   import Timeline from "./Timeline.svelte";
   import type { HandView, PlayConfig, Street, Verdict } from "./types";
   import VerdictCard from "./VerdictCard.svelte";
+
+  usePageHead(() => ({
+    sub:
+      session.playing && session.hand
+        ? "Du entscheidest, Ringside bewertet jeden Zug sofort."
+        : "Zufällige Hände, endlos. Nach jedem Zug siehst du, was die Lösung tun würde.",
+  }));
 
   const wide = (px: number) => typeof window !== "undefined" && window.innerWidth >= px;
   let leftOpen = $state(wide(1500));
@@ -135,10 +145,38 @@
     const parts = GRADES.map((g) => ({ g, k: graded.filter((v) => v.judgement!.grade === g).length })).filter((x) => x.k);
     const loss = graded.reduce((a, v) => a + (v.judgement!.loss_bb ?? 0), 0);
     const word = view.verdicts.length === 1 ? "Zug" : "Züge";
-    const list = parts.map((x) => `${x.k}× ${GRADE[x.g].label.toLowerCase().replace(" (mix)", "")}`).join(", ");
-    return `${view.verdicts.length} ${word}: ${list || "nicht bewertet"}${loss > 0.005 ? ` (−${num(loss, 2)} BB)` : ""}`;
+    const list = parts.map((x) => `${x.k}× ${GRADE[x.g].label.replace(" (mix)", "")}`).join(", ");
+    return `${view.verdicts.length} ${word}: ${list || "nicht bewertet"}${loss > 0.005 ? ` · auf lange Sicht verschenkt: ${num(loss, 2)} BB` : ""}`;
   });
   const net = $derived(view?.outcome ? view.outcome.net[view.hero] : 0);
+
+  /** Your move in words with what it cost against the better one, e.g. "Check am Flop: Ungenau – Bet wäre 0,25 BB besser". */
+  function verdictWords(v: Verdict, street: Street): { text: string; color: string } | null {
+    const j = v.judgement;
+    if (!j) return null;
+    const mine = choiceLabel(v.choices[v.chosen], street !== "preflop");
+    const head = `${mine.label} ${street === "preflop" ? "vor dem Flop" : `am ${STREET_NAME[street]}`}`;
+    const better = j.best !== v.chosen && j.loss_bb !== null && j.loss_bb > 0.005 ? ` – ${choiceLabel(v.choices[j.best]).label} wäre ${num(j.loss_bb, 2)} BB besser` : "";
+    return { text: `${head}: ${GRADE[j.grade].label}${better}.`, color: GRADE[j.grade].color };
+  }
+  /** While you decide anew: how your last move went. */
+  const lastWord = $derived.by(() => {
+    if (!decision || !moves.length) return null;
+    const m = moves[moves.length - 1];
+    const w = verdictWords(m.v, m.street);
+    return w ? { ...w, text: `Dein letzter Zug – ${w.text}` } : null;
+  });
+  /** At the end the lesson of the hand: your most expensive move that was not right. */
+  const lesson = $derived.by(() => {
+    const bad = moves.filter((m) => m.v.judgement && !["best", "mix", "good"].includes(m.v.judgement.grade));
+    if (!over || !bad.length) return null;
+    const m = bad.reduce((a, b) => ((b.v.judgement!.loss_bb ?? 0) > (a.v.judgement!.loss_bb ?? 0) ? b : a));
+    const j = m.v.judgement!;
+    const main = m.v.choices[j.main];
+    const share = m.v.strategy ? ` (${Math.round((m.v.strategy[j.main] ?? 0) * 100)}\u00a0%)` : "";
+    const w = verdictWords(m.v, m.street)!;
+    return { text: `${w.text} Die Lösung spielt hier meist ${choiceLabel(main, m.street !== "preflop").label}${share}.`, color: w.color };
+  });
   /** Mean points of the hand's graded moves, 0–100. */
   const score = $derived.by(() => {
     const p = view?.verdicts.map((v) => v.points).filter((x): x is number => x !== null) ?? [];
@@ -155,15 +193,34 @@
   );
 
   // Your buttons and the end of the hand come into view when they appear.
-  let dock = $state<HTMLElement>();
+  // Your buttons, or at the end the lesson or the next hand (whichever is lower), sit at the
+  // bottom edge when they would be cut off or the history above the table is out of sight: then
+  // as much as fits shows above them.
+  let actionsEl = $state<HTMLElement>();
+  let endEl = $state<HTMLElement>();
+  let lessonEl = $state<HTMLElement>();
+  let tableEl = $state<HTMLElement>();
   $effect(() => {
-    if (!(decision || (over && settled)) || !dock) return;
-    dock.scrollIntoView({ block: "nearest", behavior: ms ? "smooth" : "auto" });
+    if (!tableEl || !(decision || (over && settled))) return;
+    const ends = decision ? [actionsEl] : [endEl, lessonEl];
+    const target = ends.filter((x): x is HTMLElement => !!x).sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0];
+    if (!target) return;
+    const box = scrollParent(tableEl)?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
+    const top = (tableEl.parentElement ?? tableEl).getBoundingClientRect().top;
+    if (top < box.top - 1 || target.getBoundingClientRect().bottom > box.bottom) target.scrollIntoView({ block: "end", behavior: ms ? "smooth" : "auto" });
   });
+
+  function scrollParent(el: HTMLElement): HTMLElement | null {
+    for (let p = el.parentElement; p; p = p.parentElement) if (/(auto|scroll)/.test(getComputedStyle(p).overflowY)) return p;
+    return null;
+  }
 
   function start(c: PlayConfig) {
     saveConfig(c);
     session.hands = [];
+    // The last table may have another size: it must not stand there while the new hand is dealt.
+    session.hand = null;
+    session.review = null;
     nextHand();
   }
 
@@ -258,7 +315,7 @@
 
 <div class="play">
   {#if !session.playing || !view}
-    <Start config={session.config} onChange={(c) => (saveConfig(c), prepare(c))} onStart={start} />
+    <Start config={session.config} busy={session.busy} onChange={(c) => (saveConfig(c), prepare(c))} onStart={start} />
     <div class="foot"><PoolChip pool={session.pool} onCancel={playApi.poolCancel} onResume={resumePool} /></div>
     {#if session.error}<p class="error" role="alert">{session.error}</p>{/if}
   {:else}
@@ -267,28 +324,36 @@
         <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
         <span>{configLine(session.config)}</span>
       </button>
-      <PoolChip pool={session.pool} onCancel={playApi.poolCancel} onResume={resumePool} />
+      <div class="topend">
+        <div class="speed">
+          <span class="faint">Tempo</span>
+          <SegmentedControl size="sm" label="Tempo der Animation" options={speedOptions} value={speed.id} onchange={(v: Speed) => setSpeed(v)} />
+        </div>
+        <PoolChip compact pool={session.pool} onCancel={playApi.poolCancel} onResume={resumePool} />
+      </div>
     </div>
 
     <div class="body" class:left={leftOpen} class:right={rightOpen}>
       <aside class="side l" aria-label="Session">
         {#if leftOpen}
-          <div class="side-head"><b>Session</b><button class="fold" onclick={() => (leftOpen = false)} aria-label="Session-Statistik einklappen">‹</button></div>
+          <div class="side-head"><b>Session</b><IconButton size="sm" label="Session-Statistik einklappen" onclick={() => (leftOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg></IconButton></div>
           <SessionStats {s} />
         {:else}
           <button class="rail" onclick={() => (leftOpen = true)} aria-label="Session-Statistik aufklappen">
-            <span class="num">{s.score === null ? "–" : Math.round(s.score)}</span><span class="vt">Session</span>
+            <span class="score num">{s.score === null ? "–" : Math.round(s.score)}</span><small>Punkte</small>
+            <span class="score num">{s.hands}</span><small>{s.hands === 1 ? "Hand" : "Hände"}</small>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         {/if}
       </aside>
 
       <main class="center">
-        <Timeline {view} {at} {upto} onLook={look} />
+        <div class="history"><Timeline {view} {at} {upto} onLook={look} /></div>
 
         {#if session.review}
           <div class="banner">
             <span>Rückblick auf Hand #{session.review.n}</span>
-            <button class="link" onclick={() => (session.review = null)}>Zur aktuellen Hand (Esc)</button>
+            <Button variant="quiet" size="sm" kbd="Esc" onclick={() => (session.review = null)}>Zur aktuellen Hand</Button>
           </div>
         {:else if view.free && freeShown}
           <div class="banner" role="note">
@@ -305,29 +370,25 @@
             {#if head}
               <b>{head.street}</b> · {head.players}: Du ({view.positions[view.hero]},
               <Term term={head.inPosition ? "ip" : "oop"}>{head.inPosition ? "mit Position" : "ohne Position"}</Term>) gegen {head.others}
-              · Pot <span class="num">{num(head.pot)} BB</span> · <Term term="effective">effektiv</Term>
+              · <Term term="effective">effektiv</Term>
               <span class="num">{num(head.effective, 0)} BB</span>
               {#if view.spot?.source === "live" && view.snapshots[at].street !== "preflop"}
                 · <span class="live">live gerechnet, Genauigkeit <span class="num">{num(view.spot.exploitability_pct)} %</span></span>
               {/if}
             {:else}
-              <b>Preflop</b> · {view.players} Spieler · <span class="num">{num(view.stack_bb, 0)} BB</span> Stacks
+              <b>Preflop</b> · {view.players === 2 ? "Heads-up" : `${view.players} Spieler`}
             {/if}
           </p>
-          <div class="speed">
-            <span class="faint">Tempo</span>
-            <SegmentedControl size="sm" label="Tempo der Animation" options={speedOptions} value={speed.id} onchange={(v: Speed) => setSpeed(v)} />
-          </div>
         </div>
 
         <!-- A click on the table shows the end of the running animation. -->
         <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-        <div class="tablebox" onclick={() => pb.running && pb.skip()}>
+        <div class="tablebox" bind:this={tableEl} onclick={() => pb.running && pb.skip()}>
           <Table {view} {at} final={finalShown} {ms} solving={solving ? (liveRun?.fraction ?? null) : undefined} />
           {#if pb.running}<span class="skip faint">Überspringen <Kbd keys="Leertaste" /></span>{/if}
         </div>
 
-        <div class="dock" bind:this={dock}>
+        <div class="dock">
           {#if solving}
             <div class="solving" role="status" aria-live="polite" data-part="solving">
               <ProgressRing value={liveRun?.fraction ?? null} size={44} label="Spot wird gerechnet">
@@ -342,16 +403,17 @@
           {:else if decision && sit}
             <p class="situation" aria-live="polite">
               <span class="lead">
-                {sit.lead}{#if sit.raise}&nbsp;(<Term term="threebet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
+                {#if sit.board}<CardText text={sit.board} />.&nbsp;{/if}{sit.lead}{#if sit.raise}&nbsp;(<Term term="threebet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
               </span>
               <span><CardText text={sit.you} /></span>
+              {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
-                <span class="odds"><Term term="potodds">Pot Odds</Term>: Ein Call braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
+                <span class="odds"><Term term="potodds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
               {/if}
             </p>
-            <div class="actions" role="group" aria-label="Deine Entscheidung">
+            <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>
               {#each decision.choices as c, k (k)}
-                {@const l = choiceLabel(c)}
+                {@const l = choiceLabel(c, decision.street !== "preflop")}
                 <button class="act" style:--c={colors[k]} onclick={() => act(k)} disabled={session.busy}>
                   <Kbd keys={String(k + 1)} />
                   <b>{l.label}</b>
@@ -359,9 +421,9 @@
                 </button>
               {/each}
               {#if decision.graded}
-                <Button variant="quiet" onclick={askHint} disabled={decision.hinted || session.busy} title="Zeigt die Strategie für deine Hand. Der Zug zählt dann nur halb." kbd="H">
+                <span class="ask"><Button variant="quiet" onclick={askHint} disabled={decision.hinted || session.busy} title="Zeigt die Strategie für deine Hand. Der Zug zählt dann nur halb." kbd="H">
                   {decision.hinted ? "Tipp angezeigt" : "Tipp anzeigen"}
-                </Button>
+                </Button></span>
               {:else}
                 <span class="unrated faint">Nicht bewertet</span>
               {/if}
@@ -369,7 +431,7 @@
           {:else if session.look !== null}
             <div class="banner">
               <span>Du siehst Schritt {at + 1} von {last + 1}. Mit <Kbd keys="←" /> <Kbd keys="→" /> gehst du weiter.</span>
-              <button class="link" onclick={() => look(null)}>Zur aktuellen Stelle (Esc)</button>
+              <Button variant="quiet" size="sm" kbd="Esc" onclick={() => look(null)}>Zur aktuellen Stelle</Button>
             </div>
           {/if}
 
@@ -379,14 +441,45 @@
                 {#if score !== null}
                   <div class="ring" style:--p={score} style:--c={score >= 85 ? "var(--grade-best)" : score >= 50 ? "var(--grade-inaccurate)" : "var(--grade-blunder)"} role="img" aria-label="Punkte dieser Hand: {Math.round(score)} von 100">
                     <b class="num">{Math.round(score)}</b><small>Punkte</small>
+                    <span class="for">Ø deiner Züge</span>
                   </div>
                 {/if}
                 <div class="endtext">
+                  <div class="answer">
+                  <small class="cap">Ergebnis am Tisch</small>
                   <p class="result" class:win={net > 0.04} class:loss={net < -0.04}>
                     <span class="amount num">{signedBB(net)}</span>
-                    <span class="text">{resultLine(view)}</span>
+                    <span class="text">{resultLine(view, false)}</span>
                   </p>
-                  {#if summary}<p class="summary">{summary}</p>{/if}
+                  {#if view.outcome?.reason === "showdown" && view.board.length === 5}
+                    <p class="hands" aria-label="Die Hände beim Showdown">
+                      {#each [view.hero, ...view.outcome.shown.map((c, s) => (c && s !== view.hero ? s : -1)).filter((s) => s >= 0)] as s (s)}
+                        {@const cards = s === view.hero ? view.hero_cards : (view.outcome.shown[s] ?? [])}
+                        <span class:won={view.outcome.winners.includes(s)}>
+                          <b>{s === view.hero ? "Du" : view.positions[s]}</b>
+                          {#each cards as c (c)}<MiniCard card={c} />{/each}
+                          {madeOf(view, s)}
+                        </span>
+                      {/each}
+                    </p>
+                  {/if}
+                  </div>
+                  {#if lesson}<p class="lesson" style:--g={lesson.color} bind:this={lessonEl}>{lesson.text}</p>{/if}
+                  {#if summary}<p class="summary"><b>Deine Entscheidungen</b> · {summary}</p>{/if}
+                  <ol class="streets" aria-label="Deine Züge je Straße">
+                    {#each streetGrades.filter((g) => g.played) as g (g.st)}
+                      <li style:--g={g.grade ? GRADE[g.grade].color : "var(--line-2)"} title={g.grade ? `${STREET_NAME[g.st]}: ${GRADE[g.grade].label}` : undefined}>
+                        {#if g.grade}<i aria-hidden="true">{GRADE[g.grade].mark}</i>{/if}{STREET_NAME[g.st]}
+                      </li>
+                    {/each}
+                  </ol>
+                </div>
+                <div class="buttons" bind:this={endEl}>
+                  <Button variant="primary" size="lg" onclick={nextHand} disabled={session.busy} kbd="Leertaste">Nächste Hand</Button>
+                  {#if live}<Button variant="quiet" onclick={repeatHand} disabled={session.busy} kbd="R">Hand wiederholen</Button>{/if}
+                  {#if canSolver}<Button variant="quiet" onclick={openInSolver}>Im Solver öffnen</Button>{/if}
+                </div>
+              </div>
               {#if view.outcome?.reason === "showdown" && view.board.length === 5}
                 {@const o = view.outcome}
                 <div class="showdown" aria-label="Showdown">
@@ -404,20 +497,6 @@
                   {/each}
                 </div>
               {/if}
-                  <ol class="streets" aria-label="Deine Züge je Straße">
-                    {#each streetGrades as g (g.st)}
-                      <li class:off={!g.played} style:--g={g.grade ? GRADE[g.grade].color : "var(--line-2)"} title={g.grade ? `${STREET_NAME[g.st]}: ${GRADE[g.grade].label}` : undefined}>
-                        {#if g.grade}<i aria-hidden="true">{GRADE[g.grade].mark}</i>{/if}{STREET_NAME[g.st]}
-                      </li>
-                    {/each}
-                  </ol>
-                </div>
-              </div>
-              <div class="buttons">
-                <Button variant="primary" size="lg" onclick={nextHand} disabled={session.busy} kbd="Leertaste">Nächste Hand</Button>
-                {#if live}<Button variant="quiet" onclick={repeatHand} disabled={session.busy} kbd="R">Hand wiederholen</Button>{/if}
-                {#if canSolver}<Button variant="quiet" onclick={openInSolver}>Im Solver öffnen</Button>{/if}
-              </div>
             </section>
           {/if}
 
@@ -438,7 +517,7 @@
                 <ol>
                   {#each listed as m (m.n)}
                     {@const c = m.v.choices[m.v.chosen]}
-                    {@const l = choiceLabel(c)}
+                    {@const l = choiceLabel(c, m.street !== "preflop")}
                     <li>
                       <button class="move" class:on={open === m.n} aria-expanded={open === m.n} onclick={() => (open = open === m.n ? null : m.n)}>
                         <span class="n num">{m.n}.</span>
@@ -454,7 +533,7 @@
                       {#if open === m.n}
                         <div class="detail">
                           <VerdictCard {view} lesson={m.v} n={m.n} />
-                          <button class="link" onclick={() => look(m.snapshot)}>Am Tisch ansehen</button>
+                          <Button variant="quiet" size="sm" onclick={() => look(m.snapshot)}>Am Tisch ansehen</Button>
                         </div>
                       {/if}
                     </li>
@@ -469,10 +548,13 @@
 
       <aside class="side r" aria-label="Info">
         {#if rightOpen}
-          <div class="side-head"><b>Info</b><button class="fold" onclick={() => (rightOpen = false)} aria-label="Info einklappen">›</button></div>
-          <InfoPanel {view} lesson={infoLesson} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
+          <div class="side-head"><b>Info</b><IconButton size="sm" label="Info einklappen" onclick={() => (rightOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></IconButton></div>
+          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
         {:else}
-          <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen"><span class="vt">Strategie · Hände</span></button>
+          <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><small>Info</small>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+          </button>
         {/if}
       </aside>
     </div>
@@ -485,8 +567,8 @@
     padding: 18px 24px 40px;
   }
   .foot {
-    max-width: 1280px;
-    margin: 0 auto;
+    max-width: 1360px;
+    margin: 14px auto 0;
   }
   .top {
     display: flex;
@@ -495,6 +577,12 @@
     gap: 12px;
     margin-bottom: 10px;
     flex-wrap: wrap;
+  }
+  .topend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
   }
   .back {
     display: inline-flex;
@@ -508,18 +596,18 @@
   }
   .body {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     gap: 14px;
     align-items: start;
   }
   .body.left {
-    grid-template-columns: 236px minmax(0, 1fr) 40px;
+    grid-template-columns: 252px minmax(0, 1fr) 44px;
   }
   .body.right {
-    grid-template-columns: 40px minmax(0, 1fr) clamp(280px, 22vw, 380px);
+    grid-template-columns: 44px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .body.left.right {
-    grid-template-columns: 236px minmax(0, 1fr) clamp(280px, 22vw, 380px);
+    grid-template-columns: 252px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .side {
     position: sticky;
@@ -542,39 +630,44 @@
     margin-bottom: 12px;
     font-size: 13px;
   }
-  .fold {
-    width: 26px;
-    height: 26px;
-    border-radius: 6px;
-    border: 1px solid var(--line);
-    background: none;
-    color: var(--text-2);
-    cursor: pointer;
-    font-size: 15px;
-    line-height: 1;
+  .side-head svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
   }
   .rail {
-    width: 40px;
-    min-height: 180px;
+    width: 44px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 10px;
+    gap: 2px;
     padding: 12px 0;
     border-radius: var(--r);
     border: 1px solid var(--line);
     background: var(--surface);
     color: var(--text-2);
     cursor: pointer;
-    font-size: 12px;
+    font-size: var(--fs-sm);
+    transition: border-color var(--dur) var(--ease-standard);
   }
-  .rail .num {
-    font-size: 15px;
+  .rail:hover {
+    border-color: var(--line-2);
     color: var(--text);
   }
-  .vt {
-    writing-mode: vertical-rl;
-    letter-spacing: 0.04em;
+  .rail .score {
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .rail small {
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+    margin-bottom: 8px;
+  }
+  .rail svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
   }
   .center {
     display: grid;
@@ -594,16 +687,6 @@
     background: color-mix(in srgb, var(--sd) 12%, var(--surface));
     border: 1px solid color-mix(in srgb, var(--sd) 30%, transparent);
     font-size: 13px;
-  }
-  .link {
-    border: 0;
-    background: none;
-    color: var(--text);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    cursor: pointer;
-    font-size: 13px;
-    padding: 0;
   }
   .tablebar {
     display: flex;
@@ -629,8 +712,12 @@
     gap: 8px;
     font-size: 12px;
   }
+  /* On very wide windows the oval stops growing, so seats, board and buttons stay close together. */
   .tablebox {
     position: relative;
+    width: 100%;
+    max-width: 1040px;
+    margin: 0 auto;
   }
   .skip {
     position: absolute;
@@ -642,6 +729,7 @@
     font-size: 12px;
   }
   .dock {
+    container: play-dock / inline-size;
     display: grid;
     gap: 12px;
   }
@@ -664,6 +752,7 @@
   .solving-text b {
     font-size: var(--fs-base);
   }
+  .ask,
   .unrated {
     align-self: center;
     font-size: var(--fs-sm);
@@ -678,12 +767,26 @@
     color: var(--text-2);
   }
   .situation .lead {
-    font-size: 15px;
+    font-size: var(--fs-lg);
     color: var(--text);
     font-weight: 600;
   }
+  .last {
+    padding-left: 8px;
+    border-left: 2px solid var(--g);
+    font-size: var(--fs-sm);
+  }
+  .lesson {
+    margin: 0;
+    padding: 6px 10px;
+    border-left: 3px solid var(--g);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    background: color-mix(in srgb, var(--g) 10%, var(--surface-2));
+    font-size: var(--fs-base);
+    color: var(--text);
+  }
   .odds {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .actions {
     display: flex;
@@ -696,14 +799,14 @@
     position: relative;
     flex: 1 1 0;
     max-width: 210px;
-    min-width: 128px;
+    min-width: 112px;
     display: grid;
     grid-template-columns: auto 1fr;
     grid-template-rows: auto auto;
     column-gap: 10px;
     align-items: center;
-    min-height: 58px;
-    padding: 8px 14px 8px 12px;
+    min-height: 52px;
+    padding: 6px 14px 6px 12px;
     border-radius: var(--r);
     border: 1px solid color-mix(in srgb, var(--c) 65%, transparent);
     background: color-mix(in srgb, var(--c) 20%, var(--surface));
@@ -727,13 +830,15 @@
   .act :global(kbd) {
     grid-row: span 2;
   }
+  .act b:last-child {
+    grid-row: span 2;
+  }
   .act b {
-    font-size: 16px;
+    font-size: var(--fs-lg);
   }
   .act small {
     color: var(--text-2);
-    font-size: 12.5px;
-    white-space: nowrap;
+    font-size: var(--fs-sm);
   }
   .end {
     display: grid;
@@ -744,9 +849,13 @@
     border: 1px solid var(--line-2);
   }
   .endrow {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 18px;
+    gap: 14px 20px;
+  }
+  .endrow:not(:has(.ring)) {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
   .endtext {
     display: grid;
@@ -766,12 +875,25 @@
       conic-gradient(var(--c) calc(var(--p) * 1%), var(--surface-3) 0);
   }
   .ring b {
-    font-size: 24px;
+    font-size: var(--fs-2xl);
     line-height: 1;
     color: var(--c);
   }
+  .ring {
+    position: relative;
+    margin-bottom: 14px;
+  }
+  .ring .for {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: var(--fs-xs);
+    color: var(--text-2);
+  }
   .ring small {
-    font-size: 10.5px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .streets {
@@ -791,14 +913,10 @@
     border-radius: var(--r-sm);
     background: var(--surface-2);
     box-shadow: inset 0 -2px 0 var(--g);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-  }
-  .streets li.off {
-    color: var(--text-3);
-    box-shadow: none;
   }
   .streets i {
     font-style: normal;
@@ -812,7 +930,7 @@
     gap: 6px 14px;
   }
   .amount {
-    font-size: 30px;
+    font-size: var(--fs-4xl);
     font-weight: 700;
     letter-spacing: -0.01em;
   }
@@ -822,14 +940,68 @@
   .result.loss .amount {
     color: var(--neg);
   }
+  .answer {
+    display: grid;
+    gap: 6px;
+  }
+  .endtext .cap {
+    margin-bottom: -4px;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+  .hands {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin: 0;
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .hands span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .hands b {
+    margin-right: 2px;
+    color: var(--text);
+  }
+  .hands .won {
+    color: var(--pos);
+  }
+  .summary b {
+    color: var(--text);
+    font-weight: 600;
+  }
+  /* The hand so far stays in sight while the page scrolls to your buttons. */
+  /* Room for two lines of history from the start, so the table does not jump when it wraps. */
+  .history {
+    container: history / inline-size;
+    min-height: 76px;
+  }
+  @media (min-height: 820px) {
+    .history {
+      position: sticky;
+      top: 0;
+      z-index: 4;
+      margin: -6px 0 0;
+      padding: 6px 0;
+      background: var(--bg);
+    }
+  }
   .result .text {
-    font-size: 16px;
+    font-size: var(--fs-lg);
     font-weight: 600;
   }
   .showdown {
     display: flex;
     flex-wrap: wrap;
     gap: 12px 28px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
   }
   .showdown .who {
     display: grid;
@@ -838,14 +1010,55 @@
   .summary {
     margin: 0;
     color: var(--text-2);
-    font-size: 13.5px;
+    font-size: var(--fs-md);
   }
   .buttons {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-    margin-top: 4px;
+    display: grid;
+    justify-items: stretch;
+    gap: 6px;
+  }
+  @container play-dock (width < 640px) {
+    .endrow {
+      grid-template-columns: auto minmax(0, 1fr);
+    }
+    .ring {
+      width: 64px;
+      height: 64px;
+    }
+    .amount {
+      font-size: var(--fs-3xl);
+    }
+    /* Narrow, the answer is followed by the next hand; the marks per move and the hands' names
+       are in the history and on the plates already. */
+    .endtext {
+      display: contents;
+    }
+    .answer {
+      grid-column: 2;
+    }
+    .lesson {
+      order: 1;
+      grid-column: 1 / -1;
+    }
+    .buttons {
+      order: 2;
+    }
+    .summary {
+      order: 3;
+      grid-column: 1 / -1;
+    }
+    .streets {
+      display: none;
+    }
+    .hands {
+      grid-column: 1 / -1;
+      order: 1;
+    }
+    .buttons {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+    }
   }
   .moves h3 {
     margin: 0 0 6px;
