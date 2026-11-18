@@ -1,37 +1,27 @@
 <script lang="ts">
   import Term from "../solver/Term.svelte";
-  import { GRADE, GRADES, THRESHOLD_TEXT, num, signedBB } from "./labels";
+  import GradeBars from "../ui/GradeBars.svelte";
+  import { num, signedBB } from "./labels";
   import type { Stats } from "./session.svelte";
 
   let { s }: { s: Stats } = $props();
-  const total = $derived(GRADES.reduce((a, g) => a + s.counts[g], 0));
+  /** What the points say, in a word. */
+  // A word on the session only once there is enough to judge; before that the counts speak.
+  const verdict = $derived(
+    s.score === null ? "noch keine Bewertung" : s.graded < 8 ? `${s.graded} ${s.graded === 1 ? "Zug" : "Züge"} bewertet` : s.score >= 85 ? "stark gespielt" : s.score >= 60 ? "solide, mit Lücken" : "viele teure Fehler",
+  );
 </script>
 
 <section class="stats" aria-label="Session-Statistik">
   <div class="score">
     <span class="big num" class:none={s.score === null}>{s.score === null ? "–" : Math.round(s.score)}</span>
-    <span class="unit">
-      <b>Punkte</b>
-      <small class="faint">von 100, Schnitt deiner Züge</small>
+    <span class="what">
+      <b>{verdict}</b>
+      <small class="faint">Punkte von 100, Schnitt deiner Züge</small>
     </span>
   </div>
 
-  <div class="mix" role="img" aria-label="Verteilung der Bewertungen">
-    {#each GRADES as g (g)}
-      {#if s.counts[g] > 0}<i style="flex:{s.counts[g]}; background:{GRADE[g].color}"></i>{/if}
-    {/each}
-    {#if total === 0}<i class="empty"></i>{/if}
-  </div>
-
-  <ul class="grades">
-    {#each GRADES as g (g)}
-      <li title={THRESHOLD_TEXT[g]}>
-        <span class="dot" style:background={GRADE[g].color}></span>
-        <span>{GRADE[g].label}</span>
-        <b class="num">{s.counts[g]}</b>
-      </li>
-    {/each}
-  </ul>
+  <GradeBars counts={s.counts} label="Bewertungen deiner Züge in dieser Session" />
 
   <dl>
     <div><dt>Hände</dt><dd class="num">{s.hands}</dd></div>
@@ -63,7 +53,7 @@
     gap: 12px;
   }
   .big {
-    font-size: 46px;
+    font-size: var(--fs-hero);
     line-height: 1;
     font-weight: 600;
     letter-spacing: -0.02em;
@@ -72,46 +62,14 @@
     color: var(--text-3);
     font-weight: 400;
   }
-  .unit {
+  .what {
     display: grid;
-    line-height: 1.25;
-  }
-  .unit small {
-    font-size: 11.5px;
-  }
-  .mix {
-    display: flex;
     gap: 2px;
-    height: 8px;
-    border-radius: 4px;
-    overflow: hidden;
+    line-height: 1.25;
+    font-size: var(--fs-md);
   }
-  .mix i {
-    display: block;
-    min-width: 3px;
-  }
-  .mix .empty {
-    flex: 1;
-    background: var(--surface-3);
-  }
-  .grades {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: grid;
-    gap: 5px;
-    font-size: 13px;
-  }
-  .grades li {
-    display: grid;
-    grid-template-columns: 10px 1fr auto;
-    align-items: center;
-    gap: 8px;
-  }
-  .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
+  .what small {
+    font-size: var(--fs-xs);
   }
   dl {
     margin: 0;
@@ -119,7 +77,7 @@
     gap: 6px;
     padding-top: 10px;
     border-top: 1px solid var(--line);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   dl div {
     display: flex;
@@ -134,6 +92,7 @@
   }
   .note {
     margin: 0;
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
+    line-height: 1.45;
   }
 </style>

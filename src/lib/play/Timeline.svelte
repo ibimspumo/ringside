@@ -10,6 +10,8 @@
    */
   let { view, at, upto, onLook }: { view: HandView; at: number; upto: number; onLook: (snapshot: number) => void } = $props();
 
+  // On a narrow table the history is one line that you can slide; it keeps the newest step in sight.
+
   const STREET: Record<Street, string> = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" };
 
   type Move = { seat: number; text: string; snapshot: number; hero: boolean; fold: boolean; grade: string | null; mark: string; label: string | null };
@@ -80,6 +82,15 @@
     gap: 6px 14px;
     align-items: flex-start;
   }
+  /* On a narrow table the chips get a little smaller, so the history stays in few lines. */
+  @container history (width < 700px) {
+    .timeline {
+      --chip-h: 26px;
+      --chip-px: 7px;
+      --chip-fs: var(--fs-xs);
+      gap: 4px 10px;
+    }
+  }
   .street {
     display: flex;
     flex-wrap: wrap;
@@ -110,13 +121,13 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 30px;
-    padding: 0 9px;
+    height: var(--chip-h, 30px);
+    padding: 0 var(--chip-px, 9px);
     border: 1px solid var(--line);
     border-radius: var(--r-sm);
     background: var(--surface);
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: var(--chip-fs, var(--fs-sm));
     cursor: pointer;
     white-space: nowrap;
   }
@@ -128,7 +139,7 @@
     outline: 2px solid var(--focus);
     outline-offset: 1px;
   }
-  button.on {
+  button.on:not(.head) {
     border-color: var(--focus);
     color: var(--text);
     box-shadow: 0 0 0 1px var(--focus);
@@ -138,6 +149,9 @@
     border-color: transparent;
     gap: 3px;
     padding: 0 6px 0 0;
+  }
+  .head.on .name {
+    color: var(--focus);
   }
   .head .name {
     font-size: 11px;
@@ -152,7 +166,7 @@
     color: var(--text);
   }
   .move.fold {
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .move.fold b {
     color: var(--text-2);

@@ -18,6 +18,8 @@ export interface Situation {
   /** "3-Bet", "4-Bet" for a re-raise before the flop. */
   raise: string | null;
   folds: string;
+  /** The card dealt since your last move, e.g. "Turn: 2♥". */
+  board: string | null;
   you: string;
   /** Equity a call needs, 0–1. */
   need: number | null;
@@ -32,6 +34,11 @@ export function situation(view: HandView, at: number): Situation {
     if (e.type === "board" || (e.type === "action" && e.seat === view.hero)) from = i + 1;
   });
   const recent = upto.slice(from).filter((e): e is Action => e.type === "action");
+  let board: string | null = null;
+  for (const e of upto) {
+    if (e.type === "board") board = `${STREET[e.street]}: ${e.cards.map(cardText).join("")}`;
+    else if (e.seat === view.hero) board = null;
+  }
   const folds = recent.filter((e) => e.choice.kind === "fold").map((e) => pos[e.seat]);
   const aggressive = (e: Action) => e.choice.kind === "bet" || e.choice.kind === "raise" || e.choice.kind === "all_in";
   const lastAgg = [...recent].reverse().find(aggressive);
@@ -57,11 +64,12 @@ export function situation(view: HandView, at: number): Situation {
   let you = `Du bist dran mit ${cards}`;
   let need: number | null = null;
   if (d) {
-    you += d.to_call > 0 ? ` – ${num(d.to_call)} BB zum Callen, Pot ${num(d.pot)} BB.` : ` – Pot ${num(d.pot)} BB, du kannst checken.`;
+    const pay = d.choices.some((c) => c.kind === "limp") ? "zum Limpen" : "zum Callen";
+    you += d.to_call > 0 ? ` – ${num(d.to_call)} BB ${pay}, Pot ${num(d.pot)} BB.` : ` – Pot ${num(d.pot)} BB, du kannst checken.`;
     if (d.to_call > 0) need = d.to_call / (d.pot + d.to_call);
   } else you += ".";
-  if (!parts.length && !foldText) return { lead: "Du bist als Erster dran", raise: null, folds: "", you, need };
-  return { lead: parts.join(", "), raise, folds: foldText, you, need };
+  if (!parts.length && !foldText) return { lead: "Vor dir hat noch niemand gehandelt", raise: null, folds: "", board, you, need };
+  return { lead: parts.join(", "), raise, folds: foldText, board, you, need };
 }
 
 /** Order after the flop: the small blind acts first, the button last. */
