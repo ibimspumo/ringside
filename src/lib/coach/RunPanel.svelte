@@ -136,16 +136,19 @@
         <Card tone="sunken">
           <div class="fact">
             {#if e.cost_usd != null}
-              <Stat size="lg" label="Das kostet die Analyse" value="ca. {money(e.cost_usd)}" unit="$" />
+              <Stat
+                size="lg"
+                label="Das kostet die Analyse"
+                value="ca. {money(e.cost_usd)}"
+                unit="$"
+                meaning={e.max_cost_usd != null ? `höchstens ${cost(e.max_cost_usd)}` : undefined}
+              />
             {:else}
               <Stat size="lg" label="Das kostet die Analyse" value="unbekannt" />
             {/if}
             {#if e.cost_usd != null && e.max_cost_usd != null}
               <ProgressBar value={e.cost_usd / e.max_cost_usd} size="md" label="Geschätzte Kosten im Verhältnis zum Deckel" />
-              <p class="note">
-                Deckel <b class="num">{cost(e.max_cost_usd)}</b>: Wird es teurer, bricht Ringside ab. Bezahlt wird direkt bei
-                OpenRouter.
-              </p>
+              <p class="note">Wird es teurer als der Deckel, bricht Ringside ab. Bezahlt wird direkt bei OpenRouter.</p>
             {:else}
               <p class="note">Der Preis des Modells ist nicht geladen, deshalb gibt es keine Schätzung.</p>
             {/if}
@@ -190,7 +193,7 @@
         </div>
       </div>
 
-      <div class="row send-bar">
+      <div class="row send">
         <Button variant="primary" size="lg" onclick={() => send(e)}>
           Senden und analysieren{e.cost_usd != null ? ` · ca. ${cost(e.cost_usd)}` : ""}
         </Button>
@@ -399,7 +402,6 @@
     line-height: 1.5;
     color: var(--text-2);
   }
-  .note b,
   .never b {
     color: var(--text);
     font-weight: var(--fw-semibold);
@@ -483,17 +485,8 @@
     align-items: center;
     gap: var(--sp-2);
   }
-  /* The decision stays in reach while the cost cards scroll by. */
-  .send-bar {
-    position: sticky;
-    bottom: 0;
-    z-index: 1;
-    margin: 0 calc(-1 * var(--sp-6)) calc(-1 * var(--sp-6));
-    padding: var(--sp-3) var(--sp-6) var(--sp-4);
-    border-top: 1px solid var(--line);
-    border-radius: 0 0 var(--r-md) var(--r-md);
-    background: var(--surface-2);
-    box-shadow: 0 -12px 20px -8px color-mix(in srgb, var(--bg) 85%, transparent);
+  .send {
+    padding-top: var(--sp-2);
   }
   .bar-note {
     font-size: var(--fs-md);
