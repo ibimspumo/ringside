@@ -139,7 +139,7 @@
     outline: 2px solid var(--focus);
     outline-offset: 1px;
   }
-  button.on {
+  button.on:not(.head) {
     border-color: var(--focus);
     color: var(--text);
     box-shadow: 0 0 0 1px var(--focus);
@@ -149,6 +149,9 @@
     border-color: transparent;
     gap: 3px;
     padding: 0 6px 0 0;
+  }
+  .head.on .name {
+    color: var(--focus);
   }
   .head .name {
     font-size: 11px;

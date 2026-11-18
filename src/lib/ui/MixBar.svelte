@@ -17,7 +17,7 @@
 <div class="ui-mix" role="img" aria-label="{label}: {shown.map((p) => `${p.label} ${p.share} %`).join(', ')}">
   {#each shown as p (p.label)}
     <!-- Widths follow the shares exactly; a narrow part keeps only its number, a tiny one only its colour. -->
-    <i style:flex="{p.share} 1 0" style:--c={p.color} class:narrow={p.share < 16} class:tiny={p.share < 8} title="{p.label}: in {p.share} % der Fälle">
+    <i style:flex="{p.share} 1 0" style:--c={p.color} class:narrow={p.share < 24} class:tiny={p.share < 8} title="{p.label}: in {p.share} % der Fälle">
       <span>{p.label}</span><b class="num">{p.share}&nbsp;%</b>
     </i>
   {/each}

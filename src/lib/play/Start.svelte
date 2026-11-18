@@ -124,8 +124,8 @@
           {#each dots(t.seats) as d, i (i)}<circle cx={d.x} cy={d.y} r={d.me ? 5 : 3.6} class:me={d.me} />{/each}
           {#each Array.from({ length: t.streets }) as _, i (i)}<rect x={50 - t.streets * 4 + i * 8 + 1} y="26" width="6" height="8" rx="1" />{/each}
         </svg>
-        <span class="figure num">{t.figure}<small>{t.unit}</small></span>
         <b>{t.title}</b>
+        <span class="figure num">{t.figure}<small>{t.unit}</small></span>
         <span class="text">{t.text}</span>
         <span class="go">Losspielen <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
       </button>
@@ -135,8 +135,8 @@
         <ellipse cx="50" cy="30" rx="40" ry="21" />
         <path class="slider" d="M28 30h44" /><circle class="knob" cx="58" cy="30" r="5" />
       </svg>
-      <span class="figure num">2–9<small>Spieler</small></span>
       <b>Eigene Auswahl</b>
+      <span class="figure num">2–9<small>Spieler</small></span>
       <span class="text">Tischgröße, Ante, Stack und dein Platz – so, wie du sie üben willst.</span>
       <span class="go">{custom ? "Zuklappen" : "Einstellen"}</span>
     </button>
@@ -269,10 +269,10 @@
     align-items: baseline;
     gap: 8px;
     white-space: nowrap;
-    font-size: var(--fs-4xl);
+    font-size: var(--fs-3xl);
     line-height: 1;
     font-weight: 600;
-    letter-spacing: -0.03em;
+    letter-spacing: -0.02em;
   }
   .figure small {
     font-size: var(--fs-md);

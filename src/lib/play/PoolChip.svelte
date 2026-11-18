@@ -28,7 +28,7 @@
 
 {#if pool}
   <div class="pool {pool.status}" class:compact role="status" title="{compact ? `${text}. ` : ''}Postflop-Spots werden im Hintergrund gerechnet, damit du nie warten musst. Das läuft weiter, auch wenn du die Seite wechselst.">
-    <span class="lbl">{compact ? "Vorrat" : "Postflop-Vorrat"}</span>
+    <span class="lbl">{compact ? "Spots" : "Vorbereitete Flop-Spots"}</span>
     <span class="meter" aria-hidden="true">
       {#each Array.from({ length: pool.target }, (_, i) => i) as i (i)}
         <i class:full={i < pool.ready} class:fill={pool.status === "running" && i === pool.ready} style:--f={pool.status === "running" && i === pool.ready ? (pool.fraction * pool.target - pool.ready) : 0}></i>

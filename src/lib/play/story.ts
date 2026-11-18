@@ -64,7 +64,8 @@ export function situation(view: HandView, at: number): Situation {
   let you = `Du bist dran mit ${cards}`;
   let need: number | null = null;
   if (d) {
-    you += d.to_call > 0 ? ` – ${num(d.to_call)} BB zum Callen, Pot ${num(d.pot)} BB.` : ` – Pot ${num(d.pot)} BB, du kannst checken.`;
+    const pay = d.choices.some((c) => c.kind === "limp") ? "zum Limpen" : "zum Callen";
+    you += d.to_call > 0 ? ` – ${num(d.to_call)} BB ${pay}, Pot ${num(d.pot)} BB.` : ` – Pot ${num(d.pot)} BB, du kannst checken.`;
     if (d.to_call > 0) need = d.to_call / (d.pot + d.to_call);
   } else you += ".";
   if (!parts.length && !foldText) return { lead: "Du bist als Erster dran", raise: null, folds: "", board, you, need };

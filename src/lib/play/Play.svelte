@@ -193,18 +193,21 @@
   );
 
   // Your buttons and the end of the hand come into view when they appear.
-  // Your buttons, or at the end the answer, sit at the bottom edge when they would be cut off or
-  // the history above the table is out of sight: then as much as fits shows above them.
+  // Your buttons, or at the end the lesson or the next hand (whichever is lower), sit at the
+  // bottom edge when they would be cut off or the history above the table is out of sight: then
+  // as much as fits shows above them.
   let actionsEl = $state<HTMLElement>();
   let endEl = $state<HTMLElement>();
+  let lessonEl = $state<HTMLElement>();
   let tableEl = $state<HTMLElement>();
   $effect(() => {
-    const target = decision ? actionsEl : over && settled ? endEl : null;
-    if (!target || !tableEl) return;
+    if (!tableEl || !(decision || (over && settled))) return;
+    const ends = decision ? [actionsEl] : [endEl, lessonEl];
+    const target = ends.filter((x): x is HTMLElement => !!x).sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom)[0];
+    if (!target) return;
     const box = scrollParent(tableEl)?.getBoundingClientRect() ?? { top: 0, bottom: window.innerHeight };
-    const r = target.getBoundingClientRect();
     const top = (tableEl.parentElement ?? tableEl).getBoundingClientRect().top;
-    if (top < box.top - 1 || r.bottom > box.bottom) target.scrollIntoView({ block: "end", behavior: ms ? "smooth" : "auto" });
+    if (top < box.top - 1 || target.getBoundingClientRect().bottom > box.bottom) target.scrollIntoView({ block: "end", behavior: ms ? "smooth" : "auto" });
   });
 
   function scrollParent(el: HTMLElement): HTMLElement | null {
@@ -337,7 +340,9 @@
           <SessionStats {s} />
         {:else}
           <button class="rail" onclick={() => (leftOpen = true)} aria-label="Session-Statistik aufklappen">
-            <span class="score num">{s.score === null ? "–" : Math.round(s.score)}</span><small>Punkte</small><span class="vt">Session · {s.hands} {s.hands === 1 ? "Hand" : "Hände"}</span>
+            <span class="score num">{s.score === null ? "–" : Math.round(s.score)}</span><small>Punkte</small>
+            <span class="score num">{s.hands}</span><small>{s.hands === 1 ? "Hand" : "Hände"}</small>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         {/if}
       </aside>
@@ -416,9 +421,9 @@
                 </button>
               {/each}
               {#if decision.graded}
-                <Button variant="quiet" onclick={askHint} disabled={decision.hinted || session.busy} title="Zeigt die Strategie für deine Hand. Der Zug zählt dann nur halb." kbd="H">
+                <span class="ask"><Button variant="quiet" onclick={askHint} disabled={decision.hinted || session.busy} title="Zeigt die Strategie für deine Hand. Der Zug zählt dann nur halb." kbd="H">
                   {decision.hinted ? "Tipp angezeigt" : "Tipp anzeigen"}
-                </Button>
+                </Button></span>
               {:else}
                 <span class="unrated faint">Nicht bewertet</span>
               {/if}
@@ -436,6 +441,7 @@
                 {#if score !== null}
                   <div class="ring" style:--p={score} style:--c={score >= 85 ? "var(--grade-best)" : score >= 50 ? "var(--grade-inaccurate)" : "var(--grade-blunder)"} role="img" aria-label="Punkte dieser Hand: {Math.round(score)} von 100">
                     <b class="num">{Math.round(score)}</b><small>Punkte</small>
+                    <span class="for">deine Züge</span>
                   </div>
                 {/if}
                 <div class="endtext">
@@ -458,7 +464,7 @@
                     </p>
                   {/if}
                   </div>
-                  {#if lesson}<p class="lesson" style:--g={lesson.color}>{lesson.text}</p>{/if}
+                  {#if lesson}<p class="lesson" style:--g={lesson.color} bind:this={lessonEl}>{lesson.text}</p>{/if}
                   {#if summary}<p class="summary"><b>Deine Entscheidungen</b> · {summary}</p>{/if}
                   <ol class="streets" aria-label="Deine Züge je Straße">
                     {#each streetGrades.filter((g) => g.played) as g (g.st)}
@@ -545,7 +551,10 @@
           <div class="side-head"><b>Info</b><IconButton size="sm" label="Info einklappen" onclick={() => (rightOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></IconButton></div>
           <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
         {:else}
-          <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen"><span class="vt">Strategie · Hände</span></button>
+          <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><small>Info</small>
+            <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+          </button>
         {/if}
       </aside>
     </div>
@@ -587,15 +596,15 @@
   }
   .body {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     gap: 14px;
     align-items: start;
   }
   .body.left {
-    grid-template-columns: 236px minmax(0, 1fr) 40px;
+    grid-template-columns: 236px minmax(0, 1fr) 44px;
   }
   .body.right {
-    grid-template-columns: 40px minmax(0, 1fr) clamp(280px, 22vw, 440px);
+    grid-template-columns: 44px minmax(0, 1fr) clamp(280px, 22vw, 440px);
   }
   .body.left.right {
     grid-template-columns: 236px minmax(0, 1fr) clamp(280px, 22vw, 440px);
@@ -627,8 +636,7 @@
     stroke-width: 2;
   }
   .rail {
-    width: 40px;
-    min-height: 180px;
+    width: 44px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -656,9 +664,10 @@
     color: var(--text-3);
     margin-bottom: 8px;
   }
-  .vt {
-    writing-mode: vertical-rl;
-    letter-spacing: 0.04em;
+  .rail svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
   }
   .center {
     display: grid;
@@ -743,6 +752,7 @@
   .solving-text b {
     font-size: var(--fs-base);
   }
+  .ask,
   .unrated {
     align-self: center;
     font-size: var(--fs-sm);
@@ -869,6 +879,19 @@
     line-height: 1;
     color: var(--c);
   }
+  .ring {
+    position: relative;
+    margin-bottom: 14px;
+  }
+  .ring .for {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    font-size: var(--fs-xs);
+    color: var(--text-2);
+  }
   .ring small {
     font-size: var(--fs-xs);
     color: var(--text-3);
@@ -954,8 +977,10 @@
     font-weight: 600;
   }
   /* The hand so far stays in sight while the page scrolls to your buttons. */
+  /* Room for two lines of history from the start, so the table does not jump when it wraps. */
   .history {
     container: history / inline-size;
+    min-height: 68px;
   }
   @media (min-height: 820px) {
     .history {
