@@ -39,7 +39,7 @@ fn small_river() -> BenchSpot {
     }
 }
 
-/// The app's GPU test with timings: `cargo test -p ringside-gpu --release -- --ignored --nocapture`.
+/// The GPU test with timings, for developers: `cargo test -p ringside-gpu --release -- --ignored --nocapture`.
 #[test]
 #[ignore]
 fn full_benchmark() {

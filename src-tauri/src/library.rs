@@ -15,6 +15,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, LazyLock, Mutex};
+use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ringside_cloud::client::{DEFAULT_BASE_URL, MAX_STATUS_KEYS, RetryPolicy};
@@ -58,6 +59,8 @@ static FOCUSED: AtomicBool = AtomicBool::new(true);
 /// restart the app.
 static HALTED: AtomicBool = AtomicBool::new(false);
 static FOCUS_SINCE: LazyLock<Mutex<Instant>> = LazyLock::new(|| Mutex::new(Instant::now()));
+/// Held while `shared.json` is read, changed and written: uploads run beside the worker.
+static SHARED_LOG: Mutex<()> = Mutex::new(());
 
 /// Called with the main window's focus changes.
 pub fn set_focused(focused: bool) {
@@ -330,6 +333,7 @@ fn share(app: &AppHandle, root: &Path, id: SpotId, stored: &Stored, size: usize)
             }
         }
     };
+    let _log = SHARED_LOG.lock().unwrap();
     let mut log = read_shared(root);
     log.insert(shared_key(id), shared);
     if let Err(e) = write_shared(root, &log) {
@@ -354,6 +358,7 @@ fn after_check(known: Option<&Shared>, status: KeyStatus, now: u64) -> Option<Sh
 /// solved here before sharing was recorded. Spots it does not have go into the upload
 /// queue.
 fn check_shared(app: &AppHandle, root: &Path) -> Result<(), CloudError> {
+    let _log = SHARED_LOG.lock().unwrap();
     let mut log = read_shared(root);
     let open: Vec<SpotId> = all_spots()
         .filter(|&id| spot_path(root, Source::Local, id).is_file())
@@ -449,6 +454,9 @@ struct Manual {
     total: u64,
 }
 
+/// A cloud lookup on its own thread: the spot's file if the cloud has it.
+type Lookup = JoinHandle<Option<Vec<u8>>>;
+
 #[derive(Default)]
 pub struct LibraryState {
     status: Mutex<WorkerStatus>,
@@ -460,6 +468,10 @@ pub struct LibraryState {
     /// Spots solved here that the cloud does not have from this computer yet.
     upload: Mutex<Vec<SpotId>>,
     manual: Mutex<Option<Manual>>,
+    /// The upload of the spot solved last, running while the next one is solved.
+    sharing: Mutex<Option<JoinHandle<()>>>,
+    /// The cloud lookup of the spot expected next, running while the current one is solved.
+    ahead: Mutex<Option<(SpotId, Lookup)>>,
     woken: Mutex<bool>,
     wake: Condvar,
 }
@@ -508,7 +520,9 @@ pub fn spawn(app: AppHandle) {
             let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.subsec_nanos() as usize);
             let offset = nanos % catalog().flops.len();
             loop {
-                tick(&app, offset);
+                if tick(&app, offset) {
+                    continue;
+                }
                 let state = app.state::<LibraryState>();
                 let woken = state.woken.lock().unwrap();
                 let (mut woken, _) = state.wake.wait_timeout_while(woken, TICK, |w| !*w).unwrap();
@@ -543,9 +557,12 @@ fn cloud_chores(app: &AppHandle, root: &Path) {
     }
 }
 
-fn tick(app: &AppHandle, offset: usize) {
-    let Some(root) = root(app) else { return };
+/// One step of the worker; true when it should go on with the next spot at once.
+fn tick(app: &AppHandle, offset: usize) -> bool {
+    let Some(root) = root(app) else { return false };
     let state = app.state::<LibraryState>();
+    // A lookup made during the previous solve; any older one may be out of date.
+    let ahead = state.ahead.lock().unwrap().take();
     let cancelled = state.manual.lock().unwrap().as_ref().is_some_and(|m| m.job.cancelled());
     if cancelled {
         HALTED.store(true, Ordering::Relaxed);
@@ -560,15 +577,16 @@ fn tick(app: &AppHandle, offset: usize) {
     if let Some(reason) = blocked(app, mode) {
         let st = if reason == Wait::Off { "off" } else { "waiting" };
         update(app, |s| (s.state, s.reason, s.progress) = (st, Some(reason), None));
-        return;
+        return false;
     }
-    let Some(id) = next_open(app, &root, offset) else {
+    let Some(id) = next_open(app, &root, offset, None) else {
+        // The queue hands out a few spots a minute per computer, so the pause costs nothing.
         if manual_active(app) && community(app, &root) {
-            return;
+            return false;
         }
         end_manual(app, Job::finish);
         update(app, |s| (s.state, s.reason, s.scenario, s.flop, s.progress) = ("done", None, None, None, None));
-        return;
+        return false;
     };
     let c = catalog();
     let (scenario, flop) = (c.scenarios[id.scenario].id.clone(), c.flops[id.flop].clone());
@@ -585,18 +603,20 @@ fn tick(app: &AppHandle, offset: usize) {
         if let Some(job) = &manual {
             job.detail(format!("Schaut in der Cloud nach: {label}"));
         }
-        match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<Postflop>(&input_of(id)) {
-            Ok(Some(found)) => {
-                if let Ok(bytes) = found.bytes()
-                    && write(&root, Source::Cloud, id, &bytes).is_ok()
-                {
-                    update(app, |s| s.fetched += 1);
-                    count_manual(app);
-                    return;
-                }
-            }
-            Ok(None) => {}
-            Err(e) => note(app, &e),
+        let found = match ahead {
+            Some((next, looking)) if next == id => looking.join().ok().flatten(),
+            _ => lookup(app, id),
+        };
+        if let Some(bytes) = found
+            && write(&root, Source::Cloud, id, &bytes).is_ok()
+        {
+            update(app, |s| s.fetched += 1);
+            count_manual(app);
+            return true;
+        }
+        if let Some(next) = next_open(app, &root, offset, Some(id)) {
+            let app = app.clone();
+            *state.ahead.lock().unwrap() = Some((next, std::thread::spawn(move || lookup(&app, next))));
         }
     }
 
@@ -661,20 +681,45 @@ fn tick(app: &AppHandle, offset: usize) {
             if let Err(e) = write(&root, Source::Local, id, &bytes) {
                 update(app, |s| s.last_error = Some(format!("Speichern: {e}")));
                 state.skip.lock().unwrap().insert(id);
-                return;
+                return true;
             }
             update(app, |s| (s.solved, s.progress) = (s.solved + 1, Some(1.0)));
             count_manual(app);
             if cloud.share && may_talk(app) {
-                share(app, &root, id, &stored, bytes.len());
+                share_aside(app, &root, id, stored, bytes.len());
             }
+            true
         }
-        Err(SolverError::Cancelled) => {}
+        Err(SolverError::Cancelled) => false,
         Err(e) => {
             state.skip.lock().unwrap().insert(id);
             update(app, |s| s.last_error = Some(format!("{scenario} {flop}: {e}")));
+            true
         }
     }
+}
+
+/// The spot's file if the cloud has a verified solution of it.
+fn lookup(app: &AppHandle, id: SpotId) -> Option<Vec<u8>> {
+    match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<Postflop>(&input_of(id)) {
+        Ok(found) => found.and_then(|f| f.bytes().ok()),
+        Err(e) => {
+            note(app, &e);
+            None
+        }
+    }
+}
+
+/// [`share`] on its own thread, so the next solve need not wait for the network. One
+/// upload at a time: a slow one holds up the next spot as before.
+fn share_aside(app: &AppHandle, root: &Path, id: SpotId, stored: Stored, size: usize) {
+    let state = app.state::<LibraryState>();
+    let mut sharing = state.sharing.lock().unwrap();
+    if let Some(previous) = sharing.take() {
+        let _ = previous.join();
+    }
+    let (app, root) = (app.clone(), root.to_path_buf());
+    *sharing = Some(std::thread::spawn(move || share(&app, &root, id, &stored, size)));
 }
 
 // -----------------------------------------------------------------------------------
@@ -798,15 +843,15 @@ fn note(app: &AppHandle, e: &CloudError) {
     app.state::<CloudState>().note(e);
 }
 
-/// The first spot that is neither stored nor skipped: scenarios in catalog order, flops
-/// from `offset` on.
-fn next_open(app: &AppHandle, root: &Path, offset: usize) -> Option<SpotId> {
+/// The first spot that is neither stored, skipped nor `except`: scenarios in catalog
+/// order, flops from `offset` on.
+fn next_open(app: &AppHandle, root: &Path, offset: usize, except: Option<SpotId>) -> Option<SpotId> {
     let c = catalog();
     let skip = app.state::<LibraryState>().skip.lock().unwrap().clone();
     let n = c.flops.len();
     (0..c.scenarios.len())
         .flat_map(|scenario| (0..n).map(move |k| SpotId { scenario, flop: (k + offset) % n }))
-        .find(|id| !skip.contains(id) && status_of(root, *id).is_none())
+        .find(|id| Some(*id) != except && !skip.contains(id) && status_of(root, *id).is_none())
 }
 
 #[derive(Default, Serialize, Deserialize)]
