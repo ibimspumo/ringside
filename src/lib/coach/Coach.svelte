@@ -195,7 +195,7 @@
                   <li class="start">
                     <span class="what">
                       <span class="name" title={titleOf(t.id)}>{titleOf(t.id)}</span>
-                      <span class="sub">{dayShort(t.started_at)} · <span class="num">{t.hands}</span> Hände</span>
+                      <span class="sub nowrap">{dayShort(t.started_at)} · <span class="num">{t.hands}</span> Hände</span>
                     </span>
                     <Button
                       size="sm"
@@ -215,7 +215,6 @@
 
           {#if list.length}
             <nav class="reports" aria-labelledby="reports-title">
-              <Card pad="sm">
               <h2 id="reports-title" class="rail-title">Deine Berichte</h2>
               <ul>
                 {#each list as r (r.tournament_id)}
@@ -247,7 +246,6 @@
                   </li>
                 {/each}
               </ul>
-              </Card>
             </nav>
           {/if}
 
@@ -428,7 +426,7 @@
   }
   .layout {
     display: grid;
-    grid-template-columns: 264px minmax(0, 1fr);
+    grid-template-columns: 296px minmax(0, 1fr);
     gap: 16px;
     align-items: start;
   }
@@ -464,6 +462,9 @@
     font-size: var(--fs-md);
     color: var(--text-2);
   }
+  .nowrap {
+    white-space: nowrap;
+  }
   .pad {
     margin: 0;
     padding: 0 var(--sp-2) var(--sp-2);
@@ -487,6 +488,7 @@
   }
 
   .reports ul {
+    gap: var(--sp-2);
     max-height: min(52vh, 560px);
     overflow-y: auto;
     overscroll-behavior: contain;
