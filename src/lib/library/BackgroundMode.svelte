@@ -36,7 +36,7 @@
 <div class="mode">
   <SegmentedControl label="Automatik" value={mode} options={MODES} onchange={onChange} />
   <p>{current.text}</p>
-  <p class="cost">{COST}</p>
+  <p>{COST}</p>
 </div>
 
 <style>
@@ -52,8 +52,5 @@
     font-size: var(--fs-md);
     line-height: 1.5;
     max-width: 68ch;
-  }
-  .cost {
-    color: var(--text-3);
   }
 </style>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
@@ -13,7 +14,8 @@
     worker,
     primary = false,
     onChange,
-  }: { data: LibraryOverview; worker: WorkerStatus; primary?: boolean; onChange: () => void } = $props();
+    after,
+  }: { data: LibraryOverview; worker: WorkerStatus; primary?: boolean; onChange: () => void; after?: Snippet } = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -83,7 +85,8 @@
   <div class="say" aria-live="polite">
     <p class="head"><span class="dot {tone}" aria-hidden="true"></span>{words[0]}</p>
     {#if worker.state === "solving" && worker.community}
-      <p class="spot"><CardText text={worker.community} /></p>
+      {@const [where, flop] = worker.community.split(/,\s*Flop\s+/)}
+      <p class="spot"><span>{where}</span>{#if flop}<span class="flop"><CardText text={flop} /></span>{/if}</p>
     {:else if scenario && worker.flop && (worker.state === "solving" || worker.state === "cloud")}
       <p class="spot">
         <span>{titleOf(scenario)}</span>
@@ -100,6 +103,7 @@
     {#if error}<p class="err" role="alert">{error}</p>{/if}
   </div>
 
+  <div class="acts">
   <Button
     class="go"
     variant={primary && !running ? "primary" : "secondary"}
@@ -120,6 +124,8 @@
     {/snippet}
     {running ? "Anhalten" : forOthers ? "Für andere mitrechnen" : done ? "Alles fertig" : "Jetzt mitrechnen"}
   </Button>
+  {@render after?.()}
+  </div>
 </div>
 
 <style>
@@ -130,6 +136,12 @@
     align-items: center;
     gap: var(--sp-3) var(--sp-6);
     min-width: 0;
+  }
+  .acts {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
   }
   .say {
     flex: 1 1 22em;
@@ -178,6 +190,7 @@
   .flop {
     display: inline-flex;
     gap: 2px;
+    white-space: nowrap;
   }
   .track {
     display: grid;

@@ -26,7 +26,7 @@
   <SegmentedControl label="Kraft" value={data.power} options={POWERS} onchange={setPower} />
   <p>
     <b class="num">{threadsFor(data.power, data.cores)} von {data.cores}</b> Rechenkernen. {power.text}
-    <span class="faint">Gilt ab dem nächsten Spot; Arbeitsspeicher höchstens ein Viertel.</span>
+    Gilt ab dem nächsten Spot; Arbeitsspeicher höchstens ein Viertel.
   </p>
   {#if error}<p class="err" role="alert">{error}</p>{/if}
 </div>

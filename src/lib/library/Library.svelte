@@ -11,6 +11,7 @@
   import ProgressRing from "../ui/ProgressRing.svelte";
   import SectionHead from "../ui/SectionHead.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import Term from "../ui/Term.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
   import { libraryApi, onLibraryStatus } from "./api";
   import BackgroundMode from "./BackgroundMode.svelte";
@@ -130,9 +131,9 @@
 
   type Texture = "Rainbow" | "Zweifarbig" | "Monoton" | "Gepaart" | "Drilling";
   const TEXTURE_HINT: Record<Texture, string> = {
-    Rainbow: "drei verschiedene Farben, kein Flush möglich",
+    Rainbow: "drei verschiedene Farben, auf dem Flop noch kein Flush-Draw",
     Zweifarbig: "zwei Karten einer Farbe, Flush-Draws möglich",
-    Monoton: "alle drei in einer Farbe",
+    Monoton: "alle drei in einer Farbe, ein Flush ist schon möglich",
     Gepaart: "zwei Karten gleichen Rangs",
     Drilling: "drei Karten gleichen Rangs",
   };
@@ -194,15 +195,15 @@
           <section class="stand" aria-label="Stand der Bibliothek">
             <h2 class="label">Stand der Bibliothek</h2>
             <div class="ringrow">
-            <ProgressRing value={totals.spots ? totals.done / totals.spots : 0} size={64} stroke={6} tone="info" label="Anteil fertiger Spots">
+            <ProgressRing value={totals.spots ? totals.done / totals.spots : 0} size={56} stroke={5} tone="info" label="Anteil fertiger Spots">
               <span class="ring-num num">{pct(totals.spots ? totals.done / totals.spots : 0)}</span>
             </ProgressRing>
             <div class="facts">
-              <p class="lead"><b class="num">{int(totals.done)}</b> von <span class="num">{int(totals.spots)}</span> Spots fertig</p>
-              <p class="meta">
-                Ein Spot ist eine Situation mit einem bestimmten Flop. In <b class="num">{totals.started}</b> von {totals.situations} Situationen
-                kannst du schon nachsehen.
+              <p class="lead">
+                <b class="num">{int(totals.done)}</b> von <span class="num">{int(totals.spots)}</span>
+                <Term tip="Ein Spot ist eine Situation mit einem bestimmten Flop, zum Beispiel du am Button gegen den Big Blind auf K♠ 7♦ 2♣.">Spots</Term> fertig
               </p>
+              <p class="meta">In <b class="num">{totals.started}</b> von {totals.situations} Situationen kannst du schon nachsehen.</p>
             </div>
             </div>
           </section>
@@ -221,33 +222,44 @@
               <ul class="keys">
                 <li>
                   <ShareMark mark="verified" />
-                  <p><b class="num">{int(totals.verified)}</b> geprüft <span>– nachgerechnet, jetzt für alle da</span></p>
+                  <p><b class="num">{int(totals.verified)}</b> geprüft <span>– nachgerechnet, für alle da</span></p>
                 </li>
                 {#if totals.waiting > 0}
                   <li>
                     <ShareMark mark="submitted" />
-                    <p><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <span>– ein Prüfer rechnet einmal pro Stunde nach</span></p>
+                    <p><b class="num">{int(totals.waiting)}</b> warten auf Prüfung <span>– wird stündlich nachgerechnet</span></p>
                   </li>
                 {/if}
               </ul>
             {/if}
             {#if data.share && (totals.notUploaded > 0 || totals.rejected > 0)}
-              <p class="meta">
-                {#if totals.notUploaded > 0}{totals.notUploaded} noch nicht hochgeladen, das holt Ringside nach.{/if}
-                {#if totals.rejected > 0}{totals.rejected} abgelehnt – den Grund zeigt die Kachel.{/if}
+              <p class="rest">
+                {#if totals.notUploaded > 0}
+                  <Tooltip text="Auf deinem PC gerechnet, aber noch nicht hochgeladen. Das holt Ringside von selbst nach.">
+                    <span class="item"><ShareMark mark="only_here" /><b class="num">{totals.notUploaded}</b> noch nicht hochgeladen</span>
+                  </Tooltip>
+                {/if}
+                {#if totals.rejected > 0}
+                  <Tooltip text="Der Prüfer hat nachgerechnet und die Lösung abgelehnt. Den Grund zeigt die Kachel mit dem roten Kreuz.">
+                    <span class="item"><ShareMark mark="rejected" /><b class="num">{totals.rejected}</b> abgelehnt</span>
+                  </Tooltip>
+                {/if}
               </p>
             {/if}
           </section>
 
           <section class="worker" aria-label="Mitrechnen">
             <h2 class="label">Mitrechnen</h2>
-            <RunControl {data} {worker} primary={totals.done === 0} onChange={load} />
-            <Button variant="quiet" size="sm" class="tune" aria-expanded={tuning} aria-controls="lib-tuning" onclick={() => (tuning = !tuning)}>
-              {#snippet icon()}
-                <svg class="chev" viewBox="0 0 16 16" width="12" height="12"><path d="M4 6l4 4 4-4" /></svg>
+            <RunControl {data} {worker} primary={totals.done === 0} onChange={load}>
+              {#snippet after()}
+                <Button variant="quiet" aria-expanded={tuning} aria-controls="lib-tuning" onclick={() => (tuning = !tuning)}>
+                  {#snippet icon()}
+                    <svg class="chev" viewBox="0 0 16 16" width="12" height="12"><path d="M4 6l4 4 4-4" /></svg>
+                  {/snippet}
+                  Kraft und Automatik
+                </Button>
               {/snippet}
-              Kraft und Automatik
-            </Button>
+            </RunControl>
           </section>
         </div>
 
@@ -297,7 +309,7 @@
           {#if stacks.length > 1 && current}
             <div class="depth">
               <SegmentedControl label="Stacktiefe" value={current.stack_bb} options={stackOptions} onchange={pickStack} />
-              <p>{depthOf(current.stack_bb).replace(/^./, (c) => c.toUpperCase())}: so viele Big Blinds hat jeder vor der Hand.</p>
+              <p>{depthOf(current.stack_bb).replace(/^./, (c) => c.toUpperCase())} – so viele Big Blinds hat jeder.</p>
             </div>
           {/if}
           {#each POTS as pot (pot.id)}
@@ -473,7 +485,7 @@
     gap: var(--sp-4);
   }
   .ring-num {
-    font-size: var(--fs-base);
+    font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
   }
   .facts,
@@ -487,13 +499,13 @@
   }
   .label {
     margin: 0;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
   }
   .lead {
     color: var(--text);
-    font-size: var(--fs-lg);
+    font-size: var(--fs-base);
     line-height: var(--lh-tight);
   }
   .lead b {
@@ -527,15 +539,27 @@
   .keys li > :global(.mark) {
     transform: translateY(2px);
   }
+  .rest {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-4);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .rest .item {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
+  }
+  .rest b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
+  }
   .keys b {
     font-weight: var(--fw-semibold);
   }
   .keys span {
     color: var(--text-2);
-  }
-  .worker :global(.tune) {
-    align-self: flex-start;
-    margin-left: calc(-1 * var(--sp-3));
   }
   .chev {
     fill: none;
@@ -655,7 +679,7 @@
     gap: var(--sp-2);
   }
   .depth p {
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
     line-height: var(--lh-base);
   }
@@ -671,7 +695,7 @@
     font-weight: var(--fw-semibold);
   }
   .pot h3 span {
-    color: var(--text-3);
+    color: var(--text-2);
     font-weight: var(--fw-regular);
   }
   .sit {
@@ -730,7 +754,7 @@
     gap: var(--sp-1);
   }
   .legend .from {
-    color: var(--text-3);
+    color: var(--text);
   }
   .texture {
     display: flex;
@@ -744,7 +768,7 @@
     font-weight: var(--fw-semibold);
   }
   .texture .hint {
-    color: var(--text-3);
+    color: var(--text-2);
     font-weight: var(--fw-regular);
   }
   .gcount {
@@ -793,6 +817,12 @@
   @container (max-width: 1100px) {
     .band {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+    .band {
+      gap: var(--sp-4);
+    }
+    .band > section + section {
+      padding-left: var(--sp-4);
     }
     .band > .worker {
       grid-column: 1 / -1;
