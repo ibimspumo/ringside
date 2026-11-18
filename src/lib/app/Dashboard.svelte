@@ -329,7 +329,7 @@
                   <b class="num" class:none={g === null && !s?.opp}
                     >{fmt(s)}{#if s && s.value !== null && !STAT_META[id].ratio}<span class="unit">%</span>{/if}</b
                   >
-                  {#if z}<em>{flagged.get(id) ? `im Schnitt ${z.label}` : z.label}</em>{/if}
+                  {#if z}<em>{z.label}</em>{/if}
                 </span>
                 <span class="gauge" aria-hidden="true" style="--lo:{palette.low}; --mid:{palette.mid}; --hi:{palette.high}">
                   <i></i><i></i><i></i>

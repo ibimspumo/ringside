@@ -328,7 +328,7 @@
                 >
                 <td class="game">
                   <span class="gcell">
-                    <span class="gname" title={r.name ? `${r.name} · ${r.game}` : r.game}>{(r.name || r.game || "Turnier").replace(/ (\S{1,3})$/, "\u00a0$1")}</span>
+                    <span class="gname" title="{r.name ? `${r.name} · ${r.game}` : r.game} · #{r.id}">{(r.name || r.game || "Turnier").replace(/ (\S{1,3})$/, "\u00a0$1")}</span>
                     <span class="gid">#{r.id}</span>
                   </span>
                 </td>
@@ -682,7 +682,7 @@
       line-height: 1.25;
     }
     .gid {
-      font-size: var(--fs-xs);
+      display: none;
     }
     .gname {
       max-width: 100%;

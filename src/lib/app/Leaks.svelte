@@ -200,7 +200,7 @@
 
   const BAND_HELP = "Dein effektiver Stack in der Hand, in Big Blinds: der kleinere der Stacks von dir und deinem Gegner. Turnier und Cash werden getrennt geprüft.";
   const SURE_HELP =
-    "Wie sicher dein wahrer Wert außerhalb des Richtwerts liegt (aus dem Wilson-Intervall). Ab 90 % lohnt es sich, daran zu arbeiten.";
+    "Sicherheit: wie wahrscheinlich dein wahrer Wert außerhalb des Richtwerts liegt (aus dem Wilson-Intervall). Ab 90 % lohnt es sich, daran zu arbeiten.";
   const COST_HELP =
     "Grob: dein Ergebnis in diesem Spot gegenüber deinem Schnitt auf denselben Positionen über alle Stacktiefen. Das zeigt, was der Spot gekostet hat, nicht sicher, dass dieser eine Wert die Ursache ist.";
 
@@ -293,7 +293,7 @@
             >
           </div>
           <div class="fig">
-            <span class="label"><Term tip={SURE_HELP}>Sicher außerhalb des Richtwerts</Term></span>
+            <span class="label"><Term tip={SURE_HELP}>Sicherheit</Term></span>
             <b class="num">{pct(l.confidence)}</b>
             <small
               ><Term tip="Mit 95 % Wahrscheinlichkeit liegt dein wahrer Wert in diesem Bereich. Je mehr Hände, desto enger."
@@ -560,6 +560,7 @@
     color: var(--text-2);
   }
   .counts {
+    align-self: center;
     display: grid;
     grid-template-columns: repeat(3, minmax(150px, 190px));
     gap: 8px;
