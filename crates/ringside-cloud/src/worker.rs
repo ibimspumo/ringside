@@ -233,6 +233,9 @@ pub struct RunOptions {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Outcome {
+    /// Served to everyone from now on.
+    Accepted,
+    /// Waits for the verifier (a server from before accepting at once).
     Submitted,
     /// Someone was faster; nothing was stored.
     AlreadyVerified,
@@ -311,6 +314,7 @@ pub fn run(queue: &mut impl Queue, opts: &RunOptions, stop: &dyn Fn() -> bool, m
             Ok(Some(_)) if opts.dry_run => Outcome::DryRun,
             // The server takes a submission after the lease ran out all the same.
             Ok(Some(s)) => match retrying(opts, Some(Instant::now() + SUBMIT_PATIENCE), stop, || queue.submit(&s)) {
+                Ok(SubmitStatus::Accepted) => Outcome::Accepted,
                 Ok(SubmitStatus::Submitted) => Outcome::Submitted,
                 Ok(SubmitStatus::AlreadyVerified) => Outcome::AlreadyVerified,
                 Err(Retry::Stopped) => Outcome::Stopped,
@@ -318,7 +322,7 @@ pub fn run(queue: &mut impl Queue, opts: &RunOptions, stop: &dyn Fn() -> bool, m
                 Err(Retry::Failed(e)) => Outcome::Failed(e.to_string()),
             },
         };
-        if !matches!(outcome, Outcome::Submitted | Outcome::AlreadyVerified) {
+        if !matches!(outcome, Outcome::Accepted | Outcome::Submitted | Outcome::AlreadyVerified) {
             // Best effort: a lease that is not given back runs out.
             let _ = queue.release(&work.key);
         }
@@ -421,7 +425,7 @@ mod tests {
 
         fn submit(&mut self, solved: &Solved) -> Result<SubmitStatus, Error> {
             self.submitted.push(solved.submission());
-            Ok(SubmitStatus::Submitted)
+            Ok(SubmitStatus::Accepted)
         }
 
         fn release(&mut self, key: &str) -> Result<(), Error> {
@@ -457,7 +461,7 @@ mod tests {
         let mut q = Fake { open: [hu(10_000)].into(), ..Fake::default() };
         let (end, done) = collect(&mut q, &opts(), &|| false);
         assert_eq!(end, End::Empty);
-        assert_eq!(done[0].outcome, Outcome::Submitted);
+        assert_eq!(done[0].outcome, Outcome::Accepted);
         assert!(done[0].exploitability.is_some_and(|(e, _)| e <= PushFoldHu::TOLERANCE), "{:?}", done[0]);
         assert!(q.released.is_empty(), "a submitted spot keeps its lease until the server marks it");
 

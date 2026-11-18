@@ -7,7 +7,7 @@
 //! while PokerStars runs; a solve stops within an iteration when that changes and starts
 //! over later. Before it solves a spot it asks the cloud, and afterwards it shares the
 //! spot if the user allows it. `shared.json` remembers what became of every shared spot;
-//! now and then the worker asks the cloud whether the verifier has checked them. Solves
+//! now and then the worker asks the cloud about the ones still waiting for it. Solves
 //! take the cores the power setting allows and at most a quarter of the memory. Progress
 //! survives a restart because every finished spot is a file.
 
@@ -267,11 +267,12 @@ fn disk_bytes(dir: &Path) -> u64 {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ShareState {
-    /// Uploaded, waits for the verifier.
+    /// Uploaded, waits for the verifier (a server from before accepting at once).
     Submitted,
-    /// Checked by the verifier and served to everyone.
-    Verified,
-    /// The verifier refused it.
+    /// Served to everyone: its form checked out, or the verifier re-solved it.
+    #[serde(alias = "verified")]
+    Served,
+    /// Refused, or withdrawn after a failed sample check.
     Rejected,
     /// The upload failed; tried again later.
     Failed,
@@ -323,7 +324,7 @@ fn share(app: &AppHandle, root: &Path, id: SpotId, stored: &Stored, size: usize)
                 update(app, |s| s.shared += 1);
                 let state = match status {
                     SubmitStatus::Submitted => ShareState::Submitted,
-                    SubmitStatus::AlreadyVerified => ShareState::Verified,
+                    SubmitStatus::Accepted | SubmitStatus::AlreadyVerified => ShareState::Served,
                 };
                 Shared { state, at, note: None }
             }
@@ -346,7 +347,7 @@ fn share(app: &AppHandle, root: &Path, id: SpotId, stored: &Stored, size: usize)
 fn after_check(known: Option<&Shared>, status: KeyStatus, now: u64) -> Option<Shared> {
     let at = known.map_or(now, |s| s.at);
     match (status, known) {
-        (KeyStatus::Verified, _) => Some(Shared { state: ShareState::Verified, at, note: None }),
+        (KeyStatus::Accepted | KeyStatus::Verified, _) => Some(Shared { state: ShareState::Served, at, note: None }),
         (KeyStatus::Submitted, _) => Some(Shared { state: ShareState::Submitted, at, note: None }),
         (KeyStatus::Rejected(note), Some(_)) => Some(Shared { state: ShareState::Rejected, at, note }),
         // Someone else's copy was rejected or the server has none; ours never went up.
@@ -699,7 +700,7 @@ fn tick(app: &AppHandle, offset: usize) -> bool {
     }
 }
 
-/// The spot's file if the cloud has a verified solution of it.
+/// The spot's file if the cloud has a solution of it whose form checks out.
 fn lookup(app: &AppHandle, id: SpotId) -> Option<Vec<u8>> {
     match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<Postflop>(&input_of(id)) {
         Ok(found) => found.and_then(|f| f.bytes().ok()),
@@ -1148,8 +1149,10 @@ mod tests {
     #[test]
     fn cloud_answers_update_what_was_shared() {
         let sent = Shared { state: ShareState::Submitted, at: 100, note: None };
-        let verified = after_check(Some(&sent), KeyStatus::Verified, 500).unwrap();
-        assert_eq!((verified.state, verified.at), (ShareState::Verified, 100), "keeps the upload time");
+        for status in [KeyStatus::Accepted, KeyStatus::Verified] {
+            let served = after_check(Some(&sent), status, 500).unwrap();
+            assert_eq!((served.state, served.at), (ShareState::Served, 100), "keeps the upload time");
+        }
         let rejected = after_check(Some(&sent), KeyStatus::Rejected(Some("why".into())), 500).unwrap();
         assert_eq!((rejected.state, rejected.note.as_deref()), (ShareState::Rejected, Some("why")));
         assert_eq!(after_check(Some(&sent), KeyStatus::Unknown, 500), None, "lost upload goes up again");

@@ -75,8 +75,8 @@
     const started = all.filter((s) => s.status.some(Boolean)).length;
     const marks = all.flatMap((s) => s.status.flatMap((st, i) => (st === "local" ? [markOf(s.shared[i])] : [])));
     const n = (m: Mark) => marks.filter((x) => x === m).length;
-    const verified = n("verified");
-    const contributed = verified + n("submitted");
+    const served = n("served");
+    const contributed = served + n("submitted");
     return {
       local,
       cloud,
@@ -85,7 +85,7 @@
       started,
       situations: all.length,
       contributed,
-      verified,
+      served,
       rejected: n("rejected"),
       waiting: n("only_here") + n("failed"),
     };
@@ -125,7 +125,7 @@
   const num = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 2 });
   const mb = (b: number) =>
     b >= 1e9 ? `${(b / 1e9).toLocaleString("de-DE", { maximumFractionDigits: 1 })} GB` : `${Math.round(b / 1e6).toLocaleString("de-DE")} MB`;
-  const MARKS: Mark[] = ["only_here", "submitted", "verified", "rejected", "failed"];
+  const MARKS: Mark[] = ["only_here", "submitted", "served", "rejected", "failed"];
 
   usePageHead(() => ({ sub: "Fertig gelöste Spots für die häufigsten Turnier-Situationen – gerechnet hier oder geladen aus Ringside Cloud." }));
 </script>
@@ -158,20 +158,20 @@
           <div class="contrib">
             {#if data.share || totals.contributed > 0}
               <p class="lead">
-                <b class="num">{totals.contributed}</b> von dir beigetragen, <b class="num">{totals.verified}</b> geprüft
+                <b class="num">{totals.contributed}</b> von dir beigetragen, <b class="num">{totals.served}</b> für alle verfügbar
               </p>
               <div class="cbar" aria-hidden="true">
-                <i class="ok" style="flex:{totals.verified}"></i>
-                <i class="wait" style="flex:{totals.contributed - totals.verified}"></i>
+                <i class="ok" style="flex:{totals.served}"></i>
+                <i class="wait" style="flex:{totals.contributed - totals.served}"></i>
                 <i class="rest" style="flex:{totals.contributed ? 0 : 1}"></i>
               </div>
               <p class="faint">
                 {#if totals.contributed === 0}
                   Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.
-                {:else if totals.contributed > totals.verified}
-                  {totals.contributed - totals.verified} warten noch auf die Prüfung; der Prüfer rechnet einmal pro Stunde nach.
+                {:else if totals.contributed > totals.served}
+                  {totals.contributed - totals.served} sind noch nicht freigegeben; Ringside Cloud prüft ihren Aufbau einmal pro Stunde.
                 {:else}
-                  Alles, was du beigetragen hast, ist geprüft und für alle verfügbar.
+                  Alles, was du beigetragen hast, ist für alle verfügbar.
                 {/if}
                 {#if totals.waiting > 0}{totals.waiting} noch nicht hochgeladen, das holt Ringside nach.{/if}
                 {#if totals.rejected > 0}{totals.rejected} abgelehnt (Grund im Tooltip der Kachel).{/if}
@@ -307,8 +307,8 @@
                 Die {data.flops.length} Flops sind eine geschichtete Stichprobe der 1755 strategisch verschiedenen Flops (Flops, die
                 sich nur durch vertauschte Farben unterscheiden, spielen sich gleich). Jeder steht für etwa
                 {Math.round(ALL_FLOPS / data.flops.length)} der {ALL_FLOPS.toLocaleString("de-DE")} möglichen Flops; daher die
-                Prozentangaben. Heruntergeladene Spots hat ein Prüfer mit dem Solver nachgemessen, oder sie tragen die Signatur von
-                Ringside.
+                Prozentangaben. Heruntergeladene Spots hat die Community mit Ringside gerechnet; Ringside prüft vor der Nutzung, ob
+                sie richtig aufgebaut sind, und rechnet Stichproben nach. Die Grundstock-Pakete tragen die Signatur von Ringside.
               </p>
             </details>
           </section>

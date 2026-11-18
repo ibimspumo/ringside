@@ -82,24 +82,28 @@ export function markOf(shared: Shared | null): Mark {
 /** Short names, for the legend. */
 export const MARK_NAME: Record<Mark, string> = {
   only_here: "Nur auf deinem PC",
-  submitted: "Hochgeladen, wartet auf Prüfung",
-  verified: "Geprüft, für alle verfügbar",
-  rejected: "Vom Prüfer abgelehnt",
+  submitted: "Hochgeladen, noch nicht freigegeben",
+  served: "Hochgeladen, für alle verfügbar",
+  rejected: "Nicht angenommen oder zurückgezogen",
   failed: "Hochladen klappte nicht, neuer Versuch folgt",
 };
 
 const when = (at: number) =>
   new Date(at * 1000).toLocaleString("de-DE", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
 
-/** The verifier's note (English, technical) as a reason in words, with the note itself. */
+/** The cloud's note (English, technical) as a reason in words, with the note itself. */
 function reasonOf(note: string | undefined): string {
-  if (!note) return "Der Prüfer hat keinen Grund genannt.";
-  const why = /exploitab/i.test(note)
-    ? "Die Lösung war beim Nachrechnen nicht genau genug."
-    : /longer than|took/i.test(note)
-      ? "Das Nachrechnen dauerte zu lange."
-      : "Die Lösung hat die Prüfung nicht bestanden.";
-  return `${why} (Prüfer: ${note})`;
+  if (!note) return "Ringside Cloud hat keinen Grund genannt.";
+  const why = /sample failed/i.test(note)
+    ? "Eine Stichprobe von diesem Internetanschluss war beim Nachrechnen falsch, deshalb wurden alle Lösungen von hier zurückgezogen."
+    : /operator/i.test(note)
+      ? "Der Betreiber hat die Lösungen dieses Internetanschlusses zurückgezogen."
+      : /^form:/i.test(note)
+        ? "Die Lösung war nicht so aufgebaut, wie Ringside sie erwartet."
+        : /exploitab/i.test(note)
+          ? "Die Lösung war beim Nachrechnen nicht genau genug."
+          : "Die Lösung wurde nicht angenommen.";
+  return `${why} (Ringside Cloud: ${note})`;
 }
 
 /** The tooltip of a spot solved here: where it stands, and when. */
@@ -110,11 +114,11 @@ export function markText(shared: Shared | null, sharing: boolean): string {
         ? "Auf deinem PC gerechnet, noch nicht hochgeladen. Ringside holt das von selbst nach."
         : "Auf deinem PC gerechnet. Teilen ist aus, der Spot bleibt bei dir.";
     case "submitted":
-      return `Auf deinem PC gerechnet und am ${when(shared!.at)} hochgeladen. Ein Prüfer rechnet ihn nach (einmal pro Stunde), danach bekommen ihn alle.`;
-    case "verified":
-      return `Auf deinem PC gerechnet, am ${when(shared!.at)} hochgeladen und geprüft. Alle Ringside-Nutzer können ihn jetzt laden.`;
+      return `Auf deinem PC gerechnet und am ${when(shared!.at)} hochgeladen. Ringside Cloud prüft noch, ob er richtig aufgebaut ist, danach bekommen ihn alle.`;
+    case "served":
+      return `Auf deinem PC gerechnet und am ${when(shared!.at)} hochgeladen. Alle Ringside-Nutzer können ihn jetzt laden.`;
     case "rejected":
-      return `Hochgeladen am ${when(shared!.at)}, aber abgelehnt. ${reasonOf(shared!.note)} Bei dir kannst du ihn trotzdem ansehen.`;
+      return `Hochgeladen am ${when(shared!.at)}, aber nicht für alle freigegeben. ${reasonOf(shared!.note)} Bei dir kannst du ihn trotzdem ansehen.`;
     case "failed":
       return `Hochladen am ${when(shared!.at)} klappte nicht${shared!.note ? ` (${shared!.note})` : ""}. Ringside versucht es später noch einmal.`;
   }
