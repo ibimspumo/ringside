@@ -484,29 +484,23 @@
       <section id="navigation">
         <SectionHead
           title="Navigation"
-          sub="Einträge der Menüs: hervorgehoben mit Statuszeile, normal mit kurzem Wert, leise für Werkzeuge, als Reiter einer oberen Leiste und als Kachel mit Satz. Die offene Seite trägt eine Marke am Rand."
+          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
         />
-        <div class="two">
-          <div class="navcol">
-            <NavItem size="lg" label="Lernen" icon={NAV_ICON.learn} status="Wochenziel 20/50 · 5 fällig" active />
-            <NavItem size="lg" label="Hände spielen" icon={NAV_ICON.play} status="gesperrt" locked />
-            <NavItem size="md" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" />
-            <NavItem size="md" label="Live-Tische" icon={NAV_ICON.live} status="3" tone="good" />
-            <NavItem size="md" label="Statistik" icon={NAV_ICON.stats} status="6.431" />
-            <NavItem size="group" label="Werkzeuge" chevron="down" aria-expanded={true} />
-            <NavItem size="sm" label="Nachrechnen" icon={NAV_ICON.stats} locked />
+        <div class="stack">
+          <div class="navbar">
+            <NavItem size="top" label="Start" icon={NAV_ICON.live} />
+            <NavItem size="top" label="Mein Spiel" icon={NAV_ICON.stats} chevron="down" current status="4 Schwachstellen" tone="warn" aria-expanded={false} />
+            <NavItem size="top" label="Üben" icon={NAV_ICON.learn} chevron="down" locked aria-expanded={true} />
+            <NavItem size="top" label="Gegner" icon={NAV_ICON.live} chevron="down" status="3" tone="good" aria-expanded={false} />
           </div>
-          <div class="stack">
-            <div class="row">
-              <NavItem size="top" label="Start" icon={NAV_ICON.live} />
-              <NavItem size="top" label="Mein Spiel" icon={NAV_ICON.stats} chevron="down" current aria-expanded={false} />
-              <NavItem size="top" label="Üben" icon={NAV_ICON.learn} chevron="down" aria-expanded={true} />
-              <NavItem size="rail" label="Einstellungen" icon={NAV_ICON.stats} />
-            </div>
-            <div class="navtiles">
-              <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Blinds liegen lässt und was dagegen hilft." status="4 gefunden" tone="warn" active />
-              <NavItem size="tile" label="Nachrechnen" icon={NAV_ICON.stats} text="Eine Situation genau durchrechnen lassen." status="gesperrt" locked />
-            </div>
+          <div class="navbar">
+            <NavItem size="sub" label="Hände" icon={NAV_ICON.play} status="rechnet 96 %" />
+            <NavItem size="sub" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
+            <NavItem size="sub" label="Nachrechnen" icon={NAV_ICON.stats} locked />
+          </div>
+          <div class="navtiles">
+            <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Blinds liegen lässt und was dagegen hilft." status="4 gefunden" tone="warn" active />
+            <NavItem size="tile" label="Nachrechnen" icon={NAV_ICON.stats} text="Eine Situation genau durchrechnen lassen." status="gesperrt" locked />
           </div>
         </div>
       </section>
@@ -982,12 +976,11 @@
     padding: 0 var(--sp-4);
     text-align: right;
   }
-  .navcol {
+  .navbar {
     display: flex;
-    flex-direction: column;
-    gap: 1px;
-    max-width: 232px;
-    padding: 10px;
+    align-items: center;
+    gap: 2px;
+    padding: 10px var(--sp-3);
     border-radius: var(--r);
     background: var(--surface-sunken);
   }

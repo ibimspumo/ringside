@@ -2,17 +2,16 @@
   import type { HTMLButtonAttributes } from "svelte/elements";
 
   /**
-   * One entry of the app's navigation. `lg` is a highlighted entry with a status line, `md` the
-   * normal row with a short value on the right, `sm` a quiet row for tools, `rail` only the icon,
-   * `top` a tab of a top bar (with `chevron` it opens a menu), `sub` a tab of the row below it,
-   * `tile` a menu or start-page entry
-   * with a sentence, `group` the small heading that folds a group. `icon` is an SVG path on a
-   * 24 × 24 grid. `locked`: closed while PokerStars runs.
+   * One entry of the app's navigation. `top` is a tab of the top bar (with `chevron` it opens a
+   * menu), `sub` a tab of the row below it, `tile` a menu entry with a sentence. `status` is a
+   * short live value ("4 Schwachstellen"), `locked` marks what is closed while PokerStars runs.
+   * `icon` is an SVG path on a 24 × 24 grid; without it the entry is text only. Nothing in an entry
+   * wraps; whoever places it makes room or shortens the value.
    */
   let {
     label,
     icon,
-    size = "md",
+    size,
     active = false,
     current,
     status,
@@ -25,17 +24,16 @@
   }: {
     label: string;
     icon?: string;
-    size?: "lg" | "md" | "sm" | "rail" | "top" | "sub" | "tile" | "group";
+    size: "top" | "sub" | "tile";
     /** The page on screen. */
     active?: boolean;
-    /** The area of the page on screen, for group or menu entries; marked quieter than `active`. */
+    /** The area of the page on screen, for an entry that opens a menu. */
     current?: boolean;
     status?: string;
     tone?: "neutral" | "good" | "warn" | "bad";
     text?: string;
     locked?: boolean;
-    /** Opens a group or menu: the arrow shows which way. */
-    chevron?: "down" | "right";
+    chevron?: "down";
     el?: HTMLButtonElement;
   } & Omit<HTMLButtonAttributes, "children"> = $props();
 </script>
@@ -46,9 +44,7 @@
   class="ui-nav {size}"
   class:on={active}
   class:cur={current && !active}
-  class:locked
   aria-current={active ? "page" : current ? "true" : undefined}
-  aria-label={size === "rail" ? label : undefined}
   {...rest}
 >
   {#if icon}
@@ -56,17 +52,16 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>
     </span>
   {/if}
-  {#if size !== "rail"}
-    <span class="body">
-      <span class="label">{label}</span>
-      {#if text && size === "tile"}<span class="text">{text}</span>{/if}
-      {#if status && (size === "lg" || size === "tile")}<span class="status {tone}">{@render lock()}{status}</span>{/if}
-    </span>
-    {#if status && size !== "lg" && size !== "tile"}<span class="value {tone}">{@render lock()}{status}</span>
-    {:else if locked && size !== "lg" && size !== "tile"}<span class="value">{@render lock()}</span>{/if}
-    {#if chevron}
-      <svg class="chev {chevron}" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5 8 9.5l3-3" /></svg>
+  <span class="body">
+    <span class="label">{label}</span>
+    {#if size === "tile"}
+      {#if text}<span class="text">{text}</span>{/if}
+      {#if status || locked}<span class="status {tone}">{@render lock()}{status ?? ""}</span>{/if}
     {/if}
+  </span>
+  {#if size !== "tile" && (status || locked)}<span class="value {tone}">{@render lock()}{status ?? ""}</span>{/if}
+  {#if chevron}
+    <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5 8 9.5l3-3" /></svg>
   {/if}
 </button>
 
@@ -81,8 +76,7 @@
     position: relative;
     display: flex;
     align-items: center;
-    gap: var(--sp-3);
-    width: 100%;
+    flex-shrink: 0;
     min-width: 0;
     border: 0;
     border-radius: var(--r-sm);
@@ -91,6 +85,7 @@
     font: inherit;
     font-size: var(--fs-base);
     text-align: left;
+    white-space: nowrap;
     cursor: pointer;
     transition:
       background-color var(--dur-fast) var(--ease-standard),
@@ -104,24 +99,20 @@
     outline: 2px solid var(--focus);
     outline-offset: -2px;
   }
-  .ui-nav.on {
+  .on,
+  .cur {
     color: var(--text);
-    background: var(--surface-2);
   }
-  /* The page on screen also gets a mark at the edge, so it reads without colour. */
-  .ui-nav.on::before {
+  /* The page or area on screen is underlined, so it reads without colour. */
+  .on::before,
+  .cur::before {
     content: "";
     position: absolute;
-    left: 0;
-    top: 50%;
-    width: 3px;
-    height: 16px;
-    margin-top: -8px;
+    left: var(--sp-3);
+    right: var(--sp-3);
+    height: 2px;
     border-radius: var(--r-pill);
     background: var(--text);
-  }
-  .ui-nav.cur {
-    color: var(--text);
   }
 
   .ico {
@@ -142,17 +133,8 @@
   }
   .body {
     display: grid;
-    flex: 1;
     min-width: 0;
     line-height: var(--lh-tight);
-  }
-  .label,
-  .text,
-  .status {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .value,
   .status {
@@ -160,12 +142,12 @@
     align-items: center;
     gap: var(--sp-1);
     font-family: var(--font-num);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
   }
   .value {
     flex-shrink: 0;
-    font-size: var(--fs-sm);
     color: var(--text-3);
-    white-space: nowrap;
   }
   .lock {
     width: 12px;
@@ -183,75 +165,8 @@
     color: var(--danger-text);
   }
 
-  .md {
-    height: 34px;
-    padding: 0 var(--sp-3) 0 10px;
-  }
-
-  /* Highlighted: icon on a plate, status line below the name. */
-  .lg {
-    min-height: 46px;
-    padding: var(--sp-2) 10px var(--sp-2) 6px;
-    gap: 10px;
-  }
-  .lg .ico {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--r-md);
-    background: var(--surface-2);
-    color: var(--text);
-    transition:
-      background-color var(--dur-fast) var(--ease-standard),
-      color var(--dur-fast) var(--ease-standard);
-  }
-  .lg .label {
-    font-weight: var(--fw-semibold);
-    color: var(--text);
-  }
-  .lg .status {
-    margin-top: 3px;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
-  }
-  .lg:hover .ico {
-    background: var(--surface-3);
-  }
-  .lg.on .ico {
-    background: var(--text);
-    color: var(--bg);
-  }
-
-  /* Quiet: tools that step back. */
-  .sm {
-    height: 28px;
-    padding: 0 var(--sp-3) 0 10px;
-    font-size: var(--fs-md);
-    color: var(--text-2);
-    gap: 10px;
-  }
-  .sm .ico svg {
-    width: 16px;
-    height: 16px;
-  }
-
-  .rail {
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-  }
-  .rail .ico svg {
-    width: 20px;
-    height: 20px;
-  }
-  .rail.on::before {
-    left: -6px;
-  }
-
-  /* Tab of a top bar: the open menu keeps the hover surface. */
+  /* Tab of the top bar; an open menu keeps the hover surface, the mark sits on the bar's edge. */
   .top {
-    flex-shrink: 0;
-    width: auto;
     height: 36px;
     padding: 0 10px 0 var(--sp-3);
     gap: var(--sp-2);
@@ -261,28 +176,12 @@
     color: var(--text);
     background: var(--surface-2);
   }
-  .top.cur::before,
-  .top.on::before {
-    content: "";
-    position: absolute;
-    left: var(--sp-3);
-    right: var(--sp-3);
-    bottom: -11px;
-    top: auto;
-    width: auto;
-    height: 2px;
-    margin: 0;
-    border-radius: var(--r-pill);
-    background: var(--text);
-  }
-  .top.on {
-    background: transparent;
+  .top::before {
+    bottom: -10px;
   }
 
-  /* Tab of the row under a top bar: quiet, the open page underlined like the bar above. */
+  /* Tab of the row under the top bar: quieter, the page on screen underlined like the bar above. */
   .sub {
-    flex-shrink: 0;
-    width: auto;
     height: 32px;
     padding: 0 10px;
     gap: var(--sp-2);
@@ -292,24 +191,20 @@
     width: 16px;
     height: 16px;
   }
-  .sub.on {
-    background: transparent;
-  }
-  .sub.on::before {
+  .sub::before {
     left: 10px;
     right: 10px;
-    top: auto;
     bottom: -4px;
-    width: auto;
-    height: 2px;
-    margin: 0;
   }
 
-  /* Menu and start-page entry: name, a sentence, the live value at the right. */
+  /* Menu entry: name, a sentence and the live value below. */
   .tile {
     align-items: flex-start;
+    gap: var(--sp-3);
+    width: 100%;
     padding: 10px var(--sp-3) 10px 10px;
     border-radius: var(--r-md);
+    white-space: normal;
   }
   .tile .ico {
     width: 32px;
@@ -317,13 +212,24 @@
     border-radius: var(--r-md);
     background: var(--surface-2);
     color: var(--text);
+    transition: background-color var(--dur-fast) var(--ease-standard);
   }
   .tile:hover .ico {
     background: var(--surface-3);
   }
+  .tile.on {
+    background: var(--surface-2);
+  }
   .tile.on .ico {
     background: var(--text);
     color: var(--bg);
+  }
+  .tile.on::before {
+    left: 0;
+    right: auto;
+    top: 14px;
+    width: 3px;
+    height: 24px;
   }
   .tile .label {
     font-weight: var(--fw-semibold);
@@ -334,43 +240,17 @@
     font-size: var(--fs-sm);
     line-height: var(--lh-base);
     color: var(--text-2);
-    white-space: normal;
     display: -webkit-box;
+    overflow: hidden;
     -webkit-line-clamp: 2;
     line-clamp: 2;
     -webkit-box-orient: vertical;
   }
   .tile .status {
     margin-top: 5px;
-    font-size: var(--fs-sm);
+  }
+  .tile .status.neutral {
     color: var(--text-2);
-  }
-  .tile.on::before {
-    top: 14px;
-    margin-top: 0;
-    height: 24px;
-  }
-
-  /* Group heading that folds its entries. */
-  .group {
-    height: 24px;
-    padding: 0 10px;
-    gap: 6px;
-    font-size: var(--fs-xs);
-    font-weight: var(--fw-semibold);
-    letter-spacing: 0.02em;
-    color: var(--text-3);
-  }
-  .group:hover {
-    background: transparent;
-    color: var(--text-2);
-  }
-  .group .body {
-    flex: 0 1 auto;
-  }
-  .group .value {
-    margin-left: auto;
-    font-size: var(--fs-xs);
   }
 
   .chev {
@@ -380,31 +260,8 @@
     color: var(--text-3);
     transition: transform var(--dur) var(--ease-standard);
   }
-  .chev.right {
-    transform: rotate(-90deg);
-  }
-  [aria-expanded="true"] > .chev.down {
+  [aria-expanded="true"] > .chev {
     transform: rotate(180deg);
-  }
-  [aria-expanded="true"] > .chev.right {
-    transform: rotate(0deg);
-  }
-  /* Low windows (700 px at the minimum size): the whole side bar stays visible. */
-  @media (max-height: 760px) {
-    .md {
-      height: 28px;
-    }
-    .sm {
-      height: 26px;
-    }
-    .lg {
-      min-height: 36px;
-      padding-block: 2px;
-    }
-    .lg .ico {
-      width: 28px;
-      height: 28px;
-    }
   }
   @media (prefers-reduced-motion: reduce) {
     .ui-nav,

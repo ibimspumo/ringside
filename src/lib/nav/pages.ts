@@ -1,7 +1,6 @@
 /**
- * The pages of the app, sorted by what the player wants to do rather than by tool. The three
- * navigation prototypes (`?nav=a|b|c`, browser demo only) all read this one list, so names,
- * sentences and groups stay the same and only the presentation differs.
+ * The pages of the app, sorted by what the player wants to do rather than by tool: the one list
+ * for the top bar, its menus, page titles and the layout check.
  */
 
 export type Page =
@@ -161,10 +160,3 @@ export const areaOf = (page: Page): Area | undefined => AREAS.find((a) => a.page
 
 /** Pages PokerStars' rules lock while the client runs. */
 export const LOCKED_PAGES: Page[] = ["training", "play", "charts", "solver", "library"];
-
-/** Concept from `?nav=`; only the browser demo knows the prototypes. */
-export type Concept = "a" | "b" | "c";
-export function conceptFrom(query: URLSearchParams, inApp: boolean): Concept | null {
-  const v = query.get("nav");
-  return !inApp && (v === "a" || v === "b" || v === "c") ? v : null;
-}

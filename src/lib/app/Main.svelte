@@ -3,7 +3,6 @@
   import { api, inTauri, on } from "../api";
   import CloudNotice from "../cloud/CloudNotice.svelte";
   import Coach from "../coach/Coach.svelte";
-  import Logo from "../Logo.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
   import ClientLock from "./ClientLock.svelte";
   import Dashboard from "./Dashboard.svelte";
@@ -29,80 +28,20 @@
   import Library from "../library/Library.svelte";
   import { handoff } from "../solver/handoff.svelte";
   import { analysis } from "../analysis/store.svelte";
-  import JobsDock from "../jobs/JobsDock.svelte";
   import JobToasts from "../jobs/JobToasts.svelte";
   import AutoDoneToast from "../analysis/AutoDoneToast.svelte";
   import { jobs } from "../jobs/store.svelte";
   import type { JobTarget } from "../jobs/types";
   import { openSaved } from "../solver/solutions";
   import { solver } from "../solver/store.svelte";
-  import Button from "../ui/Button.svelte";
-  import Term from "../ui/Term.svelte";
   import ChoiceMenu from "../ui/ChoiceMenu.svelte";
   import PageHeader from "../ui/PageHeader.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
-  import { followPage, pageHead } from "../ui/page.svelte";
-  import Hub from "../nav/Hub.svelte";
-  import NavPrototype from "../nav/NavPrototype.svelte";
-  import { PAGES, conceptFrom, type AreaId } from "../nav/pages";
+  import { followPage, pageFrame, pageHead } from "../ui/page.svelte";
+  import TopBar from "../nav/TopBar.svelte";
+  import { ALL_PAGES, LOCKED_PAGES, PAGES, type Page } from "../nav/pages";
 
-  type Tab =
-    | "dashboard"
-    | "reports"
-    | "leaks"
-    | "ranges"
-    | "tournaments"
-    | "hands"
-    | "coach"
-    | "players"
-    | "live"
-    | "training"
-    | "play"
-    | "charts"
-    | "solver"
-    | "library"
-    | "hud"
-    | "settings";
-  type NavItem = { id: Tab; label: string; icon: string };
-  const GROUPS: { label: string; items: NavItem[] }[] = [
-    {
-      label: "Analyse",
-      items: [
-        { id: "dashboard", label: "Übersicht", icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7" },
-        { id: "tournaments", label: "Turniere", icon: "M8 4.5h8V9a4 4 0 0 1-8 0zM8 6.5H5.5v1a3 3 0 0 0 2.7 3M16 6.5h2.5v1a3 3 0 0 1-2.7 3M12 13v3.5M8.5 19.5h7M10 16.5h4" },
-        { id: "reports", label: "Statistik", icon: "M4.5 5h15v14h-15zM4.5 10h15M4.5 14.5h15M10 10v9" },
-        { id: "leaks", label: "Leaks", icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5" },
-        { id: "ranges", label: "Deine Ranges", icon: "M4.5 4.5h15v15h-15zM4.5 12h15M12 4.5v15M7 7h2.5v2.5H7zM14.5 14.5H17V17h-2.5z" },
-        { id: "hands", label: "Hände", icon: "M10 4h8a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM6 7.5V19a1 1 0 0 0 1 1h8" },
-      ],
-    },
-    {
-      label: "Gegner",
-      items: [
-        { id: "players", label: "Spieler", icon: "M12 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5zM5 20a7 7 0 0 1 14 0" },
-        { id: "live", label: "Live-Tische", icon: "M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5zM12 9.5c2.8 0 5 1.1 5 2.5s-2.2 2.5-5 2.5-5-1.1-5-2.5 2.2-2.5 5-2.5z" },
-      ],
-    },
-    {
-      label: "Besser werden",
-      items: [
-        { id: "training", label: "Lernen", icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5" },
-        { id: "coach", label: "KI-Coach", icon: "M4.5 5.5h15v10.5h-8l-4.5 3.5v-3.5H4.5zM8.5 9.5h7M8.5 12.5h4.5" },
-        { id: "play", label: "Hände spielen", icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z" },
-        { id: "charts", label: "Ranges nach Stack", icon: "M4.5 4.5h15v15h-15zM4.5 9.5h15M4.5 14.5h15M9.5 4.5v15M14.5 4.5v15" },
-        { id: "solver", label: "Solver", icon: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17" },
-        { id: "library", label: "Bibliothek", icon: "M5 4.5h3v15H5zM10 4.5h3v15h-3zM15.2 5.3l2.9-.8 3.6 14.4-2.9.8z" },
-      ],
-    },
-    {
-      label: "Einrichten",
-      items: [
-        { id: "hud", label: "HUD", icon: "" },
-        { id: "settings", label: "Einstellungen", icon: "M4 7.5h9M17 7.5h3M4 16.5h3M11 16.5h9M15 5.5v4M9 14.5v4" },
-      ],
-    },
-  ];
-  const NAV = GROUPS.flatMap((g) => g.items);
+  type Tab = Page;
   /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
   const DATA_TABS: Tab[] = ["dashboard", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
@@ -121,8 +60,6 @@
     solver: "Gerechnet wird nur auf diesem Rechner.",
     library: "Gespeichert auf diesem Rechner, gerechnet hier oder geladen aus Ringside Cloud.",
   };
-  /** Pages PokerStars' rules lock while the client runs; the PageHeader keeps saying so. */
-  const LOCKED: Tab[] = ["training", "play", "charts", "solver", "library"];
   let clientRunning = $state(false);
   const GAMES: [GameKind | null, string][] = [
     ["tournament", "Turniere"],
@@ -132,25 +69,10 @@
   const STORE = "ringside.filter";
 
   const query = new URLSearchParams(window.location.search);
-  /** Browser demo only: navigation prototypes (`?nav=a|b|c`, `&navopen=<area>` for pictures). */
-  const navConcept = conceptFrom(query, inTauri);
-  const navOpen = query.get("navopen") as AreaId | null;
   const initialTab = query.get("tab") as Tab | null;
-  let tab = $state<Tab>(initialTab && NAV.some((n) => n.id === initialTab) ? initialTab : "dashboard");
+  let tab = $state<Tab>(initialTab && ALL_PAGES.includes(initialTab) ? initialTab : "dashboard");
   let status = $state<ImportStatus | null>(null);
   let tables = $state(0);
-  /** The menu scrolls in low windows; its end fades out while items are hidden below. */
-  let navEl = $state<HTMLElement>();
-  let navMore = $state(false);
-  function measureNav() {
-    if (navEl) navMore = navEl.scrollTop + navEl.clientHeight < navEl.scrollHeight - 2;
-  }
-  $effect(() => {
-    if (!navEl) return;
-    const ro = new ResizeObserver(measureNav);
-    ro.observe(navEl);
-    return () => ro.disconnect();
-  });
   let refresh = $state(0);
   let hud = $state<HudConfig | null>(null);
 
@@ -261,7 +183,7 @@
 
   /** "Ansehen" in the task center: the page of the task, and what it made. */
   function viewTarget(t: JobTarget) {
-    const page = NAV.find((n) => n.id === t.page)?.id;
+    const page = ALL_PAGES.find((p) => p === t.page);
     if (t.page === "hands") return showHands(null, t.id);
     if (t.page === "solver") {
       if (t.id !== null && t.id !== solver.savedId) openSaved(t.id).catch(() => {});
@@ -337,97 +259,30 @@
     };
   });
 
-  const upgrade = $derived(status?.upgrade ?? null);
 </script>
 
-<div class="shell" class:wide={navConcept === "a" || navConcept === "b"} class:top={navConcept === "c"}>
-  {#if navConcept}
-    <NavPrototype
-      concept={navConcept}
-      {tab}
-      locked={clientRunning}
-      open={navOpen}
-      {filter}
-      tournaments={tournamentList}
-      {tables}
-      {status}
-      {hud}
-      {refresh}
-      onSelect={go}
-      onView={viewTarget}
-      onChooseFolder={chooseFolder}
-    />
-  {:else}
-  <aside>
-    <div class="brand">
-      <Logo size={26} />
-      <strong>Ringside</strong>
-    </div>
-    <nav bind:this={navEl} class:more={navMore} onscroll={measureNav}>
-      {#each GROUPS as group (group.label)}
-        <div class="group" role="group" aria-labelledby="nav-{group.label}">
-          <span class="group-label" id="nav-{group.label}">{group.label}</span>
-          {#each group.items as item (item.id)}
-            <button
-              class:on={tab === item.id}
-              aria-current={tab === item.id ? "page" : undefined}
-              onclick={() => go(item.id)}
-            >
-              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-                {#if item.id === "hud"}
-                  <circle cx="12" cy="12" r="7.5" stroke-dasharray="9.8 2" stroke-dashoffset="-1" stroke-linecap="butt" />
-                {:else}
-                  <path d={item.icon} />
-                {/if}
-              </svg>
-              {item.label}
-            </button>
-          {/each}
-        </div>
-      {/each}
-    </nav>
-
-    <footer>
-      <JobsDock onView={viewTarget} />
-      {#if upgrade}
-        <div class="upgrade">
-          <div class="row">
-            <span>Datenbank wird aktualisiert</span>
-            <span class="num">{upgrade.total ? Math.floor((upgrade.done / upgrade.total) * 100) : 0} %</span>
-          </div>
-          <div class="bar"><i style="width:{upgrade.total ? (upgrade.done / upgrade.total) * 100 : 0}%"></i></div>
-          <small class="num">{int(upgrade.done)} von {int(upgrade.total)} Händen</small>
-        </div>
-      {/if}
-      <!-- The settings page says the same in its folder row, with the same button. -->
-      {#if status && !upgrade && status.dirs.length === 0 && tab !== "settings"}
-        <div class="warn">
-          <strong
-            ><Term tip="In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst."
-              >PokerStars speichert noch keine Hände</Term
-            ></strong
-          >
-          <span class="how-to">In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.</span>
-          <Button size="sm" onclick={chooseFolder}>Ordner selbst wählen</Button>
-        </div>
-      {/if}
-      <div class="meta">
-        <div class="live" class:active={tables > 0}>
-          <span class="dot"></span>
-          <span
-            >{#if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}<span class="long">&nbsp;im Blick</span
-              >{/if}</span
-          >
-        </div>
-        <div class="stored"><span class="num">{int(status?.total_hands ?? 0)}</span> Hände<span class="long">&nbsp;gespeichert</span></div>
-      </div>
-    </footer>
-  </aside>
-  {/if}
+<div
+  class="shell"
+  style:--frame-left={pageFrame.current ? `${pageFrame.current.left}px` : null}
+  style:--frame-right={pageFrame.current ? `${pageFrame.current.right}px` : null}
+>
+  <TopBar
+    {tab}
+    locked={clientRunning}
+    {filter}
+    tournaments={tournamentList}
+    {tables}
+    {status}
+    {hud}
+    {refresh}
+    onSelect={go}
+    onView={viewTarget}
+    onChooseFolder={chooseFolder}
+  />
 
   <main>
     <CloudNotice onSettings={() => (tab = "settings")} />
-    <PageHeader title={navConcept ? PAGES[tab].label : (NAV.find((n) => n.id === tab)?.label ?? "")} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED.includes(tab)}>
+    <PageHeader title={PAGES[tab].label} sub={NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED_PAGES.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab) && !showingReport}
         {@const off = tournament !== null}
@@ -464,8 +319,8 @@
     </PageHeader>
 
     <div class="content" class:fill={tab === "hands"} use:followPage>
+      <div class="frame">
       {#if tab === "dashboard"}
-        {#if navConcept === "b"}<Hub locked={clientRunning} onSelect={go} />{/if}
         <Dashboard
           {filter}
           {hud}
@@ -590,6 +445,7 @@
       {:else}
         <SettingsView {status} />
       {/if}
+      </div>
     </div>
   </main>
   <JobToasts onView={viewTarget}>
@@ -605,181 +461,12 @@
 
 <style>
   .shell {
-    display: grid;
-    grid-template-columns: 200px minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     height: 100vh;
   }
-  .shell.wide {
-    grid-template-columns: 232px minmax(0, 1fr);
-  }
-  .shell.top {
-    display: flex;
-    flex-direction: column;
-  }
-  .shell.top main {
-    flex: 1;
-  }
-  aside {
-    display: flex;
-    flex-direction: column;
-    padding: 16px 10px 14px;
-    background: #0f1114;
-    border-right: 1px solid var(--line);
-    min-height: 0;
-  }
-  .brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    height: 32px;
-    padding: 0 8px;
-    margin-bottom: 18px;
-  }
-  .brand strong {
-    font-family: var(--font-num);
-    font-size: var(--fs-lg);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-  }
-  nav {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-height: 0;
-    overflow-y: auto;
-  }
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-  .group-label {
-    padding: 0 10px 4px;
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.02em;
-    color: var(--text-3);
-  }
-  nav button {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-    height: 34px;
-    padding: 0 10px;
-    border: 0;
-    border-radius: var(--r-sm);
-    background: transparent;
-    color: var(--text-2);
-    font-size: var(--fs-base);
-    cursor: pointer;
-    text-align: left;
-  }
-  nav button:hover {
-    color: var(--text);
-    background: var(--surface);
-  }
-  nav button.on {
-    color: var(--text);
-    background: var(--surface-2);
-  }
-  nav svg {
-    flex-shrink: 0;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-  }
-  footer {
-    margin-top: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 12px 10px 0;
-    border-top: 1px solid var(--line);
-    font-size: var(--fs-sm);
-    color: var(--text-2);
-  }
-  .live {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  .dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    border: 1.5px solid var(--text-3);
-  }
-  .live.active {
-    color: var(--text);
-  }
-  .live.active .dot {
-    background: var(--text);
-    border-color: var(--text);
-  }
-  .stored .num {
-    color: var(--text);
-  }
-  .upgrade {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-    padding-bottom: 10px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--line);
-  }
-  .upgrade .row {
-    display: flex;
-    justify-content: space-between;
-    color: var(--text);
-  }
-  .upgrade small {
-    color: var(--text-3);
-    font-size: var(--fs-xs);
-  }
-  .bar {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .bar i {
-    display: block;
-    height: 100%;
-    background: var(--text);
-    transition: width var(--dur-slow) var(--ease-standard);
-  }
-  .warn {
-    display: grid;
-    gap: 5px;
-    margin-bottom: 4px;
-    padding: 8px 9px;
-    border: 1px solid var(--line-2);
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-    line-height: 1.4;
-  }
-  .warn strong {
-    color: var(--text);
-    font-weight: 600;
-  }
-  .warn :global(.ui-btn) {
-    justify-self: start;
-  }
-  .meta {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  /* The last items fade out while more of the menu is below. */
-  nav.more {
-    mask-image: linear-gradient(to bottom, var(--text) calc(100% - 28px), transparent);
-  }
-
   main {
+    flex: 1;
     display: flex;
     flex-direction: column;
     min-width: 0;
@@ -811,7 +498,7 @@
       display: contents;
     }
   }
-  @media (max-width: 1699px) {
+  @media (max-width: 1439px) {
     .wide-period {
       display: none;
     }
@@ -828,37 +515,12 @@
   .content.fill {
     overflow: hidden;
   }
-  /* Short windows (700 px at the minimum size): every nav item stays visible above the footer. */
-  @media (max-height: 760px) {
-    aside {
-      padding-top: 12px;
-    }
-    .brand {
-      margin-bottom: 8px;
-    }
-    nav {
-      gap: 4px;
-    }
-    nav button {
-      height: 27px;
-    }
-    .warn .how-to {
-      display: none;
-    }
-    .group-label {
-      padding-bottom: 2px;
-    }
-    footer {
-      gap: 4px;
-      padding-top: 8px;
-    }
-    .meta {
-      flex-direction: row;
-      justify-content: space-between;
-      gap: 8px;
-    }
-    .meta .long {
-      display: none;
-    }
+  /* No page is wider than the app's one page width, whatever it sets itself. */
+  .frame {
+    max-width: var(--page-max);
+    margin-inline: auto;
+  }
+  .fill .frame {
+    height: 100%;
   }
 </style>

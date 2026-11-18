@@ -1,39 +1,28 @@
 <script lang="ts">
   import { int } from "../ui/format";
 
-  /** Open tables and stored hands: is Ringside watching, and how much does it know. */
-  let { tables, hands, layout = "side" }: { tables: number; hands: number; layout?: "side" | "bar" } = $props();
+  /**
+   * Open tables and stored hands in the top bar: is Ringside watching, and how much does it know.
+   * `words` adds "im Blick" and "gespeichert"; the hand count stays in the page even when hidden.
+   */
+  let { tables, hands, words, showHands }: { tables: number; hands: number; words: boolean; showHands: boolean } = $props();
 </script>
 
-<div class="meta {layout}">
+<span class="meta">
   <span class="live" class:active={tables > 0}>
     <span class="dot"></span>
-    <span>{#if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}<span class="long">&nbsp;im Blick</span>{/if}</span>
+    <span>{#if tables === 0}Kein Tisch offen{:else}{tables === 1 ? "1 Tisch" : `${tables} Tische`}{#if words}&nbsp;im Blick{/if}{/if}</span>
   </span>
-  <span class="stored"><b>{int(hands)}</b> Hände<span class="long">&nbsp;gespeichert</span></span>
-</div>
+  <span class="stored" class:gone={!showHands}><b class="num">{int(hands)}</b> Hände{#if words}&nbsp;gespeichert{/if}</span>
+</span>
 
 <style>
   .meta {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: var(--fs-sm);
-    color: var(--text-2);
-  }
-  .side {
-    flex-direction: row;
-    justify-content: space-between;
-    gap: var(--sp-2);
-    padding: 0 10px;
-  }
-  .side .long {
-    display: none;
-  }
-  .bar {
-    flex-direction: row;
     align-items: center;
     gap: var(--sp-4);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
     white-space: nowrap;
   }
   .live {
@@ -59,10 +48,7 @@
     font-weight: var(--fw-regular);
     color: var(--text);
   }
-  /* The open tables already show on the Gegner tab; only very wide bars add the counts. */
-  @media (max-width: 1799px) {
-    .bar {
-      display: none;
-    }
+  .gone {
+    display: none;
   }
 </style>
