@@ -248,10 +248,10 @@
           <h2 class="curve-title">So kam es dazu</h2>
           <div class="legend">
             <span><i class="sw total"></i>Gesamt <b class="num {sign(r.net_bb)}">{signed(r.net_bb)}</b></span>
-            <span><i class="sw ev"></i><Term tip={EV_HELP}>All-in-EV</Term> <b class="num {sign(r.ev_bb)}">{signed(r.ev_bb)}</b></span>
-            <span><i class="sw sd"></i><Term tip={SD_HELP}>Mit Showdown</Term> <b class="num {sign(r.showdown_bb)}">{signed(r.showdown_bb)}</b></span>
+            <span><i class="sw ev"></i><Term side="bottom" tip={EV_HELP}>All-in-EV</Term> <b class="num {sign(r.ev_bb)}">{signed(r.ev_bb)}</b></span>
+            <span><i class="sw sd"></i><Term side="bottom" tip={SD_HELP}>Mit Showdown</Term> <b class="num {sign(r.showdown_bb)}">{signed(r.showdown_bb)}</b></span>
             <span
-              ><i class="sw nsd"></i><Term tip={NSD_HELP}>Ohne Showdown</Term>
+              ><i class="sw nsd"></i><Term side="bottom" tip={NSD_HELP}>Ohne Showdown</Term>
               <b class="num {sign(r.non_showdown_bb)}">{signed(r.non_showdown_bb)}</b></span
             >
           </div>
@@ -476,6 +476,7 @@
     border-top: 1px solid var(--line);
   }
   .facts div {
+    align-content: start;
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: baseline;

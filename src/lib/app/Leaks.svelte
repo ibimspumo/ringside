@@ -341,7 +341,9 @@
         {#if ex}<p class="why">{ex.why}</p>{/if}
         <div class="links">
           {#if ex}
-            <Button size="sm" variant={l.uncertain ? "quiet" : "secondary"} onclick={() => onLearn(ex)}>Übung: {SKILLS[ex.kind].short}</Button>
+            <Button size="sm" variant={l.uncertain ? "quiet" : rank === 1 ? "primary" : "secondary"} onclick={() => onLearn(ex)}
+              >Übung: {SKILLS[ex.kind].short}</Button
+            >
           {/if}
           {#if article}
             <Button size="sm" variant={ex || l.uncertain ? "quiet" : "secondary"} onclick={() => onLearn({ article })}
@@ -373,8 +375,7 @@
           <h2>{sure.length === 1 ? "1 Leak gefunden" : `${int(sure.length)} Leaks gefunden`}</h2>
           <p>
             Fang oben an: Dein Wert <b>{STAT_META[first.stat].name}</b> ist {first.direction === "too_high" ? "zu hoch" : "zu niedrig"}
-            ({where(first)}, {data.bands[first.band]}{first.cost ? `, kostet grob ${int(Math.round(first.cost.total_bb))} BB` : ""}). Das
-            Wichtigste steht oben.
+            ({where(first)}, {data.bands[first.band]}{first.cost ? `, kostet grob ${int(Math.round(first.cost.total_bb))} BB` : ""}).
           </p>
         {:else if unsure.length}
           <h2>Noch kein sicherer Leak</h2>
@@ -398,27 +399,23 @@
           </p>
         {/if}
         <p class="honest">
-          Richtwerte stammen aus veröffentlichten Quellen – eine Orientierung, keine „richtige“ Strategie. Die teuersten
-          Einzelentscheidungen aus der Hand-Analyse zeigt die Übersicht.
+          Richtwerte aus veröffentlichten Quellen – eine Orientierung, keine „richtige“ Strategie. Einzelne teure Entscheidungen
+          zeigt die Übersicht.
         </p>
       </div>
       {#if data.leaks.length || data.fine.length}
       <ul class="counts">
-        <li class:hot={sure.length > 0}>
-          <b class="num">{int(sure.length)}</b>
-          <span><strong>{sure.length === 1 ? "Leak" : "Leaks"}</strong>sicher genug zum Arbeiten</span>
-        </li>
         <li>
           <b class="num">{int(unsure.length)}</b>
-          <span><strong>Noch unsicher</strong>zu wenig Hände für ein Urteil</span>
+          <span><strong>Noch unsicher</strong><em>zu wenig Hände für ein Urteil</em></span>
         </li>
         <li class="ok">
           <b class="num">{int(data.fine.length)}</b>
-          <span><strong>Im Richtbereich</strong>hier passt es</span>
+          <span><strong>Im Richtbereich</strong><em>hier passt es</em></span>
         </li>
         <li class="na">
           <b class="num">{int(data.too_small)}</b>
-          <span><strong>Nicht bewertbar</strong>unter 10 Gelegenheiten</span>
+          <span><strong>Nicht bewertbar</strong><em>unter 10 Gelegenheiten</em></span>
         </li>
       </ul>
       <div class="how">
@@ -529,9 +526,10 @@
   .verdict {
     contain: paint;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 720px) auto;
+    justify-content: start;
     align-items: start;
-    gap: 16px 28px;
+    gap: 16px 32px;
     padding: 20px 22px;
   }
   .verdict.bare {
@@ -558,7 +556,7 @@
   }
   .counts {
     display: grid;
-    grid-template-columns: repeat(2, minmax(190px, 1fr));
+    grid-template-columns: repeat(3, minmax(150px, 190px));
     gap: 8px;
     margin: 0;
     padding: 0;
@@ -579,9 +577,6 @@
     line-height: 1;
     color: var(--text);
   }
-  .counts li.hot b {
-    color: var(--neg);
-  }
   .counts li.ok b {
     color: var(--pos);
   }
@@ -594,6 +589,9 @@
     font-size: var(--fs-md);
     line-height: 1.35;
     color: var(--text-2);
+  }
+  .counts em {
+    font-style: normal;
   }
   .counts strong {
     font-size: var(--fs-base);
@@ -1004,11 +1002,14 @@
       padding: 16px 18px;
     }
     .counts {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .counts li {
       min-width: 0;
       padding: 8px 12px;
+    }
+    .counts em {
+      display: none;
     }
     .counts b {
       font-size: var(--fs-2xl);
