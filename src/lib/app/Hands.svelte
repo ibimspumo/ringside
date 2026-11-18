@@ -264,7 +264,7 @@
         ? `Am Tisch bist du jetzt dran – bewertet wird dein ${current.played.split(" ")[0]}:`
         : standing === null || standing > current.action_index
           ? `Bewertet wird dein ${current.played.split(" ")[0]} am ${({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[current.street]}:`
-          : `Als Nächstes bist du dran – so wird dein ${current.played.split(" ")[0]} bewertet:`
+          : `Deine nächste Entscheidung: ${current.played.split(" ")[0]} – so wird sie bewertet:`
       : null,
   );
   function follow(next: number | null) {
@@ -295,7 +295,7 @@
   }
 
   const marks = $derived.by(() => {
-    if (!decisions?.length) return null;
+    if (!decisions?.length || locked) return null;
     const m = new Map<number, { grade: ReturnType<typeof gradeOf> | null; label: string }>();
     for (const d of decisions) {
       const label = d.rating ? `${RATING[d.rating].label}: ${d.played}` : d.status === "pending" ? `Wird gerechnet: ${d.played}` : `Nicht bewertet: ${d.played}`;
@@ -375,13 +375,7 @@
 {#snippet headEnd()}
   <AnalyzeStatus short={rail} />
   {#if view === "mistakes" && !summaryShown}
-    {#if rail}
-      <IconButton size="sm" label="Zusammenfassung zeigen" onclick={flipSummary}>
-        <svg class="stroke" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5" /></svg>
-      </IconButton>
-    {:else}
-      <Button size="sm" variant="quiet" onclick={flipSummary}>Zusammenfassung</Button>
-    {/if}
+    {#if !rail}<Button size="sm" variant="quiet" onclick={flipSummary}>Zusammenfassung</Button>{/if}
   {/if}
   <Button size="sm" variant={filtersOpen || extra ? "secondary" : "quiet"} aria-expanded={filtersOpen} onclick={() => (filtersOpen = !filtersOpen)}>
     {#snippet icon()}<svg class="stroke" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4" /></svg>{/snippet}
@@ -657,7 +651,7 @@
           {#if net !== null}
             <div class="result" title="Was du in dieser einen Hand gewonnen oder verloren hast – mit Glück und Pech. Die Bewertung rechts sagt dagegen, was eine Entscheidung im Schnitt kostet.">
               <span>Ergebnis der Hand</span>
-              <b class="num {sign(net)}">{signed(net)} BB</b>
+              <b class="num {sign(net)}">{signed(net, Math.abs(net) >= 10 ? 0 : 1)} BB</b>
             </div>
           {/if}
           <div class="nav">
@@ -1124,9 +1118,15 @@
   }
   .narrow .hole,
   .narrow .where,
-  .narrow .ident p,
-  .narrow .result span {
+  .narrow .ident p {
     display: none;
+  }
+  .narrow .result span {
+    font-size: 0;
+  }
+  .narrow .result span::after {
+    content: "Ergebnis";
+    font-size: var(--fs-xs);
   }
   .narrow .result b {
     font-size: var(--fs-lg);

@@ -350,6 +350,9 @@
     const free = boxH - headH - ctrlH - 20 - (besides ? 0 : LOG_MIN + 12);
     return fitTable(free, room);
   });
+  /** Wide and tall: the log goes under the table in four columns, the side column keeps the analysis. */
+  const logRoom = $derived(boxH - headH - ctrlH - tableHeight(fit.w) * fit.f - 48);
+  const logBelow = $derived(besides && !!aside && logRoom >= 200);
   const MIN_SCALE = 0.85;
   /**
    * The widest table whose height fits `free`. Below the width where chips and tags would
@@ -396,6 +399,65 @@
 </script>
 
 <svelte:window onkeydown={key} />
+
+{#snippet history()}
+      {#if done && hand.bounties_won.length}
+        <div class="bounties">
+          <span class="dim">Bounty gewonnen</span>
+          {#each hand.bounties_won as [name, value] (name)}
+            <span><b>{name === hand.hero ? "Du" : name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
+          {/each}
+        </div>
+      {/if}
+      <div class="log" class:below={logBelow} style:max-height={logBelow ? `${logRoom}px` : undefined} bind:this={logEl} aria-label="Zugverlauf">
+        {#each log as g (g.street)}
+          <div class="street-log">
+            <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
+            <ol>
+              {#each g.items as { i, a, index } (i)}
+                {@const mark = marks?.get(index)}
+                {@const kind = kindOf(a)}
+                {@const me = a.player === hand.hero}
+                <li class:future={i >= step} class:now={i === step - 1}>
+                  <button
+                    class:marked={!!mark}
+                    onclick={() => (mark && onMark ? onMark(index) : (step = i + 1))}
+                    title="{me ? `Du (${a.player})` : a.player}{mark ? ` · ${mark.label}` : ''}"
+                  >
+                    <span class="pos num" class:me>{positions.get(a.player) ?? "–"}</span>
+                    <span class="actor">{me ? "Du" : a.player}</span>
+                    <span class="what" style:--c={kind ? `var(--act-${kind === "allin" ? "allin" : kind === "raise" || kind === "bet" ? "bet-3" : kind})` : undefined}
+                      >{kind ? WORD[kind] : (POST[a.kind] ?? a.kind)}</span
+                    >
+                    {#if a.amount > 0}<span class="num amt">{format((a.to ?? a.amount) / unit)}</span>{/if}
+                    {#if mark?.grade}<GradeIcon grade={mark.grade} size={14} />{:else if mark}<i class="open-mark" aria-hidden="true"></i>{/if}
+                  </button>
+                </li>
+              {/each}
+            </ol>
+          </div>
+        {/each}
+        {#if result.length}
+          <div class="result">
+            <h4>Ergebnis</h4>
+            {#each result as r (r.name)}
+              <div class="who-won" class:winner={r.won !== undefined}>
+                <span class="line">
+                  <span class="pos num" class:me={r.name === hand.hero}>{r.position ?? "–"}</span>
+                  <span class="actor" title={r.name}>{r.name === hand.hero ? "Du" : r.name}</span>
+                  {#if r.won !== undefined}<b class="num gain">+{format(r.won / unit)}</b>{:else}<span class="lost">verliert</span>{/if}
+                </span>
+                {#if r.cards && hand.board.length >= 3}
+                  <BestHand hole={r.cards} board={hand.board} winner={r.won !== undefined} size={24} />
+                {:else if r.won !== undefined && !hand.shown.length}
+                  <span class="faint">ohne Showdown – alle anderen haben gefoldet</span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+{/snippet}
 
 <div class="replayer" class:besides bind:clientWidth={boxW} bind:clientHeight={boxH}>
   <div class="layout" class:besides style:--side="{sideW}px" style:--table="{fit.w * fit.f}px">
@@ -480,66 +542,12 @@
           </Button>
         {/if}
       </div>
+      {#if logBelow}{@render history()}{/if}
     </div>
 
     <div class="side" bind:this={sideEl}>
       {#if aside && besides}<div class="aside">{@render aside()}</div>{/if}
-      {#if done && hand.bounties_won.length}
-        <div class="bounties">
-          <span class="dim">Bounty gewonnen</span>
-          {#each hand.bounties_won as [name, value] (name)}
-            <span><b>{name === hand.hero ? "Du" : name}</b> <span class="num pos">{moneyShort(value, hand.bounty_currency ?? "USD")}</span></span>
-          {/each}
-        </div>
-      {/if}
-      <div class="log" bind:this={logEl} aria-label="Zugverlauf">
-        {#each log as g (g.street)}
-          <div class="street-log">
-            <h4 class:on={table.street === g.street && step > 0}>{STREET_NAME[g.street]}</h4>
-            <ol>
-              {#each g.items as { i, a, index } (i)}
-                {@const mark = marks?.get(index)}
-                {@const kind = kindOf(a)}
-                {@const me = a.player === hand.hero}
-                <li class:future={i >= step} class:now={i === step - 1}>
-                  <button
-                    class:marked={!!mark}
-                    onclick={() => (mark && onMark ? onMark(index) : (step = i + 1))}
-                    title="{me ? `Du (${a.player})` : a.player}{mark ? ` · ${mark.label}` : ''}"
-                  >
-                    <span class="pos num" class:me>{positions.get(a.player) ?? "–"}</span>
-                    <span class="actor">{me ? "Du" : a.player}</span>
-                    <span class="what" style:--c={kind ? `var(--act-${kind === "allin" ? "allin" : kind === "raise" || kind === "bet" ? "bet-3" : kind})` : undefined}
-                      >{kind ? WORD[kind] : (POST[a.kind] ?? a.kind)}</span
-                    >
-                    {#if a.amount > 0}<span class="num amt">{format((a.to ?? a.amount) / unit)}</span>{/if}
-                    {#if mark?.grade}<GradeIcon grade={mark.grade} size={14} />{:else if mark}<i class="open-mark" aria-hidden="true"></i>{/if}
-                  </button>
-                </li>
-              {/each}
-            </ol>
-          </div>
-        {/each}
-        {#if result.length}
-          <div class="result">
-            <h4>Ergebnis</h4>
-            {#each result as r (r.name)}
-              <div class="who-won" class:winner={r.won !== undefined}>
-                <span class="line">
-                  <span class="pos num" class:me={r.name === hand.hero}>{r.position ?? "–"}</span>
-                  <span class="actor" title={r.name}>{r.name === hand.hero ? "Du" : r.name}</span>
-                  {#if r.won !== undefined}<b class="num gain">+{format(r.won / unit)}</b>{:else}<span class="lost">verliert</span>{/if}
-                </span>
-                {#if r.cards && hand.board.length >= 3}
-                  <BestHand hole={r.cards} board={hand.board} winner={r.won !== undefined} size={24} />
-                {:else if r.won !== undefined && !hand.shown.length}
-                  <span class="faint">ohne Showdown – alle anderen haben gefoldet</span>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </div>
+      {#if !logBelow}{@render history()}{/if}
     </div>
   </div>
 </div>
@@ -802,13 +810,15 @@
       white-space: nowrap;
     }
   }
+  /* At the end of the hand the result leads the log. */
   .result {
+    order: -1;
     grid-column: 1 / -1;
     display: flex;
     flex-wrap: wrap;
     gap: var(--sp-3) var(--sp-6);
     padding: 0 var(--sp-3) var(--sp-3);
-    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
   }
   .result h4 {
     position: static;
@@ -864,9 +874,21 @@
   .aside {
     flex-shrink: 0;
   }
+  .besides .log.below {
+    display: grid;
+    flex: none;
+    min-height: 0;
+  }
   .besides .street-log {
     border-left: 0;
     border-top: 1px solid var(--line);
+  }
+  .besides .below .street-log {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
+  .besides .below .street-log:first-child {
+    border-left: 0;
   }
   .besides h4 {
     position: static;

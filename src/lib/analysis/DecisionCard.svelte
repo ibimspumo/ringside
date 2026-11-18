@@ -78,7 +78,7 @@
     <div class="strategy">
       <div class="mix" role="img" aria-label="Was {d.source ? SOURCE[d.source].label : 'die Berechnung'} mit deiner Hand spielt">
         {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-          <span class="seg {tone(c)}" class:mine={c.played} style:flex-grow={Math.max(c.freq, 0.015)} title="{c.label}: {pct(c.freq)}"></span>
+          <span class="seg {tone(c)}" class:mine={c.played} style:--ring={d.rating ? `var(--grade-${gradeOf(d.rating)})` : "var(--text)"} style:flex-grow={Math.max(c.freq, 0.015)} title="{c.label}: {pct(c.freq)}"></span>
         {/each}
       </div>
       <ul class="options">
@@ -92,7 +92,7 @@
           <li class:mine={c.played}>
             <span class="dot {tone(c)}"></span>
             <span class="label"
-              >{c.label}{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
+              ><span class="name">{c.label}</span>{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
             >
             <span class="num freq">{pct(c.freq)}</span>
             <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
@@ -182,10 +182,11 @@
     min-width: 4px;
     border-radius: var(--r-xs);
   }
+  /* Your share carries the grade's colour, so a bad call is never outlined like a good one. */
   .seg.mine {
     box-shadow:
       0 0 0 2px var(--surface),
-      0 0 0 3.5px var(--text);
+      0 0 0 4px var(--ring);
   }
   .fold {
     background: var(--act-fold);
@@ -233,10 +234,18 @@
     height: 8px;
     border-radius: 2px;
   }
+  /* The name may wrap; the marks after it keep their place. */
   .label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+  }
+  .label .name {
+    min-width: 0;
+  }
+  .label em,
+  .best-mark {
+    flex-shrink: 0;
   }
   .best-mark {
     display: inline-flex;
