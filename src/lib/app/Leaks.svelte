@@ -892,14 +892,12 @@
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-top: auto;
     padding-top: 6px;
   }
   .cites {
     display: flex;
     flex-direction: column;
     gap: 2px;
-    margin-top: auto;
     padding-top: 10px;
     border-top: 1px solid var(--line);
     font-size: var(--fs-md);

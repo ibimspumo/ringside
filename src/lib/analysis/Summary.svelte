@@ -125,7 +125,7 @@
                 <span class="links">
                   {#if onLearn}
                     {#each LEARN[spot] as l, j (l.label)}
-                      <Button size="sm" variant={j === 0 ? "secondary" : "quiet"} onclick={() => onLearn(l.target)}>{l.label}</Button>
+                      <Button size="sm" variant={i === 0 || j > 0 ? "quiet" : "secondary"} onclick={() => onLearn(l.target)}>{l.label}</Button>
                     {/each}
                   {/if}
                   {#if onSpot}
@@ -147,12 +147,14 @@
             <span class="hand">
             <span class="hole">{#each cards(c.hero_cards) as card (card)}<PlayingCard {card} size={20} />{/each}</span>
             <span class="what">
-              <span>{c.played} statt {c.best}</span>
-              <small>{c.position ? `${c.position} · ` : ""}Hand ansehen</small>
-            </span>
-            <span class="loss" style="--c:{c.rating ? `var(--grade-${grade(c.rating)})` : 'var(--text)'}">
-              <b class="num">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
-              {#if c.rating}<small><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
+              <span class="decision">{c.played} statt {c.best}</span>
+              <span class="detail">
+                <small>{c.position ? `${c.position} · ` : ""}Hand ansehen</small>
+                <span class="loss" style="--c:{c.rating ? `var(--grade-${grade(c.rating)})` : 'var(--text)'}">
+                  {#if c.rating}<small><GradeIcon grade={grade(c.rating)} size={13} />{RATING[c.rating].label}</small>{/if}
+                  <b class="num">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
+                </span>
+              </span>
             </span>
             </span>
           </Card>
@@ -218,9 +220,10 @@
   }
   .loss {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    align-items: baseline;
+    gap: var(--sp-2);
     color: var(--c);
+    white-space: nowrap;
   }
   .loss small {
     display: flex;
@@ -318,7 +321,7 @@
   }
   .hand {
     display: grid;
-    grid-template-columns: 46px minmax(0, 1fr) auto;
+    grid-template-columns: 46px minmax(0, 1fr);
     align-items: center;
     gap: 10px;
   }
@@ -331,8 +334,14 @@
     flex-direction: column;
     min-width: 0;
   }
-  .what > span {
+  .decision {
     line-height: 1.3;
+  }
+  .detail {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-2);
   }
   .what small {
     color: var(--text-2);
