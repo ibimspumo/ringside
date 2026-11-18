@@ -115,7 +115,7 @@
       {#if failed}
         <p class="msg" role="alert">{failed}</p>
       {:else if hand && at !== null}
-        <Replayer {hand} upTo={answer ? null : at} quiz={!answer} inBigBlinds>
+        <Replayer {hand} upTo={answer ? null : at} quiz={!answer} inBigBlinds quietPlay>
           <div class="hand-title">
             {#if answer}
               <span class="stop done">Aufgelöst: so ging die Hand weiter</span>

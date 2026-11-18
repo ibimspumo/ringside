@@ -16,7 +16,8 @@
    * calls `onMark`. A new `jumpTo` moves the replay to just before its action. `aside` sits
    * above the action log. `quiz` is for practising the hand: while the answer is open, the
    * solver hand-off is hidden and the play button stays quiet. `inBigBlinds` starts the amounts
-   * in big blinds instead of chips.
+   * in big blinds instead of chips. `quietPlay` keeps the play button in outline, for screens
+   * that have their own main action.
    */
   let {
     hand: full,
@@ -28,6 +29,7 @@
     aside,
     quiz = false,
     inBigBlinds = false,
+    quietPlay = false,
   }: {
     hand: Hand;
     upTo?: number | null;
@@ -38,6 +40,7 @@
     aside?: Snippet;
     quiz?: boolean;
     inBigBlinds?: boolean;
+    quietPlay?: boolean;
   } = $props();
 
   type Event =
@@ -406,7 +409,7 @@
           </button>
           <button
             class="btn play"
-            class:primary={!quiz}
+            class:primary={!quiz && !quietPlay}
             onclick={() => {
               if (done) step = 0;
               playing = !playing;

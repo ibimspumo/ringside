@@ -228,7 +228,11 @@
       </div>
       <div class="figs">
         <Card tone="sunken">
-          <Stat label="Läuft seit" value={duration(p?.total_seconds ?? 0)} meaning="dieser Schritt seit {duration(p?.step_seconds ?? 0)}" />
+          <Stat
+            label="Läuft seit"
+            value={duration(p?.total_seconds ?? 0)}
+            meaning={(p?.step ?? 1) > 1 ? `dieser Schritt seit ${duration(p?.step_seconds ?? 0)}` : "erster Schritt"}
+          />
         </Card>
         <Card tone="sunken">
           <div class="fact">
@@ -238,13 +242,11 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat label="Ringside hat gerechnet" value={finished(p) ? `${finished(p)}-mal` : "noch nichts"} />
+            <Stat label="Ringside hat gerechnet" value={finished(p) ? `${finished(p)}-mal` : st.estimate.spots ? `${st.estimate.spots} vorab` : "noch nichts"} />
             <span class="tools">
               {#each used as t (t)}{@const now = p?.stage === "tool" && p.tool === t}<Badge size="sm" tone={now ? "info" : "good"} dot={now}
                   >{TOOLS[t] ?? t}{now ? " läuft" : " ✓"}</Badge
-                >{:else}<span class="note"
-                  >{st.estimate.spots ? `${st.estimate.spots} Spots schon vorab gerechnet. ` : ""}Jede weitere Zahl rechnet Ringside nach.</span
-                >{/each}
+                >{:else}<span class="note">Jede weitere Zahl rechnet Ringside nach.</span>{/each}
             </span>
           </div>
         </Card>

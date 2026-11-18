@@ -54,7 +54,7 @@ function report(tournament: number, created: number): CoachReport {
   return {
     tournament_id: tournament,
     summary:
-      "Vor dem Flop spielst du mit kurzem Stack meist sauber. Zwei Folds im Small Blind kosten dich aber Chips, und am River callst du zu oft gegen große Bets, ohne genug Equity zu haben.",
+      "Vor dem Flop spielst du mit kurzem Stack meist sauber. Ein Fold im Small Blind kostet dich aber Chips, und am River callst du gegen große Bets, ohne genug Equity zu haben.",
     focus: [
       "Push/Fold im Small Blind bis 12 bb",
       "River-Calls gegen große Bets mit Pot Odds prüfen",
