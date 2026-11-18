@@ -1,6 +1,7 @@
 // Browser-only sample: the equilibrium for 6 players at 10 BB with a big-blind ante,
-// open shoves and first calls only. Every request gets this chart.
+// open shoves and first calls only. Every request gets this chart, seated at the requested table.
 import type { PushFoldChart, PushFoldGrid } from "../types";
+import { tablePositions } from "./words";
 
 const STACKS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 25];
 
@@ -30,11 +31,20 @@ export function demoChart(stack = 10, players = 6): PushFoldChart {
   // The new first seat is reached by every hand; the rest scale with it.
   const first = kept.find((n) => n.seat === 0 && n.shover === null)?.reach || 1;
   for (const n of kept) n.reach = Math.min(1, n.reach / first);
+  // More players: seats keep their distance to the big blind; the early seats shove like the sample's first.
+  const more = Math.max(0, players - 6);
+  const opener = kept.find((n) => n.seat === 0 && n.shover === null);
+  const early = opener ? Array.from({ length: more }, (_, s) => ({ ...opener, seat: s })) : [];
+  const names = tablePositions(6 - cut + more);
+  const seated = [
+    ...early,
+    ...kept.map((n) => ({ ...n, seat: n.seat + more, shover: n.shover === null ? null : n.shover + more, callers: n.callers.map((c) => c + more) })),
+  ].map((n) => ({ ...n, position: names[n.seat] ?? n.position }));
   const nodes = new URLSearchParams(window.location.search).has("empty")
-    ? kept.map((n) => ({ ...n, act_pct: 0, freq: n.freq.map(() => 0) }))
-    : kept.map((n) => ({ ...n, act_pct: Math.min(100, n.act_pct * scale) }));
+    ? seated.map((n) => ({ ...n, act_pct: 0, freq: n.freq.map(() => 0) }))
+    : seated.map((n) => ({ ...n, act_pct: Math.min(100, n.act_pct * scale) }));
   return {
-    players: 6 - cut,
+    players: 6 - cut + more,
     stack_bb: stack,
     ante: "big_blind",
     precomputed: true,

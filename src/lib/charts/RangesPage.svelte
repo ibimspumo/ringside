@@ -413,6 +413,7 @@
     curve = null;
     const a = ante;
     const n = players;
+    const names = tablePositions(n);
     Promise.all([
       Promise.all(pfDepths.map((s) => api.pushfoldChart(a, n, s).then((c) => ({ s, c })))),
       Promise.all(modelDepths.map((s) => api.preflopSpots(a, n, s).then((c) => ({ s, c })))),
@@ -420,7 +421,7 @@
       .then(([pfs, models]) => {
         const by = new Map<number, Series>();
         const put = (seatNo: number, name: string, st: number, p: number) => {
-          const ser = by.get(seatNo) ?? { seat: seatNo, name, points: [] };
+          const ser = by.get(seatNo) ?? { seat: seatNo, name: names[seatNo] ?? name, points: [] };
           ser.points.push({ stack: st, pct: p });
           by.set(seatNo, ser);
         };
