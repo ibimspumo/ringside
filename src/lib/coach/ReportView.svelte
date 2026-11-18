@@ -342,7 +342,7 @@
     flex-direction: column;
     gap: 5px;
     font-size: 13px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .legend li {
     display: flex;
@@ -363,7 +363,7 @@
     font-weight: 600;
   }
   .vname {
-    color: var(--text-2);
+    color: var(--text);
   }
   .legend li.zero {
     opacity: 0.45;
@@ -466,7 +466,7 @@
     margin: 14px 0 0;
     font-size: 12.5px;
     line-height: 1.7;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .tag {
     padding: 1px 6px;

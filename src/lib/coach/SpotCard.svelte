@@ -4,7 +4,7 @@
   import Felt from "../Felt.svelte";
   import PlayingCard from "../PlayingCard.svelte";
   import { conceptName } from "./concepts";
-  import { positionHint, verdictOf } from "./meaning";
+  import { positionHint, termsIn, verdictOf } from "./meaning";
   import type { Practice } from "./ReportView.svelte";
   import type { CoachSpot } from "./types";
 
@@ -23,6 +23,7 @@
   } = $props();
 
   const verdict = $derived(verdictOf(spot.verdict));
+  const terms = $derived(termsIn(spot.numbers.map((n) => n.label)));
   const stack = $derived(spot.stack_bb.toLocaleString("de-DE", { maximumFractionDigits: 1 }));
   const time = $derived(spot.played_at.slice(11, 16));
   const street = $derived(
@@ -77,6 +78,11 @@
           </div>
         {/each}
       </dl>
+      {#if terms.length}
+        <ul class="terms" aria-label="Begriffe">
+          {#each terms as t (t.term)}<li><b>{t.term}</b> {t.meaning}</li>{/each}
+        </ul>
+      {/if}
     {/if}
     <footer>
       <div class="learn">
@@ -302,6 +308,24 @@
     color: var(--text-3);
   }
 
+  .terms {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .terms b {
+    display: inline-block;
+    min-width: 9.5em;
+    margin-right: 6px;
+    font-weight: 600;
+    color: var(--text);
+  }
   footer {
     display: flex;
     align-items: center;
@@ -321,6 +345,7 @@
   }
   .hand {
     gap: 4px;
+    margin-left: auto;
   }
   .topic {
     font-size: 13px;

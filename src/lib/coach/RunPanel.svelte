@@ -229,18 +229,8 @@
           nichts tun.
         </p>
       {/if}
-      <p class="faint small">
-        {#if live && p}
-          {#if p.live_reasoning_tokens || p.live_output_tokens}
-            In diesem Schritt ca. <span class="num">{tokens(p.live_reasoning_tokens)}</span> Tokens Nachdenken und
-            <span class="num">{tokens(p.live_output_tokens)}</span> Tokens Antwort.
-          {:else}
-            Das Modell zeigt sein Nachdenken nicht; die Tokens dafür stehen erst nach dem Schritt fest.
-          {/if}
-        {/if}
-        Abgerechnet bisher <span class="num">{tokens((p?.prompt_tokens ?? 0) + (p?.completion_tokens ?? 0))}</span> Tokens{#if p?.reasoning_tokens},
-          davon <span class="num">{tokens(p.reasoning_tokens)}</span> Nachdenken{/if}. Jeder Schritt ist eine Anfrage an das
-        Modell; bei gründlichem Nachdenken kann einer mehrere Minuten dauern.
+      <p class="explain">
+        Jeder Schritt ist eine Anfrage an das Modell; bei gründlichem Nachdenken kann einer mehrere Minuten dauern.
         {#if p?.idle_limit != null}
           Solange Daten kommen, wartet Ringside.
         {:else if p}
@@ -256,6 +246,21 @@
             coachApi.cancel();
           }}>{cancelling ? "Wird abgebrochen …" : "Analyse abbrechen"}</button
         >
+        <details class="tech">
+          <summary>Technische Details</summary>
+          <p>
+            {#if live && p}
+              {#if p.live_reasoning_tokens || p.live_output_tokens}
+                In diesem Schritt ca. <span class="num">{tokens(p.live_reasoning_tokens)}</span> Tokens Nachdenken und
+                <span class="num">{tokens(p.live_output_tokens)}</span> Tokens Antwort.
+              {:else}
+                Das Modell zeigt sein Nachdenken nicht; die Tokens dafür stehen erst nach dem Schritt fest.
+              {/if}
+            {/if}
+            Abgerechnet bisher <span class="num">{tokens((p?.prompt_tokens ?? 0) + (p?.completion_tokens ?? 0))}</span>
+            Tokens{#if p?.reasoning_tokens}, davon <span class="num">{tokens(p.reasoning_tokens)}</span> Nachdenken{/if}.
+          </p>
+        </details>
       </div>
     {:else}
       <div class="error" role="alert">
@@ -367,14 +372,15 @@
   .note {
     font-size: 12.5px;
     line-height: 1.5;
-    color: var(--text-3);
+    color: var(--text-2);
+  }
+  .explain {
+    font-size: 13px;
+    color: var(--text-2);
   }
   .note b {
-    color: var(--text-2);
+    color: var(--text);
     font-weight: 600;
-  }
-  .small {
-    font-size: 12.5px;
   }
 
   .cards {
@@ -442,7 +448,7 @@
   .hint {
     flex: 1 1 260px;
     font-size: 12.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
 
   .privacy {
@@ -485,10 +491,10 @@
   }
   .never {
     font-size: 12.5px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .never b {
-    color: var(--text-2);
+    color: var(--text);
   }
   .link {
     margin-left: 6px;

@@ -344,6 +344,7 @@
 
 <style>
   .page {
+    max-width: 1600px;
     padding-top: 20px;
   }
   .layout {
