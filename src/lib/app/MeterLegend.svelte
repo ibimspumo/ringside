@@ -8,7 +8,7 @@
 <p class="legend" class:meters>
   {#if meters}
     <span class="item scale"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>
-    <span class="item scale"><i class="dot" aria-hidden="true"></i>Wert; die Farbe sagt niedrig, mittel oder hoch wie im HUD – keine Note</span>
+    <span class="item"><i class="dot" aria-hidden="true"></i>Farbe: niedrig, mittel oder hoch wie im HUD – keine Note</span>
   {:else}
     <span class="item">Alle Werte in %, Aggression (AF) als Faktor ×. Fahr über einen Spaltenkopf für die Erklärung.</span>
   {/if}

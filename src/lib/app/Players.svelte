@@ -176,7 +176,7 @@
     align-items: start;
   }
   .split.docked {
-    grid-template-columns: minmax(0, 1fr) clamp(380px, 32%, 460px);
+    grid-template-columns: minmax(0, 1fr) clamp(380px, 32%, 520px);
   }
   .list {
     container: player-list / inline-size;

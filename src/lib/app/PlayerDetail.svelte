@@ -130,8 +130,12 @@
     {/if}
 
     {#each GROUPS as [title, ids] (title)}
+      {@const unsure = ids.filter((id) => (stat(player.stats, id)?.opp ?? 0) < SMALL_SAMPLE).length}
       <section class="group" aria-label={title}>
         <h3>{title}</h3>
+        {#if unsure}
+          <p class="unsure"><i aria-hidden="true"></i>{unsure === ids.length ? "Alle" : `${unsure} von ${ids.length}`} Werten stammen aus weniger als {SMALL_SAMPLE} Gelegenheiten: noch unsicher.</p>
+        {/if}
         <dl>
           {#each ids as id (id)}
             {@const s = stat(player.stats, id)}
@@ -141,8 +145,8 @@
             {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
-                <Term tip={STAT_META[id].help}>{STAT_META[id].name}</Term>
-                <small>{word(id)} · {sampleNote(s)}</small>
+                <Term tip={STAT_META[id].help} side="bottom">{STAT_META[id].name}</Term>
+                <small>{word(id)} · {sampleNote(s, true)}</small>
                 {#if hint}<span class="hint">→ {hint}</span>{/if}
               </dt>
               <dd>
@@ -393,6 +397,21 @@
   }
   dl {
     margin: 0;
+  }
+  .unsure {
+    display: flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+    margin: 0 0 var(--sp-1);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .unsure i {
+    flex-shrink: 0;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 2px var(--text-2);
   }
   .stat {
     display: grid;

@@ -27,7 +27,7 @@ export const TYPE: Record<PlayerType, { name: string; long: string; sketch: stri
     name: "LAG",
     long: "LAG (locker und aggressiv)",
     sketch: "Spielt viele Hände und erhöht oft.",
-    counter: "Weiter callen und mit starken Händen zurückschlagen.",
+    counter: "Öfter mitgehen und mit starken Händen selbst erhöhen.",
     why: "Er erhöht auch mit schwachen Händen. Starke Hände bekommen von ihm viel Geld.",
     band: [27, 100],
   },
@@ -94,12 +94,12 @@ export function read(stats: StatValue[]): Read | null {
 /** Below this many chances a value is still noise; it stays visible but recedes. */
 export const SMALL_SAMPLE = 20;
 
-/** How a single value is backed: "aus 8 Händen, noch unsicher", "aus 31 Gelegenheiten". */
-export function sampleNote(s: StatValue | undefined): string {
+/** How a single value is backed: "aus 8 Händen, noch unsicher", "aus 31 Gelegenheiten"; `short` leaves the warning to the mark. */
+export function sampleNote(s: StatValue | undefined, short = false): string {
   if (!s || !s.opp) return "noch keine Gelegenheit";
   const perHand = s.id === "vpip" || s.id === "pfr";
   const what = perHand ? (s.opp === 1 ? "Hand" : "Händen") : s.opp === 1 ? "Gelegenheit" : "Gelegenheiten";
-  return `aus ${s.opp.toLocaleString("de-DE")} ${what}${s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
+  return `aus ${s.opp.toLocaleString("de-DE")} ${what}${!short && s.opp < SMALL_SAMPLE ? ", noch unsicher" : ""}`;
 }
 
 

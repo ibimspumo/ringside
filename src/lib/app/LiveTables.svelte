@@ -7,6 +7,7 @@
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import { pokerClient, watchPokerClient } from "./client.svelte";
   import { int } from "./format";
   import MeterLegend from "./MeterLegend.svelte";
@@ -73,7 +74,7 @@
 
   function stakes(t: TableView) {
     if (t.game === "tournament") return `Turnier · BB ${int(t.big_blind / 100)}`;
-    return `Cash · ${moneyShort(t.big_blind, t.currency)} BB`;
+    return `Cash · BB ${moneyShort(t.big_blind, t.currency)}`;
   }
 
   function pick(t: TableView, key: string) {
@@ -83,6 +84,9 @@
 </script>
 
 <div class="page roomy">
+  {#if pokerClient.running}
+    <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du erst wieder, wenn du PokerStars schließt. Die Werte aus dem HUD bleiben sichtbar.</SourceNote>
+  {/if}
   {#if tables.some((t) => t.table)}
     <div class="tools">
       <MeterLegend meters={columns === "core"} />
@@ -135,7 +139,7 @@
   {:else}
     {#if loaded}
       <EmptyState title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.">
-        {#snippet action()}<Button size="sm" variant="quiet" onclick={onPlayers}>Alle Gegner ansehen</Button>{/snippet}
+        {#snippet action()}<Button size="sm" onclick={onPlayers}>Alle Gegner ansehen</Button>{/snippet}
       </EmptyState>
     {:else}
       <EmptyState tone="loading" title="Suche offene Tische" />
