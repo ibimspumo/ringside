@@ -568,6 +568,8 @@
             {:else if loading}
               <h2>{bb(stack)} BB werden gerade gerechnet.</h2>
               <p>Sobald es fertig ist, steht hier die Antwort für deinen Platz.</p>
+            {:else}
+              <h2>Für diesen Platz gibt es hier keine Entscheidung.</h2>
             {/if}
             {#if loading && !onGrid && !error}
               <div class="live" role="status">
@@ -595,8 +597,6 @@
                   </div>
                 {/if}
               </div>
-            {:else}
-              <h2>Für diesen Platz gibt es hier keine Entscheidung.</h2>
             {/if}
             {#if barActions.length}<ActionBar actions={barActions} selected={only} onSelect={(i) => (only = i)} />{/if}
           </header>
@@ -1208,7 +1208,7 @@
     .body {
       grid-template-columns: minmax(0, 1fr);
       grid-template-rows: auto;
-      grid-template-areas: "axis" "chart" "setup" "side";
+      grid-template-areas: "axis" "setup" "chart" "side";
     }
     /* Narrow window: table on the left, situations on the right, so the answer stays high. */
     .setup {

@@ -41,7 +41,7 @@
 
   let width = $state(600);
   // Lower on narrow windows, so table and grid still come into view.
-  const H = $derived(width < 760 ? 132 : 168);
+  const H = $derived(width < 760 ? 120 : 168);
   let hover = $state<{ stack: number; seat: number; anchor: Anchor } | null>(null);
   let open = $state(false);
   let typed = $state("");
@@ -187,6 +187,7 @@
     {/each}
   </div>
 
+  <div class="foot">
   {#if custom}
     {#if open}
       <form
@@ -227,6 +228,7 @@
       </div>
     </details>
   {/if}
+  </div>
 </div>
 
 {#if hover}
@@ -403,9 +405,18 @@
   .ticks button.on {
     color: var(--text);
   }
+  .foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 18px;
+    margin-top: 2px;
+  }
+  .foot details[open] {
+    flex-basis: 100%;
+  }
   .more {
     align-self: flex-start;
-    margin-top: 4px;
     padding: 0;
     border: 0;
     background: none;
@@ -422,7 +433,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 6px;
-    margin-top: 4px;
   }
   .custom .field {
     width: 84px;
@@ -437,7 +447,7 @@
     color: var(--text-3);
   }
   .table-view {
-    margin-top: 6px;
+    margin: 0;
   }
   .table-view summary {
     font-size: 12px;
