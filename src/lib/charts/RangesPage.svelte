@@ -81,6 +81,9 @@
   let fromNote = $state<{ played: string; best: string | null; loss: number | null } | null>(null);
   let pendingNode = $state<number | null>(null);
 
+  /** Shares with one decimal everywhere, so a row of them adds up visibly. */
+  const one = (x: number) => x.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
   usePageHead(() => ({ sub: "Welche Hände du vor dem Flop spielst, hängt vor allem an deinem Stack." }));
 
   onMount(() => {
@@ -491,7 +494,7 @@
         </Button>
         <span>
           {#if fromNote}
-            Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played}{" · "}besser: <b>{fromNote.best}</b>{#if fromNote.loss}{` (kostet etwa ${pct(fromNote.loss, 2)} BB)`}{/if}{/if}.{" "}
+            Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played}{" · "}besser: <b>{fromNote.best}</b>{/if}.{#if fromNote.loss && fromNote.best && fromNote.best !== fromNote.played}{` Dein ${fromNote.played.split(" ")[0]} kostet gegenüber ${fromNote.best.split(" ")[0]} etwa ${pct(fromNote.loss, 2)} BB.`}{/if}{" "}
           {/if}Deine Hand ist im Raster markiert.
         </span>
       </div>
@@ -615,7 +618,7 @@
                   onchange={(v) => (pfView = v === "pf")}
                 />
               {/if}
-              {#if answer}<span class="share num">{pct(answer.share)} %<small>{engine === "pushfold" && shove ? "der Hände" : "der Hände, die hier ankommen"}</small></span>{/if}
+              {#if answer}<span class="share num">{one(answer.share)} %<small>{engine === "pushfold" && shove ? "der Hände" : "der Hände, die hier ankommen"}</small></span>{/if}
             </div>
             {#if answer}
               <h2>
@@ -673,7 +676,7 @@
               {:else if spot && node && node.id === spot.id}
                 <PreflopChart {node} actions={spot.actions} line={spot.line} {pin} {only} />
               {:else}
-                <div class="placeholder" aria-hidden="true"></div>
+                <div class="placeholder" class:short={loading && !onGrid} aria-hidden="true"></div>
               {/if}
             </div>
             {#if !error && onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
@@ -704,7 +707,7 @@
             </section>
             <section class="panel facts">
               <div class="panel-head"><h2 class="panel-title">Gleichgewicht, reines Push/Fold</h2></div>
-              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips, <Tooltip text={TERM.icm}><span class="term">ohne Turnier-Auszahlungen (ICM)</span></Tooltip>.</p>
+              <p class="note">Jeder geht all-in oder foldet. Bewertet in Chips – <Tooltip text={TERM.icm}><span class="term">ohne Turnier-Auszahlungen (ICM)</span></Tooltip></p>
               <details>
                 <summary>Genauer: was angenommen wird</summary>
                 <p class="note">
@@ -899,11 +902,7 @@
     border-top: 1px solid var(--line);
   }
   .seg-one {
-    align-self: flex-start;
-    padding: 4px 12px;
-    border-radius: 99px;
-    border: 1px solid var(--line-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
@@ -925,7 +924,7 @@
   }
   .spot small {
     margin-left: auto;
-    color: var(--text-2);
+    opacity: 0.75;
     font-size: var(--fs-xs);
   }
   .hint-line {
@@ -1012,6 +1011,10 @@
       repeating-linear-gradient(90deg, var(--surface-2) 0 calc(100% / 13 - 2px), transparent 0 calc(100% / 13)),
       var(--surface);
     opacity: 0.6;
+  }
+  .placeholder.short {
+    aspect-ratio: auto;
+    height: 120px;
   }
   /* Near the top of the grid, so it stays in view on short windows. */
   .over {
