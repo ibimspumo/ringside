@@ -487,7 +487,7 @@ step("Live-Tische", () => nav("Live-Tische"));
   step("Live-Tische: ein Gegner zeigt seine Werte mit Stichprobe", async () => {
     await click("main tbody td.name button", "Kestrel", { exact: false });
     const text = await waitFor("das Detail von Kestrel", `return document.querySelector("aside[aria-label='Spieler Kestrel']")?.innerText ?? null`);
-    if (!/aus 27 Händen/.test(text)) throw new Error("detail lacks the sample size");
+    if (!/aus 27\sHänden/.test(text)) throw new Error("detail lacks the sample size");
     await s.exec(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
     await waitFor("Detail geschlossen", `return !document.querySelector("aside[aria-label='Spieler Kestrel']")`);
   });
