@@ -711,7 +711,7 @@
       grid-row: span 2;
     }
     .reports ul {
-      max-height: 260px;
+      max-height: 200px;
     }
     /* While a task runs, it comes first; the lists follow. */
     .busy .main {

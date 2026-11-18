@@ -403,7 +403,7 @@
   .explain,
   .hint,
   .never {
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     line-height: 1.5;
     color: var(--text-2);
   }

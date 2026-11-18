@@ -178,9 +178,9 @@
             </div>
             <p class="gist"><CardText hands text={say(gist)} /></p>
             <dl class="compare">
-              <div class="mine"><dt>Du</dt><dd>{CHOICE_NAME[answer]}</dd></div>
+              <div class="mine"><dt>Jetzt</dt><dd>{CHOICE_NAME[answer]}</dd></div>
               <div>
-                <dt>Damals</dt>
+                <dt>Im Turnier</dt>
                 <dd class="played">{actual ? CHOICE_NAME[actual] : "–"} <GradeBadge grade={verdict.grade} size="sm" variant="icon" /></dd>
               </div>
               {#if spot.better}
