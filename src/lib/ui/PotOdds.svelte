@@ -47,7 +47,7 @@
     font-size: var(--fs-sm);
   }
   .value {
-    font-size: var(--fs-2xl);
+    font-size: var(--fs-xl);
     font-weight: var(--fw-semibold);
     line-height: 1;
   }

@@ -147,7 +147,7 @@
       {#each d.strategy as c (c.label)}
         <li class:mine={c.played}>
           <span class="dot {tone(c)}"></span>
-          <span class="label">{c.label}{#if c.played}<em>du</em>{/if}{#if mainBelowTop && c === main}<em class="main-tag">Hauptzug</em>{/if}</span>
+          <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
           <span class="num freq">{d.source === "estimate" ? "" : c.freq < 0.005 ? "nie" : pct(c.freq)}</span>
           <span class="num gain" title={EV_EXPLAIN}>{gain(c)}</span>
           <span class="num ev" class:best={gap(c) === "beste" || gap(c) === "höchster EV"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
@@ -293,10 +293,6 @@
     letter-spacing: 0.04em;
     color: var(--bg);
     background: var(--text);
-  }
-  .label em.main-tag {
-    color: var(--text);
-    background: var(--surface-3);
   }
   .freq,
   .gain,
