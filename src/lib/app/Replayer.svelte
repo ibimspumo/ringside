@@ -388,6 +388,12 @@
     return kind === "fold" || kind === "check" ? `${who} ${verb}` : `${who} ${verb}${sum}`;
   });
 
+  /** Your own hand at a showdown you lost, said beside the winner's. */
+  const yours = $derived.by(() => {
+    if (!done || upTo !== null || !hand.shown.some(([p]) => p === hand.hero) || table.winners.has(hand.hero ?? "") || hand.board.length < 3) return undefined;
+    return `du: ${CATEGORY[categoryOf([...hand.hero_cards, ...hand.board])]}`;
+  });
+
   /** Under the board at the end: who won and with what, in words. */
   const outcome = $derived.by(() => {
     if (!done || upTo !== null || !table.winners.size) return null;
@@ -395,8 +401,7 @@
     const who = name === hand.hero ? "Du gewinnst" : `${name} gewinnt`;
     const cards = name === hand.hero ? hand.hero_cards : hand.shown.find(([p]) => p === name)?.[1];
     if (!hand.shown.length || !cards?.length || hand.board.length < 3) return `${who} – alle anderen haben gefoldet`;
-    const mine = name !== hand.hero && hand.shown.some(([p]) => p === hand.hero) ? ` · du: ${CATEGORY[categoryOf([...hand.hero_cards, ...hand.board])]}` : "";
-    return `${who}: ${CATEGORY[categoryOf([...cards, ...hand.board])]}${mine}`;
+    return `${who}: ${CATEGORY[categoryOf([...cards, ...hand.board])]}`;
   });
 
   function key(e: KeyboardEvent) {
@@ -494,6 +499,7 @@
           pot={Math.max(table.total, 0) / unit}
           note={outcome ?? STREET_NAME[table.street]}
           noteWin={!!outcome}
+          noteAside={outcome ? yours : undefined}
           {format}
           label="Tisch der Hand"
         />
@@ -542,7 +548,8 @@
             ></button>
           {/each}
         </div>
-        <span class="steps" title="Schritt {step} von {events.length}">{lastSaid}</span>
+        <span class="steps" title="Schritt {step} von {events.length}: {lastSaid}">{lastSaid}</span>
+        <div class="extras">
         <SegmentedControl
           size="sm"
           label="Beträge anzeigen in"
@@ -560,9 +567,11 @@
             title={"reason" in solveSpot ? solveSpot.reason : "Board, Pot und Stacks dieser Straße im Solver öffnen; die Ranges sind ein Vorschlag."}
             onclick={() => "prefill" in solveSpot && openInSolver(solveSpot.prefill)}
           >
+            {#snippet icon()}<svg class="solver" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5" /></svg>{/snippet}
             {STREET_NAME[table.street]} im Solver
           </Button>
         {/if}
+        </div>
       </div>
       {#if logBelow}{@render history()}{/if}
     </div>
@@ -669,9 +678,22 @@
   .pip.at {
     box-shadow: 0 0 0 2px var(--text);
   }
+  /* The sentence has a fixed place; unit switch and solver sit at the right, on their own line when narrow. */
+  .extras {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-left: auto;
+  }
+  .solver path {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+  }
   .steps {
+    flex: 0 0 190px;
     min-width: 0;
-    max-width: 220px;
     overflow: hidden;
     color: var(--text);
     font-size: var(--fs-sm);

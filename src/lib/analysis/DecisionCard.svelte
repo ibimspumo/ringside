@@ -42,12 +42,11 @@
   });
   const learn = $derived(onLearn && d.rating && d.rating !== "best" ? LEARN[d.spot] : []);
 
-  function tone(c: Choice): string {
-    const word = c.label.split(" ")[0];
-    if (word === "Fold") return "fold";
-    if (word === "Check" || word === "Call" || word === "Limp") return "passive";
-    if (word === "All-in") return "allin";
-    return "raise";
+  /** Green for the best action, your grade's colour for yours, grey for the rest: green always means "good". */
+  function shade(c: Choice): string {
+    if (gap(c) === "beste") return "var(--grade-best)";
+    if (c.played && d.rating) return `var(--grade-${gradeOf(d.rating)})`;
+    return "var(--surface-3)";
   }
 
   function gap(c: Choice): string {
@@ -78,7 +77,7 @@
     <div class="strategy">
       <div class="mix" role="img" aria-label="Was {d.source ? SOURCE[d.source].label : 'die Berechnung'} mit deiner Hand spielt">
         {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-          <span class="seg {tone(c)}" class:mine={c.played} style:--ring={d.rating ? `var(--grade-${gradeOf(d.rating)})` : "var(--text)"} style:flex-grow={Math.max(c.freq, 0.015)} title="{c.label}: {pct(c.freq)}"></span>
+          <span class="seg" class:mine={c.played} style:background={shade(c)} style:--ring={d.rating ? `var(--grade-${gradeOf(d.rating)})` : "var(--text)"} style:flex-grow={Math.max(c.freq, 0.015)} title="{c.label}: {pct(c.freq)}"></span>
         {/each}
       </div>
       <ul class="options">
@@ -90,7 +89,7 @@
         </li>
         {#each d.strategy as c (c.label)}
           <li class:mine={c.played}>
-            <span class="dot {tone(c)}"></span>
+            <span class="dot" style:background={shade(c)}></span>
             <span class="label"
               ><span class="name">{c.label.replace(" auf ", " ")}</span>{#if gap(c) === "beste"}<span class="best-mark" title="Beste Wahl"><GradeIcon grade="best" size={13} /></span>{/if}{#if c.played}<em>du</em>{/if}</span
             >
@@ -190,18 +189,6 @@
     box-shadow:
       0 0 0 2px var(--surface),
       0 0 0 4px var(--ring);
-  }
-  .fold {
-    background: var(--act-fold);
-  }
-  .passive {
-    background: var(--act-call);
-  }
-  .raise {
-    background: var(--act-bet-3);
-  }
-  .allin {
-    background: var(--act-allin);
   }
   .options {
     display: grid;
@@ -308,7 +295,7 @@
   .rule {
     width: fit-content;
     margin: 6px 0 0 auto;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
     text-decoration: underline dotted;
     text-underline-offset: 3px;

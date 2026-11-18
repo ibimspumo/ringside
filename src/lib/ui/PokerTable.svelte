@@ -97,6 +97,7 @@
     pot,
     note,
     noteWin = false,
+    noteAside,
     format,
     label = "Pokertisch",
   }: {
@@ -107,6 +108,8 @@
     note?: string;
     /** The note says who won: it stands out instead of whispering the street. */
     noteWin?: boolean;
+    /** A quieter second part of the note, e.g. your own hand beside the winner's. */
+    noteAside?: string;
     format?: (bb: number) => string;
     label?: string;
   } = $props();
@@ -143,7 +146,7 @@
     <div class="board" aria-label="Board">
       {#each board as c, j (c)}<PlayingCard card={c} size={w < COMPACT_BELOW ? 24 : Math.round(32 * k)} reveal delay={j * 70} />{/each}
     </div>
-    {#if note}<span class="note" class:win={noteWin}>{note}</span>{/if}
+    {#if note}<span class="note" class:win={noteWin}>{note}{#if noteAside}<span class="aside">· {noteAside}</span>{/if}</span>{/if}
   </div>
 
   {#each seats as s, i (i)}
@@ -238,6 +241,10 @@
     font-weight: var(--fw-semibold);
     white-space: nowrap;
     scale: var(--k);
+  }
+  .note .aside {
+    margin-left: 0.4em;
+    color: var(--text-2);
   }
   .note.win {
     padding: 2px var(--sp-2);
@@ -354,7 +361,7 @@
       var(--shadow-1);
   }
   .folded {
-    opacity: 0.55;
+    opacity: 0.62;
     transition: opacity var(--dur) var(--ease-standard);
   }
   .free {

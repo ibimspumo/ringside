@@ -442,6 +442,11 @@
   {#if filtersOpen}
     <button class="scrim" aria-label="Filter schließen" tabindex="-1" onclick={() => (filtersOpen = false)}></button>
     <div class="filters" role="dialog" aria-label="Filter">
+      <div class="filters-head">
+        <span class="title">Filter</span>
+        {#if extra}<Button size="sm" variant="quiet" onclick={clearFilters}>Zurücksetzen</Button>{/if}
+        <Button size="sm" kbd="Esc" onclick={() => (filtersOpen = false)}>Fertig</Button>
+      </div>
       <div class="group wide">
         <span class="title">Situation</span>
         <div class="spot-groups">
@@ -523,10 +528,7 @@
           bind:value={() => minPot ?? 0, (v) => (minPot = v || null)}
         />
       </div>
-      <div class="reset">
-        {#if extra}<Button size="sm" variant="quiet" onclick={clearFilters}>Zurücksetzen</Button>{/if}
-        <Button size="sm" kbd="Esc" onclick={() => (filtersOpen = false)}>Fertig</Button>
-      </div>
+
     </div>
   {/if}
 
@@ -602,7 +604,7 @@
             {/if}
           </span>
           {#if rail && w?.rating && !locked}
-            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{w.best && costly(w) ? w.best.split(" ")[0] : ({ preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" })[w.street]}</span>
+            <span class="rail-verdict"><GradeIcon grade={gradeOf(w.rating)} size={12} />{w.best && costly(w) ? `Besser ${w.best.split(" ")[0]}` : w.played.split(" ")[0]}</span>
           {/if}
           <span class="end">
             {#if view === "mistakes" && costly(w) && !locked}
@@ -826,11 +828,21 @@
     margin: 0;
     accent-color: var(--text);
   }
-  .reset {
+  .filters-head {
+    position: sticky;
+    top: calc(-1 * var(--sp-3));
+    z-index: 1;
+    flex-basis: 100%;
     display: flex;
+    align-items: center;
     gap: var(--sp-2);
-    margin-left: auto;
-    align-self: flex-end;
+    padding: var(--sp-3) 0 var(--sp-2);
+    margin-top: calc(-1 * var(--sp-3));
+    background: var(--surface);
+  }
+  .filters-head .title {
+    flex: 1;
+    font-size: var(--fs-base);
   }
   @keyframes drop {
     from {
@@ -1161,8 +1173,10 @@
   }
   .rail-verdict {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: 2px;
+    text-align: center;
     color: var(--text-2);
     font-size: var(--fs-xs);
   }
