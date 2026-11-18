@@ -9,6 +9,7 @@
   import { loadNode } from "./nodes";
   import { STREET_NAME, actionText, type Crumb } from "./play";
   import MiniCard from "../ui/MiniCard.svelte";
+  import GradeBadge from "../ui/GradeBadge.svelte";
   import {
     BEST_MIN_FREQUENCY,
     GRADES,
@@ -212,6 +213,11 @@
   });
 
   const last = $derived(decisions.at(-1) ?? null);
+  /** What the opponent just did on this street, so your turn reads as an answer to it. */
+  const lastOther = $derived.by(() => {
+    const c = line.at(-1);
+    return c && c.player === other && c.street === node?.street ? c.label.replace(/ \(.*\)$/, "") : null;
+  });
   const handPoints = $derived(decisions.length ? decisions.reduce((s, d) => s + GRADES[d.verdict.grade].points, 0) / decisions.length : null);
   const handLoss = $derived(decisions.reduce((s, d) => s + (d.verdict.loss ?? 0), 0));
   const colors = $derived(node && node.kind === "action" ? actionColors(node.actions) : []);
@@ -279,8 +285,14 @@
         onSeat={seat}
         street={node ? STREET_NAME[node.street] : ""}
       />
+      {#if last}
+        <p class="quick" aria-hidden="true">
+          <GradeBadge grade={last.verdict.grade} size="sm" />
+          <span>Deine Entscheidung am {STREET_NAME[last.street]}: <b>{last.label.replace(/ \(.*\)$/, "")}</b> – {last.intro}</span>
+        </p>
+      {/if}
       {#if phase === "me" && node}
-        <div class="actor"><span><b>Du bist dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
+        <div class="actor"><span>{#if lastOther}<span class="dim">{pos(other)}: {lastOther} – </span>{/if}<b>Du bist dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
         <ActionBar {node} {colors} onAct={choose} blind />
       {:else if phase === "wait"}
         <div class="actor"><span class="dim">{node?.kind === "chance" ? "Die nächste Karte kommt …" : `${pos(other)} überlegt …`}</span></div>
@@ -300,9 +312,9 @@
       <section class="panel box" aria-live="polite">
         <h3>{last ? `Deine Entscheidung am ${STREET_NAME[last.street]}` : "Rückmeldung"}</h3>
         {#if last}
-          <div class="verdict {last.verdict.grade}">
-            <span class="badge">{GRADES[last.verdict.grade].label}</span>
-            <b>{last.label}</b>
+          <div class="verdict">
+            <GradeBadge grade={last.verdict.grade} />
+            <b>{last.label.replace(/ \(.*\)$/, "")}</b>
           </div>
           <p class="intro">{last.intro}</p>
           <p class="lesson">{last.lesson}</p>
@@ -337,7 +349,7 @@
               <li>
                 <span class="faint">{STREET_NAME[d.street]}</span>
                 <span>{d.label.replace(/ \(.*\)$/, "")}</span>
-                <span class="tag {d.verdict.grade}">{GRADES[d.verdict.grade].label}</span>
+                <GradeBadge grade={d.verdict.grade} size="sm" />
                 <span class="num dim">{d.verdict.loss !== null && d.verdict.loss >= 0.005 ? `−${bb(d.verdict.loss, 2)} BB` : "±0 BB"}</span>
               </li>
             {/each}
@@ -505,7 +517,6 @@
   .verdict b {
     font-size: 15px;
   }
-  .badge,
   .tag {
     display: inline-block;
     padding: 0 8px;
@@ -515,11 +526,6 @@
     line-height: 20px;
     white-space: nowrap;
     border: 1px solid transparent;
-  }
-  .badge {
-    font-size: 13px;
-    line-height: 24px;
-    padding: 0 10px;
   }
   .best {
     --g: var(--pos);
@@ -533,7 +539,6 @@
   .mistake {
     --g: var(--neg);
   }
-  .verdict .badge,
   .tag {
     color: var(--g);
     background: color-mix(in srgb, var(--g) 14%, transparent);
@@ -634,7 +639,21 @@
     margin-top: 6px;
     color: var(--text-2);
   }
+  .quick {
+    display: none;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: 0;
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .quick b {
+    color: var(--text);
+  }
   @container solverpage (max-width: 900px) {
+    .quick {
+      display: flex;
+    }
     .body {
       grid-template-columns: minmax(0, 1fr);
     }

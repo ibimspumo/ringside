@@ -256,20 +256,26 @@
     return `Deine Hand ist ${strength} deiner Range (${pct(h.equity)} gegen ${pct(eq)} Equity). ${play}`;
   }
 
-  /** Every action the solution takes with your hand, most often first. */
+  /**
+   * What the solution does with your hand in a few words: bets of all sizes count as one
+   * ("setzen"), the bar under it shows the sizes. Close shares read as "etwa gleich oft".
+   */
   function handLine(n: SolverNode, strategy: number[]): string {
-    const parts = strategy
-      .map((f, k) => ({ f, k }))
-      .filter((x) => x.f >= 0.03)
-      .sort((x, y) => y.f - x.f)
-      .slice(0, 3)
-      .map((x) => {
-        const a = n.actions[x.k];
-        const size = isAggressive(a.kind) ? ` (${actionText(a, n).replace(/ \(.*\)$/, "")})` : "";
-        return `${often(x.f)} ${verb(a, n)}${size}`;
-      });
+    const groups = new Map<string, number>();
+    strategy.forEach((f, k) => {
+      const a = n.actions[k];
+      const word = !isAggressive(a.kind) ? verb(a, n) : a.kind === "bet" ? "setzen" : a.kind === "raise" ? "erhöhen" : "all-in gehen";
+      groups.set(word, (groups.get(word) ?? 0) + f);
+    });
+    const ranked = [...groups].filter(([, f]) => f >= 0.03).sort((x, y) => y[1] - x[1]).slice(0, 3);
+    if (ranked.length >= 2 && ranked[0][1] - ranked[1][1] < 0.1) {
+      const rest = ranked.slice(2).map(([w, f]) => `, ${often(f)} ${w}`).join("");
+      return `etwa gleich oft ${ranked[0][0]} oder ${ranked[1][0]}${rest}`;
+    }
+    const parts = ranked.map(([w, f]) => `${often(f)} ${w}`);
     return parts.length > 1 ? `${parts.slice(0, -1).join(", ")} und ${parts.at(-1)}` : (parts[0] ?? "");
   }
+
 </script>
 
 <svelte:window onkeydown={key} />

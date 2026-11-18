@@ -217,7 +217,7 @@
       "files": {}
     },
     "motion": {
-      "total": 53,
+      "total": 52,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -248,7 +248,6 @@
         "play/PoolChip.svelte": 1,
         "play/Start.svelte": 1,
         "play/Table.svelte": 1,
-        "solver/ActionBar.svelte": 1,
         "solver/Term.svelte": 1
       }
     },

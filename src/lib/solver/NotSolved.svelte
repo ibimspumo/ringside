@@ -197,7 +197,7 @@
 
 <style>
   .wait {
-    max-width: 760px;
+    max-width: 1080px;
     margin-top: var(--sp-2);
   }
   .main {
@@ -266,9 +266,9 @@
     color: var(--text-2);
   }
   ul {
-    display: flex;
-    flex-direction: column;
-    gap: var(--sp-1);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 0 var(--sp-6);
     margin: 0;
     padding: 0;
     list-style: none;
@@ -280,7 +280,7 @@
     gap: var(--sp-3);
     padding: var(--sp-2) 0;
   }
-  li + li {
+  li {
     border-top: 1px solid var(--line);
   }
   .what {

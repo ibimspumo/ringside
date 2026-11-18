@@ -73,13 +73,13 @@
     padding: 9px 10px 11px;
     border: 1px solid var(--line-2);
     border-radius: var(--r-sm);
-    background: color-mix(in srgb, var(--c) 14%, var(--surface-2));
+    background: var(--surface-2);
     text-align: left;
     cursor: pointer;
     overflow: hidden;
     transition:
-      background 0.12s,
-      border-color 0.12s;
+      background var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard);
   }
   .seg::before {
     content: "";
@@ -91,7 +91,7 @@
     background: var(--c);
   }
   .seg:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--c) 26%, var(--surface-2));
+    background: color-mix(in srgb, var(--c) 12%, var(--surface-2));
     border-color: color-mix(in srgb, var(--c) 60%, var(--line-2));
   }
   .seg:disabled {
