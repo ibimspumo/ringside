@@ -36,7 +36,10 @@
   const better = $derived.by(() => {
     if (!d.best || d.best === d.played) return undefined;
     const best = d.strategy.find((c) => c.label === d.best);
-    return d.source === "estimate" && best?.kind ? MOVE_WORD[best.kind] : d.best;
+    if (d.source === "estimate" && best?.kind) return MOVE_WORD[best.kind];
+    // The loss counts against the top EV; when a rare move holds it, both are named, so the price fits.
+    const top = d.strategy.reduce<Choice | null>((a, c) => (c.ev_bb !== null && (!a || c.ev_bb > (a.ev_bb ?? -Infinity)) ? c : a), null);
+    return top && best && top !== best && top.label !== d.played ? `${d.best} oder ${top.label}` : d.best;
   });
   const context = $derived(SPOT[d.spot] === STREET[d.street] ? STREET[d.street] : `${SPOT[d.spot]} · ${STREET[d.street]}`);
   const kind = (c: Choice): MoveKind => (c.kind || "call") as MoveKind;

@@ -66,13 +66,15 @@
     result && real && result.decision.source === "estimate" && !result.decision.why && then?.why ? { ...result.decision, why: then.why } : (result?.decision ?? null),
   );
   /** "Verlässlichkeit 7 von 10" beside an estimate, so its weight is seen without hovering. */
-  const reliability = $derived(spot.source === "estimate" && spot.reliability !== null ? `trifft in ${Math.round(spot.reliability * 10)} von 10 Prüf-Spots` : null);
+  const reliability = $derived(spot.source === "estimate" && spot.reliability !== null ? `liegt in ${Math.round(spot.reliability * 10)} von 10 geprüften Lagen richtig` : null);
 
   /** "A7" reads like the hand's name, not "7A". */
   const highFirst = (cards: string[]) => [...cards].sort((a, b) => "23456789TJQKA".indexOf(b[0]) - "23456789TJQKA".indexOf(a[0]));
   /** "Call" and "Limp" carry their price, as raises and all-ins carry their size. */
   const priced = (c: { label: string; kind: string }) =>
     (c.kind === "call" || c.kind === "limp") && !/\d/.test(c.label) && view.toCallBB > 0 ? `${c.label} ${bb(view.toCallBB)}` : c.label;
+  /** The table shows your cards in the order the question names them. */
+  const shown = $derived({ ...spot.hand, hero_cards: highFirst(spot.hand.hero_cards) });
   const MOVE: Record<string, ActionKind> = { fold: "fold", check: "check", call: "call", limp: "limp", bet: "bet", raise: "raise", all_in: "allin" };
 
   // The table takes the window's height below it, so table, controls and choices fit without scrolling.
@@ -192,14 +194,14 @@
   <div class="table-col">
     <div class="chain"><ActionChain streets={moves} turn={result ? undefined : { pos: `Du · ${seat ?? "?"}`, text: "bist dran" }} label="Bisher in der Hand" /></div>
     <div class="felt-box" bind:this={feltEl} style:height="{feltH}px">
-      <Replayer hand={spot.hand} upTo={spot.action_index} quiz={!result} inBigBlinds quietPlay solve={false} moveList={false} />
+      <Replayer hand={shown} upTo={spot.action_index} quiz={!result} inBigBlinds quietPlay solve={false} moveList={false} />
     </div>
   </div>
 
   <aside class="side">
     <h2 class="question">
       {#if seat}Du sitzt im <Term tip={positionHint(seat)}>{seat}</Term> mit{:else}Du hast{/if}
-      <CardText hands text={highFirst(spot.hero_cards).join("")} />{#if result}.{:else}. Was spielst du?{/if}
+      <CardText hands text={highFirst(spot.hero_cards).join("")} />{#if !result}. Was spielst du?{/if}
     </h2>
 
     {#if view.board.length && !result}
