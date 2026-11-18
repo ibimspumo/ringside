@@ -44,7 +44,7 @@
     compare?: string | null;
   } = $props();
 
-  const PAD = { l: 38, r: 54, t: 22, b: 8 };
+  const CURVE_PAD = { l: 38, r: 54, t: 22, b: 8 };
   const TICKS = [2, 3, 5, 7, 10, 15, 20, 30, 50, 75, 100];
 
   let width = $state(600);
@@ -59,6 +59,9 @@
   let open = $state(false);
   let typed = $state("");
 
+  /** Without the curve the slider spans the card. */
+  const curveShown = $derived(!folded || showCurve);
+  const PAD = $derived(curveShown ? CURVE_PAD : { l: 8, r: 8, t: 22, b: 8 });
   const plotW = $derived(Math.max(40, width - PAD.l - PAD.r));
   const lo = $derived(Math.log(stacks[0] ?? 1));
   const hi = $derived(Math.log(stacks[stacks.length - 1] ?? 100));
@@ -95,7 +98,7 @@
       .filter((s) => s.points.length)
       .map((s) => {
         const p = s.points[s.points.length - 1];
-        return { seat: s.seat, name: s.name, x: x(p.stack) + 9, y: y(p.pct), at: y(p.pct) };
+        return { seat: s.seat, name: s.name, x: x(p.stack) + 12, y: y(p.pct), at: y(p.pct) };
       })
       .sort((a, b) => a.y - b.y);
     for (let i = 1; i < ends.length; i++) if (ends[i].y - ends[i - 1].y < 13) ends[i].y = ends[i - 1].y + 13;
@@ -114,8 +117,10 @@
       .filter((v) => v.p !== null)
       .sort((a, b) => Math.abs(y(a.p as number) - py) - Math.abs(y(b.p as number) - py))[0];
     if (!near) return (hover = null);
-    const { clientX: cx, clientY: cy } = e;
-    hover = { stack, seat: near.s.seat, anchor: { left: cx - 10, right: cx + 14, top: cy + 14, bottom: cy + 14 } };
+    // Above the plot, so the card never covers the slider and the values under it.
+    const { clientX: cx } = e;
+    const top = r.top + PAD.t - 18;
+    hover = { stack, seat: near.s.seat, anchor: { left: cx - 1, right: cx + 1, top, bottom: top } };
   }
 
   const rows = $derived(
@@ -177,7 +182,7 @@
         <path class="line" class:mine={s.seat === seat} class:hot={hover?.seat === s.seat} d={path(s.points)} />
       {/each}
       {#each labels as l (l.seat)}
-        {#if Math.abs(l.y - l.at) > 2}<path class="lead" d="M{l.x - 8},{l.at} L{l.x - 2},{l.y}" />{/if}
+        {#if Math.abs(l.y - l.at) > 2}<path class="lead" d="M{l.x - 3},{l.at} L{l.x - 1},{l.y}" />{/if}
         <text class="end" class:mine={l.seat === seat} x={l.x} y={l.y + 3.5}>{l.name}</text>
       {/each}
       {#if hover}
@@ -261,7 +266,7 @@
 </div>
 
 {#if hover}
-  <Popover anchor={hover.anchor} width={220}>
+  <Popover anchor={hover.anchor} side="top" width={220}>
     <p class="tip-head"><b class="num">{bb(hover.stack)} BB</b> · so oft wird eröffnet</p>
     {#each rows as r (r.seat)}
       <div class="tip-row" class:hot={r.seat === hover.seat}><span>{r.name}</span><b class="num">{pct(r.p as number, 0)} %</b></div>
@@ -374,8 +379,9 @@
   }
   .lead {
     fill: none;
-    stroke: var(--text-3);
+    stroke: var(--line-2);
     stroke-width: 1;
+    stroke-dasharray: 1 2;
   }
   .end {
     font-family: var(--font-num);

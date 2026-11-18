@@ -390,12 +390,17 @@
   const barActions = $derived.by(() => {
     if (pfNode)
       return [
-        { name: shove ? "All-in" : "Call", pct: pfNode.act_pct, color: shove ? SHOVE : CALL, fold: false },
-        { name: "Fold", pct: 100 - pfNode.act_pct, color: actionColor("fold"), fold: true },
+        { name: shove ? "All-in" : "Call", pct: pfNode.act_pct, color: shove ? SHOVE : CALL, fold: false, i: 0 },
+        { name: "Fold", pct: 100 - pfNode.act_pct, color: actionColor("fold"), fold: true, i: 1 },
       ];
-    if (spot) return spot.actions.map((a) => ({ name: actionName(a, spot.line), pct: a.pct, color: actionColor(a.kind), fold: a.kind === "fold" }));
+    if (spot)
+      return spot.actions
+        .map((a, i) => ({ name: actionName(a, spot.line), pct: a.pct, color: actionColor(a.kind), fold: a.kind === "fold", i }))
+        .sort((x, y) => Number(x.fold) - Number(y.fold));
     return [];
-  });
+  });  /** Position of the picked action in the bar (the bar lists fold last). */
+  const onlyBar = $derived(only === null ? null : barActions.findIndex((b) => b.i === only));
+
 
   // ── Open-raise share over the depth ──────────────────────────────
   let curve = $state<Series[] | null>(null);
@@ -660,7 +665,7 @@
                 {/if}
               </div>
             {/if}
-            {#if barActions.length}<ActionBar actions={barActions} selected={only} onSelect={(i) => (only = i)} />{/if}
+            {#if barActions.length}<ActionBar actions={barActions} selected={onlyBar} onSelect={(k) => (only = k === null ? null : barActions[k].i)} />{/if}
           </header>
           <div class="chart-wrap">
             <div class:stale={loading}>
@@ -681,8 +686,8 @@
         <aside class="side">
           <ReadGuide
             fill={engine === "pushfold"
-              ? "Felder in zwei Farben spielst du gemischt; die Zahl unten rechts ist der Anteil in Prozent, blau ist Fold."
-              : "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, blau ist Fold. Die Zahl unten rechts nennt bei gemischten Händen die häufigste Aktion in Prozent."}
+              ? "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, Fold (blau) steht rechts. Die Zahl unten rechts: wie oft du eine gemischte Hand spielst, in Prozent."
+              : "Jedes Feld ist von links nach Anteil der Aktionen gefüllt, Fold (blau) steht rechts. Die Zahl unten rechts: wie oft du eine gemischte Hand spielst, in Prozent."}
           />
           {#if engine === "pushfold" && pf && pfNode}
             <section class="panel facts">

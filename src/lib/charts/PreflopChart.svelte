@@ -42,18 +42,22 @@
 
   const pct = (f: number) => `${Math.round(f * 100)} %`;
 
-  /** The action played most, unless the hand is pure: then nothing is printed. */
-  function mixedShare(h: Hand): string | undefined {
-    const top = Math.max(...h.parts.map((p) => p.freq));
-    return top > 0.995 ? undefined : String(Math.round(top * 100));
+  /** Parts with fold last, the same order as everywhere on the page. */
+  const ordered = (h: Hand) => [...h.parts.filter((p) => actions[p.a].kind !== "fold"), ...h.parts.filter((p) => actions[p.a].kind === "fold")];
+
+  /** How often the hand is played (not folded), shown for mixed hands only. */
+  function playedShare(h: Hand): string | undefined {
+    const played = h.parts.filter((p) => actions[p.a].kind !== "fold").reduce((t, p) => t + p.freq, 0);
+    const v = Math.round(played * 100);
+    return v > 0 && v < 100 ? String(v) : undefined;
   }
 
   const cells = $derived(
     hands.map((h): RangeCell =>
       h.inRange
         ? {
-            mix: h.parts.map((p) => ({ color: actionColor(actions[p.a].kind), share: p.freq })),
-            value: mixedShare(h),
+            mix: ordered(h).map((p) => ({ color: actionColor(actions[p.a].kind), share: p.freq })),
+            value: playedShare(h),
             note: h.parts.map((p) => `${actionName(actions[p.a], line)} ${pct(p.freq)}`).join(", "),
           }
         : null,
@@ -96,7 +100,7 @@
   /** The cell's mix as a bar, the same colours as the grid. */
   function mixBar(h: Hand): string {
     let at = 0;
-    const stops = h.parts
+    const stops = ordered(h)
       .filter((p) => p.freq > 0)
       .map((p) => {
         const from = at;
@@ -146,7 +150,7 @@
       <table class="acts">
         <thead><tr><th>Aktion</th><th>Wie oft</th><th><Tooltip text={TERM.ev}><span class="term">EV</span></Tooltip></th></tr></thead>
         <tbody>
-          {#each h.parts as p (p.a)}
+          {#each ordered(h) as p (p.a)}
             <tr class:best={p.ev !== null && Math.abs(p.ev - best) < 0.005}>
               <td><i class="sw" style="background:{actionColor(actions[p.a].kind)}"></i>{actionName(actions[p.a], line)}</td>
               <td class="num">{pct(p.freq)}</td>
