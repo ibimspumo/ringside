@@ -1,13 +1,15 @@
+import type { MoveKind } from "../play/words";
 import type { Street } from "../types";
 
-export type Rating = "best" | "good" | "inaccuracy" | "mistake" | "blunder";
-export type Source = "equilibrium" | "model" | "solver";
-export type DecisionStatus = "rated" | "pending" | "unrated";
+export type Rating = "best" | "mix" | "good" | "inaccuracy" | "mistake" | "blunder";
+export type Source = "equilibrium" | "model" | "solver" | "estimate" | "forced";
+export type DecisionStatus = "rated" | "pending" | "forced" | "unrated";
 export type SpotType =
   | "open"
   | "steal"
   | "three_bet"
   | "vs_open"
+  | "vs_limp"
   | "vs_three_bet"
   | "shove"
   | "call_shove"
@@ -23,6 +25,7 @@ export interface Choice {
   freq: number;
   ev_bb: number | null;
   played: boolean;
+  kind: MoveKind | "";
 }
 
 export interface DecisionBrief {
@@ -36,8 +39,12 @@ export interface DecisionBrief {
   rating: Rating | null;
   source: Source | null;
   reason: string | null;
-  /** The verdict in plain words with the reason. */
+  /** The reason in plain words (equity, range); the headline is built where it is shown. */
   why: string;
+  /** Pot at the decision, BB: grades are cut in percent of it. */
+  pot_bb: number | null;
+  /** For the estimate: share of the checked spots where its grade was at most one step off. */
+  reliability: number | null;
 }
 
 export interface Decision extends DecisionBrief {

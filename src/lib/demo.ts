@@ -1,4 +1,5 @@
 // Sample data so the UI can be designed and previewed in a plain browser without Tauri.
+import { DEMO_HANDS } from "./analysis/demo-hands";
 import type {
   Dashboard,
   Filter,
@@ -334,6 +335,8 @@ export const demoHand: Hand = {
 
 /** Hands listed for a chosen tournament carry its id (see `demoHands`). */
 export function demoHandById(id: number): Hand {
+  const own = DEMO_HANDS.find((h) => h.id === id);
+  if (own) return own;
   if (id < 1e12) return demoHand;
   const tournament = Math.floor(id / 1000);
   return { ...demoHand, id, game: "tournament", tournament_id: tournament, table_name: `${tournament} 10`, currency: null };
@@ -350,12 +353,12 @@ export function demoHands(query?: HandQuery): HandSummary[] {
     small_blind: 5,
     big_blind: 10,
     currency: cashAt(i) ? "USD" : null,
-    hero_cards: ["9s 9d", "Ah Kc", "7c 2d", "Qs Qh", "Jd Td", "As 5s", "8h 6h"][i % 7],
-    hero_position: ["BTN", "CO", "BB", "SB", "UTG", "HJ", "LJ"][i % 7],
-    hero_net: [-1000, 107, -5, 0, 245, -30, 60][i % 7],
+    hero_cards: ["9s 9d", "Ah 7c", "Ah Qd", "8d 3s", "Jd Td", "As 5s", "8h 6h"][i % 7],
+    hero_position: ["SB", "BTN", "BTN", "SB", "UTG", "HJ", "LJ"][i % 7],
+    hero_net: [-1000, -6, 101, -65, 245, -30, 60][i % 7],
     hero_showdown: i % 4 === 0,
-    pot: [2030, 225, 15, 30, 510, 60, 120][i % 7],
-    board: ["9c 4h 2s Kd 3c", "2c 7d Jh", "", "", "Td 9d 2s 4c 8h", "Kh 3s 3d", "Qc Jc 5d 2h"][i % 7],
+    pot: [2030, 1360, 211, 2225, 510, 60, 120][i % 7],
+    board: ["9c 4h 2s Kd 3c", "", "Qs 7c 2d 5h Jc", "Kd 9s 4c 2h Jd", "Td 9d 2s 4c 8h", "Kh 3s 3d", "Qc Jc 5d 2h"][i % 7],
   }));
 }
 

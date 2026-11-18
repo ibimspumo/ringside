@@ -1,25 +1,33 @@
 import type { LearnTarget } from "../app/Leaks.svelte";
+import { THRESHOLD_TEXT } from "../play/labels";
+import { GRADE, type Grade, type Source as KitSource } from "../ui/poker";
 import type { Rating, Source, SpotType } from "./types";
 
-export const RATINGS: Rating[] = ["best", "good", "inaccuracy", "mistake", "blunder"];
+export const RATINGS: Rating[] = ["best", "mix", "good", "inaccuracy", "mistake", "blunder"];
 
-export const RATING: Record<Rating, { label: string; color: string }> = {
-  best: { label: "Beste Wahl", color: "var(--pos)" },
-  good: { label: "Gut", color: "color-mix(in srgb, var(--pos) 55%, var(--text-2))" },
-  inaccuracy: { label: "Ungenau", color: "var(--amber)" },
-  mistake: { label: "Fehler", color: "color-mix(in srgb, var(--amber) 45%, var(--neg))" },
-  blunder: { label: "Grober Fehler", color: "var(--neg)" },
+/** The kit's grade of a stored rating: the same six steps as the practice. */
+export const GRADE_OF: Record<Rating, Grade> = {
+  best: "best",
+  mix: "mix",
+  good: "good",
+  inaccuracy: "inaccurate",
+  mistake: "mistake",
+  blunder: "blunder",
 };
 
-/** How the ratings are cut, in words. */
-export const RATING_RULE =
-  "Beste Wahl unter 0,05 BB Verlust, gut unter 0,15 BB, ungenau unter 0,5 BB, Fehler unter 1,5 BB, darüber grober Fehler. Spielt die Berechnung deine Aktion selbst in mindestens 10 % der Fälle, ist sie mindestens „gut“ und kostet nichts: gemischte Strategien sind kein Fehler.";
+export const RATING: Record<Rating, { label: string; color: string }> = Object.fromEntries(
+  RATINGS.map((r) => [r, { label: GRADE[GRADE_OF[r]].label, color: `var(--grade-${GRADE_OF[r]})` }]),
+) as Record<Rating, { label: string; color: string }>;
+
+/** How the ratings are cut, in words: the practice's thresholds. */
+export const RATING_RULE = `Bewertet wird in Prozent des Pots, wie in „Hände spielen“. ${RATINGS.map((r) => `${RATING[r].label}: ${THRESHOLD_TEXT[GRADE_OF[r]]}`).join(". ")}. Gemischte Strategien sind nie ein Fehler.`;
 
 export const SPOT: Record<SpotType, string> = {
   open: "Eröffnen",
   steal: "Steal",
   three_bet: "3-Bet",
   vs_open: "Gegen einen Raise",
+  vs_limp: "Gegen einen Limp",
   vs_three_bet: "Gegen eine 3-Bet",
   shove: "All-in oder Fold",
   call_shove: "Call gegen All-in",
@@ -34,7 +42,8 @@ export const SPOT_HINT: Record<SpotType, string> = {
   open: "Du bist als Erster drin, aus früher oder mittlerer Position.",
   steal: "Du bist als Erster drin, aus Cutoff, Button oder Small Blind.",
   three_bet: "Du erhöhst einen Raise noch einmal.",
-  vs_open: "Vor dir hat jemand erhöht oder gelimpt: Fold oder Call.",
+  vs_open: "Vor dir hat jemand erhöht: Fold, Call oder 3-Bet.",
+  vs_limp: "Vor dir hat jemand nur gecallt (gelimpt): isolieren, mitlimpen, im Big Blind checken oder all-in.",
   vs_three_bet: "Dein Raise wurde erneut erhöht.",
   shove: "Kurzer Stack: alle haben gefoldet, du gehst all-in oder foldest.",
   call_shove: "Jemand ist all-in gegangen, du callst oder foldest.",
@@ -46,7 +55,7 @@ export const SPOT_HINT: Record<SpotType, string> = {
 };
 
 export const SPOT_GROUPS: { label: string; spots: SpotType[] }[] = [
-  { label: "Vor dem Flop", spots: ["open", "steal", "three_bet", "vs_open", "vs_three_bet"] },
+  { label: "Vor dem Flop", spots: ["open", "steal", "three_bet", "vs_open", "vs_limp", "vs_three_bet"] },
   { label: "Kurzer Stack", spots: ["shove", "call_shove"] },
   { label: "Nach dem Flop", spots: ["c_bet", "vs_c_bet", "flop", "turn", "river"] },
 ];
@@ -67,7 +76,34 @@ export const SOURCE: Record<Source, { label: string; explain: string }> = {
     explain:
       "Eine echte Berechnung der Hand ab dem Flop, heads-up, mit Ranges aus dem Preflop-Modell und Standard-Einsatzgrößen.",
   },
+  estimate: {
+    label: "Einschätzung",
+    explain:
+      "Für diesen Spot gibt es weder Solver noch Modell, etwa weil drei Spieler den Flop sehen. Ringside schätzt: Wie oft gewinnt deine Hand gegen die wahrscheinlichen Hände der Gegner, was kostet der Call (Pot Odds), wie oft folden sie auf einen Bet? Gut als Richtung, nicht exakt.",
+  },
+  forced: {
+    label: "Keine Entscheidung",
+    explain: "Hier gab es nichts zu entscheiden: Alle anderen waren schon all-in, oder der Call der letzten Chips war mit jeder Hand richtig. Zählt nicht in deine Bewertung.",
+  },
 };
+
+/** Sources a filter offers: forced moves are no decisions. */
+export const FILTER_SOURCES: Source[] = ["solver", "model", "equilibrium", "estimate"];
+
+/** The kit's source mark of a stored source; forced moves have none. */
+export const KIT_SOURCE: Record<Source, KitSource | null> = {
+  equilibrium: "equilibrium",
+  model: "model",
+  solver: "solver",
+  estimate: "estimate",
+  forced: null,
+};
+
+/** The estimate's reliability in words: how often it was at most one step off the reference. */
+export function reliabilityText(share: number, street: "preflop" | "flop" | "turn" | "river"): string {
+  const ref = street === "preflop" ? "dem Preflop-Modell" : "dem Solver";
+  return `Verlässlichkeit ${Math.round(share * 100)} %: So oft lag die Einschätzung in Prüf-Spots höchstens eine Stufe neben ${ref} – bei guten Zügen wie bei Fehlern.`;
+}
 
 export const EV_LOSS_EXPLAIN =
   "EV-Verlust: wie viele Big Blinds du mit deiner Aktion im Schnitt weniger gewinnst als mit der besten – auf lange Sicht, nicht in dieser einen Hand.";
@@ -78,6 +114,7 @@ export const LEARN: Record<SpotType, { label: string; target: LearnTarget }[]> =
   steal: [{ label: "Wissen: Steal", target: { article: "steal" } }],
   three_bet: [{ label: "Wissen: 3-Bet", target: { article: "three-bet" } }],
   vs_open: [{ label: "Wissen: Ranges", target: { article: "range" } }],
+  vs_limp: [{ label: "Wissen: Ranges", target: { article: "range" } }],
   vs_three_bet: [{ label: "Wissen: Fold gegen 3-Bet", target: { article: "fold-three-bet" } }],
   shove: [
     { label: "Übung: All-in oder Fold", target: { kind: "push_fold_open", level: 1 } },

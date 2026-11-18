@@ -4,7 +4,8 @@
   import PlayingCard from "../PlayingCard.svelte";
   import type { Filter } from "../types";
   import { int } from "../app/format";
-  import { EV_LOSS_EXPLAIN, LEARN, RATING, RATINGS, SOURCE, SPOT, SPOT_HINT, bb } from "./labels";
+  import SourceNote from "../ui/SourceNote.svelte";
+  import { EV_LOSS_EXPLAIN, KIT_SOURCE, LEARN, RATING, RATINGS, SOURCE, SPOT, SPOT_HINT, bb, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
   import type { AnalysisSummary, SpotType } from "./types";
 
@@ -45,7 +46,7 @@
   });
 
   const focus = $derived((data?.by_spot ?? []).filter((s) => s.spot && s.loss_bb > 0.5).slice(0, 3));
-  const flawed = $derived(data ? data.ratings.slice(2).reduce((a, b) => a + b, 0) : 0);
+  const flawed = $derived(data ? data.ratings.slice(RATINGS.indexOf("inaccuracy")).reduce((a, b) => a + b, 0) : 0);
   const cards = (s: string) => s.split(" ").filter(Boolean);
 </script>
 
@@ -121,6 +122,11 @@
           <button class="hand" onclick={() => onOpen(c.hand_id, c.action_index)}>
             <span class="hole">{#each cards(c.hero_cards) as card (card)}<PlayingCard {card} size={18} />{/each}</span>
             <span class="what">{c.played} statt {c.best}</span>
+            {#if c.source && KIT_SOURCE[c.source]}
+              <SourceNote kind={KIT_SOURCE[c.source]!} hint={c.source === "estimate" && c.reliability !== null ? reliabilityText(c.reliability, c.street) : SOURCE[c.source].explain} />
+            {:else}
+              <span></span>
+            {/if}
             <b class="num" style="color:{c.rating ? RATING[c.rating].color : 'inherit'}">−{bb(c.ev_loss_bb ?? 0, 2)}</b>
           </button>
         {/each}
@@ -257,7 +263,7 @@
   }
   .hand {
     display: grid;
-    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-columns: 40px minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 8px;
     padding: 5px 6px;

@@ -1,22 +1,58 @@
 <script lang="ts">
   import type { LearnTarget } from "../app/Leaks.svelte";
+  import { mixText, playsLine, type MoveKind, type Who } from "../play/words";
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
-  import { EV_LOSS_EXPLAIN, LEARN, RATING, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct } from "./labels";
+  import Button from "../ui/Button.svelte";
+  import ProgressBar from "../ui/ProgressBar.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
+  import Verdict from "../ui/Verdict.svelte";
+  import { EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
-  import type { Choice, Decision } from "./types";
+  import type { Choice, Decision, Source } from "./types";
 
-  /** One decision: the verdict in words first, then what the source plays and why it may differ. */
+  /**
+   * One decision: the verdict with the practice's grades and sentences first, then what the source
+   * plays with the hand, and where the numbers come from.
+   */
   let { decision: d, onLearn }: { decision: Decision; onLearn?: (target: LearnTarget) => void } = $props();
 
   const STREET = { preflop: "Preflop", flop: "Flop", turn: "Turn", river: "River" } as const;
+  /** The kit's lines speak of "the solution"; the other sources say who plays it. */
+  const LEAD: Partial<Record<Source, { best: string; mix: string }>> = {
+    equilibrium: { best: "Genau so spielt es das Gleichgewicht.", mix: "Das Gleichgewicht spielt hier beides – deine Wahl gehört dazu." },
+    model: { best: "Genau so spielt es das Modell.", mix: "Das Modell spielt hier beides – deine Wahl gehört dazu." },
+    estimate: { best: "Nach der Einschätzung die beste Wahl.", mix: "Nach der Einschätzung so gut wie die beste Wahl." },
+  };
+  const WHO: Record<Source, Who> = { model: "model", equilibrium: "equilibrium", solver: "solution", estimate: "solution", forced: "solution" };
 
-  const split = $derived.by(() => {
-    const at = d.why.indexOf(" Grund: ");
-    return at < 0 ? { head: d.why, reason: "" } : { head: d.why.slice(0, at), reason: d.why.slice(at + 8) };
-  });
+  const grade = $derived(d.rating ? GRADE_OF[d.rating] : null);
+  const context = $derived(SPOT[d.spot] === STREET[d.street] ? STREET[d.street] : `${SPOT[d.spot]} · ${STREET[d.street]}`);
+  const kind = (c: Choice): MoveKind => (c.kind || "call") as MoveKind;
+  const played = $derived(d.strategy.find((c) => c.played) ?? null);
+  const main = $derived(d.strategy.length ? d.strategy.reduce((a, b) => (b.freq > a.freq ? b : a)) : null);
   const bestEv = $derived(Math.max(...d.strategy.map((c) => c.ev_bb ?? -Infinity)));
+  const potShare = $derived(d.ev_loss_bb !== null && d.pot_bb ? d.ev_loss_bb / d.pot_bb : undefined);
   const solving = $derived(analysis.status?.solving?.hand_id === d.hand_id ? analysis.status.solving : null);
+
+  /** The reason under the verdict: the practice's sentences, then what the source adds. */
+  const reason = $derived.by(() => {
+    if (!d.source || !played) return d.why;
+    if (d.source === "estimate") {
+      // The estimate rates the kind of move, not its size.
+      const word = (c: Choice) => (c.kind === "fold" ? "Folden" : c.kind === "check" ? "Checken" : c.kind === "call" ? "Callen" : "Setzen oder Erhöhen");
+      const kinds = [...new Set(d.strategy.filter((c) => c.freq > 0).map(word))];
+      const lead = kinds.length ? `Nach der Einschätzung ist hier ${kinds.join(" oder ")} am besten; die Größe bewertet sie nicht.` : "";
+      return `${lead} ${d.why}`.trim();
+    }
+    const who = WHO[d.source];
+    if (d.rating === "mix" && main) {
+      return mixText(who, "deiner Hand", { kind: kind(main), f: main.freq, ev: main.ev_bb }, { kind: kind(played), f: played.freq, ev: played.ev_bb });
+    }
+    const plays = playsLine(who, "deiner Hand", d.strategy.map((c) => ({ kind: kind(c), f: c.freq })));
+    return d.why ? `${plays} ${d.why}` : plays;
+  });
+
   const prefill = $derived.by((): SolverPrefill | null => {
     if (!d.solver) return null;
     try {
@@ -27,11 +63,10 @@
   });
 
   function tone(c: Choice): string {
-    const word = c.label.split(" ")[0];
-    if (word === "Fold") return "fold";
-    if (word === "Check" || word === "Call" || word === "Limp") return "passive";
-    if (word === "All-in") return "allin";
-    return "raise";
+    if (c.kind === "fold") return "fold";
+    if (c.kind === "all_in") return "allin";
+    if (c.kind === "bet" || c.kind === "raise") return "raise";
+    return "passive";
   }
 
   function gap(c: Choice): string {
@@ -41,26 +76,32 @@
   }
 </script>
 
-<article class="card" style="--tone:{d.rating ? RATING[d.rating].color : 'var(--text-3)'}">
-  <header>
-    {#if d.rating}
-      <span class="pill" title={RATING_RULE}><i></i>{RATING[d.rating].label}</span>
-    {:else if d.status === "pending"}
-      <span class="pill wait"><i></i>{solving ? "Wird gerechnet" : "Wartet"}</span>
-    {:else}
-      <span class="pill none"><i></i>Nicht bewertet</span>
-    {/if}
-    <span class="spot" title={SPOT_HINT[d.spot]}>{SPOT[d.spot]}{SPOT[d.spot] === STREET[d.street] ? "" : ` · ${STREET[d.street]}`}</span>
-    {#if d.source}
-      <span class="source" title={SOURCE[d.source].explain}>{SOURCE[d.source].label}</span>
-    {/if}
-  </header>
+{#if d.status === "rated" && grade && d.source}
+  {@const kit = KIT_SOURCE[d.source]}
+  <div class="decision">
+    <Verdict
+      {grade}
+      played={d.played}
+      better={d.best && d.best !== d.played ? d.best : undefined}
+      cost={d.ev_loss_bb ?? undefined}
+      {potShare}
+      {context}
+      lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
+    >
+      <p>{reason}</p>
+      {#snippet actions()}
+        {#if prefill}
+          <Button size="sm" onclick={() => prefill && openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">Im Solver öffnen</Button>
+        {/if}
+        {#if onLearn && grade !== "best" && grade !== "mix"}
+          {#each LEARN[d.spot] as l (l.label)}
+            <Button size="sm" variant="quiet" onclick={() => onLearn(l.target)}>{l.label}</Button>
+          {/each}
+        {/if}
+      {/snippet}
+    </Verdict>
 
-  {#if d.status === "rated"}
-    <p class="head">{split.head}</p>
-    {#if split.reason}<p class="reason"><b>Grund:</b> {split.reason}</p>{/if}
-
-    <div class="mix" role="img" aria-label="Was {d.source ? SOURCE[d.source].label : 'die Berechnung'} mit deiner Hand spielt">
+    <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
       {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
         <span class="seg {tone(c)}" class:mine={c.played} style="flex-grow:{Math.max(c.freq, 0.015)}" title="{c.label}: {pct(c.freq)}"></span>
       {/each}
@@ -70,137 +111,76 @@
         <li class:mine={c.played}>
           <span class="dot {tone(c)}"></span>
           <span class="label">{c.label}{#if c.played}<em>du</em>{/if}</span>
-          <span class="num freq">{pct(c.freq)}</span>
+          <span class="num freq">{d.source === "estimate" ? "" : pct(c.freq)}</span>
           <span class="num ev" class:best={gap(c) === "beste"} title={EV_LOSS_EXPLAIN}>{gap(c)}</span>
         </li>
       {/each}
     </ul>
-    {#if d.ev_loss_bb !== null && d.ev_loss_bb >= 0.005}
-      <p class="loss">
-        <abbr title={EV_LOSS_EXPLAIN}>EV-Verlust</abbr>
-        <b class="num">{bb(d.ev_loss_bb, 2)}</b>
-        <span>im Schnitt, gegenüber der besten Aktion</span>
-      </p>
-    {/if}
-  {:else if d.status === "pending"}
-    <p class="head">Dein {d.played.split(" ")[0]} wird gerade nachgerechnet.</p>
-    {#if solving}
-      <div class="progress" aria-label="Fortschritt des Solvers">
-        <i style="width:{Math.min(100, (solving.iteration / solving.max_iterations) * 100)}%"></i>
-      </div>
-      <p class="reason">
-        Der Solver rechnet diese Hand ab dem Flop durch ({Math.round(solving.elapsed_ms / 1000)} s). Meist reicht weniger als eine
-        Minute.
-      </p>
-    {:else}
-      <p class="reason">Diese Hand steht ganz vorn in der Warteschlange und wird als Nächstes gerechnet.</p>
-    {/if}
-  {:else}
-    <p class="head">Diese Entscheidung bewertet Ringside nicht.</p>
-    <p class="reason">{d.reason}</p>
-  {/if}
 
-  {#if d.note}
+    {#if kit}
+      <SourceNote kind={kit} variant="block">
+        {SOURCE[d.source].explain}{#if d.source === "estimate" && d.reliability !== null}{" "}<b class="num">{reliabilityText(d.reliability, d.street)}</b>{/if}
+      </SourceNote>
+    {/if}
     <details>
       <summary>Was angenommen wurde</summary>
       <p>{d.note}</p>
-      {#if d.source}<p class="faint">{SOURCE[d.source].explain}</p>{/if}
+      <p class="faint">{RATING_RULE}</p>
     </details>
-  {/if}
-
-  {#if (prefill && d.status === "rated") || (onLearn && d.rating && d.rating !== "best")}
-    <div class="actions">
-      {#if prefill && d.status === "rated"}
-        <button class="btn" onclick={() => openInSolver(prefill)} title="Öffnet die Lösung im Solver und spielt die Hand bis zu dieser Entscheidung durch.">
-          Im Solver öffnen
-        </button>
-      {/if}
-      {#if onLearn && d.rating && d.rating !== "best"}
-        {#each LEARN[d.spot] as l (l.label)}
-          <button class="btn ghost" onclick={() => onLearn(l.target)}>{l.label}</button>
-        {/each}
-      {/if}
-    </div>
-  {/if}
-</article>
+  </div>
+{:else if d.status === "pending"}
+  <div class="decision plain">
+    <p class="head">Dein {d.played.split(" ")[0]} wird gerade nachgerechnet.</p>
+    {#if solving}
+      <ProgressBar value={Math.min(1, solving.iteration / solving.max_iterations)} label="Fortschritt des Solvers" />
+      <p class="reason">Der Solver rechnet diese Hand ab dem Flop durch ({Math.round(solving.elapsed_ms / 1000)} s). Meist reicht weniger als eine Minute.</p>
+    {:else}
+      <p class="reason">Diese Hand steht ganz vorn in der Warteschlange und wird als Nächstes gerechnet.</p>
+    {/if}
+    <SourceNote kind="solver" variant="block">{SOURCE.solver.explain}</SourceNote>
+  </div>
+{:else if d.status === "forced"}
+  <div class="decision plain">
+    <p class="head">{d.played} – keine Entscheidung</p>
+    <p class="reason">{d.why} Zählt nicht in deine Bewertung.</p>
+  </div>
+{:else}
+  <div class="decision plain">
+    <p class="head">Diese Entscheidung bewertet Ringside nicht.</p>
+    <p class="reason">{d.reason}</p>
+    <p class="reason faint" title={SPOT_HINT[d.spot]}>{context}</p>
+  </div>
+{/if}
 
 <style>
-  .card {
+  .decision {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px 16px 14px;
+    gap: var(--sp-3);
+    font-size: var(--fs-md);
+  }
+  .plain {
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
     border: 1px solid var(--line);
-    border-left: 3px solid var(--tone);
-    border-radius: var(--r-lg);
+    border-radius: var(--r-md);
     background: var(--surface);
-    font-size: 13px;
-  }
-  header {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px 10px;
-  }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-weight: 600;
-    color: var(--tone);
-    cursor: help;
-  }
-  .pill i {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    background: var(--tone);
-  }
-  .pill.wait i {
-    background: transparent;
-    border: 2px solid var(--amber);
-    border-right-color: transparent;
-    animation: spin 1s linear infinite;
-  }
-  .pill.none i {
-    background: transparent;
-    border: 1.5px dashed var(--text-3);
-  }
-  .spot {
-    color: var(--text-2);
-    cursor: help;
-  }
-  .source {
-    margin-left: auto;
-    padding: 1px 8px;
-    border-radius: 999px;
-    font-size: 11.5px;
-    color: var(--text-2);
-    box-shadow: inset 0 0 0 1px var(--line-2);
-    cursor: help;
   }
   .head {
     margin: 0;
-    font-size: 15px;
-    font-weight: 600;
-    line-height: 1.35;
     color: var(--text);
-    text-wrap: pretty;
+    font-size: var(--fs-base);
+    font-weight: var(--fw-semibold);
   }
   .reason {
-    margin: -4px 0 0;
-    line-height: 1.45;
+    margin: 0;
     color: var(--text-2);
-  }
-  .reason b {
-    font-weight: 600;
-    color: var(--text);
+    line-height: 1.45;
   }
   .mix {
     display: flex;
     gap: 2px;
-    height: 14px;
-    margin-top: 2px;
+    height: 12px;
   }
   .seg {
     flex-basis: 0;
@@ -213,16 +193,16 @@
       0 0 0 3.5px var(--text);
   }
   .fold {
-    background: #4b525e;
+    background: var(--act-fold);
   }
   .passive {
-    background: var(--sd);
+    background: var(--act-call);
   }
   .raise {
-    background: var(--amber);
+    background: var(--act-raise);
   }
   .allin {
-    background: var(--neg);
+    background: var(--act-allin);
   }
   .options {
     display: grid;
@@ -235,9 +215,9 @@
     display: grid;
     grid-template-columns: 10px minmax(0, 1fr) 46px 72px;
     align-items: center;
-    gap: 8px;
-    padding: 2px 4px;
-    border-radius: 4px;
+    gap: var(--sp-2);
+    padding: 2px var(--sp-1);
+    border-radius: var(--r-sm);
     color: var(--text-2);
   }
   .options li.mine {
@@ -253,9 +233,9 @@
     margin-left: 7px;
     padding: 0 5px;
     border-radius: 3px;
-    font-size: 10.5px;
+    font-size: var(--fs-xs);
     font-style: normal;
-    font-weight: 600;
+    font-weight: var(--fw-semibold);
     text-transform: uppercase;
     letter-spacing: 0.04em;
     color: var(--bg);
@@ -272,71 +252,20 @@
   .ev.best {
     color: var(--pos);
   }
-  .loss {
-    display: flex;
-    align-items: baseline;
-    flex-wrap: wrap;
-    gap: 4px 8px;
-    margin: 0;
-    color: var(--text-2);
-  }
-  .loss b {
-    font-size: 15px;
-    color: var(--tone);
-  }
-  abbr {
-    text-decoration: underline dotted;
-    text-underline-offset: 3px;
-    cursor: help;
-  }
-  .progress {
-    height: 4px;
-    border-radius: 2px;
-    background: var(--surface-3);
-    overflow: hidden;
-  }
-  .progress i {
-    display: block;
-    height: 100%;
-    background: var(--amber);
-    transition: width 0.3s ease;
-  }
   details {
     color: var(--text-2);
   }
   summary {
     cursor: pointer;
     color: var(--text-3);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   summary:hover {
     color: var(--text-2);
   }
   details p {
-    margin: 6px 0 0;
+    margin: var(--sp-2) 0 0;
     line-height: 1.45;
-    font-size: 12.5px;
-  }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-  .actions .btn {
-    height: 30px;
-    font-size: 12.5px;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .pill.wait i {
-      animation: none;
-    }
-    .progress i {
-      transition: none;
-    }
+    font-size: var(--fs-sm);
   }
 </style>

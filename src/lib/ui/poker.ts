@@ -53,6 +53,6 @@ export const SOURCE: Record<Source, { label: string; text: string }> = {
   model: { label: "Modell", text: "Vereinfachtes Rechenmodell – gut als Richtung, nicht auf die Nachkommastelle." },
   equilibrium: { label: "Gleichgewicht", text: "Strategie, die gegen jeden Gegner nichts verliert. Gegen schwache Gegner geht mehr." },
   solver: { label: "Solver", text: "Vom Solver für genau diesen Spot berechnet." },
-  estimate: { label: "Einschätzung", text: "Aus deinen Händen geschätzt – mit mehr Händen wird es genauer." },
+  estimate: { label: "Einschätzung", text: "Geschätzt statt exakt gerechnet – gut als Richtung, nicht auf die Nachkommastelle." },
   locked: { label: "Gesperrt, solange PokerStars läuft", text: "Hilfen während des Spiels sind bei PokerStars nicht erlaubt. Schließ den Client, dann geht es weiter." },
 };
