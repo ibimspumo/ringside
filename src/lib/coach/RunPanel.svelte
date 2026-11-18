@@ -202,7 +202,7 @@
           {#each Array.from({ length: Math.max(1, p?.step ?? 1) }, (_, k) => k) as k (k)}
             <i class:now={k === Math.max(1, p?.step ?? 1) - 1}></i>
           {/each}
-          <span>Schritt <b class="num">{p?.step ?? 1}</b> · höchstens <span class="num">{p?.max_steps ?? 12}</span></span>
+          <span>Schritt <b class="num">{p?.step ?? 1}</b> von höchstens {p?.max_steps ?? 12}</span>
         </div>
       </div>
       <div class="figs">

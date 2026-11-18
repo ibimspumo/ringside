@@ -301,6 +301,7 @@
     gap: 10px 20px;
   }
   .titles {
+    flex: 1 1 360px;
     min-width: 0;
   }
   h2 {
@@ -312,6 +313,7 @@
   }
   .buttons {
     display: flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 8px;
     flex-wrap: wrap;
