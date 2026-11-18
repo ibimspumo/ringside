@@ -17,5 +17,5 @@ pub mod tree;
 
 pub use grade::{Grade, Judgement};
 pub use hand::{Deal, Hand, HandView, Lesson, Need, Summary, Verdict};
-pub use pool::{LiveStatus, Lookup, NoLookup, Plan, Pool, PoolStatus, Ready, Status, Urgency};
+pub use pool::{LiveStatus, Lookup, NoLookup, Plan, Pool, PoolStatus, Ready, Slot, Status, Urgency};
 pub use table::{Config, Mode, TableKey};

@@ -3,9 +3,9 @@
 //!
 //! The stock's worker starts with the first hand and keeps running whichever page is open;
 //! it pauses while PokerStars runs. Each round of filling it is a task in the task center
-//! (`jobs`) and also goes to the page as `play-pool`. Before it solves a spot it looks for a
-//! saved solution (`solutions`) and in the spot library; a spot solved in the background
-//! is offered to Ringside Cloud (`cloud::share_spot`) if the user shares.
+//! (`jobs`) and also goes to the page as `play-pool`. It prefers flops that are solved
+//! already and asks the spot store (`store`) before it solves; a spot solved in the
+//! background is saved there and offered to Ringside Cloud if the user shares.
 //!
 //! A hand that reaches a spot nobody prepared waits while the same worker solves it live
 //! (`play-live` to the table, a task in the task center, cancellable); the hand then goes
@@ -25,11 +25,11 @@ use ringside_learn::Kind as LearnKind;
 use ringside_engine::preflop_table::{Family, ModelLine};
 use ringside_analysis::assess::Estimator;
 use ringside_play::hand::Source;
-use ringside_play::pool::{Lookup, TARGET_PCT};
-use ringside_play::tree::{LibraryTree, Tree};
+use ringside_play::pool::{Line, Lookup, TARGET_PCT};
+use ringside_play::tree::Tree;
+use ringside_solver::gate::Priority;
 use ringside_play::{Config, Hand, HandView, Lesson, LiveStatus, Plan, Pool, PoolStatus, Status, Urgency};
-use ringside_solver::library::format::Stored;
-use ringside_solver::library::{SpotId, catalog};
+use ringside_solver::library::catalog;
 use ringside_solver::{Spot, Step};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
@@ -258,41 +258,129 @@ fn cancel_live(app: &AppHandle) {
 
 struct AppLookup(AppHandle);
 
-/// The catalog scenario with exactly these ranges, pot, stack and sizes.
-fn catalog_scenario(spot: &Spot) -> Option<usize> {
-    catalog().scenarios.iter().position(|s| {
-        s.oop_range == spot.oop_range
-            && s.ip_range == spot.ip_range
-            && (s.pot - spot.pot).abs() < 0.011
-            && (s.stack - spot.stack).abs() < 0.011
-            && s.sizes == spot.sizes
-            && s.allin_threshold == spot.allin_threshold
-    })
+/// Practice plays the plain tables.
+fn model_line(table: ringside_play::TableKey, line: &[ringside_engine::preflop::Step]) -> ModelLine {
+    ModelLine { family: Family::Plain, ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: line.to_vec() }
+}
+
+/// "Üben mit fertigen Spots anderer" (`cloud.practice_ready`).
+fn practice_ready(app: &AppHandle) -> bool {
+    app.state::<AppState>().settings.lock().unwrap().cloud.practice_ready
+}
+
+/// The ready flops of a line, kept for a while: the cloud is asked at most every
+/// [`CLOUD_EVERY`] per line, and not more often than [`STATUS_GAP`] in all.
+type ReadyCache = std::collections::HashMap<String, (Instant, Vec<String>)>;
+static READY: LazyLock<Mutex<ReadyCache>> = LazyLock::new(Default::default);
+static LAST_STATUS: Mutex<Option<Instant>> = Mutex::new(None);
+const CLOUD_EVERY: Duration = Duration::from_secs(30 * 60);
+const STATUS_GAP: Duration = Duration::from_secs(5);
+
+/// Flops of the scenario's line at `table` that are solved already: in the store (own,
+/// library, other players' downloads) and, with `cloud.fetch`, served by the cloud.
+/// The candidates are the library's representative flops.
+fn ready_flops(app: &AppHandle, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario) -> Vec<String> {
+    let c = catalog();
+    let model = model_line(table, &scenario.line);
+    let Some(base) = c.flops.first().and_then(|f| ringside_cloud::kinds::SpotInput::from_model(&model, &scenario.spot(f)).ok()) else {
+        // Not shareable: only the library's own catalog spots can be ready.
+        let keys: Vec<(String, String)> = c
+            .flops
+            .iter()
+            .filter_map(|f| ringside_store::key::catalog_id(&scenario.spot(f)).map(|id| (ringside_store::key::catalog_key(id), f.clone())))
+            .collect();
+        return crate::store::ready_flops(&app.state::<AppState>(), &keys, true);
+    };
+    let keys: Vec<(String, String)> = c
+        .flops
+        .iter()
+        .filter_map(|f| match ringside_store::key::catalog_id(&scenario.spot(f)) {
+            Some(id) => Some((ringside_store::key::catalog_key(id), f.clone())),
+            None => Some((crate::store::model_key(&ringside_store::key::on_flop(&base, f).ok()?)?, f.clone())),
+        })
+        .collect();
+    let mut ready = crate::store::ready_flops(&app.state::<AppState>(), &keys, true);
+    let line_key = format!("{:?}", model);
+    let cached = READY.lock().unwrap().get(&line_key).filter(|(at, _)| at.elapsed() < CLOUD_EVERY).map(|(_, f)| f.clone());
+    let in_cloud = match cached {
+        Some(flops) => flops,
+        None => {
+            let mut last = LAST_STATUS.lock().unwrap();
+            if last.is_some_and(|t| t.elapsed() < STATUS_GAP) {
+                Vec::new()
+            } else {
+                *last = Some(Instant::now());
+                drop(last);
+                let spot_keys: Vec<String> =
+                    keys.iter().filter_map(|(k, _)| k.strip_prefix("spot:").map(str::to_string)).collect();
+                let served = crate::cloud::served(app, &spot_keys);
+                let flops: Vec<String> = keys
+                    .iter()
+                    .filter(|(k, _)| k.strip_prefix("spot:").is_some_and(|h| served.iter().any(|v| v == h)))
+                    .map(|(_, f)| f.clone())
+                    .collect();
+                READY.lock().unwrap().insert(line_key, (Instant::now(), flops.clone()));
+                flops
+            }
+        }
+    };
+    for f in in_cloud {
+        if !ready.contains(&f) {
+            ready.push(f);
+        }
+    }
+    ready
+}
+
+/// The right to solve a practice spot: its key and a ticket of the store's gate.
+struct AppSlot {
+    _claim: ringside_store::Claim<'static>,
+    ticket: ringside_solver::gate::Ticket<'static>,
+}
+
+impl ringside_play::Slot for AppSlot {
+    fn hold(&self, timeout: Duration) -> bool {
+        self.ticket.hold(timeout)
+    }
+
+    fn should_yield(&self) -> bool {
+        self.ticket.should_yield()
+    }
 }
 
 impl Lookup for AppLookup {
-    fn load(&self, spot: &Spot, max_pct: f64) -> Option<Box<dyn Tree>> {
-        if let Some((_, snapshot)) = crate::solutions::lookup(&self.0, spot, max_pct) {
-            return Some(Box::new(snapshot));
+    fn load(&self, spot: &Spot, line: Line, max_pct: f64) -> Option<Box<dyn Tree>> {
+        let model = line.map(|(table, line)| model_line(table, line));
+        let keyed = crate::store::keyed(spot, model.as_ref())?;
+        let policy = crate::store::policy(&self.0, practice_ready(&self.0), false);
+        let ask = crate::store::Ask::new(spot, &keyed, max_pct);
+        crate::store::resolve_app(&self.0, &ask, &policy, || false, |found| Some(found.into_tree()), || None).map(|(_, tree)| tree)
+    }
+
+    fn flops(&self, table: ringside_play::TableKey, scenario: &ringside_play::scenario::Scenario) -> Vec<String> {
+        // "Nur eigene, frisch gegebene Spots": random flops, solved here.
+        if !practice_ready(&self.0) {
+            return Vec::new();
         }
-        let scenario = catalog_scenario(spot)?;
-        let id = SpotId { scenario, flop: catalog().flop(&spot.board)? };
-        let root = crate::library::root(&self.0)?;
-        let source = crate::library::status_of(&root, id)?;
-        let bytes = std::fs::read(crate::library::spot_path(&root, source, id)).ok()?;
-        Some(Box::new(LibraryTree(Stored::from_bytes(&bytes, catalog()).ok()?)))
+        ready_flops(&self.0, table, scenario)
     }
 
-    fn flops(&self, spot: &Spot) -> Vec<String> {
-        let (Some(scenario), Some(root)) = (catalog_scenario(spot), crate::library::root(&self.0)) else { return Vec::new() };
-        let c = catalog();
-        (0..c.flops.len())
-            .filter(|&flop| crate::library::status_of(&root, SpotId { scenario, flop }).is_some())
-            .map(|flop| c.flops[flop].clone())
-            .collect()
+    fn slot(&self, spot: &Spot, line: Line, urgent: bool) -> Option<Box<dyn ringside_play::Slot>> {
+        let model = line.map(|(table, line)| model_line(table, line));
+        let keyed = crate::store::keyed(spot, model.as_ref())?;
+        let claim = crate::store::flight().claim(&keyed.key)?;
+        let priority = if urgent { Priority::Viewed } else { Priority::Practice };
+        Some(Box::new(AppSlot { _claim: claim, ticket: crate::store::gate().enter(priority) }))
     }
 
-    fn save(&self, table: ringside_play::TableKey, seats: [usize; 2], solution: &mut ringside_solver::Solution, settings: &ringside_solver::Settings) {
+    fn save(
+        &self,
+        table: ringside_play::TableKey,
+        seats: [usize; 2],
+        line: Option<&[ringside_engine::preflop::Step]>,
+        solution: &mut ringside_solver::Solution,
+        settings: &ringside_solver::Settings,
+    ) {
         let names = ringside_engine::multiway::position_names(table.players);
         let info = crate::solutions::SaveInfo {
             title: String::new(),
@@ -301,17 +389,10 @@ impl Lookup for AppLookup {
             ranges: format!("Preflop-Modell, {} Spieler, {} BB", table.players, table.stack_bb),
             source: Some(ringside_core::db::SolutionSource::Training),
             hand_id: None,
+            model: line.map(|line| model_line(table, line)),
         };
         if let Err(e) = crate::solutions::save(&self.0, solution, settings, &info) {
             eprintln!("saving a practice solve: {e}");
-        }
-    }
-
-    fn solved(&self, table: ringside_play::TableKey, line: &[ringside_engine::preflop::Step], solution: &mut ringside_solver::Solution) {
-        // Practice plays the plain tables.
-        let model = ModelLine { family: Family::Plain, ante: table.ante, players: table.players, stack_bb: table.stack_bb, line: line.to_vec() };
-        if let Some(input) = crate::cloud::spot_input(&model, &solution.spot) {
-            crate::cloud::share_spot(&self.0, input, solution);
         }
     }
 }

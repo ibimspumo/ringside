@@ -3479,6 +3479,7 @@ dependencies = [
  "ringside-learn",
  "ringside-play",
  "ringside-solver",
+ "ringside-store",
  "serde",
  "serde_json",
  "syn 2.0.119",
@@ -3609,6 +3610,18 @@ dependencies = [
  "postflop-solver",
  "rayon",
  "ringside-engine",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "ringside-store"
+version = "0.15.0"
+dependencies = [
+ "ringside-cloud",
+ "ringside-engine",
+ "ringside-play",
+ "ringside-solver",
  "serde",
  "serde_json",
 ]

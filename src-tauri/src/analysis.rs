@@ -29,14 +29,16 @@ use ringside_analysis::postflop::{JobError, TARGET_PCT, rate, settings, solve_sp
 use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets, estimate_rest};
 use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, SolutionSource, Status};
 use ringside_core::model::Street;
-use ringside_solver::library::format::{Stored, View};
+use ringside_solver::gate::Priority;
 use ringside_solver::saved::NOT_STORED;
-use ringside_solver::{Solution, Summary};
+use ringside_solver::Solution;
+use ringside_store::{Origin, Policy};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
 use crate::auto_analysis::{Auto, Edge, Phase};
 use crate::solutions::{self, SaveInfo};
+use crate::store::{self, Ask, Found};
 use crate::{AppState, CmdResult, blocking, err, jobs, store_settings};
 
 const ENABLED_KEY: &str = "analysis_enabled";
@@ -551,71 +553,73 @@ fn save_info(job: &PostflopJob) -> SaveInfo {
         ranges: if notes.is_empty() { "aus dem Preflop-Modell".into() } else { notes.join(" · ") },
         source: Some(SolutionSource::Hand),
         hand_id: Some(job.hand_id),
+        model: job.model.clone(),
     }
 }
 
-/// Rates `job` from a saved solution of its spot as exact as a queued solve, if every
-/// decision lies in its saved part; then, with `cloud`, from a verified solution of
-/// Ringside Cloud if every hero decision is on the flop (it stores the flop per hand, but
-/// no EV per action, so the rating goes by frequency); otherwise solves with `solve`,
-/// saves the solution in `dir` and offers it to the cloud, or, if this computer cannot
-/// solve it, asks the community to. The flag is true when nothing was solved. The spot library is not searched: its catalog spots (nine players,
-/// big-blind ante, fixed depths) match no hand's pot, stack and ranges exactly.
-fn rate_job(
-    dir: &Path,
-    state: &AppState,
-    job: &PostflopJob,
-    cloud: Option<&AppHandle>,
-    solve: impl FnOnce() -> Result<Solution, JobError>,
-) -> Result<(Vec<Decision>, bool), JobError> {
-    if let Some((id, snapshot)) = solutions::find(dir, state, &job.spot, TARGET_PCT)
-        && let Ok(decisions) = rate(job, &snapshot.meta.summary, Some(id), |path| snapshot.node(path))
-    {
-        return Ok((decisions, true));
-    }
-    let input = cloud.and(job.model.as_ref()).and_then(|m| crate::cloud::spot_input(m, &job.spot));
-    let flop_only = job.actions.iter().filter(|a| a.hero.is_some()).all(|a| a.street == Street::Flop);
-    if let (Some(app), Some(input)) = (cloud, &input)
-        && flop_only
-        && let Some((catalog, stored)) = crate::cloud::fetch_spot(app, input, &job.spot.board)
-        && let Ok(view) = View::new(&stored, &catalog)
-        && let Ok(mut decisions) = rate(job, &cloud_summary(&stored), None, |path| view.node(path))
-    {
-        for d in &mut decisions {
-            d.note.push_str(" Lösung aus Ringside Cloud, von der Community gerechnet; ohne EV je Aktion, bewertet nach Häufigkeit.");
-        }
-        return Ok((decisions, true));
-    }
-    let mut solution = match solve() {
-        Ok(s) => s,
-        Err(e) => {
-            if let (Some(app), Some(input), JobError::Failed(_)) = (cloud, input, &e) {
-                crate::cloud::request_spot(app, input);
-            }
-            return Err(e);
-        }
+/// What rating a job gave: the decisions, and whether nothing was solved.
+type Rated = Result<(Vec<Decision>, bool), JobError>;
+
+/// Rates `job` from the spot store (`store::resolve`): an own solve as exact as a queued
+/// one, if every decision lies in its saved part; a library spot or a spot Ringside Cloud
+/// serves (accepted on its form or verified) if every hero decision is on the flop (they store the flop per hand, but
+/// no EV per action, so the rating goes by frequency). Otherwise it solves with `solve`,
+/// files the solution in the store under `data` and offers it to the cloud, or, if this
+/// computer cannot solve it, asks the community to. The flag is true when nothing was
+/// solved. Without `app` (tests) the cloud is left out.
+fn rate_job(data: &Path, state: &AppState, job: &PostflopJob, app: Option<&AppHandle>, solve: impl FnOnce() -> Result<Solution, JobError>) -> Rated {
+    let keyed = store::keyed(&job.spot, job.model.as_ref()).ok_or_else(|| JobError::Failed("Spot unlesbar".into()))?;
+    let policy = match app {
+        Some(app) => store::policy(app, true, true),
+        None => Policy { solve: true, others: true, ..Policy::default() },
     };
-    let saved = solutions::store(dir, state, &mut solution, &settings(threads()), &save_info(job));
-    // Not saved only costs the reuse; the rating stands either way.
-    let saved = saved.inspect_err(|e| eprintln!("saving the analysis solve of hand {}: {e}", job.hand_id)).ok();
-    if let (Some(app), Some(input)) = (cloud, input) {
-        crate::cloud::share_spot(app, input, &mut solution);
-    }
-    let summary = solution.summary.clone();
-    rate(job, &summary, saved, |path| solution.node(path)).map(|d| (d, false))
-}
-
-/// What a stored spot says about its solve, as a solver summary.
-fn cloud_summary(stored: &Stored) -> Summary {
-    Summary {
-        iterations: stored.iterations,
-        exploitability: 0.0,
-        exploitability_pct: stored.exploitability_pct as f64,
-        converged: true,
-        elapsed_ms: 0,
-        memory_bytes: 0,
-        compressed: false,
-        threads: 0,
+    let flop_only = job.actions.iter().filter(|a| a.hero.is_some()).all(|a| a.street == Street::Flop);
+    let use_found = |found: Found| -> Option<Rated> {
+        let note = match found.origin() {
+            Origin::Own if found.saved_id().is_some() => None,
+            Origin::Cloud => Some(" Lösung aus Ringside Cloud, von der Community gerechnet; ohne EV je Aktion, bewertet nach Häufigkeit."),
+            _ => Some(" Lösung aus der Spot-Bibliothek; ohne EV je Aktion, bewertet nach Häufigkeit."),
+        };
+        if note.is_some() && !flop_only {
+            return None;
+        }
+        let mut decisions = rate(job, &found.summary(), found.saved_id(), |path| found.node(path)).ok()?;
+        for d in decisions.iter_mut().filter(|_| note.is_some()) {
+            d.note.push_str(note.unwrap_or_default());
+        }
+        Some(Ok((decisions, true)))
+    };
+    let solve_and_save = || -> Option<Rated> {
+        let mut solution = match solve() {
+            Ok(s) => s,
+            Err(e) => return Some(Err(e)),
+        };
+        let saved = store::save_solution(data, state, &mut solution, &settings(threads()), &save_info(job));
+        // Not saved only costs the reuse; the rating stands either way.
+        let saved = saved.inspect_err(|e| eprintln!("saving the analysis solve of hand {}: {e}", job.hand_id)).ok();
+        if let Err(e) = store::prune_solutions(data, state, solutions::max_bytes(state)) {
+            eprintln!("keeping the solutions within their limit: {e}");
+        }
+        if let (Some(app), Some((_, keyed))) = (app, &saved) {
+            store::share(app, keyed, &mut solution);
+        }
+        let summary = solution.summary.clone();
+        Some(rate(job, &summary, saved.map(|(id, _)| id), |path| solution.node(path)).map(|d| (d, false)))
+    };
+    let ask = Ask::new(&job.spot, &keyed, TARGET_PCT);
+    let cloud = |a: &Ask| app.and_then(|app| store::find_cloud(app, data, a));
+    let keep_waiting = || app.is_none_or(|app| !client_running(app));
+    let rated = store::resolve((data, state), &ask, &policy, cloud, keep_waiting, use_found, solve_and_save);
+    match rated {
+        Some((_, Err(JobError::Failed(why)))) => {
+            if let (Some(app), Some(ringside_store::Cloud::Spot(input))) = (app, &keyed.cloud) {
+                crate::cloud::request_spot(app, input.clone());
+            }
+            Err(JobError::Failed(why))
+        }
+        Some((_, rated)) => rated,
+        // PokerStars opened while another area solved the same spot.
+        None => Err(JobError::Cancelled),
     }
 }
 
@@ -627,12 +631,26 @@ fn solve_next(app: &AppHandle, scope: Scope) -> bool {
     let Ok(Some((hand_id, json))) = next else { return false };
     state.preempt.store(false, Ordering::SeqCst);
     let job: Result<PostflopJob, _> = serde_json::from_str(&json);
-    let result = match (job, solutions::dir(app)) {
-        (Ok(job), Ok(dir)) => {
+    let result = match (job, store::data(app)) {
+        (Ok(job), Ok(data)) => {
             let started = Instant::now();
             let mut last: Option<Instant> = None;
             let progress_app = app.clone();
+            let priority = {
+                let status = state.status.lock().unwrap();
+                match scope {
+                    _ if status.marked.contains(&hand_id) => Priority::Viewed,
+                    Scope::After(_) => Priority::NewHands,
+                    Scope::All | Scope::Marked => Priority::History,
+                }
+            };
             let solve = || {
+                let ticket = store::gate().enter(priority);
+                while !ticket.hold(Duration::from_secs(1)) {
+                    if client_running(app) || state.preempt.load(Ordering::Relaxed) {
+                        return Err(JobError::Cancelled);
+                    }
+                }
                 solve_spot(
                     &job,
                     threads(),
@@ -654,10 +672,10 @@ fn solve_next(app: &AppHandle, scope: Scope) -> bool {
                             report(&progress_app, &mut status);
                         }
                     },
-                    || client_running(app) || state.preempt.load(Ordering::Relaxed),
+                    || client_running(app) || state.preempt.load(Ordering::Relaxed) || ticket.should_yield(),
                 )
             };
-            let result = rate_job(&dir, &main, &job, Some(app), solve);
+            let result = rate_job(&data, &main, &job, Some(app), solve);
             if let Ok((_, false)) = result {
                 let mut solved = state.solved.lock().unwrap();
                 solved.0 += started.elapsed().as_secs_f64();
@@ -1023,7 +1041,7 @@ mod tests {
         let page = Settings { target_pct: 0.5, max_iterations: 1000, threads: 1 };
         let mut solution = solve(&job.spot, &page, 1 << 30, |_| {}, || false).unwrap();
         let info = SaveInfo { source: Some(SolutionSource::Own), ..Default::default() };
-        let id = solutions::store(&dir, &state, &mut solution, &page, &info).unwrap();
+        let (id, _) = store::save_solution(&dir, &state, &mut solution, &page, &info).unwrap();
 
         let (decisions, reused) = rate_job(&dir, &state, &job, None, || panic!("the saved solution is used, nothing is solved")).unwrap();
         assert!(reused);
@@ -1074,8 +1092,9 @@ mod tests {
                 (Street::Turn, false, ActionKind::Bet, 5.0, Some(SpotType::Turn)),
             ],
         );
-        let (_, snapshot) = solutions::find(&dir, &state, &turn.spot, TARGET_PCT).expect("the flop spot is saved");
-        let from_snapshot = rate(&turn, &snapshot.meta.summary, None, |path| snapshot.node(path));
+        let keyed = store::keyed(&turn.spot, None).unwrap();
+        let found = store::find_local(&dir, &state, &Ask::new(&turn.spot, &keyed, TARGET_PCT), true).expect("the flop spot is saved");
+        let from_snapshot = rate(&turn, &found.summary(), None, |path| found.node(path));
         assert!(matches!(from_snapshot, Err(JobError::NotStored)), "{from_snapshot:?}");
         let (decisions, reused) = rate_job(&dir, &state, &turn, None, || fresh(&turn, &calls)).unwrap();
         assert!(!reused);

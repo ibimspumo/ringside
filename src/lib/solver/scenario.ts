@@ -5,6 +5,7 @@ import { api } from "../api";
 import type { PreflopAnte, PreflopKind, PreflopSpot, PreflopSpots } from "../charts/preflop-types";
 import { defendRange, openRange, preset } from "./presets";
 import { CLASSES, formatRange } from "./range";
+import type { ModelLine } from "./types";
 
 export type PotType = "srp" | "3bet" | "limp";
 export interface Scenario {
@@ -120,6 +121,8 @@ export interface Derived {
   /** Chips each player put in before the flop, for the table. */
   put: Record<string, number>;
   labels: Record<string, string>;
+  /** The preflop line, when ranges, pot and stack are the model's own: the spot is shared. */
+  model: ModelLine | null;
 }
 
 const fmt = (x: number) => x.toLocaleString("de-DE", { maximumFractionDigits: 2 });
@@ -200,18 +203,21 @@ export async function derive(s: Scenario): Promise<Derived> {
         ? { [w.first]: `Open-Raise auf ${fmt(open)} BB`, [w.second]: `Call gegen ${w.first}` }
         : { [w.first]: `Open, Call gegen die 3-Bet`, [w.second]: `3-Bet auf ${fmt(raise3)} BB` };
   const range = { [w.first]: formatRange(firstW), [w.second]: formatRange(secondW) };
+  // At a model depth the model's own spot is used as is, as practice and the cloud know it.
+  const own = modelStack === s.stack ? await api.solverModelSpot(s).catch(() => null) : null;
   return {
     oop,
     ip,
-    oopRange: range[oop],
-    ipRange: range[ip],
+    oopRange: own?.oop_range ?? range[oop],
+    ipRange: own?.ip_range ?? range[ip],
     oopNote: notes[oop],
     ipNote: notes[ip],
-    pot,
-    stack,
+    pot: own?.pot ?? pot,
+    stack: own?.stack ?? stack,
     modelStack,
     put: { [s.seats[0]]: to, [s.seats[1]]: to },
     labels,
+    model: own?.model ?? null,
   };
 }
 
@@ -257,5 +263,6 @@ export function template(s: Scenario): Derived {
     modelStack: s.stack,
     put: { [s.seats[0]]: to, [s.seats[1]]: to },
     labels,
+    model: null,
   };
 }
