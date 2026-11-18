@@ -374,7 +374,7 @@
         {#if solver.custom.oop || solver.custom.ip}
           {solver.custom.oop && solver.custom.ip ? "Beide Ranges angepasst" : `${solver.positions[solver.custom.oop ? "oop" : "ip"]} angepasst`}
         {:else}
-          {originOf()}
+          <span class="faint">Quelle:</span> {originOf()}
         {/if}
       </p>
       {#if deriveNote}<p class="warn small" title={deriveDetail || undefined}>{deriveNote}</p>{/if}
@@ -578,7 +578,7 @@
     gap: 14px;
     margin-top: 8px;
     font-size: 12px;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .facts b {
     color: var(--text);
@@ -597,9 +597,6 @@
   }
   .origin {
     margin: 6px 0 10px;
-    padding: 5px 8px;
-    border-radius: var(--r-sm);
-    background: var(--surface-2);
     color: var(--text-2);
     font-size: 11.5px;
     line-height: 1.4;

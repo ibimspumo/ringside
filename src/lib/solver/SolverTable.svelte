@@ -245,9 +245,7 @@
     width: min(100%, calc(var(--stage-vh, 52vh) * var(--ar)));
     margin: 0 auto;
     aspect-ratio: var(--ar);
-    border-radius: var(--r-lg);
     overflow: hidden;
-    border: 1px solid var(--line);
   }
   .felt {
     position: absolute;

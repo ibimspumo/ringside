@@ -69,8 +69,8 @@
   }));
 </script>
 
-<ClientLock feature="Der Solver">
-  <div class="page solver">
+<div class="page solver">
+  <ClientLock feature="Der Solver">
     {#if solver.status === "running" && solver.replay?.notice}
       <p class="source" role="status">{solver.replay.notice}</p>
     {:else if solver.source && view === "setup"}
@@ -88,8 +88,8 @@
     {:else}
       <Setup />
     {/if}
-  </div>
-</ClientLock>
+  </ClientLock>
+</div>
 
 <style>
   .solver {

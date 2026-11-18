@@ -118,7 +118,10 @@ export function handAdvice(node: SolverNode, strategy: number[], hands: SolverHa
     .filter((x) => x.f >= 0.03)
     .sort((x, y) => y.f - x.f)
     .slice(0, 2);
-  const line = ranked.map((x) => `${often(x.f)} ${verb(node.actions[x.k], node)}`).join(", sonst ");
+  const line =
+    ranked.length === 2 && Math.abs(ranked[0].f - ranked[1].f) < 0.08
+      ? `etwa gleich oft ${verb(node.actions[ranked[0].k], node)} oder ${verb(node.actions[ranked[1].k], node)}`
+      : ranked.map((x) => `${often(x.f)} ${verb(node.actions[x.k], node)}`).join(", sonst ");
   if (ranked.length < 2 || !hands.length || hands[0].evs.length !== strategy.length) return { line, close: null };
   const avg = (k: number) => {
     const w = hands.reduce((s, h) => s + h.weight, 0) || 1;

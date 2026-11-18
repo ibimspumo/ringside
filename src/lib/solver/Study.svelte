@@ -292,13 +292,13 @@
   <nav class="line" aria-label="Spielverlauf">
     <button class:on={line.length === 0} onclick={() => back(0)}>
       {["Flop", "Turn", "River"][Math.max(0, startBoard.length - 3)]}
-      {#each startBoard as c (c)}<PlayingCard card={c} size={13} />{/each}
+      <span class="inline">{#each startBoard as c (c)}<MiniCard card={c} />{/each}</span>
     </button>
     {#each line as c, i (i)}
       <span class="sep" aria-hidden="true">›</span>
       <button class:on={i === line.length - 1} class:card={"card" in c.step} onclick={() => back(i + 1)}>
         {#if "card" in c.step}
-          {STREET_NAME[c.street]} <PlayingCard card={c.step.card} size={13} />
+          {STREET_NAME[c.street]} <MiniCard card={c.step.card} />
         {:else}
           {c.label}
         {/if}

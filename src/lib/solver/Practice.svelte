@@ -280,7 +280,7 @@
         street={node ? STREET_NAME[node.street] : ""}
       />
       {#if phase === "me" && node}
-        <div class="actor"><span><b>Du bist dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Ziffern 1–{Math.min(9, node.actions.length)}</span></div>
+        <div class="actor"><span><b>Du bist dran</b> mit <span class="inline">{#each cards?.me ?? [] as c (c)}<MiniCard card={c} />{/each}</span></span><span class="faint">Tasten 1–{Math.min(9, node.actions.length)}</span></div>
         <ActionBar {node} {colors} onAct={choose} blind />
       {:else if phase === "wait"}
         <div class="actor"><span class="dim">{node?.kind === "chance" ? "Die nächste Karte kommt …" : `${pos(other)} überlegt …`}</span></div>
@@ -338,7 +338,7 @@
                 <span class="faint">{STREET_NAME[d.street]}</span>
                 <span>{d.label.replace(/ \(.*\)$/, "")}</span>
                 <span class="tag {d.verdict.grade}">{GRADES[d.verdict.grade].label}</span>
-                <span class="num dim">{d.verdict.loss !== null && d.verdict.loss >= 0.005 ? `−${bb(d.verdict.loss, 2)}` : "–"}</span>
+                <span class="num dim">{d.verdict.loss !== null && d.verdict.loss >= 0.005 ? `−${bb(d.verdict.loss, 2)} BB` : "kein Verlust"}</span>
               </li>
             {/each}
           </ol>
