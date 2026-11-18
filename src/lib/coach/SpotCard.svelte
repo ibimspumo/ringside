@@ -203,15 +203,15 @@
   }
   .meaning {
     font-size: 13px;
-    color: var(--text-3);
+    color: var(--text-2);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   .time {
     margin-left: auto;
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: 12.5px;
+    color: var(--text-2);
   }
   p {
     margin: 0;
@@ -268,9 +268,9 @@
     font-size: 13px;
   }
   .small {
-    height: 28px;
+    height: 30px;
     padding: 0 10px;
-    font-size: 12.5px;
+    font-size: 13px;
     gap: 6px;
   }
   .ghost {

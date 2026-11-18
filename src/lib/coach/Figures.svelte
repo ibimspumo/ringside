@@ -12,16 +12,16 @@
   <dl class="figures">
     {#each numbers as n, i (i)}
       <div class="fig" class:guess={n.source !== "berechnet"}>
-        <dt>{n.label}</dt>
-        <dd>
-          <b class:num={n.source === "berechnet"}>{n.value}</b>
+        <dt>
+          <span>{n.label}</span>
           <span
             class="src"
             title={n.source === "berechnet"
               ? "Von Ringsides Rechenkern berechnet, nicht vom Sprachmodell"
               : "Einschätzung des Sprachmodells, nicht nachgerechnet"}>{n.source === "berechnet" ? "berechnet" : "Einschätzung"}</span
           >
-        </dd>
+        </dt>
+        <dd><b class:num={n.source === "berechnet"}>{n.value}</b></dd>
       </div>
     {/each}
   </dl>
@@ -58,14 +58,17 @@
     border: 1px dashed var(--line-2);
   }
   dt {
-    font-size: 12px;
-    color: var(--text-3);
-  }
-  dd {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+  dt > span:first-child {
+    min-width: 0;
+  }
+  dd {
     margin: 0;
   }
   dd b {

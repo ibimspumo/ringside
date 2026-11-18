@@ -13,7 +13,8 @@
    * before that action (an index into `actions`): no later cards, no showdown, no winner.
    * `marks` colours actions (by index into `actions`) on the log and the timeline; clicking one
    * calls `onMark`. A new `jumpTo` moves the replay to just before its action. `aside` sits
-   * above the action log.
+   * above the action log. `quiz` is for practising the hand: while the answer is open, the
+   * solver hand-off is hidden and the play button stays quiet.
    */
   let {
     hand: full,
@@ -23,6 +24,7 @@
     jumpTo = null,
     children,
     aside,
+    quiz = false,
   }: {
     hand: Hand;
     upTo?: number | null;
@@ -31,6 +33,7 @@
     jumpTo?: { action: number } | null;
     children?: Snippet;
     aside?: Snippet;
+    quiz?: boolean;
   } = $props();
 
   type Event =
@@ -387,7 +390,8 @@
             <svg viewBox="0 0 24 24" width="16" height="16"><path d={ICON.prev} /></svg>
           </button>
           <button
-            class="btn primary play"
+            class="btn play"
+            class:primary={!quiz}
             onclick={() => {
               if (done) step = 0;
               playing = !playing;
@@ -422,7 +426,7 @@
           <button class:on={!inBB} onclick={() => (inBB = false)}>{hand.game === "tournament" ? "Chips" : "Geld"}</button>
           <button class:on={inBB} onclick={() => (inBB = true)}>BB</button>
         </div>
-        {#if solveSpot}
+        {#if solveSpot && !quiz}
           <button
             class="btn solve"
             disabled={"reason" in solveSpot}

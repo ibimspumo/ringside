@@ -74,7 +74,9 @@
         <h2 id="mine-title"><CardText text={spot.action} /></h2>
         {#if spot.better}<p class="better"><span>Besser</span><b><CardText text={spot.better} /></b></p>{/if}
         {#if spot.numbers.length}
-          <p class="lead">Deine Zahlen aus diesem Spot – der Artikel unten zeigt, wie man sie liest und selbst schätzt:</p>
+          <p class="lead">
+            Deine Zahlen aus diesem Spot. Die Beispiele im Artikel unten sind allgemein – vergleiche sie mit deinen:
+          </p>
           <Figures numbers={spot.numbers} />
         {/if}
         <div class="row">

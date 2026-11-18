@@ -40,6 +40,9 @@ function situation(hand: Hand, index: number) {
   return { toCall: Math.max(0, Math.min(most - mine, stack)) / bb, behind: stack / bb, facing: most > mine };
 }
 
+/** The hero's stack behind at the decision, in big blinds. */
+export const behind = (hand: Hand, index: number) => situation(hand, index).behind;
+
 export const bb = (v: number) => `${v.toLocaleString("de-DE", { maximumFractionDigits: 1 })} BB`;
 
 /** The choices the hero had at the decision, as buttons. */

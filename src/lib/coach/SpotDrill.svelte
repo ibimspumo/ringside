@@ -5,7 +5,7 @@
   import { coachApi, errorText } from "./api";
   import CardText from "./CardText.svelte";
   import { conceptName } from "./concepts";
-  import { CHOICE_NAME, accepted, choices, decisionIndex, played, type Choice } from "./drill";
+  import { CHOICE_NAME, accepted, bb, behind, choices, decisionIndex, played, type Choice } from "./drill";
   import Figures from "./Figures.svelte";
   import { positionHint, verdictOf } from "./meaning";
   import { appear, rise } from "./motion";
@@ -58,7 +58,8 @@
   const ok = $derived(actual ? accepted(spot, actual) : null);
   const verdict = $derived(verdictOf(spot.verdict));
   const right = $derived(answer && ok ? ok.includes(answer) : null);
-  const stack = $derived(spot.stack_bb.toLocaleString("de-DE", { maximumFractionDigits: 1 }));
+  /** The stack at the decision, as the table shows it; the spot's own figure is the stack at the start of the hand. */
+  const stack = $derived(hand && at !== null ? bb(behind(hand, at)) : bb(spot.stack_bb));
 </script>
 
 <section class="panel drill" aria-labelledby="drill-title">
@@ -75,7 +76,7 @@
       {#if failed}
         <p class="msg" role="alert">{failed}</p>
       {:else if hand && at !== null}
-        <Replayer {hand} upTo={answer ? null : at}>
+        <Replayer {hand} upTo={answer ? null : at} quiz={!answer}>
           <div class="hand-title">
             {#if answer}
               <span class="stop done">Aufgelöst: so ging die Hand weiter</span>
@@ -98,10 +99,11 @@
         <h2 id="drill-title">
           Du sitzt im <abbr title={positionHint(spot.position)}>{spot.position ?? "–"}</abbr> mit <CardText
             text={spot.hero_cards.join("")}
-          /> und <span class="num">{stack} BB</span>. Was spielst du?
+          />, noch <span class="num">{stack}</span> im Stack. Was spielst du?
         </h2>
       </div>
 
+      <div class="act">
       {#if hand && at !== null}
         {#if !answer}
           <div class="choices" role="group" aria-label="Deine Entscheidung" in:appear>
@@ -160,6 +162,7 @@
           </div>
         {/if}
       {/if}
+      </div>
     </aside>
   </div>
 </section>
@@ -210,7 +213,7 @@
   }
   .stage {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(300px, 400px);
+    grid-template-columns: minmax(0, 1fr) minmax(290px, 360px);
     gap: 16px;
     align-items: start;
   }
@@ -377,12 +380,23 @@
     color: var(--text-2);
   }
 
+  .act {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
   @container (max-width: 980px) {
     .stage {
       grid-template-columns: minmax(0, 1fr);
     }
     .side {
+      display: contents;
+    }
+    .ask {
       order: -1;
+    }
+    .table {
+      height: clamp(400px, 56vh, 560px);
     }
     .choices {
       grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
