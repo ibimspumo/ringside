@@ -42,15 +42,16 @@
     >{/if}{/each}
 
 <style>
-  .cards,
-  .hand {
+  .cards {
     display: inline-flex;
     align-items: center;
     gap: 2px;
-    vertical-align: -0.2em;
+    vertical-align: -0.3em;
     margin: 0 1px;
   }
   .hand {
+    white-space: nowrap;
+    margin: 0 1px;
     cursor: help;
   }
   .hand b {
@@ -58,6 +59,7 @@
     place-items: center;
     min-width: 1.2em;
     height: 1.45em;
+    margin-right: 2px;
     padding: 0 2px;
     border-radius: 3px;
     background: var(--text);
@@ -66,14 +68,11 @@
     font-size: 0.86em;
     font-weight: 700;
     line-height: 1;
+    vertical-align: 0.05em;
   }
   .hand i {
-    align-self: center;
-    margin-left: 2px;
     font-style: normal;
-    font-size: 0.8em;
     font-weight: 600;
-    line-height: 1;
     color: var(--text-2);
   }
 </style>
