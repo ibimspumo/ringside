@@ -329,7 +329,7 @@
   }
   .replay {
     display: flex;
-    height: clamp(460px, 66vh, 700px);
+    height: clamp(460px, 76vh, 820px);
     padding: 12px;
     min-width: 0;
   }
