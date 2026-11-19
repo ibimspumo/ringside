@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { untrack, type Snippet } from "svelte";
   import Replayer from "../app/Replayer.svelte";
   import DecisionCard from "../analysis/DecisionCard.svelte";
   import { GRADE_OF, KIT_SOURCE, SOURCE } from "../analysis/labels";
@@ -30,6 +30,8 @@
     onNext,
     nextLabel = "Weiter",
     why = null,
+    origin,
+    after,
   }: {
     spot: DrillSpot;
     check: (choice: number) => Promise<DrillResult>;
@@ -38,6 +40,10 @@
     nextLabel?: string;
     /** Why this kind of spot is practised: "38-mal gespielt, kostet dich etwa 0,4 BB pro Mal". */
     why?: string | null;
+    /** Replaces the line naming where the hand comes from, e.g. for the learning spots. */
+    origin?: Snippet;
+    /** More under the verdict once answered. */
+    after?: Snippet;
   } = $props();
 
   let result = $state<DrillResult | null>(null);
@@ -170,7 +176,9 @@
 <div class="grid">
   <header class="top">
     <div class="origin">
-      {#if real}
+      {#if origin}
+        {@render origin()}
+      {:else if real}
         <Badge tone="info" size="sm">Echte Hand</Badge>
         <span>vom {dayOf(spot.played_at)}</span>
       {:else}
@@ -259,6 +267,7 @@
     {:else}
       <div class="after" in:rise>
         {#if decision}<div class="verdict"><DecisionCard {decision} quiet /></div>{/if}
+        {#if after}{@render after()}{/if}
         {#if then && then.rating}
           <p class="then">
             <span>Damals hast du <b>{then.played}</b> gespielt</span>
