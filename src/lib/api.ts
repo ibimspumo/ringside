@@ -161,7 +161,7 @@ export const api = {
       tournaments: 0,
       skipped: 0,
     })),
-  clientWindows: () => call<ClientWindow[]>("client_windows", {}, demoWindows),
+  clientWindows: () => call<ClientWindow[]>("client_windows", {}, () => (previewData === "empty" ? [] : demoWindows())),
   liveTables: () =>
     call<LiveTable[]>("live_tables", {}, () =>
       (previewData === "empty" ? [] : demo.demoLiveTables()).map((l) => (l.table ? { ...l, table: { ...l.table, seats: l.table.seats.map(unread) } } : l)),
