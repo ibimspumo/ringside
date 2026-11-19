@@ -769,18 +769,30 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
     }
     let all_fold: f64 = shares.iter().map(|s| 1.0 - s).product();
     let callers: f64 = shares.iter().sum::<f64>() / (1.0 - all_fold).max(1e-9);
+    // Opponents all in already can't fold: when the others do, the hero still plays them
+    // for what they put in, and the rest of the bet comes back.
+    let stuck: Vec<&Opponent> = spot.opponents.iter().filter(|o| o.behind <= 1e-9).collect();
+    let stuck_ranges: Vec<&Range> = stuck.iter().map(|o| &o.range).collect();
+    let uncontested = if stuck.is_empty() {
+        spot.pot
+    } else {
+        let matched = (stuck.iter().map(|o| o.street_in).fold(0.0, f64::max) - spot.hero_in).clamp(0.0, add);
+        equity(spot.hero, &stuck_ranges, &spot.board, rng) * (spot.pot + matched) - matched
+    };
     // Against one likely caller the strongest continuing range stands in; against more,
     // all of them.
-    let eq_called = if callers < 1.5 {
+    let mut against: Vec<&Range> = if callers < 1.5 {
         let k = (0..shares.len()).max_by(|&a, &b| shares[a].total_cmp(&shares[b])).unwrap_or(0);
-        equity(spot.hero, &[&continuing_ranges[k]], &spot.board, rng)
+        vec![&continuing_ranges[k]]
     } else {
-        equity(spot.hero, &continuing_ranges.iter().collect::<Vec<_>>(), &spot.board, rng)
+        continuing_ranges.iter().collect()
     };
+    against.extend(stuck_ranges);
+    let eq_called = equity(spot.hero, &against, &spot.board, rng);
     let called_pot = spot.pot + add + callers * add;
     let behind = spot.hero_behind - add;
     let rr = if all_in { 1.0 } else { realization(&Spot { aggressor: true, ..spot.clone() }, behind / called_pot.max(0.01), eq_called, t) };
-    (all_fold * spot.pot + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
+    (all_fold * uncontested + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
 }
 
 #[cfg(test)]

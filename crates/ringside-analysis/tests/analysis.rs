@@ -263,6 +263,20 @@ fn a_player_all_in_with_the_ante_leaves_a_push_fold_spot() {
     assert_eq!(d.best.as_deref(), Some("Call"), "{d:?}");
 }
 
+/// The small blind shoves over the button's open: whoever else folds, the shove stays in.
+/// Ace-five in the big blind with 60 BB has no fold equity against it; folding is no mistake.
+#[test]
+fn a_shove_in_front_stays_in_when_the_others_fold() {
+    let seats: Vec<(&str, i64)> =
+        vec![("P1", 2628), ("Hero", 8681), ("P3", 3504), ("P4", 14550), ("P5", 8525), ("P7", 6766), ("P8", 5108)];
+    let raw = hand(10, &seats, 7, 140, 18, "Ah 5c", "P3: folds\nP4: folds\nP5: folds\nP7: folds\nP8: raises 280 to 420\nP1: raises 2190 to 2610 and is all-in\nHero: folds\nP8: calls 2190\n*** FLOP *** [8d 8s 4c]\n*** TURN *** [8d 8s 4c] [9s]\n*** RIVER *** [8d 8s 4c 9s] [2s]\n*** SHOW DOWN ***\nP8 collected 5504 from pot\n*** SUMMARY ***\nTotal pot 5504 | Rake 0\n");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!(d.played, "Fold");
+    assert!(d.rating <= Some(Rating::Inaccuracy) && d.ev_loss_bb < Some(1.0), "{d:?}");
+    assert!(!d.why.contains("geben alle Gegner"), "{}", d.why);
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.

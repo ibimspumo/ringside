@@ -305,7 +305,8 @@ pub fn rate_with(
         equity: est.equity,
         opponents,
         need: est.pot_odds,
-        fold: top.and_then(|k| est.folds[k]),
+        // With someone all in already, folds of the others don't win the pot.
+        fold: top.and_then(|k| est.folds[k]).filter(|_| spot.opponents.iter().all(|o| o.behind > 1e-9)),
         spr: (!spot.preflop && est.pot_odds.is_none() && spot.pot > 0.0).then(|| behind / spot.pot),
     };
     let preflop = spot.preflop;
