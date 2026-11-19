@@ -16,6 +16,7 @@ mod report;
 mod settings;
 mod solutions;
 mod solver;
+mod spots;
 mod store;
 
 use std::collections::HashSet;
@@ -738,6 +739,9 @@ pub fn run() {
             drill::learn_drill_real,
             drill::learn_drill_variant,
             drill::learn_drill_check,
+            spots::learn_key_spots,
+            spots::learn_key_spot,
+            spots::learn_key_spot_check,
             charts::pushfold_grid,
             charts::pushfold_chart,
             charts::preflop_grid,
