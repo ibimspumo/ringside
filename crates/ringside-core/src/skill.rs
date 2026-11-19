@@ -368,6 +368,27 @@ pub struct SkillProfile {
     pub moments: Vec<Moment>,
 }
 
+/// How far a stretch of play moved the rating, for the note after an analysis run and the
+/// session review.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Change {
+    pub rating: f64,
+    pub sigma: f64,
+    pub tier: &'static str,
+    /// `None` when there was no rating before.
+    pub delta: Option<f64>,
+}
+
+/// The rating over `moves` against the one over those of them `before` keeps; `None` while
+/// nothing counted.
+pub fn change(moves: &[Move], before: impl Fn(&Move) -> bool) -> Option<Change> {
+    let now = profile(moves);
+    let rating = now.rating?;
+    let earlier: Vec<Move> = moves.iter().filter(|m| before(m)).cloned().collect();
+    let delta = profile(&earlier).rating.map(|r| rating - r);
+    Some(Change { rating, sigma: now.sigma, tier: tier(rating), delta })
+}
+
 struct Unit<'a> {
     key: String,
     tournament_id: Option<u64>,
@@ -894,6 +915,19 @@ mod tests {
         assert!(p.moments[0].points < 0.0 && p.moments[0].area == Area::VsAllIn);
         let luck = p.moments.iter().find(|m| m.hand_id == 101).expect("the good call is named");
         assert!(luck.bad_luck && luck.points > 0.0);
+    }
+
+    #[test]
+    fn a_change_compares_with_the_rating_before() {
+        let mut rng = Rng(11);
+        let moves = history(&mut rng, 8);
+        let split = moves[moves.len() / 2].hand_id;
+        let c = change(&moves, |m| m.hand_id < split).unwrap();
+        let before: Vec<Move> = moves.iter().filter(|m| m.hand_id < split).cloned().collect();
+        assert_eq!(c.rating, final_rating(&moves));
+        assert_eq!(c.delta, Some(final_rating(&moves) - final_rating(&before)));
+        assert_eq!(change(&moves, |_| false).unwrap().delta, None);
+        assert_eq!(change(&[], |_| true), None);
     }
 
     #[test]
