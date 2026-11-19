@@ -49,7 +49,7 @@ fn a_multiway_move_after_the_flop_is_graded_by_the_estimate() {
                 assert!(v.judgement.is_some(), "{l:?}");
                 assert!(l.reliability.is_some_and(|r| r > 0.5 && r <= 1.0), "{l:?}");
                 let why = l.why.as_deref().unwrap_or_default();
-                assert!(why.starts_with("Gegen die wahrscheinlichen Ranges") && why.ends_with('.'), "{why}");
+                assert!(why.starts_with("Gegen die Hände, die") && why.ends_with('.'), "{why}");
                 multiway += 1;
             }
         }

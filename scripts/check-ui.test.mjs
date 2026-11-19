@@ -81,3 +81,13 @@ test("toFixed is display text in markup and before a unit, not in paths and styl
   const lines = out.filter((l) => l.includes("[raw-number]")).map((l) => l.split("  ")[0]);
   assert.deepEqual(lines.sort(), ["app/A.svelte:3", "app/A.svelte:5", "app/A.svelte:6", "app/b.ts:1"]);
 });
+
+test("capitals are for table column heads only", () => {
+  const out = findings({
+    "app/A.svelte": style("text-transform: uppercase;"),
+    "ui/B.svelte": style("text-transform: uppercase;"),
+    "ui/SortHeader.svelte": style("text-transform: uppercase;"),
+    "app/C.svelte": style("text-transform: none;"),
+  });
+  assert.deepEqual(out.filter((l) => l.includes("[caps-label]")).map((l) => l.split("  ")[0]).sort(), ["app/A.svelte:3", "ui/B.svelte:3"]);
+});

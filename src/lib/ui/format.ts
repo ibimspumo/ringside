@@ -89,3 +89,10 @@ export function cash(amount: number, currency: string | null): string {
   if (currency === "FPP" || currency === "SC") return `${whole} ${currency}`;
   return money(amount, currency);
 }
+
+/** Long names shortened in the middle, so two that share a start stay apart: "Ein_sehr_l…ername_0". */
+export function middle(text: string, max = 20): string {
+  if (text.length <= max) return text;
+  const tail = Math.ceil((max - 1) * 0.4);
+  return `${text.slice(0, max - 1 - tail)}…${text.slice(-tail)}`;
+}

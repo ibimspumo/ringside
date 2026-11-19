@@ -5,9 +5,9 @@ import type { Comparison, History, Move } from "./types";
 export const HISTORY: Record<History, { label: string; hint: string }> = {
   unopened: { label: "Alle gefoldet", hint: "Deine erste Aktion, alle vor dir haben gefoldet: Open, Limp oder Fold." },
   limped: { label: "Nach Limp", hint: "Vor dir hat jemand nur den Big Blind mitbezahlt (Limp), niemand hat erhöht." },
-  vs_open: { label: "Gegen Open", hint: "Vor dir hat einer erhöht (Open), noch niemand gecallt. Du foldest, callst oder 3-bettest." },
+  vs_open: { label: "Erhöhung", hint: "Vor dir hat einer erhöht (Open), noch niemand gecallt. Du foldest, callst oder 3-bettest." },
   squeeze: {
-    label: "Open + Call",
+    label: "Erhöht + Call",
     hint: "Vor dir ein Open und mindestens ein Call. Ein Raise hier heißt Squeeze – er setzt beide unter Druck.",
   },
   vs_three_bet: {

@@ -93,7 +93,7 @@ impl Lage {
             Lage::FirstIn => "Eröffnen",
             Lage::PushFold => "All-in oder Fold als Erster",
             Lage::VsLimp => "Wenn einer nur mitgeht (Limp)",
-            Lage::VsOpen => "Gegen Open",
+            Lage::VsOpen => "Gegen eine Erhöhung",
             Lage::VsThreeBet => "Gegen 3-Bet",
             Lage::VsAllIn => "Gegen All-in",
             Lage::CBet => "Am Flop nachsetzen (C-Bet)",
@@ -295,7 +295,7 @@ impl SpotKind {
         parts.next().is_none().then_some(SpotKind { lage, seat, band, table })
     }
 
-    /// "Gegen Open im Big Blind".
+    /// "Gegen eine Erhöhung im Big Blind".
     pub fn title(&self) -> String {
         match self.seat {
             Some(s) => format!("{} {}", self.lage.name(), s.phrase()),
@@ -383,7 +383,7 @@ pub struct Group {
     pub seat: Option<Seat>,
     pub band: Option<u8>,
     pub table: TableSize,
-    /// "Gegen Open im Big Blind".
+    /// "Gegen eine Erhöhung im Big Blind".
     pub title: String,
     /// "10–20 BB · 7–10 Spieler".
     pub detail: String,
@@ -707,7 +707,7 @@ mod tests {
         assert_eq!(kind_of(&base), kind_of(&three_bet));
         let k = kind_of(&base).unwrap();
         assert_eq!(k.key(), "vs_open|BB|1|9");
-        assert_eq!(k.title(), "Gegen Open im Big Blind");
+        assert_eq!(k.title(), "Gegen eine Erhöhung im Big Blind");
         assert_eq!(k.detail(), "10–20 BB · 7–10 Spieler");
         assert_eq!(SpotKind::parse(&k.key()), Some(k));
         // Open, steal and shove as first in are one situation, split by depth only.

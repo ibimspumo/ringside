@@ -91,7 +91,7 @@ pub struct NextStep {
     /// Stable over loads: "spot:vs_open|BB|1|9", "leak:steal|tournament|BTN|1", …
     pub id: String,
     pub kind: StepKind,
-    /// Plain German: „Gegen Open im Big Blind“.
+    /// Plain German: „Gegen eine Erhöhung im Big Blind“.
     pub title: String,
     /// One sentence why.
     pub why: String,
@@ -372,6 +372,40 @@ fn spot(g: &Group, now: Option<i64>) -> NextStep {
     }
 }
 
+/// A deviation as a sentence about your play, so a casual player reads it without the stat's name.
+fn plain_leak(stat: StatId, high: bool) -> &'static str {
+    match (stat, high) {
+        (StatId::Vpip, true) => "Du spielst zu viele Hände",
+        (StatId::Vpip, false) => "Du spielst zu wenige Hände",
+        (StatId::Pfr, true) => "Du erhöhst vor dem Flop zu oft",
+        (StatId::Pfr, false) => "Du erhöhst vor dem Flop zu selten",
+        (StatId::ThreeBet, true) => "Du erhöhst zu oft noch einmal (3-Bet)",
+        (StatId::ThreeBet, false) => "Du erhöhst zu selten noch einmal (3-Bet)",
+        (StatId::FoldToThreeBet, true) => "Du gibst nach einer 3-Bet zu oft auf",
+        (StatId::FoldToThreeBet, false) => "Du gibst nach einer 3-Bet zu selten auf",
+        (StatId::Steal, true) => "Du greifst die Blinds zu oft an",
+        (StatId::Steal, false) => "Du greifst die Blinds zu selten an",
+        (StatId::FoldToSteal, true) => "Du gibst deine Blinds zu oft her",
+        (StatId::FoldToSteal, false) => "Du verteidigst deine Blinds zu oft",
+        (StatId::Cbet, true) => "Du setzt am Flop zu oft nach",
+        (StatId::Cbet, false) => "Du setzt am Flop zu selten nach",
+        (StatId::FoldToCbet, true) => "Du gibst am Flop zu oft auf",
+        (StatId::FoldToCbet, false) => "Du gibst am Flop zu selten auf",
+        (StatId::Wtsd, true) => "Du gehst zu oft bis zum Showdown",
+        (StatId::Wtsd, false) => "Du gehst zu selten bis zum Showdown",
+        (StatId::Wsd, true) => "Du gewinnst am Showdown auffällig oft",
+        (StatId::Wsd, false) => "Du verlierst am Showdown zu oft",
+        (StatId::Af | StatId::Afq, true) => "Du spielst nach dem Flop zu aggressiv",
+        (StatId::Af | StatId::Afq, false) => "Du spielst nach dem Flop zu passiv",
+        (StatId::Hands, _) => "Zu wenige Hände",
+    }
+}
+
+fn capitalize(s: &str) -> String {
+    let mut c = s.chars();
+    c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
+}
+
 /// "am Button", "im Small Blind und im Big Blind", or "" for all seats.
 fn seats(positions: &[&str]) -> String {
     let mut phrases: Vec<&str> = positions.iter().filter_map(|p| Seat::of(p)).map(Seat::phrase).collect();
@@ -382,14 +416,9 @@ fn seats(positions: &[&str]) -> String {
 fn leak(c: &Check) -> NextStep {
     let id = stat_id(c.stat);
     let high = c.direction == Some(Direction::TooHigh);
-    let dir = match (c.stat, high) {
-        (StatId::Af, true) => "zu aggressiv",
-        (StatId::Af, false) => "zu passiv",
-        (_, true) => "zu hoch",
-        (_, false) => "zu niedrig",
-    };
+    let said = plain_leak(c.stat, high);
     let at = seats(&c.positions);
-    let title = if at.is_empty() { format!("{} {dir}", word(id)) } else { format!("{} {dir} {at}", word(id)) };
+    let title = if at.is_empty() { said.to_string() } else { format!("{}: {said}", capitalize(&at)) };
     let ratio = c.stat == StatId::Af;
     let value = |x: f64| if ratio { num(x, 1) } else { format!("{} %", num(x, 0)) };
     let range = if ratio { format!("{}–{}", num(c.low, 1), num(c.high, 1)) } else { format!("{}–{} %", num(c.low, 0), num(c.high, 0)) };
@@ -787,11 +816,11 @@ mod tests {
             assert!(s.practice.is_some() || s.hands.is_some() || s.read.is_some(), "{s:?}");
         }
         let first = &sample().rank()[0];
-        assert_eq!(first.title, "Gegen Open im Big Blind");
+        assert_eq!(first.title, "Gegen eine Erhöhung im Big Blind");
         assert_eq!(first.number, "kostet dich im Schnitt etwa 0,4 BB pro Mal, 31-mal gespielt");
         assert_eq!(first.practice, Some(Target::Spot { spot: "vs_open|BB|1|9".into() }));
         let steal = sample().rank().into_iter().find(|s| s.id == "leak:steal|tournament|BTN|1").unwrap();
-        assert_eq!(steal.title, "Steal zu hoch am Button");
+        assert_eq!(steal.title, "Am Button: Du greifst die Blinds zu oft an");
         assert_eq!(steal.why, "Du liegst bei 70 %, üblich sind 33–48 % (10–20 BB, Turnier).");
         assert_eq!(steal.practice, Some(Target::Skill { kind: "push_fold_open".into(), level: 1 }));
     }

@@ -38,9 +38,6 @@ pub struct KeySpots {
 pub struct KeySpotView {
     pub spot: DrillSpot,
     pub topic: PackTopic,
-    /// 1-based place in the pack.
-    pub number: usize,
-    pub total: usize,
     pub grid: Option<SpotGrid>,
 }
 
@@ -90,8 +87,7 @@ pub(crate) fn key_spots(state: &AppState) -> CmdResult<KeySpots> {
 pub(crate) fn key_spot(state: &AppState, id: &str) -> CmdResult<KeySpotView> {
     unlocked(state)?;
     let pack = spots::pack();
-    let number = pack.spots.iter().position(|s| s.id == id).ok_or("Diesen Lern-Spot gibt es nicht.")?;
-    let s = &pack.spots[number];
+    let s = pack.spots.iter().find(|s| s.id == id).ok_or("Diesen Lern-Spot gibt es nicht.")?;
     let t = topic(&s.topic);
     let d = &s.decision;
     let spot = DrillSpot {
@@ -110,7 +106,7 @@ pub(crate) fn key_spot(state: &AppState, id: &str) -> CmdResult<KeySpotView> {
         reliability: None,
         pot_bb: d.pot_bb,
     };
-    Ok(KeySpotView { spot, topic: t, number: number + 1, total: pack.spots.len(), grid: s.grid.clone() })
+    Ok(KeySpotView { spot, topic: t, grid: s.grid.clone() })
 }
 
 pub(crate) fn key_spot_check(state: &AppState, id: &str, choice: usize) -> CmdResult<DrillResult> {

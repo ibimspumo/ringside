@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Feedback } from "../types";
-  import { GRADING, explain, fmtBB, withTerms } from "./catalog";
+  import { GRADING, explain, fmtBB } from "./catalog";
   import { preview } from "./preview";
   import { input } from "./input";
   import Ring from "./Ring.svelte";
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
+  import Term from "../ui/Term.svelte";
+  import { inlineTerms } from "../ui/words";
   import { actionColor } from "../ui/poker";
   import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
   import type { LearnGrid } from "../types";
@@ -180,8 +182,7 @@
       {/if}</span
     >
     <span class="dim"
-      >{#each withTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.tip}<span class="term" title={p.tip}>{p.text}</span
-          >{:else}{p.text}{/if}{/each}</span
+      >{#each inlineTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.id}<Term id={p.id}>{p.text}</Term>{:else}{p.text}{/if}{/each}</span
     >
   </footer>
 </section>
@@ -379,12 +380,6 @@
     font-weight: 400;
     color: var(--text-2);
     overflow-wrap: anywhere;
-  }
-  .term {
-    text-decoration: underline dotted;
-    text-decoration-color: var(--text-3);
-    text-underline-offset: 3px;
-    cursor: help;
   }
   .plain-lead {
     color: var(--text);

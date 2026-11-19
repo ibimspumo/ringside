@@ -105,11 +105,12 @@
   .how {
     overflow: hidden;
     white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .long {
     display: none;
   }
-  @container (min-width: 1340px) {
+  @container (min-width: 1500px) {
     .long {
       display: block;
     }

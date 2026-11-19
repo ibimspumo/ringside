@@ -31,14 +31,15 @@
 </script>
 
 <script lang="ts">
-  import { STAT_META, stat } from "../stats";
+  import { PLAIN_NAME, STAT_META, stat } from "../stats";
   import type { HudConfig } from "../types";
   import Badge from "../ui/Badge.svelte";
   import CellButton from "../ui/CellButton.svelte";
   import SortHeader from "../ui/SortHeader.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
   import { int } from "./format";
-  import { SMALL_SAMPLE } from "./reads";
+  import { middle } from "../ui/format";
+  import { SMALL_SAMPLE, TYPE_PLAIN } from "./reads";
   import StatCell from "./StatCell.svelte";
   import Wheel from "./Wheel.svelte";
 
@@ -120,8 +121,8 @@
   }
 </script>
 
-{#snippet head(id: StatId | "name", text: string)}
-  <SortHeader term={id !== "name"} active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
+{#snippet head(id: StatId | "name", text: string, sub?: string)}
+  <SortHeader term={id !== "name"} {sub} active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
 {/snippet}
 
 <div class="frame" class:more>
@@ -137,8 +138,12 @@
       </th>
       {#each cols as id (id)}
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
-          <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="top">
-            {@render head(id, columns === "core" ? `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}` : NARROW[id])}
+          <Tooltip text={`${PLAIN_NAME[id]} (${STAT_META[id].name}): ${STAT_META[id].help}`} side="bottom">
+            {#if columns === "core"}
+              {@render head(id, PLAIN_NAME[id], id === "af" ? "AF × · setzt je Call" : `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}`)}
+            {:else}
+              {@render head(id, NARROW[id])}
+            {/if}
           </Tooltip>
         </th>
       {/each}
@@ -156,7 +161,7 @@
             <Wheel stats={p.stats} {hud} size={18} />
             <span class="who-text">
               <span class="line">
-                <span class="n" title={p.name}>{p.name}</span>
+                <span class="n" title={p.name}>{middle(p.name)}</span>
                 {#if p.label}<i class="dot" style="--c:{p.label.color}" title={p.label.name || "Label aus PokerStars"}></i>{/if}
                 {#if p.hero}<Badge size="sm">du</Badge>{/if}
               </span>
@@ -170,7 +175,7 @@
               <span class="q">–</span>
             {:else if r?.type}
               <span class="t" title={`${r.type.long} – ${r.note}`}>
-                <Badge size="sm" dashed={r.sure !== "sure"}>{r.type.name}</Badge>
+                <Badge size="sm" dashed={r.sure !== "sure"}>{TYPE_PLAIN[r.type.id]}</Badge>
               </span>
             {:else}
               <span class="q" title="Die Werte passen zu keinem der vier Typen.">kein klarer Typ</span>

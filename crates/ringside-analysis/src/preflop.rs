@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use ringside_core::db::{Choice, Decision, Source, SpotType};
 use ringside_core::model::{Action, ActionKind, Hand, Street};
 use ringside_core::stats::position_labels;
-use ringside_engine::preflop::{Kind, Solution, Step, taken};
+use ringside_engine::preflop::{Kind, Node, Solution, Step, limps_by_choice, taken};
 use ringside_engine::preflop_table::{self, Ante, Family, LIMP_PLAYERS, ModelLine, STACKS};
 use ringside_engine::pushfold_table::{BB_ANTE_BB, CLASSIC_ANTE_BB};
 use ringside_engine::range::{HandClass, NUM_CLASSES};
@@ -233,6 +233,16 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         };
         let seat = model_seat(t, players, real);
         let Some(v) = sol.node(seat, &line) else {
+            // The model folds the seats still to act behind a 3-bet or an isolation raise
+            // without asking them, so their real folds keep the line.
+            if a.kind == ActionKind::Fold {
+                folded[real] = true;
+                if is_hero {
+                    let reason = "Hier lässt das Preflop-Modell diesen Platz nur folden (z. B. hinter einer 3-Bet).";
+                    decisions.push(unrated(hand, index, spot_type(&line, Kind::Fold, position(&a.player)), reason));
+                }
+                continue;
+            }
             let reason = "Diese Linie kommt im Preflop-Modell nicht vor (z. B. ein dritter Limper, ein Call hinter einer Isolation oder ein zweiter Caller).";
             broken = Some(reason.into());
             if is_hero {
@@ -257,26 +267,19 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         let m = node.actions[ai];
         if is_hero {
             let spot = spot_type(&line, m.kind, position(&a.player));
-            let reach: f64 = node.freq.iter().map(|f| f[class]).sum();
-            if weights[seat][class] <= 0.0 || reach <= 0.0 {
+            let own = own_moves(node, players);
+            let reach: f64 = own.freq.iter().map(|f| f[class]).sum();
+            if m.kind == Kind::Limp && !limps_by_choice(players, seat) {
+                let reason = "Das Preflop-Modell limpt von hier nicht selbst: Seine Limps stehen für die anderen Spieler am Tisch.";
+                decisions.push(unrated(hand, index, spot, reason));
+            } else if weights[seat][class] <= 0.0 || reach <= 0.0 {
                 let reason = format!(
                     "Das Modell kommt mit {} nicht an diese Stelle (eine frühere Aktion spielt es mit dieser Hand nie).",
                     t.class()
                 );
                 decisions.push(unrated(hand, index, spot, reason));
             } else {
-                let strategy = node
-                    .actions
-                    .iter()
-                    .enumerate()
-                    .map(|(k, x)| Choice {
-                        label: kind_name(x.kind, x.to_bb),
-                        freq: node.freq[k][class] / reach,
-                        ev_bb: Some(node.ev[k][class]),
-                        played: k == ai,
-                        kind: kind_key(x.kind).into(),
-                    })
-                    .collect();
+                let strategy = choices(&own, class, Some(m));
                 let mut note = config.clone();
                 for s in size_notes.iter().chain(&size_note) {
                     note.push_str("; ");
@@ -305,7 +308,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
                     });
                 }
                 let pot = pot_before(hand, index);
-                let facts = ranked(node, class, &t.class().to_string(), format!("Als {pos} bei {} Tiefe", bb(stack)));
+                let facts = ranked(&own, class, &t.class().to_string(), format!("Als {pos} mit {}", bb(stack)));
                 decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |d| {
                     why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0))
                 }));
@@ -365,10 +368,42 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
     Preflop { decisions, flop, ranges, targets }
 }
 
+/// The moves of the model at `node`: without the other players' limps first in, whose EVs
+/// are not those of a move the model makes.
+pub(crate) fn own_moves(node: &Node, players: usize) -> Node {
+    let keep: Vec<usize> =
+        (0..node.actions.len()).filter(|&k| node.actions[k].kind != Kind::Limp || limps_by_choice(players, node.seat)).collect();
+    Node {
+        seat: node.seat,
+        line: node.line.clone(),
+        actions: keep.iter().map(|&k| node.actions[k]).collect(),
+        reach: node.reach,
+        freq: keep.iter().map(|&k| node.freq[k].clone()).collect(),
+        ev: keep.iter().map(|&k| node.ev[k].clone()).collect(),
+    }
+}
+
+/// The choices of `class` at `node` with the frequencies among its moves there; `played`
+/// marks the hero's.
+pub(crate) fn choices(node: &Node, class: usize, played: Option<ringside_engine::preflop::Action>) -> Vec<Choice> {
+    let reach: f64 = node.freq.iter().map(|f| f[class]).sum();
+    node.actions
+        .iter()
+        .enumerate()
+        .map(|(k, x)| Choice {
+            label: kind_name(x.kind, x.to_bb),
+            freq: node.freq[k][class] / reach,
+            ev_bb: Some(node.ev[k][class]),
+            played: Some(*x) == played,
+            kind: kind_key(x.kind).into(),
+        })
+        .collect()
+}
+
 /// Where class `class` stands among the hands that reach `node`: the moves other than the
 /// passive one (fold, else check or call), how much of the range takes them, and the share
 /// of the range for which they bring more over the passive move than for the hero's hand.
-fn ranked(node: &ringside_engine::preflop::Node, class: usize, name: &str, place: String) -> why::Ranked {
+fn ranked(node: &Node, class: usize, name: &str, place: String) -> why::Ranked {
     let kinds: Vec<why::Move> = node.actions.iter().map(|a| why::Move::of(kind_key(a.kind))).collect();
     let base = kinds.iter().position(|&m| m == why::Move::Fold).or_else(|| kinds.iter().position(|m| !m.aggressive())).unwrap_or(0);
     let others: Vec<usize> = (0..kinds.len()).filter(|&k| k != base).collect();
@@ -407,5 +442,72 @@ fn unrated_all(hand: &Hand, indices: &[usize], reason: &str) -> Preflop {
         flop: Err(reason.to_string()),
         ranges: None,
         targets: Vec::new(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ringside_engine::preflop::{Params, limp_shape};
+
+    /// Chips in the pot after the non-fold actions `line`: antes, blinds and every raise.
+    fn pot_at(p: &Params, line: &[Step]) -> f64 {
+        let n = p.players;
+        let mut contrib = vec![0.0; n];
+        contrib[n - 2] = p.small_blind_bb;
+        contrib[n - 1] = 1.0;
+        for s in line {
+            contrib[s.seat] = s.action.to_bb;
+        }
+        contrib.iter().sum::<f64>() + p.ante_bb * n as f64 + p.bb_ante_bb
+    }
+
+    /// The model's moves the analysis rates with, at every node of every table with limps
+    /// and for every hand there: a limp is only offered where the model limps by choice
+    /// (the small blind first in, limping along), never earns more than the best other
+    /// move unless the model limps the hand above its minimum share, and no move wins
+    /// more than the pot plus a stack or loses more than a stack. AA and KK raise for at
+    /// least as much as they limp, except where the small blind limps them by choice: a
+    /// trap against the big blind, mostly at 15 to 25 BB, worth up to a third of a big
+    /// blind more than the raise.
+    #[test]
+    fn the_models_moves_keep_limps_below_raises() {
+        // Two EV steps of the tables plus what the solve leaves over.
+        const TOL: f64 = 0.03;
+        let shape = limp_shape();
+        let premium: Vec<usize> = ["AA", "KK"].iter().map(|h| h.parse::<HandClass>().unwrap().index()).collect();
+        let mut checked = 0usize;
+        for ante in Ante::ALL {
+            for &n in &LIMP_PLAYERS {
+                for (p, sol) in preflop_table::embedded_entries(Family::Limps, ante, n) {
+                    let what = format!("{} {n} players {} BB", ante.key(), p.stack_bb);
+                    let reach = sol.own_reach();
+                    for (v, node) in sol.nodes.iter().enumerate() {
+                        let own = own_moves(node, n);
+                        let pot = pot_at(&p, &node.line);
+                        for c in (0..NUM_CLASSES).filter(|&c| reach[v][c] > 0.0) {
+                            let strategy = choices(&own, c, None);
+                            for x in &strategy {
+                                let ev = x.ev_bb.unwrap();
+                                assert!(ev >= -p.stack_bb - 1e-9 && ev <= pot + p.stack_bb, "{what}, node {v}, class {c}: {} for {ev} BB", x.label);
+                            }
+                            let Some(limp) = strategy.iter().position(|x| x.kind == "limp") else { continue };
+                            assert!(limps_by_choice(n, node.seat), "{what}, seat {}: offers the other players' limp", node.seat);
+                            let ev = |k: usize| strategy[k].ev_bb.unwrap();
+                            let others = || (0..strategy.len()).filter(|&k| k != limp);
+                            let best = others().map(ev).fold(f64::MIN, f64::max);
+                            let raise = others().filter(|&k| matches!(strategy[k].kind.as_str(), "raise" | "all_in")).map(ev).fold(f64::MIN, f64::max);
+                            let by_choice = own.freq[limp][c] > p.open_limps * shape[c] + 0.01;
+                            assert!(by_choice || ev(limp) <= best + TOL, "{what}, seat {}: class {c} limps for {:+.2} BB, best other move {best:+.2} BB", node.seat, ev(limp));
+                            if premium.contains(&c) && !by_choice {
+                                assert!(ev(limp) <= raise + TOL, "{what}, seat {}: class {c} limps for {:+.2} BB, raises for {raise:+.2} BB", node.seat, ev(limp));
+                            }
+                            checked += 1;
+                        }
+                    }
+                }
+            }
+        }
+        assert!(checked > 10_000, "only {checked} limps checked");
     }
 }

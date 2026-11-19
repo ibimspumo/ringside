@@ -150,7 +150,7 @@ const WORST: (DecisionBrief | null)[] = [
   ...[250000000002, 250000000001, 250000000000, 249999999999].map((id) => worstOf(DEMO_DECISIONS[id] ?? [])),
   brief({ action_index: 6, street: "preflop", spot: "vs_open", status: "rated", played: "Call 2 BB", best: "Call", ev_loss_bb: 0, rating: "best", source: "model" }),
   brief({ action_index: 8, street: "flop", spot: "c_bet", status: "pending", played: "Bet 1,5 BB", best: null, ev_loss_bb: null, rating: null, source: "solver" }),
-  brief({ action_index: 6, street: "preflop", spot: "call_shove", status: "rated", played: "Call 12 BB", best: "Fold", ev_loss_bb: 1.7, rating: "blunder", source: "equilibrium", pot_bb: 14.5 }),
+  brief({ action_index: 6, street: "preflop", spot: "call_shove", status: "rated", played: "Call 12 BB", best: "Fold", ev_loss_bb: 1.2, rating: "blunder", source: "equilibrium", pot_bb: 14.5 }),
 ];
 
 /** The demo hand list with the worst decision per row, narrowed and sorted like the real query. */

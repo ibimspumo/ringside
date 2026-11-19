@@ -680,7 +680,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "preflop",
-      "why": "Als SB bei 100 BB Tiefe: Das Modell spielt mit 51 % der Hände weiter, die hier ankommen. 99 gehört zu den besten 3 % davon, also klar dazu. Raise auf 4,5 BB bringt 1,5 BB mehr als Call."
+      "why": "Als SB mit 100 BB: Das Modell spielt mit 51 % der Hände weiter, die hier ankommen. 99 gehört zu den besten 3 % davon, also klar dazu. Raise auf 4,5 BB bringt 1,5 BB mehr als Call."
     },
     {
       "action_index": 8,
@@ -730,7 +730,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "flop",
-      "why": "Gegen die wahrscheinlichen Ranges von 2 Gegnern hat deine Hand geschätzt 93 % Equity. Auf einen Einsatz geben alle Gegner geschätzt so gut wie nie auf. Stack zu Pot (SPR) 33: Viel Spielraum, die nächsten Straßen entscheiden mit. Setzen bringt geschätzt 0,04 BB mehr als Checken. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
+      "why": "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 93 % der Fälle. Auf einen Einsatz geben alle Gegner geschätzt so gut wie nie auf. Stack zu Pot 33: Viel Spielraum, die nächsten Straßen entscheiden mit. Setzen bringt geschätzt 0,04 BB mehr als Checken. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
     },
     {
       "action_index": 11,
@@ -780,7 +780,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "flop",
-      "why": "Gegen die wahrscheinlichen Ranges von 2 Gegnern hat deine Hand geschätzt 93 % Equity. Ein Call braucht nur 22 %, das reicht klar. Auf einen Einsatz geben alle Gegner geschätzt in 4 % der Fälle auf. Erhöhen bringt geschätzt 0,11 BB mehr als Callen. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
+      "why": "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 93 % der Fälle. Ein Call braucht nur 22 %, das reicht klar. Auf einen Einsatz geben alle Gegner geschätzt in 4 % der Fälle auf. Erhöhen bringt geschätzt 0,11 BB mehr als Callen. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
     },
     {
       "action_index": 14,
@@ -830,7 +830,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "turn",
-      "why": "Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt 98 % Equity. Auf einen Einsatz gibt der Gegner geschätzt in 5 % der Fälle auf. Stack zu Pot (SPR) 4,3: Platz für Einsätze auf ein, zwei Straßen. Setzen bringt geschätzt 0,31 BB mehr als Checken."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 98 % der Fälle. Auf einen Einsatz gibt der Gegner geschätzt in 5 % der Fälle auf. Stack zu Pot 4,3: Platz für Einsätze auf ein, zwei Straßen. Setzen bringt geschätzt 0,31 BB mehr als Checken."
     },
     {
       "action_index": 16,
@@ -887,7 +887,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "river",
-      "why": "Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt 96 % Equity. Auf einen Einsatz gibt der Gegner geschätzt in 35 % der Fälle auf. Stack zu Pot (SPR) 1,5: Ein weiterer Einsatz bringt fast alles hinein. Setzen bringt geschätzt 2,9 BB mehr als Checken."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 96 % der Fälle. Auf einen Einsatz gibt der Gegner geschätzt in 35 % der Fälle auf. Stack zu Pot 1,5: Ein weiterer Einsatz bringt fast alles hinein. Setzen bringt geschätzt 2,9 BB mehr als Checken."
     },
     {
       "action_index": 18,
@@ -930,7 +930,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "river",
-      "why": "Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt 81 % Equity. Ein Call braucht nur 23 %, das reicht klar. All-in bringt geschätzt 1,3 BB mehr als Callen."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 81 % der Fälle. Ein Call braucht nur 23 %, das reicht klar. All-in bringt geschätzt 1,3 BB mehr als Callen."
     }
   ],
   "250000000001": [
@@ -1013,7 +1013,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "preflop",
-      "why": "Als BTN bei 100 BB Tiefe: Das Modell spielt mit 38 % der Hände weiter, die hier ankommen. AQo gehört zu den besten 6 % davon, also klar dazu. Limp bringt 0,16 BB mehr als Raise auf 2,5 BB."
+      "why": "Als BTN mit 100 BB: Das Modell spielt mit 38 % der Hände weiter, die hier ankommen. AQo gehört zu den besten 6 % davon, also klar dazu. Limp bringt 0,16 BB mehr als Raise auf 2,5 BB."
     },
     {
       "action_index": 9,
@@ -1049,7 +1049,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "flop",
-      "why": "Deine Hand gehört zum stärksten Drittel deiner Range und hat gegen die Range des Gegners 89 % Equity. Damit ist der Einsatz Value: Er soll von schwächeren Händen bezahlt werden. Auf Bet 1,8 BB gibt der Gegner in 42 % der Fälle auf. Bet 1,8 BB bringt 0,16 BB mehr als Check."
+      "why": "Deine Hand gehört zum stärksten Drittel der Hände, die du hier haben kannst. Gegen die Hände, die der Gegner hier haben kann, gewinnt sie in 89 % der Fälle. Damit setzt du auf Wert: Schwächere Hände sollen bezahlen. Auf Bet 1,8 BB gibt der Gegner in 42 % der Fälle auf. Bet 1,8 BB bringt 0,16 BB mehr als Check."
     },
     {
       "action_index": 12,
@@ -1085,7 +1085,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "turn",
-      "why": "Deine Hand gehört zum stärksten Drittel deiner Range und hat gegen die Range des Gegners 93 % Equity. Damit ist der Einsatz Value: Er soll von schwächeren Händen bezahlt werden. Auf Bet 6,9 BB gibt der Gegner in 44 % der Fälle auf. Bet 6,9 BB bringt 0,93 BB mehr als Check."
+      "why": "Deine Hand gehört zum stärksten Drittel der Hände, die du hier haben kannst. Gegen die Hände, die der Gegner hier haben kann, gewinnt sie in 93 % der Fälle. Damit setzt du auf Wert: Schwächere Hände sollen bezahlen. Auf Bet 6,9 BB gibt der Gegner in 44 % der Fälle auf. Bet 6,9 BB bringt 0,93 BB mehr als Check."
     },
     {
       "action_index": 14,
@@ -1128,7 +1128,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "river",
-      "why": "Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt 76 % Equity. Ein Call braucht nur 28 %, das reicht klar. Callen bringt geschätzt 0,23 BB mehr als Erhöhen."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 76 % der Fälle. Ein Call braucht nur 28 %, das reicht klar. Callen bringt geschätzt 0,23 BB mehr als Erhöhen."
     }
   ],
   "249999999999": [

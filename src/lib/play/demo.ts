@@ -419,11 +419,11 @@ function estimated(d: Decide, pot: number, toCall: number, cls: string): Lesson 
   const share = 1 / near.filter(Boolean).length;
   const equity = d.equity ?? 0.5;
   const pct = (x: number) => `${Math.round(x * 100)} %`;
-  const why = [`Gegen die wahrscheinlichen Ranges des Gegners hat deine Hand geschätzt ${pct(equity)} Equity.`];
+  const why = [`Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in ${pct(equity)} der Fälle.`];
   if (toCall > 0) {
     const need = toCall / (pot + toCall);
     why.push(equity >= need + 0.05 ? `Ein Call braucht nur ${pct(need)}, das reicht klar.` : equity > need - 0.05 ? `Ein Call braucht ${pct(need)}, das ist knapp.` : `Ein Call bräuchte ${pct(need)}, das reicht nicht.`);
-    if (Math.abs(equity - need) <= 0.05) why.push("Equity und Preis liegen so nah beieinander, dass die Schätzung hier unsicher ist.");
+    if (Math.abs(equity - need) <= 0.05) why.push("Gewinnchance und Preis liegen so nah beieinander, dass die Schätzung hier unsicher ist.");
   }
   return {
     street: d.street,

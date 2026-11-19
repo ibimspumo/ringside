@@ -25,7 +25,7 @@ const root = option("--root", join(repo, "src", "lib"));
 const baselinePath = option("--baseline", join(repo, "scripts", "ui-baseline.json"));
 
 /** Font sizes of the type scale in theme.css (--fs-*). Literals outside it count as free sizes. */
-const SCALE = [11, 12, 13, 14, 16, 18, 22, 26, 34, 44];
+const SCALE = [12, 13, 14, 15, 16, 18, 22, 26, 34, 44];
 
 const RULES = {
   "color-literal": "Feste Farbe (Hex/rgb/hsl) außerhalb von theme.css und src/lib/ui/ – nimm ein Token aus theme.css.",
@@ -39,6 +39,7 @@ const RULES = {
   "old-word": "Altes Wort als Anzeigetext – „Leaks“ heißt „Schwachstellen“, „EV-Verlust“ heißt „kostet im Schnitt“ (src/lib/ui/words.ts).",
   "raw-number": "Zahl mit toFixed als Anzeigetext (Punkt statt Komma) – nimm num, bb, pct, compact aus src/lib/ui/format.ts.",
   "time-format": "Eigene Zeitangabe (Std., Min., h, min) – nimm duration, ago oder remaining aus src/lib/ui/format.ts.",
+  "caps-label": "Großbuchstaben (text-transform: uppercase) gibt es nur in Tabellen-Spaltenköpfen (.table, SortHeader). Kartentitel nehmen SectionHead level 3 oder Panel title, kleine Beschriftungen normale Schreibung.",
 };
 
 /** Poker words a beginner does not know; in markup text they belong inside <Term>. */
@@ -310,6 +311,9 @@ function scan(file, text, globals) {
       }
       if (!inKit) {
         for (const d of declarations(rule.body)) if (freeMotion(d.prop, d.value)) add("motion", at, `${d.prop}: ${d.value.replace(/\s+/g, " ")}`);
+      }
+      if (rel !== "ui/SortHeader.svelte") {
+        for (const d of declarations(rule.body)) if (d.prop === "text-transform" && /uppercase/.test(d.value)) add("caps-label", at, rule.selector.replace(/\s+/g, " "));
       }
       const hits = [...rule.selector.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]).filter((n) => globals.has(n));
       for (const name of new Set(hits)) add("global-class-override", at, `.${name} in „${rule.selector.replace(/\s+/g, " ")}“`);

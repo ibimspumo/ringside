@@ -181,10 +181,8 @@
     font-size: var(--fs-md);
   }
   .about span {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     color: var(--text-3);
   }
   .info {

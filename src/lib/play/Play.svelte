@@ -918,10 +918,8 @@
     border-radius: var(--r-sm);
     background: var(--surface-2);
     box-shadow: inset 0 -2px 0 var(--g);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
   .streets i {
     font-style: normal;
@@ -951,10 +949,8 @@
   }
   .endtext .cap {
     margin-bottom: -4px;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--text-3);
   }
   .hands {
@@ -1067,10 +1063,8 @@
   }
   .moves h3 {
     margin: 0 0 6px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
     color: var(--text-3);
   }
   .moves ol {

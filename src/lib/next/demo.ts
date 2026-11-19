@@ -53,7 +53,7 @@ const STEPS: NextStep[] = [
     ...base,
     id: "leak:fold_to_steal|tournament|SB,BB|1",
     kind: "leak",
-    title: "Fold auf Steal zu hoch im Small Blind und im Big Blind",
+    title: "Im Small Blind und im Big Blind: Du gibst deine Blinds zu oft her",
     why: "Du liegst bei 77 %, üblich sind 50–70 % (10–20 BB, Turnier).",
     number: "kostet dich im Schnitt etwa 0,1 BB pro Hand, 1240 Hände in dieser Lage",
     term: "fold_to_steal",

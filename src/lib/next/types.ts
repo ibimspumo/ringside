@@ -15,7 +15,7 @@ export type StepHands =
 export interface NextStep {
   id: string;
   kind: StepKind;
-  /** Plain German: „Gegen Open im Big Blind“. */
+  /** Plain German: „Gegen eine Erhöhung im Big Blind“. */
   title: string;
   /** One sentence why. */
   why: string;
