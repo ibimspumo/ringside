@@ -118,19 +118,6 @@ impl PushFoldResult {
     pub fn call_range(&self) -> Range {
         to_range(&self.call)
     }
-
-    /// Classes played at least half of the time.
-    pub fn shove_classes(&self) -> Vec<HandClass> {
-        HandClass::all()
-            .filter(|c| self.shove[c.index()] >= 0.5)
-            .collect()
-    }
-
-    pub fn call_classes(&self) -> Vec<HandClass> {
-        HandClass::all()
-            .filter(|c| self.call[c.index()] >= 0.5)
-            .collect()
-    }
 }
 
 fn to_range(freq: &[f64]) -> Range {

@@ -158,12 +158,6 @@ pub struct Entry {
     uses: u32,
 }
 
-impl Entry {
-    pub fn flop_text(&self) -> String {
-        self.flop.iter().map(|c| c.to_string()).collect()
-    }
-}
-
 /// A solved spot a hand plays in.
 #[derive(Clone)]
 pub struct Ready {

@@ -650,18 +650,10 @@ pub fn solve_with(params: &Params, on_check: impl FnMut(&Progress) -> bool) -> R
     Ok(solver.run(on_check))
 }
 
-/// Number of decision nodes and terminals of the tree for these parameters.
-pub fn tree_size(params: &Params) -> Result<(usize, usize), Error> {
-    params.validate()?;
-    let t = Tree::build(params);
-    Ok((t.nodes.len(), t.terms.len()))
-}
-
-/// The tree's node shapes (seat, line, actions) without solving; tables store only
-/// the numbers and rebuild these.
 /// A node's seat, line and actions.
 pub(crate) type Shape = (usize, Vec<Step>, Vec<Action>);
 
+/// The tree's node shapes without solving; tables store only the numbers and rebuild these.
 pub(crate) fn skeleton(params: &Params) -> Result<Vec<Shape>, Error> {
     params.validate()?;
     let t = Tree::build(params);
