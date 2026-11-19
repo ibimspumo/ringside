@@ -31,6 +31,7 @@
     nextLabel = "Weiter",
     why = null,
     origin,
+    lesson,
     after,
   }: {
     spot: DrillSpot;
@@ -42,6 +43,8 @@
     why?: string | null;
     /** Replaces the line naming where the hand comes from, e.g. for the learning spots. */
     origin?: Snippet;
+    /** The rule to take away, above the verdict once answered, so both are seen without scrolling. */
+    lesson?: Snippet;
     /** More under the verdict once answered. */
     after?: Snippet;
   } = $props();
@@ -243,7 +246,8 @@
           <PotOdds pot={view.potBB} call={view.toCallBB} />
         {:else}
           <p class="free">
-            {#if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes.
+            {#if view.first}Du bist als Erster dran: Im Pot liegen nur Blinds und Antes.
+            {:else if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes.
             {:else}Noch hat niemand gesetzt: Du zahlst nichts, um weiterzuspielen.{/if}
             Du entscheidest zwischen {offered}.
           </p>
@@ -266,6 +270,7 @@
       {/if}
     {:else}
       <div class="after" in:rise>
+        {#if lesson}{@render lesson()}{/if}
         {#if decision}<div class="verdict"><DecisionCard {decision} quiet /></div>{/if}
         {#if after}{@render after()}{/if}
         {#if then && then.rating}

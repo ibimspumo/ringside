@@ -376,7 +376,7 @@ step("Start: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick
   await waitText("Deine letzte Session");
   await waitText(/Du hast \d+ % deiner Hände gespielt|Die Analyse läuft|keine Hand, die das Modell vergleichen kann/, 60_000);
   // Tile titles are set in capitals.
-  await waitText(/ERGEBNIS UND GLÜCK|Ergebnis und Glück/);
+  await waitText("Ergebnis und Glück");
   if (TAURI) return;
   await waitText("Gegen eine Erhöhung aus früher Position gehst du zu oft mit");
   // One example per side here; every example, with equity, on the page below.
@@ -386,7 +386,7 @@ step("Start: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick
   await waitText("Nicht schlau, auch wenn's gut ging");
   await waitText(/Gewinnchance gegen die gezeigten Karten/);
   await click("main button", "Zurück zum Rückblick", { exact: false });
-  await waitText("Deine teuersten Entscheidungen".toUpperCase());
+  await waitText("Deine teuersten Entscheidungen");
 });
 
 /** The first entry of „Was als Nächstes?“ on the overview; every page has to name the same. */
@@ -425,7 +425,7 @@ step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
 // The review filters the overview's list to the session: in the demo the session played its first spot.
 step("Start: „Als Nächstes üben“ nennt denselben ersten Schritt", async () => {
   await nav("Start");
-  await waitText(/ALS NÄCHSTES ÜBEN|Als Nächstes üben/);
+  await waitText("Als Nächstes üben");
   // The fixture session need not have played the overview's first spot.
   if (TAURI) return;
   await sameFirstStep("the review", "main .sr-next [data-step]");

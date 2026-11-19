@@ -126,7 +126,7 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
     let seat = ringside_engine::multiway::seat_name(players, ts.hero);
     let facts = why::Ranked {
         chart: why::Chart::Equilibrium,
-        place: if shover.is_some() { format!("Als {seat} gegen den Shove bei {} effektiv", bb(effective)) } else { format!("Als {seat} bei {} effektiv", bb(effective)) },
+        place: if shover.is_some() { format!("Als {seat} gegen das All-in bei {} effektiv", bb(effective)) } else { format!("Als {seat} bei {} effektiv", bb(effective)) },
         act: Some(if shover.is_some() { why::Move::Call } else { why::Move::AllIn }),
         share: sol.act_pct(s.node) / 100.0,
         all_hands: true,

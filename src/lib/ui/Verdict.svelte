@@ -179,6 +179,7 @@
   .share {
     color: var(--text-2);
     font-weight: var(--fw-regular);
+    white-space: nowrap;
   }
   .lead {
     color: var(--text);

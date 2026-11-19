@@ -1,5 +1,7 @@
 <script lang="ts">
   import CardText from "./CardText.svelte";
+  import Term from "./Term.svelte";
+  import { inlineTerms } from "./words";
 
   /**
    * "Warum?": why the best move is best, in the numbers its source measured. `collapsed` keeps it
@@ -8,15 +10,17 @@
   let { text, label = "Warum?", collapsed = false }: { text: string; label?: string; collapsed?: boolean } = $props();
 </script>
 
+{#snippet body()}{#each inlineTerms(text) as p, i (i)}{#if p.id}<Term id={p.id}>{p.text}</Term>{:else}<CardText text={p.text} />{/if}{/each}{/snippet}
+
 {#if collapsed}
   <details class="ui-reason">
     <summary class="label">{label}</summary>
-    <p><CardText {text} /></p>
+    <p>{@render body()}</p>
   </details>
 {:else}
   <div class="ui-reason">
     <span class="label">{label}</span>
-    <p><CardText {text} /></p>
+    <p>{@render body()}</p>
   </div>
 {/if}
 

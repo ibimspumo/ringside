@@ -48,7 +48,7 @@
         {details ? "Weniger" : "Details"}
       </Button>
       {#if !quiet}<Button size="sm" variant="quiet" onclick={settings}>Einstellungen</Button>{/if}
-      <Button size="sm" variant={quiet ? "quiet" : "secondary"} onclick={ack}>Verstanden</Button>
+      <Button size="sm" variant="quiet" onclick={ack}>Verstanden</Button>
     </div>
     {#if details}
       <p class="full" id="cloud-details" transition:slide={{ duration: 220, easing: cubicOut }}>

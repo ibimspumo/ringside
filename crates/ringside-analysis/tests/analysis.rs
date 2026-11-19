@@ -209,7 +209,7 @@ fn postflop_spot_is_queued_and_rated() {
     let [d] = solved.as_slice() else { panic!("{solved:?}") };
     assert_eq!((d.status, d.source, d.spot), (Status::Rated, Some(Source::Solver), SpotType::CBet));
     assert!(d.solver.as_deref().unwrap().contains("\"path\""));
-    assert!(d.why.contains("Drittel deiner Range") && d.why.contains("Equity"), "{}", d.why);
+    assert!(d.why.contains("Hände, die du hier haben kannst") && d.why.contains("gewinnt sie in"), "{}", d.why);
     if std::env::var_os("RINGSIDE_PRINT_WHY").is_some() {
         println!("Solver {}: {}", d.played, d.why);
     }

@@ -165,7 +165,7 @@ const WORST: Moment[] = [
     stack_bb: 34,
     played: "Check",
     best: "Bet 6,9 BB",
-    why: "Deine Hand gehört zum stärksten Drittel deiner Range. Auf Bet 6,9 BB gibt der Gegner in 44 % der Fälle auf. Bet 6,9 BB bringt 0,93 BB mehr als Check.",
+    why: "Deine Hand gehört zum stärksten Drittel der Hände, die du hier haben kannst. Auf Bet 6,9 BB gibt der Gegner in 44 % der Fälle auf. Bet 6,9 BB bringt 0,93 BB mehr als Check.",
     rating: "mistake",
     source: "solver",
     loss_bb: 0.926,

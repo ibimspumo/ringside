@@ -117,10 +117,8 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--text-2);
   }
   .first .step-title {
@@ -212,10 +210,8 @@
     grid-template-columns: subgrid;
     padding: 0 15px;
     color: var(--text-3);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
   }
   .head .key {
     font-weight: var(--fw-regular);
