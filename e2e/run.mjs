@@ -805,9 +805,12 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
     const card = document.querySelector("main .drill .verdict");
     if (!card || !card.textContent.includes("geschätzt")) return null;
     const row = [...card.querySelectorAll(".options li")].find((li) => li.querySelector(".label")?.textContent.trim().startsWith("Fold"));
-    return row ? { gain: row.querySelector(".gain").textContent.trim(), cost: row.querySelector(".ev").textContent.trim() } : null;`);
+    const bb = (t) => Number(t.replace(/[^0-9,+−-]/g, "").replace("−", "-").replace(",", "."));
+    const best = Math.max(...[...card.querySelectorAll(".options li .gain")].map((g) => bb(g.textContent)));
+    return row ? { gain: row.querySelector(".gain").textContent.trim(), cost: bb(row.querySelector(".ev").textContent), best } : null;`);
   if (fold && fold.gain !== "0,00 BB") throw new Error(`an estimated fold brings „${fold.gain}“`);
-  if (!TAURI && fold?.cost !== "−3,62 BB") throw new Error(`the demo fold costs „${fold?.cost}“, not −3,62 BB as before`);
+  if (fold && Math.abs(fold.cost + fold.best) > 0.006) throw new Error(`an estimated fold costs ${fold.cost} BB, not the best move's ${fold.best} BB`);
+  if (!TAURI && !fold) throw new Error("the demo drill shows no estimated fold");
   await waitText("Damals hast du");
   await click("main .drill button", "Weiter", { exact: false });
   // The round goes on with the next spot of the same kind: real or dealt anew, it says which.
