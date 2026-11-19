@@ -312,7 +312,7 @@
     display: flex;
     gap: 5px;
     align-items: baseline;
-    max-width: 120px;
+    max-width: 136px;
     font-size: var(--fs-md);
     line-height: 1.1;
   }
@@ -337,7 +337,7 @@
     padding: 3px 6px;
   }
   .compact .who {
-    max-width: 72px;
+    max-width: 84px;
   }
   .compact .middle {
     gap: 4px;
