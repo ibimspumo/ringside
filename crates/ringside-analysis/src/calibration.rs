@@ -1,7 +1,8 @@
 //! How well the estimate agrees with the solver (after the flop) and the preflop model
 //! (before it), measured by `analysis-calibrate` and stored in
 //! `data/estimate_calibration.json`: for every option of every hand at the checked
-//! nodes, whether the estimate's grade equals the reference's or is one step off.
+//! nodes, whether the estimate's grade equals the reference's or is one step off; and
+//! the curves the opponents' ranges narrow by after the flop.
 //!
 //! The reliability the analysis shows for a street is the lowest agreement within one
 //! step of every check of that street with at least [`MIN_SAMPLES`] comparisons, plain
@@ -13,7 +14,7 @@ use ringside_core::model::Street;
 use ringside_engine::{Card, CardSet, Combo};
 use serde::{Deserialize, Serialize};
 
-use crate::estimate::{Opponent, Opt, Range, Signal, Spot, Tuning, narrow};
+use crate::estimate::{Curve, Opponent, Opt, Range, Signal, Spot, Strength, Tuning, narrow_by};
 
 /// Fewer comparisons than this say too little to stand for the estimate's reliability.
 pub const MIN_SAMPLES: usize = 100;
@@ -53,6 +54,8 @@ pub struct Calibration {
     pub postflop_streets: [Agreement; 3],
     #[serde(default)]
     pub real_streets: [Agreement; 3],
+    /// How the opponents' ranges narrow after the flop.
+    pub moves: Vec<Curve>,
 }
 
 static STORED: LazyLock<Calibration> =
@@ -181,16 +184,10 @@ impl SolvedNode {
             .collect()
     }
 
-    /// The opponent's range narrowed along the line by the estimate's rules;
-    /// `strength` gives [`crate::estimate::strength`] of a board.
-    pub fn opponent_range(&self, strength: impl Fn(&[Card]) -> Vec<f32>) -> Range {
-        let mut opp = Range::parse(&self.opp_range).unwrap_or_else(Range::all);
-        let cards = self.cards();
-        for (len, sig) in &self.line {
-            let board = &cards[..(*len).min(cards.len())];
-            narrow(&mut opp, *sig, &strength(board), CardSet::from_cards(board));
-        }
-        opp
+    /// The opponent's range narrowed along the line by `curves`; `strength` gives
+    /// [`crate::estimate::strength`] of a board.
+    pub fn opponent_range(&self, strength: impl Fn(&[Card]) -> Strength, curves: &[Curve]) -> Range {
+        narrowed(&self.opp_range, &self.line, &self.cards(), strength, curves)
     }
 
     /// The decision with `hero` against `opp`, as the estimate sees it.
@@ -210,4 +207,14 @@ impl SolvedNode {
             aggressor: self.aggressor,
         }
     }
+}
+
+/// The range of `text` narrowed along `line` on `cards` by `curves`.
+pub fn narrowed(text: &str, line: &[(usize, Signal)], cards: &[Card], strength: impl Fn(&[Card]) -> Strength, curves: &[Curve]) -> Range {
+    let mut range = Range::parse(text).unwrap_or_else(Range::all);
+    for (len, sig) in line {
+        let board = &cards[..(*len).min(cards.len())];
+        narrow_by(&mut range, *sig, &strength(board), CardSet::from_cards(board), curves);
+    }
+    range
 }
