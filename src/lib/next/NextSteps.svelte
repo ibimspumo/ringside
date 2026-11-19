@@ -89,7 +89,7 @@
 {:else if mode === "list" && shown.length}
   <ol class="rows" class:compact>
     {#if !compact}
-      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head">Was Üben bringt <span class="key">· gestreift: geschätzt</span></span></li>
+      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head">Was Üben bringt <span class="key">· voller Balken = Platz 1, gestreift: geschätzt</span></span></li>
     {/if}
     {#each shown as s, i (s.id)}
       <li class="row" data-step={s.id}>

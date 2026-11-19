@@ -294,6 +294,7 @@
               </button>
             {/each}
           </div>
+          {#if sel.position && POSITION_NAME[sel.position]}<p class="pick-note">{sel.position}: {POSITION_NAME[sel.position]}</p>{/if}
         </div>
 
         {#if hasOpponent(sel.history)}
@@ -386,7 +387,7 @@
                       <b>Du</b><span class="num">{int(chart.counts.total)} Hände · {pct(totals?.play ?? 0)} gespielt</span>
                     {:else if mode === "model"}
                       <b>{model?.source === "push_fold" ? "Push/Fold" : "Modell"}</b>
-                      <span class="num">{model ? `${model.players} Spieler · ${model.stack_bb} BB · ${pct(chart.comparison?.model_pct ?? 0)} gespielt` : "nicht verfügbar"}</span>
+                      <span class="num" title="Das Modell ist für feste Tische und Stacks gerechnet; verglichen wird mit dem, das deiner Auswahl am nächsten liegt.">{model ? `gerechnet für ${model.players} Spieler, ${model.stack_bb} BB · ${pct(chart.comparison?.model_pct ?? 0)} gespielt` : "nicht verfügbar"}</span>
                     {:else}
                       <b>Differenz</b>
                       <span class="diff-key"><i style="background:{WIDE}"></i>zu weit <i style="background:{TIGHT}"></i>zu eng</span>
@@ -446,7 +447,7 @@
     flex-wrap: wrap;
     gap: 6px 14px;
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-3);
   }
   .busy {
@@ -471,7 +472,7 @@
   .gaps-off,
   .thin {
     margin: 0;
-    font-size: 14px;
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .gaps p.key {
@@ -486,7 +487,7 @@
     letter-spacing: 0.01em;
   }
   .thin {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--amber);
   }
   .dot {
@@ -538,8 +539,13 @@
     justify-content: flex-end;
     margin: calc(-1 * var(--sp-1)) 0 calc(-1 * var(--sp-2));
   }
+  .pick-note {
+    margin: var(--sp-1) 0 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
   .pick-label {
-    font-size: 12px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: var(--text-2);
   }
@@ -583,13 +589,13 @@
     cursor: pointer;
   }
   .tile span {
-    font-size: 13px;
+    font-size: var(--fs-sm);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .tile small {
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .tile:hover:not(:disabled) {
@@ -636,7 +642,7 @@
   }
   .seat b {
     font-family: var(--font-num);
-    font-size: 13.5px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
   .seat small {
@@ -737,7 +743,7 @@
   }
   .free-text {
     margin: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text);
   }
 
@@ -756,7 +762,7 @@
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    font-size: 13px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
     cursor: pointer;
   }
@@ -765,7 +771,7 @@
     flex-wrap: wrap;
     gap: 4px 14px;
     margin-left: auto;
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--text-2);
   }
   .legend span {
@@ -817,12 +823,12 @@
     align-items: baseline;
     justify-content: space-between;
     gap: 10px;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   figcaption b {
     font-family: var(--font-num);
-    font-size: 15px;
+    font-size: var(--fs-base);
     font-weight: 600;
     color: var(--text);
   }
@@ -849,7 +855,7 @@
     color: var(--text-2);
   }
   .notes {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .notes summary {
@@ -864,7 +870,7 @@
   }
   .howto {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
 </style>

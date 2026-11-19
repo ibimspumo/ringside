@@ -39,7 +39,7 @@
       }
     },
     "font-size": {
-      "total": 160,
+      "total": 139,
       "files": {
         "app/Reports.svelte": 3,
         "app/TournamentPicker.svelte": 1,
@@ -57,7 +57,6 @@
         "learn/Path.svelte": 7,
         "learn/Stage.svelte": 9,
         "learn/Task.svelte": 5,
-        "learn/Today.svelte": 11,
         "learn/Trainer.svelte": 3,
         "learn/wissen/Article.svelte": 4,
         "learn/wissen/blocks/Bars.svelte": 2,
@@ -74,8 +73,7 @@
         "learn/wissen/Wissen.svelte": 4,
         "play/InfoPanel.svelte": 5,
         "play/VerdictCard.svelte": 3,
-        "ranges/RangeGrid.svelte": 3,
-        "ranges/Ranges.svelte": 8,
+        "ranges/Ranges.svelte": 1,
         "solver/DeckPopover.svelte": 1,
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 6,

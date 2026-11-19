@@ -42,8 +42,11 @@
     onLearn,
     onStepHands,
     onSkill,
+    noHistory = false,
   }: {
     refresh: number;
+    /** PokerStars saves no hands yet: the first step is to switch that on. */
+    noHistory?: boolean;
     /** Opens the Spielwertung. */
     onSkill: () => void;
     /** The app's game and period: „Als Nächstes üben“ filters the overview's list to the session. */
@@ -245,9 +248,19 @@
   {:else if !page}
     <EmptyState page tone="loading" title="Rückblick wird geladen …" />
   {:else if !review || !span || !pre || !rep}
-    <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars oder importier deine GGPoker-Hände in den Einstellungen. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst.">
-      {#snippet action()}<Button onclick={() => go("play")}>Solange: Hände gegen Bots spielen</Button>{/snippet}
-    </EmptyState>
+    {#if noHistory}
+      <EmptyState
+        page
+        title="Zuerst: PokerStars deine Hände speichern lassen"
+        text="Schalte in PokerStars unter Einstellungen → Spielhistorie „Handverläufe speichern“ ein – die Anleitung steht oben. Danach steht hier nach jeder Session, wie sie lief und was du als Nächstes üben kannst."
+      >
+        {#snippet action()}<Button onclick={() => go("play")}>Solange: Hände gegen Bots spielen</Button>{/snippet}
+      </EmptyState>
+    {:else}
+      <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars oder importier deine GGPoker-Hände in den Einstellungen. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst.">
+        {#snippet action()}<Button onclick={() => go("play")}>Solange: Hände gegen Bots spielen</Button>{/snippet}
+      </EmptyState>
+    {/if}
   {:else if detail && !review.locked}
     <Luck {review} onBack={() => (detail = false)} onHand={(id, at) => scope && onHand(scope, id, at)} />
   {:else}

@@ -371,6 +371,7 @@
       {#if tab === "dashboard"}
         <SessionReview
           {refresh}
+          noHistory={historyMissing(status, false)}
           onSkill={() => (tab = "skill")}
           {filter}
           onStepHands={stepHands}

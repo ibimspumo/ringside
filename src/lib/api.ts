@@ -164,7 +164,7 @@ export const api = {
   clientWindows: () => call<ClientWindow[]>("client_windows", {}, demoWindows),
   liveTables: () =>
     call<LiveTable[]>("live_tables", {}, () =>
-      demo.demoLiveTables().map((l) => (l.table ? { ...l, table: { ...l.table, seats: l.table.seats.map(unread) } } : l)),
+      (previewData === "empty" ? [] : demo.demoLiveTables()).map((l) => (l.table ? { ...l, table: { ...l.table, seats: l.table.seats.map(unread) } } : l)),
     ),
   pokerClientRunning: () => call<boolean>("poker_client_running", {}, () => demoLocked),
   /** "PokerStars" or "GGPoker" while one runs. */
@@ -212,7 +212,7 @@ export const api = {
     call<RangeChart>("range_chart", { filter, range }, () => rangesDemo.demoChart(filter, range)),
   players: (filter: Filter, search: string, limit = 300) =>
     call<PlayerView[]>("players", { filter, search, limit }, () =>
-      demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())).map(unread),
+      (previewData === "empty" ? [] : demo.demoPlayers(filter)).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())).map(unread),
     ),
   shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
   hands: (query: HandQuery) =>
