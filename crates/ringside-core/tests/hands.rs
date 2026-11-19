@@ -568,3 +568,39 @@ fn older_hand_histories_are_read() {
     assert_eq!(old.len(), new.len());
     assert_eq!(old[0].id, new[0].id);
 }
+
+/// Until 2007 the client wrote no "Uncalled bet" line when an all-in was called for less;
+/// the part nobody matched still went back.
+#[test]
+fn an_unmatched_bet_goes_back_without_its_line() {
+    let text = "PokerStars Game #12: Tournament #5, $5.00+$0.50 Hold'em No Limit - Level II (15/30) - 2007/10/15 - 05:35:27 (ET)\n\
+                Table '5 18' 9-max Seat #3 is the button\n\
+                Seat 1: P1 (2460 in chips)\n\
+                Seat 2: Hero (1075 in chips)\n\
+                Seat 3: P3 (2090 in chips)\n\
+                Seat 4: P4 (2990 in chips)\n\
+                Seat 5: P5 (1450 in chips)\n\
+                P4: posts small blind 15\n\
+                P5: posts big blind 30\n\
+                *** HOLE CARDS ***\n\
+                Dealt to Hero [3c Qs]\n\
+                P1: raises 2430 to 2460 and is all-in\n\
+                Hero: folds\n\
+                P3: calls 2090 and is all-in\n\
+                P4: folds\n\
+                P5: folds\n\
+                *** FLOP *** [Ah Ac 7h]\n\
+                *** TURN *** [Ah Ac 7h] [Qc]\n\
+                *** RIVER *** [Ah Ac 7h Qc] [5c]\n\
+                *** SHOW DOWN ***\n\
+                P1: shows [Th Td] (two pair, Aces and Tens)\n\
+                P3: shows [7s Qh] (two pair, Aces and Queens)\n\
+                P3 collected 4225 from pot\n\
+                *** SUMMARY ***\n\
+                Total pot 4225 | Rake 0\n\n\n";
+    let hand = parse_hand(split_hands(text)[0]).unwrap();
+    assert_eq!(hand.net("P1"), -2090 * 100, "amounts are kept in hundredths");
+    let net: i64 = hand.seats.iter().map(|s| hand.net(&s.name)).sum();
+    assert_eq!(net, 0);
+}
+

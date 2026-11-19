@@ -116,6 +116,26 @@ fn hand_starts(text: &str) -> Vec<usize> {
     starts
 }
 
+/// Clients until 2007 wrote no "Uncalled bet" line when a bet was called for less: the part
+/// nobody matched went back all the same. When the bets exceed the pot by exactly what the
+/// biggest exceeds the second biggest, that part is returned.
+fn return_unmatched(hand: &mut Hand) {
+    let mut put: Vec<(&str, Amount)> = Vec::new();
+    for a in &hand.actions {
+        match put.iter_mut().find(|(p, _)| *p == a.player) {
+            Some((_, x)) => *x += a.amount,
+            None => put.push((&a.player, a.amount)),
+        }
+    }
+    put.sort_by_key(|(_, x)| std::cmp::Reverse(*x));
+    let ([(top, most), (_, next), ..], true) = (put.as_slice(), hand.total_pot > 0) else { return };
+    let over = put.iter().map(|(_, x)| x).sum::<Amount>() - hand.total_pot;
+    if over > 0 && over == most - next {
+        let top = top.to_string();
+        hand.returned.push((top, over));
+    }
+}
+
 pub fn parse_amount(raw: &str) -> Option<Amount> {
     let cleaned: String = raw.chars().filter(|c| c.is_ascii_digit() || *c == '.').collect();
     if cleaned.is_empty() {
@@ -493,6 +513,9 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         }
     }
 
+    if !gg && hand.returned.is_empty() {
+        return_unmatched(&mut hand);
+    }
     if gg {
         // GGPoker writes a showdown marker into every hand: a showdown is two players left.
         let folded = |name: &str| hand.actions.iter().any(|a| a.player == name && a.kind == ActionKind::Fold);
