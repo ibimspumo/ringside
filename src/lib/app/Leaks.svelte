@@ -386,7 +386,7 @@
     </Panel>
   {:else if data}
     {#if steps.length}
-      <Panel title="Was dich am meisten kostet" sub="Aus deinen bewerteten Händen, deinen Werten und deinen Coach-Berichten – das Wichtigste zuerst. Dieselbe Reihenfolge wie in Übersicht und Lernen.">
+      <Panel title="Was dich am meisten kostet" sub="Aus deinen bewerteten Händen, deinen Werten und deinen Coach-Berichten, das Wichtigste zuerst. Der Balken zeigt, wie viel ein Punkt im Vergleich zu Platz 1 ausmacht.">
         <NextSteps {steps} {onLearn} onHands={onStepHands} />
       </Panel>
     {/if}

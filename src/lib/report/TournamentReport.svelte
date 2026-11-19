@@ -273,7 +273,7 @@
               {versus.word === "gleich" ? "so wie" : `${versus.word} als`} dein Schnitt (<span class="num">{bb(avg.per100 ?? 0)}</span>
               aus {int(avg.tournaments)} Turnieren){/if}.
           </span>
-          <GradeBars counts={gradeCounts} label="Deine Entscheidungen nach Stufe" />
+          <GradeBars stacked counts={gradeCounts} label="Deine Entscheidungen nach Stufe" />
         {:else}
           <strong class="big">Noch nichts bewertet</strong>
           <span class="say"

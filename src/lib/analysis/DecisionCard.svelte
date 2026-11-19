@@ -119,6 +119,7 @@
       context={d.source === "estimate" ? `${context} · geschätzt` : context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       reason={d.why || undefined}
+      reasonCollapsed={!quiet}
       source={quiet && kit ? kit : undefined}
     >
       {#if stillWins}<p class="still">{stillWins}</p>{/if}

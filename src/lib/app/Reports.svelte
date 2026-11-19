@@ -166,7 +166,7 @@
               </div>
               <p class="note">Wie oft du die Hand freiwillig gespielt hast. Je kräftiger das Blau, desto öfter.</p>
             {/if}
-            <p class="note">Gepaart auf der Diagonale, suited oben rechts, offsuit unten links.</p>
+            <p class="note">Paare auf der Diagonale. Oben rechts gleiche Farbe (AKs = Ass und König in einer Farbe), unten links verschiedene Farben (AKo).</p>
           </div>
           </div>
         {:else}

@@ -38,6 +38,7 @@
   import SortHeader from "../ui/SortHeader.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
   import { int } from "./format";
+  import { middle } from "../ui/format";
   import { SMALL_SAMPLE, TYPE_PLAIN } from "./reads";
   import StatCell from "./StatCell.svelte";
   import Wheel from "./Wheel.svelte";
@@ -160,7 +161,7 @@
             <Wheel stats={p.stats} {hud} size={18} />
             <span class="who-text">
               <span class="line">
-                <span class="n" title={p.name}>{p.name}</span>
+                <span class="n" title={p.name}>{middle(p.name)}</span>
                 {#if p.label}<i class="dot" style="--c:{p.label.color}" title={p.label.name || "Label aus PokerStars"}></i>{/if}
                 {#if p.hero}<Badge size="sm">du</Badge>{/if}
               </span>

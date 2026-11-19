@@ -304,7 +304,7 @@
               <div class="sr-hands">
                 <div class="sr-mini">
                   <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
-                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen</span>
+                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
                 </div>
                 <div class="sr-keycol">
                   {@render classRow(pre.tight, "Laut Modell öfter spielen", "--range-tight")}
@@ -354,8 +354,14 @@
             </span>
           </div>
           <p class="sr-say">{luckLine(rep.luck)}</p>
+        </section>
 
-          {#if review.bad_luck.length || review.good_luck.length}
+        <!-- Right under the result, so the one thing to do next is in view without scrolling. -->
+        {@render nextTile()}
+
+        {#if review.bad_luck.length || review.good_luck.length}
+          <section class="sr-tile sr-luck" aria-labelledby="sr-luck-title">
+            <header class="sr-head"><h2 id="sr-luck-title" class="sr-title">Glück oder gut gespielt?</h2></header>
             <div class="sr-swings">
               {#if review.bad_luck[0]}
                 {@const s = review.bad_luck[0]}
@@ -381,11 +387,8 @@
               {/if}
             </div>
             <span class="sr-more"><Button size="sm" variant="quiet" onclick={() => (detail = true)}>Alle Beispiele ansehen ({review.bad_luck.length + review.good_luck.length})</Button></span>
-          {/if}
-        </section>
-
-        <!-- Right under the result, so the one thing to do next is in view without scrolling. -->
-        {@render nextTile()}
+          </section>
+        {/if}
 
         <section class="sr-tile sr-worst" aria-labelledby="sr-worst-title">
           <header class="sr-head"><h2 id="sr-worst-title" class="sr-title">Deine teuersten Entscheidungen</h2></header>
