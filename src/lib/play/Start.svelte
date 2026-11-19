@@ -189,8 +189,6 @@
   .start {
     display: grid;
     gap: 16px;
-    max-width: 1360px;
-    margin: 0 auto;
   }
   .tiles {
     display: grid;

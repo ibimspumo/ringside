@@ -210,7 +210,7 @@
           <span class="unit-label">{unit}</span>
         </label>
       </div>
-    {:else if spec.type === "choice"}
+    {:else if spec.type === "choice" && !(prompt.type === "showdown" && feedback)}
       <div class="choices" class:decision role="group" aria-label="Antworten">
         {#each options as o, i (o.id)}
           {#if !(prompt.type === "showdown" && o.id !== "split")}

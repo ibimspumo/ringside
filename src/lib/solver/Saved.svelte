@@ -174,11 +174,11 @@
             <p class="cloud">{notShared(s, data.share)}</p>
           {/if}
           <details class="more">
-            <summary>{when(s.created_at)} · Details</summary>
+            <summary>{when(s.created_at)} · {ORIGIN[s.origin]} · Details</summary>
             <p class="line"><span>Größen</span>{s.sizes.replace(/ %/g, "\u00a0%")}</p>
             <p class="line"><span>Ranges</span>{s.ranges || "eigene"}</p>
             <p class="meta">
-              {ORIGIN[s.origin]}, {SOURCE[s.source]} · {size(s.bytes)}
+              {cap(SOURCE[s.source])} · {size(s.bytes)}
               {#if !s.complete}· <span title="Tiefer rechnet Ringside bei Bedarf neu.">{street(s.board)} vollständig, danach nur der Einstieg</span>{/if}
             </p>
           </details>

@@ -56,7 +56,8 @@ export function notAnalyzable(r: { prize: number | null; game: string; hands: nu
 const TERMS: [RegExp, string, string][] = [
   [/\bEV\b/, "EV", "Erwartungswert – was dir die Entscheidung im Schnitt bringt, in Big Blinds"],
   [/Nash|Gleichgewicht/, "Gleichgewicht", "die Spielweise, die kein Gegner ausnutzen kann"],
-  [/Benötigte Equity|Pot Odds/, "Benötigte Equity", "so oft musst du gewinnen, damit sich der Call lohnt"],
+  [/Pot Odds/, "Pot Odds", "der Preis eines Calls: so oft musst du gewinnen, damit er sich lohnt"],
+  [/Benötigte Equity/, "Benötigte Equity", "so oft musst du gewinnen, damit sich der Call lohnt"],
   [/Equity gegen/, "Equity", "dein Anteil am Pot, wenn alle Karten aufgedeckt würden"],
   [/\bOuts\b/, "Outs", "Karten, die deine Hand zur besten machen"],
   [/\bRange\b/, "Range", "alle Hände, die der Gegner hier haben kann"],

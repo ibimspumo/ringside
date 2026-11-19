@@ -115,7 +115,7 @@
 
 <div class="wrap" bind:clientWidth={w}>
   <div class="frame" style="height:{h * scale}px">
-  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 'var(--fs-xs)' : 'var(--fs-sm)'}" aria-label="Pokertisch">
+  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 'var(--fs-sm)' : 'var(--fs-md)'}" aria-label="Pokertisch">
     <OvalFelt felt={geo.felt} />
 
     <div class="board" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y + MIDDLE[0].dy}px" aria-label="Board">

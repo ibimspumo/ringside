@@ -473,7 +473,9 @@
     background: rgba(236, 235, 231, 0.08);
   }
   .why {
+    align-self: stretch;
     margin: var(--sp-3) 0 0;
+    text-align: left;
     font-size: var(--fs-lg);
     font-weight: 600;
     color: var(--text);
