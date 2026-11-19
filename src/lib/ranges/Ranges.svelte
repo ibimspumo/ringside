@@ -803,7 +803,7 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
   /* Three grids only where each still has room for readable labels. */
-  @container (min-width: 1900px) {
+  @container (min-width: 2200px) {
     .wide-set {
       display: grid;
     }
