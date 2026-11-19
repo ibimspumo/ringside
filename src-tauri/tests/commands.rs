@@ -352,20 +352,15 @@ const GATES: &[&str] = &["blocking", "unlocked", "locked"];
 /// runs fails this test until it is listed here or goes through a gate.
 const OPEN_WHILE_PLAYING: &[&str] = &[
     // HUD and tables.
-    "overlay_view",
-    "preview_view",
     "layout_for",
     "set_hit_regions",
     "save_seat",
     "reset_layout",
     "client_windows",
-    "live_tables",
     "poker_client_running",
     // Own results, stats and hand history.
-    "dashboard",
     "reports",
     "tournaments",
-    "players",
     "shown_hands",
     "player_note",
     "notes_sources",

@@ -12,6 +12,8 @@ import type {
   LiveTable,
   NotesSource,
   PlayerNote,
+  PlayerRead,
+  PlayerType,
   PlayerView,
   Reports,
   SeatPos,
@@ -20,6 +22,7 @@ import type {
   StatId,
   StatValue,
   TableView,
+  TypeRead,
   TournamentRow,
   TournamentTotals,
   Tournaments,
@@ -100,16 +103,33 @@ function stats(hands: number, v: Partial<Record<StatId, number>>): StatValue[] {
   });
 }
 
-type Demo = [string, number, Partial<Record<StatId, number>>];
+/** The words the backend sends with each player type (crates/ringside-learn/src/hud.rs). */
+const TYPES: Record<PlayerType, TypeRead> = {
+  nit: { id: "nit", name: "Nit", long: "Nit (sehr eng)", sketch: "Spielt nur sehr starke Hände.", counter: "Öfter seine Blinds stehlen, gegen seine Raises folden.", why: "Er foldet fast alles. Wenn er doch erhöht, hat er eine starke Hand." },
+  tag: { id: "tag", name: "TAG", long: "TAG (eng und aggressiv)", sketch: "Spielt wenige Hände, die aber mit Raise.", counter: "Solide spielen, ohne große Anpassung.", why: "Er spielt eng und meist mit Raise. Große Anpassungen gegen ihn lohnen selten." },
+  lag: { id: "lag", name: "LAG", long: "LAG (locker und aggressiv)", sketch: "Spielt viele Hände und erhöht oft.", counter: "Öfter mitgehen und mit starken Händen selbst erhöhen.", why: "Er erhöht auch mit schwachen Händen. Starke Hände bekommen von ihm viel Geld." },
+  station: { id: "station", name: "Calling Station", long: "Calling Station (locker und passiv)", sketch: "Spielt viele Hände, callt aber meist nur.", counter: "Mit guten Händen oft und groß setzen, kaum bluffen.", why: "Er foldet selten. Bluffs gehen nicht durch, gute Hände werden bezahlt." },
+};
+
+/** A read as the backend gives it; `code` is type letter (n, t, l, s, - for none) and sure (s), maybe (m) or unsure (u). */
+function read(code: string, hands: number): PlayerRead {
+  const type = ({ n: "nit", t: "tag", l: "lag", s: "station" } as const)[code[0] as "n" | "t" | "l" | "s"];
+  const sure = ({ s: "sure", m: "maybe", u: "unsure" } as const)[code[1] as "s" | "m" | "u"];
+  const word = { sure: "klares Muster", maybe: "knapp", unsure: "noch unsicher" }[sure];
+  return { type: type ? TYPES[type] : null, hands, sure, note: `nach ${hands.toLocaleString("de-DE")} ${hands === 1 ? "Hand" : "Händen"} ${word}` };
+}
+
+/** Name, hands, stats, read over all hands and over the hands of the tournament slice. */
+type Demo = [string, number, Partial<Record<StatId, number>>, string, string];
 const PLAYERS: Demo[] = [
-  ["Hero", 6124, { vpip: 21, pfr: 16, three_bet: 6, fold_to_three_bet: 58, steal: 38, fold_to_steal: 71, cbet: 64, fold_to_cbet: 44, wtsd: 26, wsd: 53, af: 2.6, afq: 47 }],
-  ["Kestrel", 27, { vpip: 18, pfr: 15, three_bet: 7, fold_to_three_bet: 100, steal: 44, fold_to_steal: 71, cbet: 71, fold_to_cbet: 45, wtsd: 24, wsd: 55, af: 3.1, afq: 51 }],
-  ["marlowe_77", 33, { vpip: 41, pfr: 9, three_bet: 6, steal: 18, fold_to_steal: 48, cbet: 38, fold_to_cbet: 29, wtsd: 37, wsd: 44, af: 0.9, afq: 24 }],
-  ["Lee Ann", 412, { vpip: 33, pfr: 26, three_bet: 12, fold_to_three_bet: 40, steal: 52, fold_to_steal: 55, cbet: 80, fold_to_cbet: 30, wtsd: 22, wsd: 50, af: 4.2, afq: 58 }],
-  ["Ondine", 25, { vpip: 15, pfr: 12, three_bet: 0, fold_to_three_bet: 50, steal: 67, fold_to_steal: 80, cbet: 55, fold_to_cbet: 62, wtsd: 21, wsd: 52, af: 2.0, afq: 40 }],
-  ["juba_7", 8, { vpip: 50, pfr: 13, three_bet: 8, af: 1.0 }],
-  ["Nadir", 233, { vpip: 24, pfr: 19, three_bet: 0, fold_to_three_bet: 0, steal: 41, fold_to_steal: 100, cbet: 62, wtsd: 27, wsd: 54, af: 2.6, afq: 48 }],
-  ["Rüdiger", 96, { vpip: 32, pfr: 3, three_bet: 1, steal: 9, fold_to_steal: 62, cbet: 31, fold_to_cbet: 52, wtsd: 39, wsd: 41, af: 1.0, afq: 22 }],
+  ["Hero", 6124, { vpip: 21, pfr: 16, three_bet: 6, fold_to_three_bet: 58, steal: 38, fold_to_steal: 71, cbet: 64, fold_to_cbet: 44, wtsd: 26, wsd: 53, af: 2.6, afq: 47 }, "ts", "tm"],
+  ["Kestrel", 27, { vpip: 18, pfr: 15, three_bet: 7, fold_to_three_bet: 100, steal: 44, fold_to_steal: 71, cbet: 71, fold_to_cbet: 45, wtsd: 24, wsd: 55, af: 3.1, afq: 51 }, "tu", "tu"],
+  ["marlowe_77", 33, { vpip: 41, pfr: 9, three_bet: 6, steal: 18, fold_to_steal: 48, cbet: 38, fold_to_cbet: 29, wtsd: 37, wsd: 44, af: 0.9, afq: 24 }, "sm", "sm"],
+  ["Lee Ann", 412, { vpip: 33, pfr: 26, three_bet: 12, fold_to_three_bet: 40, steal: 52, fold_to_steal: 55, cbet: 80, fold_to_cbet: 30, wtsd: 22, wsd: 50, af: 4.2, afq: 58 }, "ls", "lu"],
+  ["Ondine", 25, { vpip: 15, pfr: 12, three_bet: 0, fold_to_three_bet: 50, steal: 67, fold_to_steal: 80, cbet: 55, fold_to_cbet: 62, wtsd: 21, wsd: 52, af: 2.0, afq: 40 }, "tu", "tu"],
+  ["juba_7", 8, { vpip: 50, pfr: 13, three_bet: 8, af: 1.0 }, "su", "su"],
+  ["Nadir", 233, { vpip: 24, pfr: 19, three_bet: 0, fold_to_three_bet: 0, steal: 41, fold_to_steal: 100, cbet: 62, wtsd: 27, wsd: 54, af: 2.6, afq: 48 }, "tu", "tu"],
+  ["Rüdiger", 96, { vpip: 32, pfr: 3, three_bet: 1, steal: 9, fold_to_steal: 62, cbet: 31, fold_to_cbet: 52, wtsd: 39, wsd: 41, af: 1.0, afq: 22 }, "su", "su"],
 ];
 
 /** The user's PokerStars notes in the demo, by player. */
@@ -129,7 +149,7 @@ export function demoNotesSources(): NotesSource[] {
 }
 
 export function demoTable(maxSeats = 8): TableView {
-  const seats = PLAYERS.slice(0, maxSeats).map(([name, hands, v], i) => {
+  const seats = PLAYERS.slice(0, maxSeats).map(([name, hands, v, r], i) => {
     const stackBb = [61, 40, 66, 47, 82, 46, 78, 114][i];
     return {
       seat: i + 1,
@@ -140,6 +160,7 @@ export function demoTable(maxSeats = 8): TableView {
       bounty: [345, 125, 250, 190, 125, 470, 125, 250][i],
       is_hero: i === 0,
       stats: stats(hands, v),
+      read: read(r, hands),
       note: demoNote(name),
     };
   });
@@ -173,6 +194,9 @@ export function demoTable(maxSeats = 8): TableView {
 /** With a tournament chosen, the demo shows a smaller slice of the same players. */
 const inTournament = (f: Filter) => f.tournament_id !== null && f.tournament_id !== undefined;
 
+/** Reads of `manyPlayers` in order, codes as in `read`. */
+const MANY_READS = "ns ss lm tm ss tu su tu ss ls nu ss tu su tu su ls ts ss tm su tu su lu ns ss tu -u tm su lu tu ss ts ss tu ss lu nu su ts -u ts ss lu tu su lu ss tu ss lm nu ss tu -u ts ss ls tu ss lu su nu".split(" ");
+
 /** `?many=1`: a long list with long names, for density and overflow. */
 function manyPlayers(): PlayerView[] {
   return Array.from({ length: 64 }, (_, i) => {
@@ -180,15 +204,19 @@ function manyPlayers(): PlayerView[] {
     const shift = ((i * 7) % 11) - 5;
     const name = i % 9 === 0 ? `Ein_sehr_langer_Spielername_${i}` : `Gegner_${String(i + 1).padStart(2, "0")}`;
     const tuned = Object.fromEntries(Object.entries(v).map(([k, x]) => [k, Math.max(0, k === "af" ? x : x + shift)]));
-    return { name, net: 0, stats: stats([1_234_567, 2400, 640, 180, 75, 31, 12, 4][i % 8], tuned) };
+    const hands = [1_234_567, 2400, 640, 180, 75, 31, 12, 4][i % 8];
+    return { name, net: 0, stats: stats(hands, tuned), read: read(MANY_READS[i], hands) };
   });
 }
 
 export function demoPlayers(filter?: Filter): PlayerView[] {
-  if (new URLSearchParams(window.location.search).get("many") === "1") return [...PLAYERS.slice(0, 1).map(([name, hands, v]) => ({ name, net: 0, stats: stats(hands, v) })), ...manyPlayers()];
-  const all = PLAYERS.map(([name, hands, v], i) => ({ name, net: [0, 920, -1830, 4210, -310, -2650, 330, -1200][i], stats: stats(hands, v) }));
+  if (new URLSearchParams(window.location.search).get("many") === "1") return [...PLAYERS.slice(0, 1).map(([name, hands, v, r]) => ({ name, net: 0, stats: stats(hands, v), read: read(r, hands) })), ...manyPlayers()];
+  const all = PLAYERS.map(([name, hands, v, r], i) => ({ name, net: [0, 920, -1830, 4210, -310, -2650, 330, -1200][i], stats: stats(hands, v), read: read(r, hands) }));
   if (!filter || !inTournament(filter)) return all;
-  return PLAYERS.slice(0, 6).map(([name, , v], i) => ({ name, net: [0, 410, -980, 1250, -60, -2650][i], stats: stats([212, 27, 33, 140, 25, 8][i], v) }));
+  return PLAYERS.slice(0, 6).map(([name, , v, , r], i) => {
+    const hands = [212, 27, 33, 140, 25, 8][i];
+    return { name, net: [0, 410, -980, 1250, -60, -2650][i], stats: stats(hands, v), read: read(r, hands) };
+  });
 }
 
 function series(n: number, drift: number, seed: number) {
@@ -407,8 +435,8 @@ export function demoLiveTables(): LiveTable[] {
   cash.bounty_currency = null;
   cash.seats = cash.seats.map((seat, i) => {
     const name = i === 0 ? "Hero" : ["Ondine", "Kestrel", "Rüdiger", "Nadir", "marlowe_77"][i - 1];
-    const stats = mtt.seats.find((s) => s.name === name)?.stats ?? seat.stats;
-    return { ...seat, stack: seat.stack_bb * 10, bounty: null, name, stats, note: demoNote(name) };
+    const same = mtt.seats.find((s) => s.name === name) ?? seat;
+    return { ...seat, stack: seat.stack_bb * 10, bounty: null, name, stats: same.stats, read: same.read, note: demoNote(name) };
   });
   return [
     { title: "$5.50 Mini Early Battle - 50/100 Ante 12 - Turnier 4046789300 Tisch 10", table_key: mtt.table_key, table: mtt },

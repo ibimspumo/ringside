@@ -10,7 +10,7 @@
   import StatMeter from "../ui/StatMeter.svelte";
   import Term from "../ui/Term.svelte";
   import { dateTime, int, sign, signed } from "./format";
-  import { HINT, SMALL_SAMPLE, TYPE, read, sampleNote } from "./reads";
+  import { HINT, SMALL_SAMPLE, sampleNote } from "./reads";
   import Wheel from "./Wheel.svelte";
 
   let {
@@ -55,7 +55,7 @@
   });
 
   const hands = $derived(stat(player.stats, "hands")?.value ?? 0);
-  const r = $derived(read(player.stats));
+  const r = $derived(player.read);
   const cards = (s: string) => s.split(" ").filter(Boolean);
 
   /** Where the value sits: below, inside (lower or upper end) or above the usual range. */
@@ -99,7 +99,7 @@
     {:else if !advice}
       <div class="lock"><SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar." /></div>
     {:else if r?.type}
-      {@const t = TYPE[r.type]}
+      {@const t = r.type}
       <section class="read" aria-label="Spielertyp">
         <div class="read-head">
           <span class="kicker">Spielertyp</span>
