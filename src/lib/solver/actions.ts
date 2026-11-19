@@ -4,24 +4,6 @@ export function bb(x: number, digits = 2): string {
   return x.toLocaleString("de-DE", { maximumFractionDigits: digits });
 }
 
-/** E.g. "Bet 1,8 (33 %)", "Raise auf 6,2", "All-in 37,5". `pot` is the pot at the node. */
-export function actionLabel(a: SolverAction, pot: number): string {
-  switch (a.kind) {
-    case "fold":
-      return "Fold";
-    case "check":
-      return "Check";
-    case "call":
-      return "Call";
-    case "bet":
-      return `Bet ${bb(a.amount, 1)} (${Math.round((a.amount / pot) * 100)} %)`;
-    case "raise":
-      return `Raise auf ${bb(a.amount, 1)}`;
-    case "all_in":
-      return `All-in ${bb(a.amount, 1)}`;
-  }
-}
-
 const PASSIVE: Record<string, string> = { fold: "var(--act-fold)", check: "var(--act-check)", call: "var(--act-call)" };
 /** Light to dark: small bets amber, big bets and all-ins deep red (tokens in theme.css). */
 const AGGRESSIVE = ["var(--act-bet-1)", "var(--act-bet-2)", "var(--act-bet-3)", "var(--act-bet-4)", "var(--act-allin)"];

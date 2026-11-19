@@ -201,25 +201,6 @@ input[type="range"] {
   max-width: var(--page-max);
   margin-inline: auto;
 }
-.page-head {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 20px;
-}
-.page-head h1 {
-  margin: 0;
-  font-family: var(--font-num);
-  font-size: 26px;
-  font-weight: 600;
-  letter-spacing: 0.005em;
-}
-.page-head p {
-  margin: 3px 0 0;
-  color: var(--text-2);
-}
-
 .panel {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -312,7 +293,7 @@ input[type="range"] {
   }
 }
 
-/* App views: shared pieces appended for the stats app. */
+/* Shared pieces of the app views. */
 .chip {
   display: inline-flex;
   align-items: center;
