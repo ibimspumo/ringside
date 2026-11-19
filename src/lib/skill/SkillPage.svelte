@@ -76,8 +76,13 @@
     few: { label: "Noch zu wenig", tone: "neutral" },
   };
   const ORDER: AreaScore["verdict"][] = ["weak", "strong", "even", "few"];
+  /** Weaknesses by what they cost, then strengths by how strong; the first weakness is the focus above. */
   const areas = $derived(
-    [...(p?.areas ?? [])].sort((a, b) => ORDER.indexOf(a.verdict) - ORDER.indexOf(b.verdict) || (a.verdict === "strong" ? b.rating - a.rating : a.rating - b.rating)),
+    [...(p?.areas ?? [])].sort(
+      (a, b) =>
+        ORDER.indexOf(a.verdict) - ORDER.indexOf(b.verdict) ||
+        (a.verdict === "weak" ? b.burn_share_pct - a.burn_share_pct : a.verdict === "strong" ? b.rating - a.rating : a.rating - b.rating),
+    ),
   );
   /** The bars run ±250 points around the rating. */
   const REACH = 250;
@@ -90,7 +95,7 @@
   const share = (n: number) => (total ? Math.round((n / total) * 100) : 0);
   const areaName = (a: SkillArea) => p?.areas.find((x) => x.area === a)?.name ?? "";
   /** What to work on first: the weakness that costs most. */
-  const focus = $derived([...(p?.areas ?? [])].filter((a) => a.verdict === "weak").sort((a, b) => b.burn_share_pct - a.burn_share_pct)[0] ?? null);
+  const focus = $derived(areas[0]?.verdict === "weak" ? areas[0] : null);
 </script>
 
 {#snippet arrow(d: number)}
@@ -138,7 +143,7 @@
         {#if focus}
           {@const practice = PRACTICE[focus.area]}
           <div class="sk-focus">
-            <span>Bringt dir jetzt am meisten: <b>{focus.name}</b></span>
+            <span>Bringt dir jetzt am meisten: <b>{focus.name}</b> – dort entstehen {Math.round(focus.burn_share_pct)} % deiner Fehlerkosten.</span>
             {#if practice}
               <Button size="sm" variant="primary" onclick={() => onLearn(practice)}>{focus.name} üben</Button>
             {:else}
@@ -163,10 +168,8 @@
           <span class="sk-band" style:left={at(rating - p.sigma)} style:width="calc({at(rating + p.sigma)} - {at(rating - p.sigma)})"></span>
           <span class="sk-mark" style:left={at(rating)}><b class="num">{points(rating)}</b></span>
         </div>
-        <p class="sk-next">
-          <span>{#if next}Noch <b class="num">{Math.ceil(next[0] - rating)}</b> Punkte bis „{next[1]}“.{:else}Höchste Stufe erreicht.{/if}</span>
-          <span class="sk-ref">Start {points(p.start)} · „Profi-Niveau“ ab 2000: So entscheiden Profis und die Poker-KI Pluribus nach Ringsides Maßstab.</span>
-        </p>
+        <p class="sk-goal">{#if next}Noch <b class="num">{Math.ceil(next[0] - rating)}</b> Punkte bis „{next[1]}“{:else}Höchste Stufe erreicht{/if}</p>
+        <p class="sk-ref">Jeder startet bei {points(p.start)}. „Profi-Niveau“ ab 2000: So entscheiden Profis und die Poker-KI Pluribus nach Ringsides Maßstab.</p>
       </div>
     </section>
 
@@ -184,7 +187,7 @@
             <li class="sk-area" class:few={a.verdict === "few"} data-skill-area={a.area}>
               <div class="sk-area-name">
                 <b><Term tip={AREA_HELP[a.area]}>{a.name}</Term></b>
-                <small>{decisions(a.decisions)}{a.burn_share_pct >= 1 ? ` · ${Math.round(a.burn_share_pct)} % deiner Fehlerkosten` : ""}</small>
+                <small>{decisions(a.decisions)}{#if a.burn_share_pct >= 1}{" · "}<Term tip="Was deine Fehler im Schnitt an Stack kosten, zusammengezählt: Dieser Anteil davon entsteht in diesem Bereich.">{Math.round(a.burn_share_pct)} % deiner Fehlerkosten</Term>{/if}</small>
               </div>
               <div class="sk-diverge" role="img" aria-label="{a.name}: {a.verdict === 'few' ? 'noch zu wenig' : `${points(a.rating)}, ${delta(a.rating - rating)} gegen deine Wertung`}">
                 <span class="sk-axis"></span>
@@ -198,6 +201,8 @@
               <span class="sk-area-tag"><Badge size="sm" tone={v.tone} dashed={a.verdict === "few"}>{v.label}</Badge></span>
               <span class="sk-area-do">
                 <Button size="sm" variant="quiet" onclick={() => onHands(a.area, a.name)}>Hände</Button>
+              </span>
+              <span class="sk-area-do">
                 {#if practice}<Button size="sm" variant={a.verdict === "weak" ? "secondary" : "quiet"} onclick={() => onLearn(practice)}>Üben</Button>{/if}
               </span>
             </li>
@@ -231,12 +236,12 @@
                       <span class="sk-moment-tags">
                         {#if m.bad_luck}<Badge size="sm" tone="info">Gut entschieden, Pech gehabt</Badge>{:else}<GradeBadge grade={GRADE_OF[m.rating]} size="sm" />{/if}
                       </span>
-                      <span class="sk-points num" class:up={m.points > 0} class:down={m.points < 0}>{delta(m.points)}</span>
+                      <span class="sk-points num" class:up={m.points > 0} class:down={m.points < 0}>{delta(m.points)}<small>Pkt.</small></span>
                     </span>
                   </Card>
                 {/each}
               </div>
-              <p class="sk-note">Punkte ungefähr: Jede Entscheidung zählt nach ihrem Einsatz. <SourceNote kind="model" hint="Bewertet mit Gleichgewicht, Modell, Solver und Einschätzung; Einschätzungen zählen schwächer." /></p>
+              <p class="sk-note">Wertungspunkte, ungefähr: Jede Entscheidung zählt nach ihrem Einsatz. <SourceNote kind="model" hint="Bewertet mit Gleichgewicht, Modell, Solver und Einschätzung; Einschätzungen zählen schwächer." /></p>
             {:else}
               <p class="sk-note">Keine Entscheidung hat die Zahl spürbar bewegt.</p>
             {/if}
@@ -443,15 +448,16 @@
     font-size: var(--fs-sm);
     transform: translateX(-50%);
   }
-  .sk-next {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-1) var(--sp-4);
-    align-items: baseline;
+  .sk-goal {
     margin: 0;
-    font-size: var(--fs-md);
+    font-size: var(--fs-lg);
+    font-weight: var(--fw-semibold);
+  }
+  .sk-goal b {
+    color: var(--sd);
   }
   .sk-ref {
+    margin: calc(-1 * var(--sp-3)) 0 0;
     color: var(--text-2);
     font-size: var(--fs-sm);
   }
@@ -471,7 +477,7 @@
 
   .sk-areas {
     display: grid;
-    grid-template-columns: minmax(250px, 1.6fr) minmax(90px, 1fr) 44px auto minmax(118px, auto);
+    grid-template-columns: minmax(250px, 1.6fr) minmax(90px, 1fr) 44px auto 64px 60px;
     gap: 0 var(--sp-3);
     margin: 0;
     padding: 0;
@@ -597,6 +603,12 @@
   .sk-moment-text small {
     color: var(--text-2);
     font-size: var(--fs-sm);
+  }
+  .sk-points small {
+    display: block;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-regular);
   }
   .sk-points {
     color: var(--text-2);

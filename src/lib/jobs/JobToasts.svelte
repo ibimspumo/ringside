@@ -38,10 +38,11 @@
 
 <style>
   /* Top right, below the page head: the main actions of a page sit at the bottom. */
+  /* Bottom right: the notes under the top bar and the page header stay readable. */
   .toasts {
     position: fixed;
     right: 20px;
-    top: 64px;
+    bottom: 20px;
     z-index: 70;
     display: flex;
     flex-direction: column;

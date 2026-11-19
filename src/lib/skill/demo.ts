@@ -96,7 +96,8 @@ export function demoSkill(count = 24): SkillProfile {
     ["even", 40],
   ];
   const shares = [9, 24, 14, 2, 11, 27, 3, 7, 3];
-  const counts = [48, 31, 286, 15, 104, 341, 4, 233, 51];
+  const scale = Math.min(1, entries.length / 20);
+  const counts = [48, 31, 286, 15, 104, 341, 4, 233, 51].map((n) => Math.max(1, Math.round(n * scale)));
   const areas: AreaScore[] =
     r === null
       ? []
@@ -105,9 +106,9 @@ export function demoSkill(count = 24): SkillProfile {
           name,
           spots,
           decisions: counts[i],
-          real: verdicts[i][0] === "few" ? 2.4 : counts[i] * 0.4,
-          rating: r + verdicts[i][1],
-          verdict: verdicts[i][0],
+          real: counts[i] * 0.4,
+          rating: r + (counts[i] * 0.4 < 4 ? 0 : verdicts[i][1] * scale),
+          verdict: counts[i] * 0.4 < 4 ? "few" : verdicts[i][0],
           burn_share_pct: shares[i],
           grades: grades(counts[i], rnd, verdicts[i][1] < 0 ? 1.8 : 0.6),
         }));
