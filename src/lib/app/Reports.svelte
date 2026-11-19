@@ -154,7 +154,7 @@
             {#if mode === "bb100"}
               <div class="scale">
                 <span class="ramp bb"></span>
-                <span class="ticks num"><span>−{int(grid.scale)}</span><span>0</span><span>+{int(grid.scale)}</span></span>
+                <span class="ticks num"><span>−{int(grid.scale)} und weniger</span><span>0</span><span>+{int(grid.scale)} und mehr</span></span>
               </div>
               <p class="note">
                 Gewinn je 100 Hände mit dieser Starthand. Rot verliert, Grün gewinnt; je kräftiger, desto deutlicher.

@@ -301,6 +301,20 @@
             {#if pre.sample === "few"}
               <p class="sr-hint">Noch zu wenige Hände für ein Urteil: {int(pre.compared)} verglichen. Ab 30 nennt Ringside, welche Hände und Situationen auffallen.</p>
             {:else}
+              {#if pre.patterns.length}
+                <ul class="sr-patterns">
+                  {#each pre.patterns as p (p.text)}
+                    <li>
+                      <span class="sr-arrow" class:sr-arrow-wide={p.wide} aria-label={p.wide ? "zu oft" : "zu selten"}>{p.wide ? "↑" : "↓"}</span>
+                      <span class="sr-pattern-text">{p.text}</span>
+                      <span class="sr-pattern-do">
+                        {#if scope}<Button size="sm" variant="quiet" onclick={() => onRanges(scope, { history: p.history, position: p.position, vs: p.vs_position })}>Ansehen</Button>{/if}
+                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="secondary" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
+                      </span>
+                    </li>
+                  {/each}
+                </ul>
+              {/if}
               <div class="sr-hands">
                 <div class="sr-mini">
                   <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
@@ -313,20 +327,6 @@
                 </div>
               </div>
 
-              {#if pre.patterns.length}
-                <ul class="sr-patterns">
-                  {#each pre.patterns as p (p.text)}
-                    <li>
-                      <span class="sr-arrow" class:sr-arrow-wide={p.wide} aria-label={p.wide ? "zu oft" : "zu selten"}>{p.wide ? "↑" : "↓"}</span>
-                      <span class="sr-pattern-text">{p.text}</span>
-                      <span class="sr-pattern-do">
-                        {#if scope}<Button size="sm" variant="quiet" onclick={() => onRanges(scope, { history: p.history, position: p.position, vs: p.vs_position })}>Ansehen</Button>{/if}
-                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="quiet" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
-                      </span>
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
             {/if}
           {/if}
 
