@@ -16,7 +16,8 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { playApi } from "./api";
   import InfoPanel from "./InfoPanel.svelte";
-  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, etaText, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
+  import { remaining } from "../ui/format";
+  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
   import { openSolverTab } from "./nav.svelte";
   import PoolChip from "./PoolChip.svelte";
   import { act, askHint, cancelLive, listen, nextHand, prepare, repeatHand, resume, saveConfig, session, stats, type SessionHand } from "./session.svelte";
@@ -131,7 +132,7 @@
   const liveRun = $derived(session.live?.status === "running" ? session.live : null);
   const solvingDetail = $derived.by(() => {
     if (!solving) return "";
-    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${etaText(liveRun.secs_left)}` : "";
+    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${remaining(liveRun.secs_left)}` : "";
     return `Schnell gerechnet, Genauigkeit ${num(solving.target_pct)} % des Pots${state}. Danach geht die Hand weiter.`;
   });
   const STREET_ORDER: Street[] = ["preflop", "flop", "turn", "river"];

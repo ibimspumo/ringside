@@ -2,7 +2,8 @@
   import { api } from "../api";
   import { bountyText, fmt, stat } from "../stats";
   import type { Filter, GroupView, Reports } from "../types";
-  import { dayShort, duration, floating, int, sign, signed, time, type Anchor } from "./format";
+  import { dayShort, floating, int, secondsBetween, sign, signed, time, type Anchor } from "./format";
+  import { duration } from "../ui/format";
 
   let { filter, refresh }: { filter: Filter; refresh: number } = $props();
 
@@ -228,7 +229,7 @@
                   <tr>
                     <td class="ui">{dayShort(s.start)}</td>
                     <td>{time(s.start)}–{time(s.end)}</td>
-                    <td>{duration(s.start, s.end)}</td>
+                    <td>{duration(secondsBetween(s.start, s.end))}</td>
                     <td>{s.tables}</td>
                     <td>{int(s.hands)}</td>
                     <td class={sign(s.net_bb)}>{signed(s.net_bb)}</td>

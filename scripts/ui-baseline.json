@@ -233,6 +233,10 @@
     "old-word": {
       "total": 0,
       "files": {}
+    },
+    "time-format": {
+      "total": 0,
+      "files": {}
     }
   }
 }

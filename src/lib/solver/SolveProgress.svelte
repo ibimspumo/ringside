@@ -2,7 +2,7 @@
   import { api } from "../api";
   import Button from "../ui/Button.svelte";
   import ProgressBar from "../ui/ProgressBar.svelte";
-  import { duration } from "./actions";
+  import { duration } from "../ui/format";
   import { precision } from "./explain";
   import { solver } from "./store.svelte";
   import Term from "../ui/Term.svelte";
@@ -31,7 +31,7 @@
   <p class="detail">
     <Term id="exploit">Genauigkeit</Term> bisher <b>{solver.progress ? precision(solver.progress.exploitability_pct) : "–"}</b>, Ziel
     <b>{precision(solver.settings.target_pct)}</b> · läuft seit <span class="num">{duration(elapsed)}</span>{#if total}, geschätzt
-      <span class="num">ca. {duration(total)}</span> insgesamt{/if}
+      <span class="num">{duration(total, { about: true })}</span> insgesamt{/if}
   </p>
 </div>
 <Button variant="quiet" onclick={() => api.solverCancel()}>Abbrechen</Button>

@@ -37,10 +37,13 @@ const RULES = {
   "page-heading": "Eigene Seitenüberschrift (<h1> oder Intro-Block .page-head) – Titel, Zeile und Bereiche gehören in den PageHeader (usePageHead).",
   jargon: "Fachbegriff als fester Text ohne Erklärung – in <Term id=\"…\"> setzen; Wörter und Erklärungen stehen in src/lib/ui/words.ts.",
   "old-word": "Altes Wort als Anzeigetext – „Leaks“ heißt „Schwachstellen“, „EV-Verlust“ heißt „kostet im Schnitt“ (src/lib/ui/words.ts).",
+  "time-format": "Eigene Zeitangabe (Std., Min., h, min) – nimm duration, ago oder remaining aus src/lib/ui/format.ts.",
 };
 
 /** Poker words a beginner does not know; in markup text they belong inside <Term>. */
 const JARGON = /\b(?:VPIP|PFR|[34]-Bet|SPR|Equity|Ranges?|ICM|EV|C-Bet|ROI|ITM|Pot Odds|GTO|OOP|WTSD)(?![\w-])/g;
+/** Units of a span of time written by hand; durations come from src/lib/ui/format.ts. */
+const TIME_UNIT = /\b(?:Std|Min)\.(?![\wäöüß])|\}\s?(?:min|h)(?![\wäöüß])|\/\s?3600\b/g;
 /** Words the glossary replaced. */
 const OLD_WORDS = /(?<![<\/.\w])(?:Leaks?|EV-Verlust)\b/g;
 
@@ -280,6 +283,10 @@ function scan(file, text, globals) {
         for (const m of str.matchAll(OLD_WORDS)) add("old-word", at + index + m.index, m[0]);
       }
     }
+  }
+
+  if (rel !== "ui/format.ts" && !file.endsWith(".css")) {
+    for (const m of clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, (x) => x.replace(/[^\n]/g, " ")).matchAll(TIME_UNIT)) add("time-format", m.index, m[0]);
   }
 
   const ownButtons = file.endsWith(".svelte") ? buttonClasses(clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "")) : new Set();

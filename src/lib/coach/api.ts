@@ -71,11 +71,6 @@ export const EFFORTS: { id: Effort; name: string; hint: string }[] = [
 
 export const effortName = (e: Effort) => EFFORTS.find((x) => x.id === e)?.name ?? e;
 
-/** 45 s, 2:05 min. */
-export const duration = (seconds: number) => {
-  const s = Math.max(0, Math.floor(seconds));
-  return s < 60 ? `${s} s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")} min`;
-};
 
 /** Tauri rejects with the command's error string. */
 export const errorText = (e: unknown) => (typeof e === "string" ? e : e instanceof Error ? e.message : "Unbekannter Fehler.");

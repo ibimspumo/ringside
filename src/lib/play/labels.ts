@@ -257,12 +257,6 @@ export function resultLine(h: HandView, withNet = true): string {
   return `${h.positions[w]} gewinnt${theirs ? ` mit ${theirs}` : ""}${amount}.`;
 }
 
-export function etaText(secs: number | null): string {
-  if (secs === null || !Number.isFinite(secs)) return "";
-  if (secs < 10) return "gleich fertig";
-  if (secs < 60) return `ca. ${Math.ceil(secs / 5) * 5} s`;
-  return `ca. ${Math.ceil(secs / 60)} min`;
-}
 
 /** Table sizes of the practice; mirror `ringside_play::table::PLAYERS`. */
 export const TABLE_SIZES = [2, 3, 4, 5, 6, 8, 9] as const;

@@ -9,7 +9,8 @@
   import ProgressRing from "../ui/ProgressRing.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import Stat from "../ui/Stat.svelte";
-  import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
+  import { EFFORTS, coachApi, cost, errorText, onProgress, preview, tokens } from "./api";
+  import { duration } from "../ui/format";
   import { money, shortModel } from "./meaning";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
 
