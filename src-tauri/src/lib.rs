@@ -695,6 +695,8 @@ pub fn run() {
             app.manage(coach::CoachState::default());
             app.manage(analysis::AnalysisState::default());
             app.manage(cloud::CloudState::default());
+            let handle = app.handle().clone();
+            ringside_learn::set_solver(move |params| cloud::pushfold(&handle, params));
             app.manage(library::LibraryState::default());
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
