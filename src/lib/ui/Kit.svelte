@@ -619,6 +619,7 @@
         <div class="mixdemo">
           <p class="muted">Mischung einer Hand: Breite = wie oft, Farbe = Aktion (keine Bewertung).</p>
           <MixBar parts={[{ label: "Check", share: 46, color: "var(--act-check)" }, { label: "Bet 33 % Pot", share: 33, color: "var(--act-bet-1)" }, { label: "Bet 75 % Pot", share: 21, color: "var(--act-bet-3)" }]} />
+          <MixBar mine={1} mineColor="var(--grade-good)" parts={[{ label: "Check", share: 46, color: "var(--act-check)" }, { label: "Bet 33 % Pot", share: 33, color: "var(--act-bet-1)" }, { label: "Bet 75 % Pot", share: 21, color: "var(--act-bet-3)" }]} />
         </div>
         <div class="grades">
           {#each GRADES as g (g)}
