@@ -185,8 +185,10 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
     };
 
     let mut config = vec![format!("Preflop-Modell (kein Gleichgewicht des echten Spiels): {players} Spieler, alle mit {}, {}", bb(stack), ante_name(t.ante))];
-    if n != players {
-        config.push(format!("am Tisch {n} Spieler, die ersten {} Plätze des Modells gelten als gefoldet", players - n));
+    match players - n {
+        0 => {}
+        1 => config.push(format!("am Tisch {n} Spieler, der erste Platz des Modells gilt als gefoldet")),
+        k => config.push(format!("am Tisch {n} Spieler, die ersten {k} Plätze des Modells gelten als gefoldet")),
     }
     if (stack - effective).abs() >= 0.5 {
         config.push(format!("nächste vorgerechnete Tiefe: {} statt {}", bb(stack), bb(effective)));

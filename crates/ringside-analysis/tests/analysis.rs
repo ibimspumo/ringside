@@ -291,6 +291,17 @@ fn a_call_for_less_counts_only_the_pot_it_can_win() {
     assert!(!d.why.contains("braucht nur 1"), "{}", d.why);
 }
 
+/// Seven at the table against the model's eight: one seat of the model counts as folded,
+/// in the singular.
+#[test]
+fn one_missing_seat_reads_in_the_singular() {
+    let seats: Vec<(&str, i64)> = vec![("Hero", 8000), ("P2", 8000), ("P3", 8000), ("P4", 8000), ("P5", 8000), ("P6", 8000), ("P7", 8000)];
+    let raw = hand(13, &seats, 5, 200, 25, "As Kd", "Hero: raises 300 to 500\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: folds\nUncalled bet (300) returned to Hero\nHero collected 675 from pot\n*** SUMMARY ***\nTotal pot 675 | Rake 0\n");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert!(d.note.contains("am Tisch 7 Spieler, der erste Platz des Modells gilt als gefoldet"), "{}", d.note);
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.
