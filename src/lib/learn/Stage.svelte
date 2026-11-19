@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import type { ExercisePrompt } from "../types";
   import { explain, fmtBB, fmtPct, parseRange } from "./catalog";
   import DrillStage, { isDrill } from "./DrillStage.svelte";

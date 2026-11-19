@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { money, moneyShort } from "../stats";
   import { RING, other, plateSide } from "./geometry";
   import type { Point, TableView } from "../types";

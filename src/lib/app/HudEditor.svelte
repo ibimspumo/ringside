@@ -96,7 +96,6 @@
     return () => sub.then((f) => f());
   });
 
-  // Rebuild the preview whenever the table size or window shape changes.
   $effect(() => {
     const s = settings;
     const n = maxSeats;

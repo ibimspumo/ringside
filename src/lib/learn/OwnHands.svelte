@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import { api } from "../api";
   import Replayer from "../app/Replayer.svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import type { Feedback, Hand, LearnAnswer, LearnKind, OwnSpot } from "../types";
   import { errorText, fmtBB, fmtPct } from "./catalog";
   import Task from "./Task.svelte";

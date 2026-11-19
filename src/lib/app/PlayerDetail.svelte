@@ -1,6 +1,6 @@
 <script lang="ts">
   import { api } from "../api";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
   import type { HudConfig, PlayerNote, PlayerView, ShownHand, StatId } from "../types";
   import Button from "../ui/Button.svelte";

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { MARK_NAME, markOf, markText } from "../library/labels";
   import ShareMark from "../library/ShareMark.svelte";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { openSaved, solutionsApi, type Origin, type SavedSolution, type SolutionsView } from "./solutions";
   import { solver } from "./store.svelte";
   import Term from "../ui/Term.svelte";
