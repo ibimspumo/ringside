@@ -746,12 +746,14 @@
 </div>
 
 <style>
+  /* The list keeps its own small inset; together they start at the page edge. */
   .hands {
     position: relative;
     display: flex;
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    padding-inline: calc(var(--page-gutter) - var(--sp-2));
   }
   .scrim {
     position: absolute;

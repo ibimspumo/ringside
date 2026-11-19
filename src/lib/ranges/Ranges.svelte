@@ -225,7 +225,7 @@
     </p>
   </div>
 {:else}
-  <div class="ranges-page">
+  <div class="page ranges-page">
     <section class="answer" aria-live="polite">
       <p class="eyebrow">
         <span>{situation()}</span>
@@ -428,8 +428,6 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-    padding: 20px 24px 28px;
-    max-width: 2200px;
   }
   .state {
     padding: 48px 24px;

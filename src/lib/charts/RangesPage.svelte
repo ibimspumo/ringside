@@ -815,10 +815,6 @@
 </ClientLock>
 
 <style>
-  /* The grid is the point of the page: on wide screens it may grow past the usual page width. */
-  .ranges-page {
-    max-width: 1800px;
-  }
   /* Stays at the top while the page scrolls; it has its own row, so it covers nothing. */
   .back-bar b {
     color: var(--text);

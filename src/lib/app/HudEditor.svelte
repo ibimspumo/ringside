@@ -259,7 +259,7 @@
     (view?.seats ?? []).map((s) => stat(s.stats, id)?.value).filter((v): v is number => typeof v === "number");
 </script>
 
-<div class="page wide">
+<div class="page">
   {#if settings && view}
     {@const hud = settings.hud}
     {@const pal = PALETTES[hud.palette]}
@@ -667,9 +667,6 @@
 <style>
   .page {
     padding-top: 20px;
-  }
-  .wide {
-    max-width: 2000px;
   }
   .layout {
     display: grid;

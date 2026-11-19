@@ -49,20 +49,29 @@ browser.addEventListener("message", (e) => {
     msg.error ? reject(new Error(msg.error.message)) : resolve(msg.result);
   }
 });
+// A reload in Vite can swallow an answer: every call gives up after 30 s, as "navigated", so the
+// page is loaded again, and the whole shot ends after two minutes at the latest.
+setTimeout(() => {
+  console.error(`shot: no picture after 120 s: ${url}`);
+  process.exit(3);
+}, 120_000).unref();
 const send = (method, params = {}, sessionId) =>
   new Promise((resolve, reject) => {
-    pending.set(++id, { resolve, reject });
-    browser.send(JSON.stringify({ id, method, params, sessionId }));
+    const call = ++id;
+    pending.set(call, { resolve, reject });
+    browser.send(JSON.stringify({ id: call, method, params, sessionId }));
+    setTimeout(() => {
+      if (pending.delete(call)) reject(new Error(`no answer to ${method}: navigated or closed`));
+    }, 30_000);
   });
 
 try {
   const { targetId } = await send("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await send("Target.attachToTarget", { targetId, flatten: true });
   const page = (method, params) => send(method, params, sessionId);
-  await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height, deviceScaleFactor: 2, mobile: false });
+  await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height, deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 2), mobile: false });
   await page("Page.enable");
   await page("Runtime.enable");
-  await page("Page.navigate", { url });
   // The first visit compiles the app in Vite, so "load" comes long before anything is drawn:
   // wait until the page has content that stops changing, then for fonts and two frames.
   const ready = `new Promise((done) => {
@@ -78,14 +87,24 @@ try {
     };
     poll();
   })`;
-  await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
+  // Vite may reload the page once while it optimizes dependencies on the first visits; the wait
+  // then ends with "Inspected target navigated", and the page is loaded again.
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await page("Page.navigate", { url });
+      await page("Runtime.evaluate", { expression: ready, awaitPromise: true, timeout: 20000 });
+      break;
+    } catch (e) {
+      if (attempt >= 3 || !/navigated or closed|context was destroyed/i.test(e.message)) throw e;
+    }
+  }
   if (full === "full") {
     const { result } = await page("Runtime.evaluate", {
       expression: `(() => { const el = document.querySelector("main .content") ?? document.scrollingElement; return el.scrollHeight - el.clientHeight; })()`,
       returnByValue: true,
     });
     if (result.value > 0) {
-      await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height + result.value, deviceScaleFactor: 2, mobile: false });
+      await page("Emulation.setDeviceMetricsOverride", { width: +width, height: +height + result.value, deviceScaleFactor: Number(process.env.SHOT_SCALE ?? 2), mobile: false });
       await page("Runtime.evaluate", {
         expression: "new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(done, 150))))",
         awaitPromise: true,

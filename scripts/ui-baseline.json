@@ -1,9 +1,8 @@
 {
   "rules": {
     "color-literal": {
-      "total": 141,
+      "total": 140,
       "files": {
-        "app/Main.svelte": 1,
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
         "demo.ts": 3,
@@ -92,12 +91,11 @@
       }
     },
     "button-style": {
-      "total": 129,
+      "total": 125,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,
         "app/Hands.svelte": 1,
-        "app/Main.svelte": 4,
         "app/Replayer.svelte": 6,
         "app/TournamentPicker.svelte": 6,
         "hud/SeatAnatomy.svelte": 4,
@@ -130,16 +128,16 @@
       }
     },
     "global-class-override": {
-      "total": 63,
+      "total": 61,
       "files": {
         "app/ClientLock.svelte": 1,
-        "app/Main.svelte": 3,
+        "app/Main.svelte": 2,
         "app/Reports.svelte": 3,
         "app/ResultsChart.svelte": 1,
         "hud/GraphicSeat.svelte": 1,
         "hud/ThresholdScale.svelte": 1,
         "jobs/ChipRing.svelte": 1,
-        "jobs/JobsDock.svelte": 3,
+        "jobs/JobsDock.svelte": 1,
         "jobs/JobToasts.svelte": 1,
         "learn/FeedbackView.svelte": 1,
         "learn/OwnHands.svelte": 4,
@@ -151,6 +149,7 @@
         "learn/wissen/blocks/TableDiagram.svelte": 4,
         "learn/wissen/widgets/Combos.svelte": 3,
         "learn/wissen/Wissen.svelte": 3,
+        "nav/NavNotices.svelte": 1,
         "play/InfoPanel.svelte": 3,
         "ranges/RangeGrid.svelte": 1,
         "ranges/Ranges.svelte": 3,

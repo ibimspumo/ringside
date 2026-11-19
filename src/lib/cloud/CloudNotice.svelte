@@ -36,7 +36,9 @@
       <path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.7-1A4.5 4.5 0 0 0 7 18.5z" />
     </svg>
     <p class="line">
-      <b>Ringside Cloud ist an.</b> Geteilt werden nur Rechen-Eingaben und Ergebnisse, nichts Persönliches.
+      <b>Ringside Cloud ist an.</b>
+      <span class="long">Geteilt werden nur Rechen-Eingaben und Ergebnisse, nichts Persönliches.</span>
+      <span class="short">Geteilt werden nur Rechendaten, nichts Persönliches.</span>
     </p>
     <div class="actions">
       <Button size="sm" variant="quiet" aria-expanded={details} aria-controls="cloud-details" onclick={() => (details = !details)}>
@@ -58,15 +60,16 @@
 
 <style>
   .notice {
+    container-type: inline-size;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     column-gap: var(--sp-3);
-    margin: var(--sp-3) var(--sp-6) 0;
+    margin: var(--sp-3) var(--frame-right, var(--frame-auto)) 0 var(--frame-left, var(--frame-auto));
     padding: 6px 6px 6px var(--sp-3);
-    border: 1px solid var(--line-2);
+    border: 1px solid var(--line);
     border-radius: var(--r);
-    background: var(--surface-2);
+    background: var(--surface);
   }
   svg {
     fill: none;
@@ -84,6 +87,23 @@
   b {
     color: var(--text);
     font-weight: var(--fw-semibold);
+  }
+  /* One line in every window: narrow ones get the short sentence, "Details" says the rest. */
+  .line {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .short {
+    display: none;
+  }
+  @container (max-width: 1060px) {
+    .long {
+      display: none;
+    }
+    .short {
+      display: inline;
+    }
   }
   .actions {
     display: flex;

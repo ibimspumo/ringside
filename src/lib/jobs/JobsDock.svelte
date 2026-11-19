@@ -5,7 +5,12 @@
   import { cancelJob, clearJobs, jobs, startJobs } from "./store.svelte";
   import type { Job, JobTarget } from "./types";
 
-  let { onView }: { onView: (target: JobTarget) => void } = $props();
+  /** `top`: the dock sits in a top bar, so the panel opens below it at the right. */
+  let {
+    onView,
+    placement = "side",
+    compact = false,
+  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** The ring alone; its tooltip names the state. */ compact?: boolean } = $props();
 
   onMount(startJobs);
 
@@ -57,20 +62,25 @@
 <button
   class="dock"
   class:busy={active.length > 0}
+  class:compact
+  aria-label={compact ? `Aufgaben: ${summary}` : undefined}
+  title={compact ? `Aufgaben: ${summary}` : undefined}
   bind:this={button}
   aria-expanded={jobs.open}
   aria-controls="jobs-panel"
   onclick={() => (jobs.open = !jobs.open)}
 >
   <ChipRing {share} count={active.length} dim={jobs.locked} size={30} />
-  <span class="txt">
-    <b>Aufgaben</b>
-    <small>{summary}</small>
-  </span>
+  {#if !compact}
+    <span class="txt">
+      <b>Aufgaben</b>
+      <small>{summary}</small>
+    </span>
+  {/if}
 </button>
 
 {#if jobs.open}
-  <div class="panel" id="jobs-panel" role="dialog" aria-label="Aufgaben" bind:this={panel}>
+  <div class="sheet" class:top={placement === "top"} id="jobs-panel" role="dialog" aria-label="Aufgaben" bind:this={panel}>
     <header>
       <div>
         <h2>Aufgaben</h2>
@@ -187,25 +197,22 @@
     line-height: 1.25;
   }
   .txt b {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
     color: var(--text-2);
   }
   .busy .txt b {
     color: var(--text);
   }
   .txt small {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: var(--fs-md);
+    color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .busy .txt small {
-    color: var(--text-2);
-  }
 
-  .panel {
+  .sheet {
     position: fixed;
     left: 206px;
     bottom: 12px;
@@ -220,6 +227,12 @@
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     animation: rise 0.16s ease-out;
   }
+  .sheet.top {
+    left: auto;
+    right: 12px;
+    top: 64px;
+    bottom: auto;
+  }
   @keyframes rise {
     from {
       opacity: 0;
@@ -227,7 +240,7 @@
     }
   }
   @media (prefers-reduced-motion: reduce) {
-    .panel {
+    .sheet {
       animation: none;
     }
   }

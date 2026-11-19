@@ -70,7 +70,7 @@
   $effect(() => {
     const box = scroller();
     if (!box) return;
-    const size = new ResizeObserver(() => (wide = box.clientWidth >= 1500));
+    const size = new ResizeObserver(() => (wide = box.clientWidth >= 1280));
     size.observe(box);
     return () => size.disconnect();
   });
@@ -515,14 +515,14 @@
 {/snippet}
 
 <style>
-  .settings {
+  /* Setting rows keep a readable line; the page frame itself stays the app's one width. */
+  .settings:not(.wide) > :global(*) {
     max-width: 1040px;
   }
   .settings.wide {
     display: grid;
     grid-template-columns: 300px minmax(0, 1fr);
     gap: var(--sp-10);
-    max-width: 1680px;
   }
   .overview {
     position: sticky;

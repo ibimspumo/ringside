@@ -205,12 +205,6 @@
     background: rgba(229, 72, 59, 0.12);
     color: #ff9d93;
   }
-  /* Very wide windows: the area may grow beyond the usual page width; reading text keeps its own measure. */
-  @container (min-width: 1800px) {
-    .learn {
-      max-width: 1640px;
-    }
-  }
   @container (max-width: 560px) {
     .learn {
       padding: 18px 16px 40px;

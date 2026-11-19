@@ -17,6 +17,7 @@
   import IconButton from "./IconButton.svelte";
   import Kbd from "./Kbd.svelte";
   import MiniCard from "./MiniCard.svelte";
+  import NavItem from "./NavItem.svelte";
   import PageHeader from "./PageHeader.svelte";
   import Panel from "./Panel.svelte";
   import PlayingCard from "./PlayingCard.svelte";
@@ -69,6 +70,7 @@
     ["bewegung", "Bewegung"],
     ["knoepfe", "Knöpfe & Kürzel"],
     ["auswahl", "Auswahl"],
+    ["navigation", "Navigation"],
     ["flaechen", "Flächen & Kennzahlen"],
     ["einstellungen", "Einstellungen"],
     ["schilder", "Schilder"],
@@ -80,6 +82,13 @@
     ["zustaende", "Fortschritt & Zustände"],
   ] as const;
   const show = (id: string) => !only || only === id;
+  const NAV_ICON = {
+    learn: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5",
+    play: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z",
+    leak: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10z",
+    live: "M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5z",
+    stats: "M5 19.5V13M10 19.5V8.5M15 19.5v-8M20 19.5V4.5M3.5 19.5h17",
+  };
 
   // Einstellungen
   let autoOn = $state(true);
@@ -466,6 +475,32 @@
             <SearchField label="Spieler suchen" bind:value={kitSearch} />
             <div class="row">{#each ["Cash", "Turnier", "Spin & Go"] as t (t)}<Tag selected={picked.includes(t)} onclick={() => toggle(t)}>{t}</Tag>{/each}</div>
             <div class="row">{#each tags as t (t)}<Tag onremove={() => (tags = tags.filter((x) => x !== t))} removeLabel="Filter {t} entfernen">Position: {t}</Tag>{/each}<Tag>nur Beschriftung</Tag></div>
+          </div>
+        </div>
+      </section>
+    {/if}
+
+    {#if show("navigation")}
+      <section id="navigation">
+        <SectionHead
+          title="Navigation"
+          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
+        />
+        <div class="stack">
+          <div class="navbar">
+            <NavItem size="top" label="Start" icon={NAV_ICON.live} />
+            <NavItem size="top" label="Mein Spiel" icon={NAV_ICON.stats} chevron="down" current status="4 Schwachstellen" tone="warn" aria-expanded={false} />
+            <NavItem size="top" label="Üben" icon={NAV_ICON.learn} chevron="down" locked aria-expanded={true} />
+            <NavItem size="top" label="Gegner" icon={NAV_ICON.live} chevron="down" status="3" tone="good" aria-expanded={false} />
+          </div>
+          <div class="navbar">
+            <NavItem size="sub" label="Hände" icon={NAV_ICON.play} status="rechnet 96 %" />
+            <NavItem size="sub" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
+            <NavItem size="sub" label="Nachrechnen" icon={NAV_ICON.stats} locked />
+          </div>
+          <div class="navtiles">
+            <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Chips verlierst und was dagegen hilft." status="4 gefunden" tone="warn" active />
+            <NavItem size="tile" label="Nachrechnen" icon={NAV_ICON.stats} text="Eine Situation genau durchrechnen lassen." status="gesperrt" locked />
           </div>
         </div>
       </section>
@@ -940,6 +975,22 @@
   .kit-table .r {
     padding: 0 var(--sp-4);
     text-align: right;
+  }
+  .navbar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 10px var(--sp-3);
+    border-radius: var(--r);
+    background: var(--surface-sunken);
+  }
+  .navtiles {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-2);
+    padding: var(--sp-2);
+    border-radius: var(--r);
+    background: var(--surface);
   }
   .two {
     display: grid;

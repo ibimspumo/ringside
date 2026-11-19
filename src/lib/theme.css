@@ -197,8 +197,8 @@ input[type="range"] {
 
 /* Page scaffolding */
 .page {
-  padding: 26px 30px 48px;
-  max-width: 1360px;
+  padding: 26px var(--page-gutter) 48px;
+  max-width: var(--page-max);
   margin-inline: auto;
 }
 .page-head {
@@ -454,6 +454,16 @@ input[type="range"] {
   --sp-8: 32px;
   --sp-10: 40px;
   --sp-12: 48px;
+
+  /*
+   * Page frame: no page, header or bar content is wider than in a 1440 px window, the size the
+   * app is laid out and checked at most; wider screens only add calm margins. The gutter is the
+   * page's own inner edge. `--frame-auto` is where content starts when nothing measured the page:
+   * use it as padding-inline of a full-width element.
+   */
+  --page-max: 1440px;
+  --page-gutter: 30px;
+  --frame-auto: calc(max(0px, (100% - var(--page-max)) / 2) + var(--page-gutter));
 
   /* Type scale; check-ui.mjs knows the same steps. */
   --fs-xs: 11px;

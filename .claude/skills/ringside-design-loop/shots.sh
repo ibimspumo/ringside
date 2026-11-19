@@ -7,6 +7,7 @@
 #   shots.sh /tmp/ringside-shots/hud/r1 editor='?tab=hud' overlay='?view=overlay'
 # Other sizes: SIZES="980,700 1920,1080" shots.sh …
 # Whole page instead of the window: FULL=1 shots.sh …
+# Pixel density (default 2): SHOT_SCALE=1 for 2560 and 3840 px wide windows.
 # shot.mjs drives Chrome over DevTools and waits for fonts and painted frames; reduced motion
 # keeps entry animations from being caught half-way.
 # Writes <out-dir>/<name>-<width>.png. Starts its own Vite on a free port and stops it again.
@@ -27,6 +28,18 @@ trap 'kill $vite 2>/dev/null; pkill -P $vite 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do
   curl -s -o /dev/null "http://localhost:$port/" && break
   sleep 0.5
+done
+# The first page a browser loads makes Vite optimize dependencies, regenerate SvelteKit's files and
+# reload the page, which would end a shot half-way: load one page first, then wait until the log
+# has shown no new reload for 5 s.
+node "$here/shot.mjs" "$chrome" "http://localhost:$port/" 980 700 "$out/.warmup.png" >/dev/null 2>&1 || true
+rm -f "$out/.warmup.png"
+last=-1; quiet=0
+for _ in $(seq 1 60); do
+  n=$(grep -c "page reload" "$out/vite.log" || true)
+  if [ "$n" = "$last" ]; then quiet=$((quiet + 1)); else quiet=0; last=$n; fi
+  [ $quiet -ge 5 ] && break
+  sleep 1
 done
 
 for view in "$@"; do

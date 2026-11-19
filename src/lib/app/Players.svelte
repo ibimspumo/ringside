@@ -105,7 +105,7 @@
   }
 </script>
 
-<div class="page roomy" bind:clientWidth={width}>
+<div class="page" bind:clientWidth={width}>
   <div class="split" class:docked={docked && !!selected}>
     <section class="list" aria-label="Spieler">
       <div class="bar">
@@ -169,9 +169,6 @@
 {/if}
 
 <style>
-  .roomy {
-    max-width: 1920px;
-  }
   .split {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
