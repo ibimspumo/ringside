@@ -20,6 +20,7 @@ mod analysis;
 mod report;
 mod ranges;
 mod session;
+mod skill;
 mod solutions;
 mod store;
 pub use ranges::{RangeCounts, RangeFilter, RangeGroup};
@@ -31,7 +32,7 @@ pub use analysis::{
 };
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 7;
+const SCHEMA_VERSION: i32 = 8;
 
 pub struct Db {
     conn: Connection,
@@ -353,6 +354,7 @@ impl Db {
             ("hands", "bounty_currency", "TEXT"),
             ("hands", "hero_ev", "INTEGER"),
             ("hands", "hero_stack_bb", "REAL"),
+            ("hands", "hero_chips_bb", "REAL"),
             ("player_hands", "position", "TEXT"),
             ("player_hands", "shown", "TEXT NOT NULL DEFAULT ''"),
             ("player_hands", "bounty", "INTEGER NOT NULL DEFAULT 0"),
@@ -1164,7 +1166,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
     tx.prepare_cached(
         "UPDATE hands SET hero_position = ?2, hero_class = ?3, hero_showdown = ?4, hero_bounty = ?5,
              pot = ?6, board = ?7, bounty_currency = ?8, played_at = ?9, hero_net = ?10, hero_ev = ?11,
-             hero_stack_bb = ?12 WHERE id = ?1",
+             hero_stack_bb = ?12, hero_chips_bb = ?13 WHERE id = ?1",
     )?
     .execute(params![
         hand.id as i64,
@@ -1179,6 +1181,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         hero.map(|h| hand.net(h)),
         hero_ev,
         hero.and_then(|h| effective_stack_bb(hand, h)),
+        hero.and_then(|h| own_stack_bb(hand, h)),
     ])?;
 
     if let Some(tid) = hand.tournament_id {
@@ -1222,6 +1225,12 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         }
     }
     Ok(())
+}
+
+/// The hero's own stack at the start of the hand, in big blinds.
+pub fn own_stack_bb(hand: &Hand, hero: &str) -> Option<f64> {
+    let own = hand.seats.iter().find(|s| s.name == hero)?.stack;
+    (hand.big_blind > 0).then(|| own as f64 / hand.big_blind as f64)
 }
 
 /// The hero's stack against the biggest other stack dealt in, in big blinds.

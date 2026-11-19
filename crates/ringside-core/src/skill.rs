@@ -542,6 +542,11 @@ fn areas(window: &[&Unit], rating: f64) -> Vec<AreaScore> {
     out
 }
 
+/// Whether the played action put chips at risk: a fold or a check loses nothing by luck.
+fn risked(played: &str) -> bool {
+    !(played.starts_with("Fold") || played.starts_with("Check"))
+}
+
 /// Each decision's share of the tournament's change, to first order: the tournament
 /// moved by `K·(P − R)`, and near the rating `P − R ≈ (B / ln 2)·Σ w·(e·s − c) / (e·O)` with
 /// `e` the error rate of the rating before.
@@ -568,7 +573,7 @@ fn moments(u: &Unit, before: f64, k: f64, real: f64) -> Vec<Moment> {
                 points,
                 lost_pct: w.cost * 100.0,
                 pot_pct: m.pot_bb.unwrap_or(0.0) / m.chips_bb.or(m.stack_bb).unwrap_or(1.0) * 100.0,
-                bad_luck: good && w.stake >= LUCK_STAKE && m.hero_net_bb.is_some_and(|n| n < 0.0),
+                bad_luck: good && risked(&m.played) && w.stake >= LUCK_STAKE && m.hero_net_bb.is_some_and(|n| n < 0.0),
             })
         })
         .filter(|m| m.points.abs() >= 0.5)
@@ -878,7 +883,13 @@ mod tests {
         unlucky.spot = SpotType::CallShove;
         unlucky.hero_net_bb = Some(-30.0);
         v.extend([blunder, unlucky]);
+        let mut folded = mv(102, t, 0, Source::Equilibrium, 0.0, 30.0, 30.0);
+        folded.spot = SpotType::CallShove;
+        folded.played = "Fold".into();
+        folded.hero_net_bb = Some(-1.0);
+        v.push(folded);
         let p = profile(&v);
+        assert!(p.moments.iter().filter(|m| m.hand_id == 102).all(|m| !m.bad_luck), "a fold loses no chips by luck");
         assert_eq!(p.moments[0].hand_id, 100);
         assert!(p.moments[0].points < 0.0 && p.moments[0].area == Area::VsAllIn);
         let luck = p.moments.iter().find(|m| m.hand_id == 101).expect("the good call is named");
