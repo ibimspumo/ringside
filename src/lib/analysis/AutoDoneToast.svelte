@@ -45,7 +45,7 @@
   <Toast
     tone="good"
     title={hands(done.hands)}
-    text="{mistakes(done.mistakes)} · {s ? `Wertung ${s.delta !== null ? `${delta(s.delta)} · jetzt ` : ""}${points(s.rating)}` : 'dein Session-Rückblick ist fertig'}"
+    text={s ? `Wertung ${s.delta !== null ? `${delta(s.delta)}, jetzt ` : ""}${points(s.rating)} · ${mistakes(done.mistakes)}` : `${mistakes(done.mistakes)} · dein Session-Rückblick ist fertig`}
     action={{
       label: "Rückblick ansehen",
       onclick: () => {
