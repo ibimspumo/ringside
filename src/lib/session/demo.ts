@@ -5,6 +5,7 @@
 import { demoChange } from "../skill/demo";
 import type { KindLoss, Moment } from "../report/types";
 import { demoTournaments } from "../demo";
+import { siteOfId } from "../app/format";
 import type { ClassGap, PreflopReview, SessionPage, SessionReview, SessionSpan, Swing } from "./types";
 
 const preview = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
@@ -282,7 +283,14 @@ export const SESSION_KINDS: KindLoss[] = [
 function spans(): SessionSpan[] {
   // One currency for the evening, like most players.
   const ids = demoTournaments().rows.filter((t) => t.currency === "USD").map((t) => t.id);
-  const mk = (start: string, end: string, hands: number, t: number[], cash = 0): SessionSpan => ({ start, end, hands, tournaments: t, cash_hands: cash });
+  const mk = (start: string, end: string, hands: number, t: number[], cash = 0): SessionSpan => ({
+    start,
+    end,
+    hands,
+    tournaments: t,
+    cash_hands: cash,
+    sites: t.some((id) => siteOfId(id) === "ggpoker") ? ["pokerstars", "ggpoker"] : ["pokerstars"],
+  });
   return [
     mk(START, "2026/11/18 22:41:30", preview === "few" ? 22 : 152, ids.slice(0, 3)),
     mk("2026/11/17 19:12:00", "2026/11/17 21:58:00", 211, ids.slice(3, 7)),
@@ -379,6 +387,6 @@ export function demoSession(start: string | null): SessionPage {
     return { ...t, place, prize, profit, entrants: [null, 412, 690][i], hands: [61, 58, 33][i], started_at: ["2026/11/18 20:04:00", "2026/11/18 20:09:00", "2026/11/18 21:20:00"][i] };
   });
   const r = review(span, at);
-  const isLocked = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
+  const isLocked = typeof window !== "undefined" && ["1", "gg"].includes(new URLSearchParams(window.location.search).get("locked") ?? "");
   return { sessions, review: isLocked ? locked(r) : r, tournaments, skill: isLocked ? null : demoChange() };
 }

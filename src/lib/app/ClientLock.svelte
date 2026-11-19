@@ -3,7 +3,7 @@
   import AtTable from "./AtTable.svelte";
   import { pokerClient, watchPokerClient } from "./client.svelte";
 
-  /** Shows `children` only while the PokerStars client is closed. */
+  /** Shows `children` only while no poker client runs (PokerStars or GGPoker). */
   let { children }: { children: Snippet } = $props();
 
   // Unknown until the backend answers; nothing is shown meanwhile, so locked content never flashes.

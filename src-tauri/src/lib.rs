@@ -1,6 +1,9 @@
 mod analysis;
 mod auto_analysis;
 mod charts;
+// Called by the Windows window scan only.
+#[cfg_attr(not(windows), allow(dead_code))]
+mod clients;
 pub mod cloud;
 mod coach;
 mod drill;
@@ -46,8 +49,10 @@ pub struct AppState {
     pub settings: Mutex<Settings>,
     pub import: Mutex<ImportStatus>,
     pub overlays: Overlays,
-    /// The PokerStars client is open; advice features stay locked meanwhile.
+    /// A poker client is open (PokerStars or GGPoker); advice features stay locked meanwhile.
     pub client_running: AtomicBool,
+    /// Which one, for the lock notice.
+    pub running_client: Mutex<Option<ringside_core::model::Site>>,
     pub notes: Mutex<NotesState>,
 }
 
@@ -357,6 +362,19 @@ async fn live_tables(state: State<'_, AppState>) -> CmdResult<Vec<LiveTable>> {
 #[tauri::command]
 fn poker_client_running(state: State<'_, AppState>) -> bool {
     state.client_running.load(Ordering::Relaxed)
+}
+
+/// Imports hand histories, tournament summaries or ZIP archives the user picked or dropped.
+#[tauri::command]
+async fn import_hand_files(app: AppHandle, paths: Vec<String>) -> CmdResult<ringside_core::import::ImportReport> {
+    let paths: Vec<std::path::PathBuf> = paths.into_iter().map(Into::into).collect();
+    tauri::async_runtime::spawn_blocking(move || importer::import_files(&app, &paths)).await.map_err(err)?
+}
+
+/// The running poker client by name ("PokerStars", "GGPoker"), for the lock notice.
+#[tauri::command]
+fn poker_client_name(state: State<'_, AppState>) -> Option<&'static str> {
+    state.running_client.lock().unwrap().map(|s| s.name())
 }
 
 #[derive(Serialize)]
@@ -691,6 +709,7 @@ pub fn run() {
                 overlays: Overlays::default(),
                 // Until the first scan says otherwise, so nothing calculates in the moment before it.
                 client_running: AtomicBool::new(cfg!(windows)),
+                running_client: Mutex::new(None),
                 notes: Mutex::new(NotesState::default()),
             });
             app.manage(coach::CoachState::default());
@@ -735,6 +754,8 @@ pub fn run() {
             client_windows,
             live_tables,
             poker_client_running,
+            poker_client_name,
+            import_hand_files,
             detected_dirs,
             dashboard,
             reports,
@@ -888,5 +909,17 @@ mod tests {
         assert!(unlocked(&state).is_ok());
         state.client_running.store(true, Ordering::Relaxed);
         assert_eq!(unlocked(&state).unwrap_err(), "gesperrt");
+    }
+
+    /// The window scan sets the state like this when it finds the GGPoker client's process.
+    #[test]
+    fn the_gate_refuses_while_ggpoker_runs_and_names_it() {
+        let state = test_state();
+        let client = crate::clients::client_of_exe(r"C:\Program Files\GGPoker\bin\GGnet.exe");
+        state.client_running.store(client.is_some(), Ordering::Relaxed);
+        *state.running_client.lock().unwrap() = client;
+        assert_eq!(unlocked(&state).unwrap_err(), "gesperrt");
+        assert_eq!(state.running_client.lock().unwrap().map(|s| s.name()), Some("GGPoker"));
+        assert!(locked(&state));
     }
 }

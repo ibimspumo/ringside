@@ -19,5 +19,5 @@ export const onCloudChanged = (handler: (cloud: CloudSettings) => void) =>
 
 export function errorText(e: unknown): string {
   const text = typeof e === "string" ? e : e instanceof Error ? e.message : "Unbekannter Fehler.";
-  return text === "gesperrt" ? "Solange PokerStars läuft, sendet Ringside nichts. Bitte danach erneut versuchen." : text;
+  return text === "gesperrt" ? "Solange ein Poker-Client läuft, sendet Ringside nichts. Bitte danach erneut versuchen." : text;
 }

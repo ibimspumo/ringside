@@ -66,3 +66,25 @@ export function since(period: Period, now = new Date()): string | null {
 }
 
 export { floating, type Anchor, type FloatOptions } from "../ui/floating";
+
+/** GGPoker ids live from 2⁵² up, so they never meet PokerStars ids (`Site::of_id` in ringside-core). */
+const GG_ID_BASE = 2 ** 52;
+/** Room per two-letter GGPoker hand prefix ("TM", "HD", "RC", …). */
+const GG_PREFIX_SPAN = 6e12;
+
+export function siteOfId(id: number): "pokerstars" | "ggpoker" {
+  return id >= GG_ID_BASE ? "ggpoker" : "pokerstars";
+}
+
+/** A hand number as the client writes it: "260012345678" or "TM5216773942". */
+export function handLabel(id: number): string {
+  if (id < GG_ID_BASE) return String(id);
+  const rest = id - GG_ID_BASE;
+  const code = Math.floor(rest / GG_PREFIX_SPAN);
+  return String.fromCharCode(65 + Math.floor(code / 26), 65 + (code % 26)) + String(rest % GG_PREFIX_SPAN);
+}
+
+/** A tournament number as the client writes it. */
+export function tournamentLabel(id: number): string {
+  return String(id >= GG_ID_BASE ? id - GG_ID_BASE : id);
+}

@@ -13,7 +13,7 @@
       case "running":
         return `${pool.title} ${remaining(pool.eta_secs) ?? ""}`.trim();
       case "paused_client":
-        return "Pausiert, solange PokerStars läuft";
+        return "Pausiert, solange ein Poker-Client läuft";
       case "done":
         return `${pool.ready} Spots bereit`;
       case "cancelled":

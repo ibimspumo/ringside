@@ -7,7 +7,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params, params_from_i
 use serde::{Deserialize, Serialize};
 
 use crate::allin::hero_all_in;
-use crate::model::{GameKind, Hand};
+use crate::model::{GameKind, Hand, Site};
 use crate::parser::parse_hand;
 use crate::profile::kind_of;
 use crate::leaks::{self, Cell};
@@ -83,6 +83,9 @@ pub struct HandQuery {
     /// Hands with a decision of this kind of spot of the playing profile (`SpotKind::key`).
     #[serde(default)]
     pub profile: Option<String>,
+    /// Hands from one poker client.
+    #[serde(default)]
+    pub site: Option<Site>,
     /// Hands with a rated decision in this area of the Spielwertung.
     #[serde(default)]
     pub area: Option<crate::skill::Area>,
@@ -120,6 +123,7 @@ impl SpotFilter {
 #[derive(Debug, Clone, Serialize)]
 pub struct HandSummary {
     pub id: u64,
+    pub site: Site,
     pub game: GameKind,
     pub played_at: String,
     pub table_name: String,
@@ -211,6 +215,8 @@ pub struct Session {
     /// Knockout money won, per currency.
     pub bounties: BTreeMap<String, i64>,
     pub tables: i64,
+    /// The clients played in this session, PokerStars first.
+    pub sites: Vec<Site>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -357,6 +363,8 @@ impl Db {
             ("hands", "bounty_currency", "TEXT"),
             ("hands", "hero_ev", "INTEGER"),
             ("hands", "hero_stack_bb", "REAL"),
+            // Every hand stored before GGPoker support came from PokerStars.
+            ("hands", "site", "TEXT NOT NULL DEFAULT 'pokerstars'"),
             ("hands", "hero_chips_bb", "REAL"),
             ("player_hands", "position", "TEXT"),
             ("player_hands", "shown", "TEXT NOT NULL DEFAULT ''"),
@@ -448,8 +456,8 @@ impl Db {
         for (hand, raw) in hands {
             let changed = tx.prepare_cached(
                 "INSERT OR IGNORE INTO hands (id, game, tournament_id, table_key, table_name, played_at,
-                     small_blind, big_blind, currency, hero, hero_cards, hero_net, raw)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+                     small_blind, big_blind, currency, hero, hero_cards, hero_net, raw, site)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             )?
             .execute(params![
                 hand.id as i64,
@@ -465,6 +473,7 @@ impl Db {
                 hand.hero_cards.join(" "),
                 hand.hero.as_deref().map(|h| hand.net(h)),
                 raw,
+                hand.site.as_str(),
             ])?;
             if changed > 0 {
                 write_derived(&tx, hand, true)?;
@@ -513,6 +522,9 @@ impl Db {
     /// A player's counters in the session `hand` belongs to: the same tournament, or for cash
     /// games the same table on the same day.
     pub fn counters_in_session(&self, player: &str, hand: &Hand) -> Result<Counters, Error> {
+        if hand.site != Site::PokerStars {
+            return Ok(Counters::default());
+        }
         let sql = format!(
             "SELECT {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
              WHERE ph.player = ?1
@@ -555,7 +567,7 @@ impl Db {
     ) -> Result<Vec<PlayerRow>, Error> {
         let sql = format!(
             "SELECT ph.player, SUM(ph.net), {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE {FILTER_SQL} AND {HAND_RANGE_SQL}
+             WHERE {FILTER_SQL} AND {HAND_RANGE_SQL} AND h.site = 'pokerstars'
                AND (?5 IS NULL OR ph.player = ?5) AND ph.player LIKE ?6 ESCAPE '\\'
              GROUP BY ph.player ORDER BY SUM(ph.hands) DESC, ph.player LIMIT ?7",
             sums()
@@ -666,11 +678,11 @@ impl Db {
     pub fn sessions(&self, filter: &Filter) -> Result<Vec<Session>, Error> {
         let sql = format!(
             "SELECT h.played_at, {MINUTES_SQL}, h.hero_net, CAST(h.hero_net AS REAL) / h.big_blind, h.hero_bounty,
-                    h.table_key, h.bounty_currency, h.tournament_id
+                    h.table_key, h.bounty_currency, h.tournament_id, h.site
              FROM hands h WHERE h.hero_net IS NOT NULL AND {FILTER_SQL} ORDER BY h.played_at, h.id"
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
-        type Row = (String, f64, i64, f64, i64, String, Option<String>, Option<i64>);
+        type Row = (String, f64, i64, f64, i64, String, Option<String>, Option<i64>, String);
         let rows: Vec<Row> = stmt
             .query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
                 Ok((
@@ -682,6 +694,7 @@ impl Db {
                     r.get(5)?,
                     r.get(6)?,
                     r.get(7)?,
+                    r.get(8)?,
                 ))
             })?
             .collect::<Result<_, _>>()?;
@@ -698,6 +711,7 @@ impl Db {
                     net_bb: 0.0,
                     bounties: BTreeMap::new(),
                     tables: 0,
+                    sites: Vec::new(),
                 });
                 tables.push(Default::default());
             }
@@ -709,6 +723,12 @@ impl Db {
             add_bounty(&mut s.bounties, r.4, r.6);
             tables[i].insert(r.5);
             s.tables = tables[i].len() as i64;
+            if let Some(site) = Site::parse(&r.8)
+                && !s.sites.contains(&site)
+            {
+                s.sites.push(site);
+                s.sites.sort_by_key(|s| *s != Site::PokerStars);
+            }
         }
         sessions.reverse();
         Ok(sessions)
@@ -719,7 +739,7 @@ impl Db {
         let mut stmt = self.conn.prepare_cached(
             "SELECT h.id, h.played_at, ph.shown, h.board, ph.position, ph.net, ph.big_blind
              FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE ph.player = ?1 AND ph.shown != '' ORDER BY h.played_at DESC, h.id DESC LIMIT ?2",
+             WHERE ph.player = ?1 AND ph.shown != '' AND h.site = 'pokerstars' ORDER BY h.played_at DESC, h.id DESC LIMIT ?2",
         )?;
         let rows = stmt.query_map(params![player, limit as i64], |r| {
             Ok(ShownHand {
@@ -806,12 +826,13 @@ impl Db {
             ),
         };
         let positions = q.spot.as_ref().filter(|f| !f.positions.is_empty()).map(|f| format!(",{},", f.positions.join(",")));
+        let site_sql = q.site.map(|s| format!("AND h.site = '{}'", s.as_str())).unwrap_or_default();
         let sql = format!(
             "SELECT h.id, h.game, h.played_at, h.table_name, h.small_blind, h.big_blind, h.currency, h.hero_cards,
-                    h.hero_position, h.hero_net, h.hero_showdown, h.pot, h.board
+                    h.hero_position, h.hero_net, h.hero_showdown, h.pot, h.board, h.site
              FROM hands h
-             WHERE {FILTER_SQL}
-               AND (?5 IS NULL OR h.id IN (SELECT hand_id FROM player_hands WHERE player = ?5))
+             WHERE {FILTER_SQL} {site_sql}
+               AND (?5 IS NULL OR (h.site = 'pokerstars' AND h.id IN (SELECT hand_id FROM player_hands WHERE player = ?5)))
                AND (?6 = 0 OR h.hero_showdown = 1)
                AND (?7 IS NULL OR (?7 = 'won' AND h.hero_net > 0) OR (?7 = 'lost' AND h.hero_net < 0))
                AND (?8 IS NULL OR CAST(h.pot AS REAL) / h.big_blind >= ?8)
@@ -839,6 +860,7 @@ impl Db {
                 let game: String = r.get(1)?;
                 Ok(HandSummary {
                     id: r.get::<_, i64>(0)? as u64,
+                    site: Site::parse(&r.get::<_, String>(13)?).unwrap_or_default(),
                     game: GameKind::parse(&game).unwrap_or(GameKind::Cash),
                     played_at: r.get(2)?,
                     table_name: r.get(3)?,
@@ -875,8 +897,8 @@ impl Db {
         let b = s.buy_in.as_ref();
         self.conn.execute(
             "INSERT INTO tournaments (id, game, currency, buy_in_prize, buy_in_bounty, buy_in_fee, summary,
-                 entrants, started_at, place, prize, bounties, extra_cost, payouts)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
+                 entrants, started_at, place, prize, bounties, extra_cost, payouts, name)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)
              ON CONFLICT(id) DO UPDATE SET
                  game = excluded.game, currency = COALESCE(excluded.currency, currency),
                  buy_in_prize = COALESCE(excluded.buy_in_prize, buy_in_prize),
@@ -884,7 +906,7 @@ impl Db {
                  buy_in_fee = COALESCE(excluded.buy_in_fee, buy_in_fee),
                  summary = 1, entrants = excluded.entrants, started_at = excluded.started_at,
                  place = excluded.place, prize = excluded.prize, bounties = excluded.bounties,
-                 extra_cost = excluded.extra_cost, payouts = excluded.payouts",
+                 extra_cost = excluded.extra_cost, payouts = excluded.payouts, name = COALESCE(name, excluded.name)",
             params![
                 s.id as i64,
                 s.game,
@@ -899,6 +921,7 @@ impl Db {
                 s.bounties,
                 s.extra_cost,
                 s.payouts.iter().map(i64::to_string).collect::<Vec<_>>().join(","),
+                s.name,
             ],
         )?;
         Ok(())
@@ -944,8 +967,10 @@ impl Db {
             let bounties = r.get::<_, Option<i64>>(12)?.unwrap_or(r.get(17)?);
             let extra_cost: i64 = r.get(13)?;
             let cost = buy_in.as_ref().map(|b| b.total() + extra_cost);
+            let id = r.get::<_, i64>(0)? as u64;
             Ok(TournamentRow {
-                id: r.get::<_, i64>(0)? as u64,
+                id,
+                site: Site::of_id(id),
                 game: r.get(1)?,
                 currency: r.get(2)?,
                 buy_in,
@@ -1052,6 +1077,13 @@ impl Db {
         self.conn.query_row("SELECT COUNT(*) FROM hands", [], |r| r.get(0))
     }
 
+    /// Stored hands per poker client.
+    pub fn hands_per_site(&self) -> Result<Vec<(Site, i64)>, Error> {
+        let mut stmt = self.conn.prepare_cached("SELECT site, COUNT(*) FROM hands GROUP BY site")?;
+        let rows: Vec<(String, i64)> = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?.collect::<Result<_, _>>()?;
+        Ok(rows.into_iter().filter_map(|(s, n)| Some((Site::parse(&s)?, n))).collect())
+    }
+
     pub fn max_hand_id(&self) -> Result<Option<u64>, Error> {
         let id: Option<i64> = self.conn.query_row("SELECT MAX(id) FROM hands", [], |r| r.get(0))?;
         Ok(id.map(|id| id as u64))
@@ -1149,7 +1181,8 @@ fn recompute_totals(tx: &Transaction) -> Result<(), Error> {
     tx.execute(
         &format!(
             "INSERT INTO player_totals (player, game, net, {cols})
-             SELECT player, game, SUM(net), {sums} FROM player_hands GROUP BY player, game"
+             SELECT player, game, SUM(net), {sums} FROM player_hands
+             WHERE hand_id IN (SELECT id FROM hands WHERE site = 'pokerstars') GROUP BY player, game"
         ),
         [],
     )?;
@@ -1216,7 +1249,9 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         ];
         values.extend(c.to_vec().into_iter().map(Into::into));
         stmt.execute(params_from_iter(values))?;
-        if add_totals {
+        // Player pages and the HUD know PokerStars players only: GGPoker hides real names behind
+        // ids that are not reliably the same person, and a name may exist on both clients.
+        if add_totals && hand.site == Site::PokerStars {
             let cols = Counters::FIELDS.join(", ");
             let updates =
                 Counters::FIELDS.iter().map(|f| format!("{f} = {f} + excluded.{f}")).collect::<Vec<_>>().join(", ");
@@ -1255,10 +1290,11 @@ pub fn effective_stack_bb(hand: &Hand, hero: &str) -> Option<f64> {
 fn write_tournament(tx: &Transaction, tid: u64, hand: &Hand) -> Result<(), Error> {
     let b = hand.buy_in.as_ref();
     tx.prepare_cached(
-        "INSERT INTO tournaments (id, game, currency, buy_in_prize, buy_in_bounty, buy_in_fee)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+        "INSERT INTO tournaments (id, game, currency, buy_in_prize, buy_in_bounty, buy_in_fee, name)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(id) DO UPDATE SET
              game = CASE WHEN game = '' THEN excluded.game ELSE game END,
+             name = COALESCE(name, excluded.name),
              currency = COALESCE(currency, excluded.currency),
              buy_in_prize = COALESCE(buy_in_prize, excluded.buy_in_prize),
              buy_in_bounty = COALESCE(buy_in_bounty, excluded.buy_in_bounty),
@@ -1271,6 +1307,7 @@ fn write_tournament(tx: &Transaction, tid: u64, hand: &Hand) -> Result<(), Error
         b.map(|b| b.prize),
         b.map(|b| b.bounty),
         b.map(|b| b.fee),
+        hand.tournament_name,
     ])?;
     let hero = hand.hero.as_deref();
     if let Some(f) = hand.finishes.iter().find(|f| Some(f.player.as_str()) == hero) {

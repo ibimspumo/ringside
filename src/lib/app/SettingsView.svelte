@@ -5,6 +5,7 @@
   import CloudSettings from "../cloud/CloudSettings.svelte";
   import LibrarySettings from "../library/LibrarySettings.svelte";
   import MalformedReports from "../cloud/MalformedReports.svelte";
+  import GgImport from "./GgImport.svelte";
   import CoachSettings from "../coach/CoachSettings.svelte";
   import { COACH_INTRO } from "../coach/api";
   import { modelLabel } from "../coach/meaning";
@@ -28,7 +29,7 @@
   const REPO = "https://github.com/ibimspumo/ringside";
 
   const GROUPS = [
-    { id: "s-pokerstars", label: "Hände & Tische", sub: "Wo Ringside deine Hände findet und auf welchen Tischen das HUD liegt." },
+    { id: "s-pokerstars", label: "Hände & Tische", sub: "Wo Ringside deine Hände von PokerStars und GGPoker findet und auf welchen Tischen das HUD liegt." },
     { id: "s-rechnen", label: "Analyse & Rechnen", sub: "Was dein PC für dich rechnet, und wann." },
     { id: "s-cloud", label: "Ringside Cloud", sub: "Fertige Lösungen holen und eigene teilen. Deine Hände bleiben hier." },
     { id: "s-coach", label: "KI-Coach", sub: COACH_INTRO },
@@ -240,7 +241,7 @@
         }
       : { tone: "bad", line: "Kein Hand-History-Ordner gefunden" },
     "s-rechnen": clientRunning
-      ? { tone: "wait", line: "Pausiert, solange PokerStars läuft" }
+      ? { tone: "wait", line: "Pausiert, solange ein Poker-Client läuft" }
       : { tone: auto ? "ok" : "off", line: auto === null ? "…" : auto ? "Neue Hände werden automatisch analysiert" : "Analyse nur, wenn du sie startest" },
     "s-cloud": !cloud
       ? { tone: "off", line: "…" }
@@ -310,7 +311,7 @@
       {@render head(0)}
       <Panel flush>
         <SettingRow
-          title="Hand-History-Ordner"
+          title="PokerStars-Hände"
           sub={dirs.length
             ? "Hier legt PokerStars jede gespielte Hand ab. Ringside liest neue Hände sofort mit."
             : "Hier legt PokerStars jede gespielte Hand ab, sobald das Speichern eingeschaltet ist."}
@@ -358,6 +359,8 @@
           {/if}
           {#if status?.last_error}<p class="error">{status.last_error}</p>{/if}
         </SettingRow>
+
+        <GgImport {settings} {status} onsave={save} />
 
         {#if status}<MalformedReports count={status.malformed} />{/if}
 

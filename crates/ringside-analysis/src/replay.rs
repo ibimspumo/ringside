@@ -86,7 +86,8 @@ pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>,
             raises = 0;
         }
         *put.entry(a.player.as_str()).or_default() += a.amount as f64 / big;
-        if a.kind != ActionKind::PostAnte {
+        // Antes and paid-back blinds are dead money: in the pot, not in the street's bets.
+        if !matches!(a.kind, ActionKind::PostAnte | ActionKind::PostDead) {
             *street_in.entry(a.player.as_str()).or_default() += a.amount as f64 / big;
         }
         if a.kind == ActionKind::Fold {

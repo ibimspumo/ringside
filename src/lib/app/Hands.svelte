@@ -19,11 +19,13 @@
   import { usePageHead } from "../ui/page.svelte";
   import PlayingCard from "../ui/PlayingCard.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
+  import SiteMark from "../ui/SiteMark.svelte";
+  import { severalSites } from "./sites.svelte";
   import type { Grade } from "../ui/poker";
   import Tag from "../ui/Tag.svelte";
-  import type { Filter, Hand, HandQuery, HandSummary, SpotFilter, Street } from "../types";
+  import type { Filter, Hand, HandQuery, HandSummary, Site, SpotFilter, Street } from "../types";
   import type { RangeFilter } from "../ranges/types";
-  import { date, dateTime, sign, signed, time } from "./format";
+  import { date, dateTime, handLabel, sign, signed, time, tournamentLabel } from "./format";
   import type { LearnTarget } from "./Leaks.svelte";
   import Replayer from "./Replayer.svelte";
   import { adviceLocked, watchPokerClient } from "./client.svelte";
@@ -79,6 +81,9 @@
   let showdownOnly = $state(false);
   let result = $state<"won" | "lost" | null>(null);
   let minPot = $state<number | null>(null);
+  let site = $state<Site | null>(null);
+  /** Client marks and the client filter only once hands of both clients are stored. */
+  const several = $derived(severalSites());
   let spots = $state<SpotType[]>([]);
   let minRating = $state<Rating | null>(null);
   let minLoss = $state<number | null>(null);
@@ -142,7 +147,8 @@
     (locked ? 0 : spots.length + (minRating ? 1 : 0) + (minLoss ? 1 : 0) + (street ? 1 : 0) + (source ? 1 : 0)) +
       (showdownOnly ? 1 : 0) +
       (result ? 1 : 0) +
-      (minPot ? 1 : 0),
+      (minPot ? 1 : 0) +
+      (site ? 1 : 0),
   );
   const decisionFilter = $derived.by((): DecisionFilter | null => {
     if (locked) return null;
@@ -168,6 +174,7 @@
     profile: spot?.profile ?? null,
     area: spot?.area ?? null,
     decisions: decisionFilter,
+    site: several ? site : null,
     sort_by_loss: view === "mistakes",
     limit: PAGE,
     offset: 0,
@@ -333,6 +340,7 @@
     showdownOnly = false;
     result = null;
     minPot = null;
+    site = null;
   }
 
   const marks = $derived.by(() => {
@@ -441,7 +449,7 @@
 {#snippet verdictLine()}
   <div class="brief">
     {#if locked}
-      <p class="quiet">Die Analyse pausiert, solange PokerStars läuft – Nachspielen geht weiter.</p>
+      <p class="quiet">Die Analyse pausiert, solange ein Poker-Client läuft – Nachspielen geht weiter.</p>
     {:else if current?.rating}
       {@const g = GRADE_OF[current.rating]}
       <GradeIcon grade={g} size={18} />
@@ -481,7 +489,7 @@
       {#if tournament !== null}
         {@const name = tournamentNames.get(tournament)}
         <Tag selected onremove={onClearTournament} removeLabel="Turnierfilter entfernen">
-          <span class="chip-name" title={name ? `Turnier #${tournament}` : undefined}>{name ?? `Turnier #${tournament}`}</span>
+          <span class="chip-name" title={name ? `Turnier #${tournamentLabel(tournament)}` : undefined}>{name ?? `Turnier #${tournamentLabel(tournament)}`}</span>
         </Tag>
         <Button size="sm" disabled={tournamentBusy || locked} onclick={analyzeTournament} title="Bewertet alle Hände dieses Turniers sofort; die Flop-Spots kommen in der Warteschlange nach vorn.">
           {tournamentBusy ? "Analysiere …" : "Turnier analysieren"}
@@ -586,6 +594,19 @@
           options={[{ value: 0, label: "egal" }, ...[10, 25, 50, 100].map((v) => ({ value: v, label: `${v} BB` }))]}
           bind:value={() => minPot ?? 0, (v) => (minPot = v || null)}
         />
+        {#if several}
+          <span class="sub">Client</span>
+          <SegmentedControl
+            size="sm"
+            label="Client"
+            options={[
+              { value: "all", label: "Beide" },
+              { value: "pokerstars", label: "PokerStars" },
+              { value: "ggpoker", label: "GGPoker" },
+            ]}
+            bind:value={() => site ?? "all", (v) => (site = v === "all" ? null : (v as Site))}
+          />
+        {/if}
       </div>
 
     </div>
@@ -641,6 +662,7 @@
           </span>
           <span class="mid">
             <span class="line">
+              {#if several}<SiteMark site={h.site} />{/if}
               <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="quiet">kein Flop</span>{/each}</span>
               {#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
                   ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
@@ -649,7 +671,6 @@
                     r="2.8"
                   /></svg
                 >{/if}
-
             </span>
             {#if w && v && !locked}
               <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""} · ${sourceHint(w)}` : (w.reason ?? "")}>
@@ -700,13 +721,14 @@
         <header class="hand-head" class:narrow={!wide}>
           <span class="hole">{#each selected.hero_cards as c (c)}<PlayingCard card={c} size={34} />{/each}</span>
           <div class="ident">
-            <h2 title="{name ? `${name} · Tisch ${selected.table_name}` : selected.table_name} · {stakes(selected)} · {dateTime(selected.played_at)} · #{selected.id}">
+            <h2 title="{name ? `${name} · Tisch ${selected.table_name}` : selected.table_name} · {stakes(selected)} · {dateTime(selected.played_at)} · #{handLabel(selected.id)}">
               {#if summaryOf?.hero_position}<span class="num">{summaryOf.hero_position}</span>{/if}
               <span class="table-name">{name ?? selected.table_name}</span>
+              {#if several}<SiteMark site={selected.site ?? "pokerstars"} size="md" />{/if}
             </h2>
             <p class="num">
               {#if name}Tisch {selected.table_name.split(" ").at(-1)} · {/if}{stakes(selected)} · {dateTime(selected.played_at)}
-              <span title="Nummer der Hand bei PokerStars">#{selected.id}</span>
+              <span title="Nummer der Hand bei {selected.site === 'ggpoker' ? 'GGPoker' : 'PokerStars'}">#{handLabel(selected.id)}</span>
             </p>
           </div>
           {#if net !== null}

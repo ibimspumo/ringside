@@ -117,7 +117,7 @@
     <EmptyState
       page
       title="Noch keine Wertung"
-      text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. Ringside analysiert neue Turniere von selbst, sobald du PokerStars schließt – oder du lässt deine Hände gleich jetzt bewerten."
+      text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. Ringside analysiert neue Turniere von selbst, sobald du den Poker-Client schließt – oder du lässt deine Hände gleich jetzt bewerten."
     >
       {#snippet icon()}<path d="M4 19.5h16M5 15l4.5-4.5 3 3L19 7" />{/snippet}
       {#snippet action()}<Button variant="primary" onclick={onAllHands}>Zu deinen Händen</Button>{/snippet}
