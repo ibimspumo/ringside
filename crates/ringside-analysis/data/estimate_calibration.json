@@ -43,9 +43,9 @@
   ],
   "preflop": {
     "samples": 1019,
-    "same": 0.415,
-    "within_one": 0.803,
-    "balanced": 0.701,
+    "same": 0.416,
+    "within_one": 0.806,
+    "balanced": 0.705,
     "spots": 362,
     "off_best": 638
   },

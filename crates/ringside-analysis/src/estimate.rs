@@ -846,7 +846,8 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
     };
     against.extend(stuck_ranges);
     let eq_called = equity(spot.hero, &against, &spot.board, rng);
-    let called_pot = spot.pot + add + callers * add;
+    // Played against one caller, the pot holds one call.
+    let called_pot = spot.pot + add + if callers < 1.5 { 1.0 } else { callers } * add;
     let behind = spot.hero_behind - add;
     let rr = if all_in { 1.0 } else { realization(&Spot { aggressor: true, ..spot.clone() }, behind / called_pot.max(0.01), eq_called, t) };
     (all_fold * uncontested + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))

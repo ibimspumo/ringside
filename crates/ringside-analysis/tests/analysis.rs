@@ -325,6 +325,19 @@ fn a_snapped_bet_names_its_street() {
     assert!(job.note.contains("Bet am Flop von 43 % Pot") && job.note.contains("Bet am Turn von 43 % Pot"), "{}", job.note);
 }
 
+/// A three-bet and a cold call against the hero's open with 100 BB: shoving nine-eight
+/// suited is called by one of them about as often as by one player, who then adds one
+/// stack to the pot, not more. Folding is right.
+#[test]
+fn a_deep_shove_called_by_one_player_wins_one_call() {
+    let seats: Vec<(&str, i64)> = vec![("P1", 5620), ("P2", 5111), ("P3", 8305), ("P4", 5091), ("P5", 4116), ("P6", 5049), ("Hero", 4964)];
+    let raw = hand(16, &seats, 4, 50, 6, "8c 9c", "Hero: raises 60 to 110\nP1: folds\nP2: folds\nP3: raises 270 to 380\nP4: folds\nP5: folds\nP6: calls 330\nHero: folds\n*** FLOP *** [5d 6d Tc]\nP6: checks\nP3: checks\n*** TURN *** [5d 6d Tc] [Jh]\nP6: checks\nP3: checks\n*** RIVER *** [5d 6d Tc Jh] [2s]\nP6: checks\nP3: checks\n*** SHOW DOWN ***\nP6 collected 977 from pot\n*** SUMMARY ***\nTotal pot 977 | Rake 0\n");
+    let hand = parsed(&raw);
+    let a = analyze_hand(&hand);
+    let d = a.decisions.iter().find(|d| d.played == "Fold").expect("the fold");
+    assert!(d.best.as_deref() != Some("All-in") && d.rating <= Some(Rating::Inaccuracy), "{d:?}");
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.
