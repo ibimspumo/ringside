@@ -168,7 +168,7 @@
                 <div class="hand-title">
                   <b>{KIND_LABEL[spot.kind]}{#if spot.exercise.prompt.type === "push_fold_table"} · {stack(spot)}{/if}</b>
                   <span class="faint">Hand {spot.hand_id} · {when(spot.played_at)}</span>
-                  {#if results[spot.id]}<span class="stop done">Aufgelöst</span>{:else if !reveal}<span class="stop">Stopp vor deiner Entscheidung</span>{/if}
+                  {#if results[spot.id]}<span class="stop done">Aufgelöst</span>{:else if !reveal}<span class="stop">{spot.kind === "all_in" ? "Ergebnis verdeckt, bis du geschätzt hast" : "Stopp vor deiner Entscheidung"}</span>{/if}
                 </div>
               </Replayer>
             {:else}

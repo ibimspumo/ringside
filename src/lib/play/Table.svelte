@@ -306,7 +306,7 @@
     z-index: 2;
   }
   .seat.out {
-    opacity: 0.6;
+    opacity: 0.75;
   }
   .hole {
     display: flex;
@@ -342,7 +342,7 @@
     box-shadow:
       inset 0 0 0 1px var(--plate-edge),
       var(--shadow-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     line-height: 1.3;
     transition: box-shadow calc(var(--ms) * 0.4) var(--ease-move);
   }
@@ -352,7 +352,7 @@
   }
   .plate span {
     color: var(--text-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .plate .made {
     color: var(--text);

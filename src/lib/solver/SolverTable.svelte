@@ -321,7 +321,7 @@
   }
   .seat.out {
     transform: translate(-50%, -50%) scale(calc(var(--k) * 0.9));
-    opacity: 0.7;
+    opacity: 0.85;
   }
   .seat.out.pickable:has(.seatbtn:hover) {
     opacity: 0.9;
@@ -404,7 +404,7 @@
   .role {
     font-size: var(--fs-xs);
     font-weight: 600;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .stack {
     margin-top: 1px;

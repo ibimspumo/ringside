@@ -21,7 +21,7 @@
   import { duration, tokens } from "./api";
   import { conceptName } from "./concepts";
   import type { Choice } from "./drill";
-  import { COACH_GRADES, VERDICTS, money, shortModel, toPractise, verdictOf, say } from "./meaning";
+  import { COACH_GRADES, VERDICTS, money, shortModel, termsIn, toPractise, verdictOf, say } from "./meaning";
   import SpotCard from "./SpotCard.svelte";
   import type { CoachReport } from "./types";
 
@@ -155,6 +155,11 @@
                 <li><span class="rank num">{i + 1}</span><span><CardText hands text={say(f)} /></span></li>
               {/each}
             </ol>
+            {#if termsIn(report.focus).length}
+              <dl class="plan-terms">
+                {#each termsIn(report.focus) as t (t.term)}<div><dt>{t.term}</dt><dd>{t.meaning}</dd></div>{/each}
+              </dl>
+            {/if}
           </div>
         {/if}
         <div class="next">
@@ -424,6 +429,27 @@
     font-size: var(--fs-md);
     font-weight: var(--fw-semibold);
     color: var(--text-2);
+  }
+  .plan-terms {
+    display: grid;
+    gap: 4px;
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-md);
+    color: var(--text-2);
+  }
+  .plan-terms div {
+    display: flex;
+    gap: 6px;
+  }
+  .plan-terms dt {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .plan-terms dt::after {
+    content: ":";
+  }
+  .plan-terms dd {
+    margin: 0;
   }
   .plan {
     list-style: none;

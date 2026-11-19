@@ -62,6 +62,9 @@ const TERMS: [RegExp, string, string][] = [
   [/\bRange\b/, "Range", "alle Hände, die der Gegner hier haben kann"],
   [/\bICM\b/, "ICM", "rechnet Chips in Preisgeld um; nahe den Preisrängen zählt Überleben mehr"],
   [/Fold Equity/, "Fold Equity", "der Wert davon, dass der Gegner aufgibt"],
+  [/Push\/Fold/, "Push/Fold", "mit wenigen Chips: alles setzen oder aussteigen, nichts dazwischen"],
+  [/nass/, "Nasses Board", "Gemeinschaftskarten, die viele Straßen und Flushes möglich machen"],
+  [/Top Pair/, "Top Pair", "ein Paar mit der höchsten Karte auf dem Board"],
 ];
 
 /** Explanations for the terms in these figure labels, in order of first use. */
