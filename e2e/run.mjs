@@ -391,7 +391,7 @@ async function sameFirstStep(where, sel) {
 
 step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
   await nav("Übersicht");
-  // A fresh profile rates imported hands only on request: no PokerStars session marked them as new.
+  // Without automatic analysis nothing rates the imported hands; then the user starts it here.
   if (TAURI) {
     const st = await invoke("analysis_status");
     if (!st.enabled && !st.auto_run && st.counts.analyzed === 0) await click("main button", `${st.counts.hands} Hände analysieren`);
