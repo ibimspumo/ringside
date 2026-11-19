@@ -18,7 +18,6 @@ import { DEMO_DECISIONS } from "../analysis/demo-hands";
 import { demoHandById } from "../demo";
 import { parseRange } from "./catalog";
 import type { DrillResult, DrillSpot, PlayProfile, SpotGroup } from "./profile";
-import { preview } from "./preview";
 import { bestFive, combosOf, deckWithout, matrixHand, score, categoryOf, CATEGORY } from "./wissen/poker";
 
 const NAMES: Record<LearnKind, string> = {
@@ -841,7 +840,8 @@ function checkDrill(d: Drill, answer: LearnAnswer): Feedback {
 
 export async function demoExercise(kind: LearnKind, level: number, seed?: number | null): Promise<Exercise> {
   // Pictures of a round show the same hands before and after the answer.
-  const s = seed ?? (preview("session") ? 1000 + kind.length * 97 + level : Math.floor(Math.random() * 2 ** 52));
+  const pictured = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("session");
+  const s = seed ?? (pictured ? 1000 + kind.length * 97 + level : Math.floor(Math.random() * 2 ** 52));
   if (DRILLS.has(kind)) return { ...(await drill(kind, level, s)).exercise, seed: s };
   return exerciseNow(kind, level, s);
 }
