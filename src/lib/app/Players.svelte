@@ -150,7 +150,9 @@
       {:else if loaded}
         <EmptyState
           title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in dieser Auswahl"}
-          text={search ? "Prüf die Schreibweise. Gesucht wird nur in Spiel und Zeitraum, die oben rechts gewählt sind." : "Spiel ein paar Hände oder wähle oben rechts einen längeren Zeitraum."}
+          text={search ? "Prüf die Schreibweise. Gesucht wird nur in Spiel und Zeitraum, die oben rechts gewählt sind." : filter.since !== null || filter.game !== null
+              ? "In diesem Zeitraum hast du gegen niemanden gespielt. Wähle oben rechts „Alles“ und „Alle“."
+              : "Spiel ein paar Hände bei PokerStars – deine Gegner erscheinen hier mit ihren Werten."}
         >
           {#snippet icon()}<path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5 20 20" />{/snippet}
           {#snippet action()}{#if search}<Button size="sm" onclick={() => (search = "")}>Suche löschen</Button>{/if}{/snippet}

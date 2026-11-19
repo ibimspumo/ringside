@@ -286,7 +286,7 @@
           Deine Hand <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>
           {#if !solver.source}<Button variant="quiet" size="sm" onclick={() => setHand([])}>Entfernen</Button>{/if}
         {:else}
-          <span>Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
+          <span>Klick aufs Board, um Karten zu ändern. Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
         {/if}
       </span>
       <span class="spacer"></span>
@@ -364,7 +364,7 @@
       <Slider label="Stacktiefe" unit="BB" log values={DEPTHS} value={stackText} onchange={slideStack} steps={[10, 20, 40, 60, 100, 200]} />
       <div class="facts num">
         <span>Pot <b>{bb(solver.spot.pot, 2)}</b></span>
-        <span><Term id="effective">effektiv</Term> <b>{bb(solver.spot.stack, 2)}</b></span>
+        <span><Term id="effective">kleinerer Stack</Term> <b>{bb(solver.spot.stack, 2)}</b></span>
         <span><Term id="spr">SPR</Term> <b>{bb(spr, 1)}</b></span>
       </div>
     </section>
@@ -581,7 +581,7 @@
     display: flex;
     gap: 14px;
     margin-top: 8px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .facts b {

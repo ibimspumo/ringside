@@ -191,7 +191,7 @@
   {:else if data && r}
     <section class="panel hero">
       <div class="answer">
-        <span class="eyebrow">Dein Ergebnis</span>
+        <span class="eyebrow">Dein Ergebnis in Big Blinds (BB), dem großen Pflichteinsatz</span>
         <strong class="big num {sign(r.net_bb)}">{signed(r.net_bb)}<span class="big-unit"><Term id="bb" /></span></strong>
         <p class="say">
           {r.net_bb >= 0 ? "Du liegst im Plus" : "Du liegst im Minus"} – nach {int(r.hands)} Händen{data.heroes.length

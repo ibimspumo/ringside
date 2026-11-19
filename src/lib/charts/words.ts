@@ -32,11 +32,12 @@ export function tablePositions(players: number): string[] {
   return TABLE[players] ?? [];
 }
 
-/** "Vom Button", "Aus dem Big Blind", "Von UTG". */
+/** "Vom Button", "Aus dem Big Blind", "Von UTG (als Erster dran)". */
 export function fromPos(pos: string): string {
   if (pos === "SB" || pos === "BB") return `Aus dem ${POS_NAME[pos]}`;
   const name = POS_NAME[pos];
-  return name && !name.startsWith("UTG") ? `Vom ${name}` : `Von ${pos}`;
+  if (name && !name.startsWith("UTG")) return `Vom ${name}`;
+  return `Von ${pos} (${pos === "UTG" ? "als Erster dran" : "früh"})`;
 }
 
 /** "vom Button", "vom Big Blind", "von UTG": who made the bet. */

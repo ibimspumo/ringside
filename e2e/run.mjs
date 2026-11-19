@@ -406,7 +406,7 @@ step("Meine Wertung: die Leiste öffnet sie, Zahl, Verlauf und Bereiche; ein Ber
   if (TAURI) return;
   await waitText("Was dich zuletzt bewegt hat");
   await waitText("Gut entschieden, Pech gehabt");
-  await click("main [data-skill-area='vs_all_in'] button", "Hände");
+  await click("main [data-skill-area='vs_all_in'] button", "Hände ansehen");
   await find("main h1", "Hände");
   await waitText("Bereich: Gegen ein All-in");
 });

@@ -89,7 +89,7 @@
 {:else if mode === "list" && shown.length}
   <ol class="rows" class:compact>
     {#if !compact}
-      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head" title="Der volle Balken ist Platz 1, die anderen sind im Vergleich dazu gezeichnet.">Was Üben bringt <span class="key">· gestreift: geschätzt</span></span></li>
+      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head">Was Üben bringt <span class="key">· im Vergleich zu Platz 1, gestreift: geschätzt</span></span></li>
     {/if}
     {#each shown as s, i (s.id)}
       <li class="row" data-step={s.id}>
@@ -100,7 +100,10 @@
           <span class="why">{s.why}</span>
           {#if note}{@render note(s)}{/if}
         </div>
-        {#if !compact}<span class="bar" role="img" aria-label="Was Üben bringt: {Math.round((s.score / top) * 100)} % von Platz 1" title="Was Üben hier bringt, verglichen mit Platz 1{s.estimate ? ' (geschätzt)' : ''}"><span class="fill" class:estimate={s.estimate} style:width="{Math.max(4, (s.score / top) * 100)}%"></span></span>{/if}
+        {#if !compact}<span class="gain" role="img" aria-label="Was Üben bringt: {Math.round((s.score / top) * 100)} % von Platz 1" title="Was Üben hier bringt, verglichen mit Platz 1{s.estimate ? ' (geschätzt)' : ''}"
+            ><span class="bar"><span class="fill" class:estimate={s.estimate} style:width="{Math.max(4, (s.score / top) * 100)}%"></span></span
+            ><small class="num">{i === 0 ? "am meisten" : `${Math.round((s.score / top) * 100)} % davon`}</small></span
+          >{/if}
         <div class="go">{@render actions(s, primary && i === 0)}</div>
       </li>
     {/each}
@@ -186,6 +189,15 @@
     font-size: var(--fs-base);
     font-weight: var(--fw-semibold);
   }
+  .gain {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+  }
+  .gain small {
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+  }
   .bar {
     height: 6px;
     border-radius: 3px;
@@ -255,7 +267,7 @@
     .head {
       display: none;
     }
-    .bar,
+    .gain,
     .rows:not(.compact) .go {
       display: flex;
       grid-column: 2;

@@ -61,8 +61,8 @@
       <strong>{g.label}</strong>
       {#if context}<span>{context}</span>{/if}
     </div>
-    {#if costly && grade !== "best" && grade !== "mix"}<span class="price num" title="So viel bringt diese Entscheidung im Schnitt weniger als die beste – nicht das Ergebnis der Hand"
-        >−{bb(cost ?? 0, { digits: 2 })}</span
+    {#if costly && grade !== "best" && grade !== "mix"}<span class="price" title="So viel bringt diese Entscheidung im Schnitt weniger als die beste – nicht das Ergebnis der Hand"
+        ><small>kostet im Schnitt</small><b class="num">−{bb(cost ?? 0, { digits: 2 })}</b></span
       >{/if}
   </header>
 
@@ -154,7 +154,17 @@
     font-size: var(--fs-md);
   }
   .price {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
     color: var(--text);
+    line-height: var(--lh-tight);
+  }
+  .price small {
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+  }
+  .price b {
     font-size: var(--fs-lg);
     font-weight: var(--fw-semibold);
   }

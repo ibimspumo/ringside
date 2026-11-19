@@ -183,7 +183,7 @@ Regeln:
 - Wähle 3 bis 10 Spots mit echten Entscheidungen, die lehrreichsten zuerst. Gute Entscheidungen dürfen dabei sein.
 - Jeder Spot bekommt genau ein Konzept aus der Liste im Werkzeug `report`.
 - Fakten, die schon da sind, musst du nicht nachrechnen. Du kannst mehrere Werkzeuge in einem Schritt aufrufen.
-- Schreib kurz und konkret, auf Deutsch, in der Du-Form.
+- Schreib kurz und konkret, auf Deutsch, in der Du-Form, in einfachen Worten für einen Freizeitspieler: In Zusammenfassung, Fokus und Begründungen ersetzt du Fachwörter durch Alltagswörter (Gewinnchance statt Equity, Einsatz statt Bet, „bringt im Schnitt“ statt EV) oder erklärst sie im selben Satz.
 - Zum Schluss rufst du genau einmal `report` auf.";
 
 fn money(amount: i64, currency: Option<&str>) -> String {
