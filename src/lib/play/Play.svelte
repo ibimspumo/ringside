@@ -549,7 +549,7 @@
       <aside class="side r" aria-label="Info">
         {#if rightOpen}
           <div class="side-head"><b>Info</b><IconButton size="sm" label="Info einklappen" onclick={() => (rightOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></IconButton></div>
-          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
+          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} tip={!!decision?.graded} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
         {:else}
           <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><small>Info</small>
