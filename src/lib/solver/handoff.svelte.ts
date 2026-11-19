@@ -1,5 +1,5 @@
 import { api } from "../api";
-import { duration } from "./actions";
+import { duration } from "../ui/format";
 import { openSaved } from "./solutions";
 import { applyPrefill, solver, startSolve } from "./store.svelte";
 import type { SolverPrefill, SolverStep } from "./types";
@@ -44,5 +44,5 @@ export function streetAt(path: SolverStep[]): "Flop" | "Turn" | "River" {
 /** `what` with the solver's own time estimate, then `then`. */
 export async function solveNotice(what: string, then: string): Promise<string> {
   const est = await api.solverEstimate($state.snapshot(solver.spot), solver.settings.threads).catch(() => null);
-  return `${what}${est ? `, ca. ${duration(est.seconds)}` : ""}. ${then}`;
+  return `${what}${est ? `, ${duration(est.seconds, { about: true })}` : ""}. ${then}`;
 }

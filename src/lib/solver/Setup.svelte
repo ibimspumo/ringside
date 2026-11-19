@@ -2,7 +2,8 @@
   import { onMount } from "svelte";
   import { api } from "../api";
   import type { Anchor } from "../app/format";
-  import { bb, bytes, duration, solveSeconds } from "./actions";
+  import { bb, bytes, solveSeconds } from "./actions";
+  import { duration } from "../ui/format";
   import DeckPopover from "./DeckPopover.svelte";
   import { DECK, dealFrom } from "./practice";
   import Button from "../ui/Button.svelte";
@@ -310,7 +311,7 @@
           {#if board.length < 3}
             <span class="neg">Wähle mindestens drei Boardkarten – Klick auf die Plätze in der Tischmitte.</span>
           {:else if estimate}
-            <span>Rechnet <b class="num">ca. {duration(seconds)}</b></span>
+            <span>Rechnet <b class="num">{duration(seconds, { about: true })}</b></span>
             <span title={estimate.compressed ? "Passt nur mit platzsparendem 16-Bit-Speicher" : undefined}
               >braucht <b class="num" class:neg={!estimate.fits}>{bytes(estimate.memory_bytes)}</b> Arbeitsspeicher</span
             >

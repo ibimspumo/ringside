@@ -23,12 +23,6 @@ export function bytes(n: number): string {
   return `${Math.max(1, Math.round(n / 2 ** 20)).toLocaleString("de-DE")} MB`;
 }
 
-export function duration(seconds: number): string {
-  if (seconds < 1) return "unter 1 s";
-  if (seconds < 90) return `${Math.round(seconds)} s`;
-  if (seconds < 3600) return `${Math.round(seconds / 60)} min`;
-  return `${(seconds / 3600).toLocaleString("de-DE", { maximumFractionDigits: 1 })} h`;
-}
 
 /** The estimate is for 0.5 % of the pot; a finer target takes longer, roughly with its root. */
 export const solveSeconds = (estimate: number, targetPct: number) => estimate * Math.sqrt(0.5 / Math.max(0.05, targetPct));

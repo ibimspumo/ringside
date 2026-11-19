@@ -639,7 +639,8 @@ function start(config: PlayConfig, seed: number): HandView {
     street: "preflop",
     pending: null,
     hinted: false,
-    unrated: null,
+    // `unrated=off_model` in the browser demo, for screenshots of a hand nothing grades.
+    unrated: (typeof window === "undefined" ? null : (new URLSearchParams(window.location.search).get("unrated") as Unrated | null)),
   };
   snapshot(state, 0);
   if (config.mode === "postflop") {
