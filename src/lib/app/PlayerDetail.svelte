@@ -10,7 +10,7 @@
   import StatMeter from "../ui/StatMeter.svelte";
   import Term from "../ui/Term.svelte";
   import { dateTime, int, sign, signed } from "./format";
-  import { HINT, SMALL_SAMPLE, TYPE, read, sampleNote } from "./reads";
+  import { HINT, SMALL_SAMPLE, TYPE_PLAIN, sampleNote } from "./reads";
   import Wheel from "./Wheel.svelte";
 
   let {
@@ -55,7 +55,7 @@
   });
 
   const hands = $derived(stat(player.stats, "hands")?.value ?? 0);
-  const r = $derived(read(player.stats));
+  const r = $derived(player.read);
   const cards = (s: string) => s.split(" ").filter(Boolean);
 
   /** Where the value sits: below, inside (lower or upper end) or above the usual range. */
@@ -99,13 +99,13 @@
     {:else if !advice}
       <div class="lock"><SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar." /></div>
     {:else if r?.type}
-      {@const t = TYPE[r.type]}
+      {@const t = r.type}
       <section class="read" aria-label="Spielertyp">
         <div class="read-head">
           <span class="kicker">Spielertyp</span>
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
         </div>
-        <p class="type"><b>{t.plain}<small>· {t.long.replace(" (", ", ").replace(")", "")}</small></b> <span>{t.sketch}</span></p>
+        <p class="type"><b>{TYPE_PLAIN[t.id]}<small>· {t.long.replace(" (", ", ").replace(")", "")}</small></b> <span>{t.sketch}</span></p>
         <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
         <p class="why">{r.sure === "sure" ? t.why : `Bisher: ${t.why}`}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>

@@ -55,6 +55,8 @@
 
   $effect(() => {
     void refresh;
+    // The backend leaves out player types while PokerStars runs.
+    void pokerClient.running;
     const f = { ...filter };
     const q = search.trim();
     let live = true;
@@ -134,7 +136,7 @@
       {#if rows.length && hud}
           <PlayerTable
             label="Spieler"
-            rows={sorted.map((p) => ({ key: p.name, name: p.name, stats: p.stats, hero: heroes.includes(p.name) }))}
+            rows={sorted.map((p) => ({ key: p.name, name: p.name, stats: p.stats, read: p.read, hero: heroes.includes(p.name) }))}
             {hud}
             {columns}
             {advice}

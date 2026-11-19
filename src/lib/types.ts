@@ -96,6 +96,8 @@ export interface SeatView {
   bounty: number | null;
   is_hero: boolean;
   stats: StatValue[];
+  /** null while PokerStars runs. */
+  read: PlayerRead | null;
   /** The user's own note and colour label from the PokerStars client, if any. */
   note?: PlayerNote | null;
 }
@@ -191,6 +193,29 @@ export interface PlayerView {
   name: string;
   net: number;
   stats: StatValue[];
+  /** null while PokerStars runs. */
+  read: PlayerRead | null;
+}
+
+export type PlayerType = "nit" | "tag" | "lag" | "station";
+
+/** A player type with its words, from crates/ringside-learn/src/hud.rs. */
+export interface TypeRead {
+  id: PlayerType;
+  name: string;
+  long: string;
+  sketch: string;
+  counter: string;
+  why: string;
+}
+
+/** What VPIP and PFR say about an opponent; `type` is null between the types. */
+export interface PlayerRead {
+  type: TypeRead | null;
+  hands: number;
+  sure: "sure" | "maybe" | "unsure";
+  /** "nach 412 Händen klares Muster". */
+  note: string;
 }
 
 export interface Dashboard {

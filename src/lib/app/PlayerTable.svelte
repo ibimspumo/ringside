@@ -1,10 +1,11 @@
 <script lang="ts" module>
-  import type { StatId, StatValue } from "../types";
+  import type { PlayerRead, StatId, StatValue } from "../types";
 
   export interface PlayerRow {
     key: string;
     name: string;
     stats: StatValue[];
+    read: PlayerRead | null;
     label?: { name: string; color: string } | null;
     /** Your note; a narrow list shows it under the name instead of in its own column. */
     note?: string;
@@ -37,7 +38,7 @@
   import SortHeader from "../ui/SortHeader.svelte";
   import Tooltip from "../ui/Tooltip.svelte";
   import { int } from "./format";
-  import { SMALL_SAMPLE, TYPE, read } from "./reads";
+  import { SMALL_SAMPLE, TYPE_PLAIN } from "./reads";
   import StatCell from "./StatCell.svelte";
   import Wheel from "./Wheel.svelte";
 
@@ -93,7 +94,6 @@
   const cols = $derived(columns === "all" ? [...CORE, ...MORE] : CORE);
   const before = $derived(extra.filter((c) => c.at === "before"));
   const after = $derived(extra.filter((c) => c.at === "after"));
-  const reads = $derived(new Map(rows.map((r) => [r.key, read(r.stats)])));
   let body = $state<HTMLElement>();
   let scroller = $state<HTMLElement>();
   let more = $state(false);
@@ -153,7 +153,7 @@
   </thead>
   <tbody bind:this={body}>
     {#each rows as p, i (p.key)}
-      {@const r = reads.get(p.key)}
+      {@const r = p.read}
       {@const hands = stat(p.stats, "hands")?.value ?? 0}
       {@const sub = [...before.map((c) => `${c.prefix ? `${c.prefix} ` : ""}${c.text(p)}${c.unit ? ` ${c.unit}` : ""}`), p.note].filter(Boolean).join(" · ")}
       <tr class:on={selected === p.key} onclick={() => onPick(p.key)}>
@@ -175,8 +175,8 @@
             {#if p.hero}
               <span class="q">–</span>
             {:else if r?.type}
-              <span class="t" title={`${TYPE[r.type].long} – ${r.note}`}>
-                <Badge size="sm" dashed={r.sure !== "sure"}>{TYPE[r.type].plain}</Badge>
+              <span class="t" title={`${r.type.long} – ${r.note}`}>
+                <Badge size="sm" dashed={r.sure !== "sure"}>{TYPE_PLAIN[r.type.id]}</Badge>
               </span>
             {:else}
               <span class="q" title="Die Werte passen zu keinem der vier Typen.">kein klarer Typ</span>
