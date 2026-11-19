@@ -1,5 +1,12 @@
-<script lang="ts">
+<script lang="ts" module>
   import type { ImportStatus } from "../types";
+
+  /** No hand-history folder: the one warning above every page. */
+  export const historyMissing = (status: ImportStatus | null, settingsOpen: boolean) =>
+    !!status && !status.upgrade && status.dirs.length === 0 && !settingsOpen;
+</script>
+
+<script lang="ts">
   import Button from "../ui/Button.svelte";
   import { rectOf, type Anchor } from "../ui/floating";
   import { int } from "../ui/format";
@@ -35,7 +42,7 @@
     <span class="bar"><ProgressBar value={share} label="Datenbank wird aktualisiert" /></span>
     <span class="num">{Math.floor(share * 100)} % · {int(upgrade.done)} von {int(upgrade.total)} Händen</span>
   </div>
-{:else if status && status.dirs.length === 0 && !settingsOpen}
+{:else if historyMissing(status, settingsOpen)}
   <div class="strip warn">
     <b class="title"
       ><svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path d="M8 2.5 14.5 13.5h-13zM8 6.5v3.5M8 11.8v.2" /></svg><Term tip={HOW}

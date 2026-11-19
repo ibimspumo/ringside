@@ -5,8 +5,11 @@
   import Button from "../ui/Button.svelte";
   import { cloudApi, onCloudChanged } from "./api";
 
-  /** Opens the settings page. */
-  let { onSettings }: { onSettings: () => void } = $props();
+  /**
+   * `onSettings` opens the settings page. `quiet` while a warning stands above: one grey line
+   * without a card, so the warning stays the loudest thing on the page.
+   */
+  let { onSettings, quiet = false }: { onSettings: () => void; quiet?: boolean } = $props();
 
   let show = $state(false);
   let details = $state(false);
@@ -31,7 +34,7 @@
 </script>
 
 {#if show}
-  <div class="notice" role="status">
+  <div class="notice" class:quiet role="status">
     <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
       <path d="M7 18.5h10a4 4 0 0 0 .6-8 5.5 5.5 0 0 0-10.7-1A4.5 4.5 0 0 0 7 18.5z" />
     </svg>
@@ -44,8 +47,8 @@
       <Button size="sm" variant="quiet" aria-expanded={details} aria-controls="cloud-details" onclick={() => (details = !details)}>
         {details ? "Weniger" : "Details"}
       </Button>
-      <Button size="sm" variant="quiet" onclick={settings}>Einstellungen</Button>
-      <Button size="sm" onclick={ack}>Verstanden</Button>
+      {#if !quiet}<Button size="sm" variant="quiet" onclick={settings}>Einstellungen</Button>{/if}
+      <Button size="sm" variant={quiet ? "quiet" : "secondary"} onclick={ack}>Verstanden</Button>
     </div>
     {#if details}
       <p class="full" id="cloud-details" transition:slide={{ duration: 220, easing: cubicOut }}>
@@ -70,6 +73,21 @@
     border: 1px solid var(--line);
     border-radius: var(--r);
     background: var(--surface);
+  }
+  .quiet {
+    border-color: transparent;
+    background: none;
+  }
+  .quiet .line {
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+  }
+  .quiet b {
+    color: var(--text-2);
+    font-weight: var(--fw-regular);
+  }
+  .quiet svg {
+    stroke: var(--text-3);
   }
   svg {
     fill: none;
