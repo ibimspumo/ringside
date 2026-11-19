@@ -6,6 +6,7 @@ license.workspace = true
 description = "PokerStars hand history parser, stats engine and local database for Ringside"
 
 [dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 regex = "1"
 ringside-engine = { path = "../ringside-engine" }
 roxmltree = "0.21"

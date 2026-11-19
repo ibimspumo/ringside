@@ -32,7 +32,7 @@ pub use analysis::{
 };
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 8;
+const SCHEMA_VERSION: i32 = 9;
 
 pub struct Db {
     conn: Connection,
@@ -419,6 +419,8 @@ impl Db {
         }
         if finished {
             recompute_totals(&tx)?;
+            // Summaries keep no raw text; what is derived from them comes with reading them again.
+            tx.execute("DELETE FROM files WHERE path LIKE '%TournSummary%'", [])?;
             tx.execute("DELETE FROM settings WHERE key = 'rebuild_after_id'", [])?;
             tx.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
         }

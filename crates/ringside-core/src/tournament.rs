@@ -6,6 +6,7 @@ use std::sync::LazyLock;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 
+use crate::clock::local_time;
 use crate::model::Amount;
 use crate::parser::{currency_code, parse_amount};
 
@@ -101,7 +102,6 @@ pub struct Summary {
 
 static HEADER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^PokerStars Tournament #(\d+),\s*(.*)$").unwrap());
 static PLAYERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([\d,]+) players$").unwrap());
-static TIME: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4}/\d{2}/\d{2}) (\d{1,2}):(\d{2}):(\d{2})").unwrap());
 /// "  7: Name [2] (Country), $6,514.80 (2.063%)": the text after the last "),".
 static RANK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*(\d+): .*\),\s*(.*)$").unwrap());
 static FINISHED: LazyLock<Regex> =
@@ -110,11 +110,6 @@ static BOUNTIES: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"You collected \d+ bount(?:y|ies) for a total of (.+?)\.?$|You have also received (.+?) in Knockout Bounties").unwrap()
 });
 static EXTRA: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^You made .* for a total of (.+?)\.?$").unwrap());
-
-fn padded_time(text: &str) -> Option<String> {
-    let c = TIME.captures(text)?;
-    Some(format!("{} {:0>2}:{}:{}", &c[1], &c[2], &c[3], &c[4]))
-}
 
 /// Amount after any currency symbol or code, e.g. "USD 875.00" or "$1,899.29".
 fn money(text: &str) -> Option<Amount> {
@@ -194,9 +189,9 @@ pub fn parse_summaries(text: &str) -> Vec<Summary> {
         } else if let Some(rest) = line.strip_prefix("Total Prize Pool: ") {
             s.prize_pool = money(rest);
         } else if let Some(rest) = line.strip_prefix("Tournament started ") {
-            s.started_at = padded_time(rest);
+            s.started_at = local_time(rest);
         } else if let Some(rest) = line.strip_prefix("Tournament finished ") {
-            s.finished_at = padded_time(rest);
+            s.finished_at = local_time(rest);
         } else if let Some(c) = RANK.captures(line) {
             if let Ok(place) = c[1].parse() {
                 ranks.push((place, c[2].to_string()));

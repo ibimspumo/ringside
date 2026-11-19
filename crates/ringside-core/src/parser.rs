@@ -6,6 +6,7 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use crate::clock::local_time;
 use crate::model::{Action, ActionKind, Amount, Finish, GameKind, Hand, Seat, Street};
 use crate::tournament::parse_buy_in;
 
@@ -34,7 +35,6 @@ static VARIANT: LazyLock<Regex> = LazyLock::new(|| {
 });
 static STAKES: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\(([^\d()/]*)([\d.,]+)/[^\d()/]*([\d.,]+)(?: ([A-Z]{3}))?\)").unwrap());
-static DATE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4}/\d{2}/\d{2}) (\d{1,2}):(\d{2}:\d{2})").unwrap());
 static TABLE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Table '(.+)' (\d+)-max.*?Seat #(\d+) is the button").unwrap());
 static SEAT: LazyLock<Regex> =
@@ -159,8 +159,7 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         GameKind::Cash => currency_code(&stakes[1], stakes.get(4).map(|m| m.as_str())),
         GameKind::Tournament => None,
     };
-    // "5:00:45" becomes "05:00:45", so timestamps sort and slice as text.
-    let played_at = DATE.captures(header).map(|c| format!("{} {:0>2}:{}", &c[1], &c[2], &c[3])).unwrap_or_default();
+    let played_at = local_time(header).unwrap_or_default();
 
     let table_line = lines.next().ok_or_else(|| malformed("missing table line"))?;
     let table = TABLE.captures(table_line).ok_or_else(|| malformed("table line"))?;
