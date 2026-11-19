@@ -439,6 +439,8 @@ pub struct LibraryState {
     status: Mutex<WorkerStatus>,
     /// Spots that failed this session; tried again after a restart.
     skip: Mutex<HashSet<SpotId>>,
+    /// Keys of community spots that could not be solved here this session.
+    failed_work: Mutex<HashSet<String>>,
     packs_checked: Mutex<Option<Instant>>,
     shared_checked: Mutex<Option<Instant>>,
     uploaded: Mutex<Option<Instant>>,
@@ -773,6 +775,11 @@ fn community(app: &AppHandle, root: &Path) -> bool {
             return false;
         }
     };
+    // Only a server without failure reports hands such a spot out again; the lease is kept
+    // so that it does not come straight back.
+    if app.state::<LibraryState>().failed_work.lock().unwrap().contains(&work.key) {
+        return false;
+    }
     let label = community_label(&work);
     update(app, |s| {
         (s.state, s.reason, s.scenario, s.flop, s.community, s.progress) = ("solving", None, None, None, Some(label.clone()), None);
@@ -793,7 +800,7 @@ fn community(app: &AppHandle, root: &Path) -> bool {
 
 /// Ok(true) once the solution went up, Ok(false) when stopped.
 fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, label: &str) -> Result<bool, String> {
-    let task = Task::parse(work)?;
+    let task = Task::parse(work).map_err(|e| give_up(app, work, e))?;
     if let Task::Postflop { id, .. } = task {
         match status_of(root, id) {
             Some(Source::Local) => {
@@ -838,7 +845,7 @@ fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, lab
         stop_job.cancelled() || blocked(&stop_app, mode_of(&stop_app)).is_some() || ticket.should_yield()
     };
     let power = Power { threads, memory: crate::solver::memory_limit() / 2 };
-    let solved = worker::solve(&task, power, on_progress, stop)?;
+    let solved = worker::solve(&task, power, on_progress, stop).map_err(|e| give_up(app, work, e))?;
     drop(ticket);
     let Some(solved) = solved else { return Ok(false) };
     if let Solved::Postflop { id, stored, .. } = &solved {
@@ -849,6 +856,18 @@ fn solve_for_community(app: &AppHandle, root: &Path, work: &Work, job: &Job, lab
     }
     let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(20), ..RetryPolicy::default() };
     solved.submit(&Client::with_policy(DEFAULT_BASE_URL, policy)).map(|_| true).map_err(|e| e.to_string())
+}
+
+/// `work` cannot be solved here (`why`): the server hears of it, so it hands the spot to
+/// other computers and parks it after a few failures, and this session does not take it
+/// again. Returns `why`.
+fn give_up(app: &AppHandle, work: &Work, why: String) -> String {
+    app.state::<LibraryState>().failed_work.lock().unwrap().insert(work.key.clone());
+    let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy { attempts: 2, ..RetryPolicy::impatient() });
+    if let Err(e) = client.fail_work(&work.key, &why) {
+        note(app, &e);
+    }
+    why
 }
 
 fn note(app: &AppHandle, e: &CloudError) {
