@@ -299,8 +299,6 @@
     color: var(--text-2);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
   .sk-number {
     display: flex;
