@@ -158,12 +158,6 @@ pub struct Entry {
     uses: u32,
 }
 
-impl Entry {
-    pub fn flop_text(&self) -> String {
-        self.flop.iter().map(|c| c.to_string()).collect()
-    }
-}
-
 /// A solved spot a hand plays in.
 #[derive(Clone)]
 pub struct Ready {
@@ -308,7 +302,6 @@ impl Pool {
         self
     }
 
-    // -----------------------------------------------------------------------------
     // Live spots.
 
     /// Asks for `need`. `Now` drops whatever else was asked for: the hand has moved on.

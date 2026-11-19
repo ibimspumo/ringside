@@ -1,6 +1,6 @@
 <script lang="ts">
   import { signed } from "../app/format";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { bb } from "./actions";
   import { cap, handAdvice } from "./explain";
   import Term from "../ui/Term.svelte";

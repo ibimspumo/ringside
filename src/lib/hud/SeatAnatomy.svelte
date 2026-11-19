@@ -56,7 +56,6 @@
   }
 
   $effect(() => {
-    // Re-measure whenever the plate's look changes.
     void [hud.graphic.plate_pages, hud.graphic.cover_plate, hud.graphic.plate_width, hud.show_stack, page, w];
     if (!box) return;
     const el = box;

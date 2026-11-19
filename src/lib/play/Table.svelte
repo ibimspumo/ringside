@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import OvalFelt from "../table/OvalFelt.svelte";
   import { fit, minHeight, placeOf } from "../table/seats";
   import MiniCard from "../ui/MiniCard.svelte";

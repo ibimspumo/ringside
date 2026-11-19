@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { floating, type Anchor } from "../app/format";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import { RANKS } from "./range";
 
   /** One card from the deck, next to the slot that asked for it. */

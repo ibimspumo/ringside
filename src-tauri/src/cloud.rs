@@ -85,7 +85,6 @@ pub(crate) fn may_talk(app: &AppHandle) -> bool {
         && app.state::<CloudState>().reachable()
 }
 
-// ---------------------------------------------------------------------------------
 // Solutions.
 
 /// Push/fold Nash for one table of 2–9 players, for the learning area and the coach.
@@ -181,7 +180,6 @@ fn store(dir: &Path, path: &Path, solution: &PushFoldSolution) {
     }
 }
 
-// ---------------------------------------------------------------------------------
 // Shared spots: heads-up flops of the hand analysis and the practice table whose ranges
 // are the preflop model's. Only the abstract spot leaves the computer (see
 // `ringside_cloud::kinds::spot`); `spots.json` remembers what became of every upload, by
@@ -370,7 +368,6 @@ pub(crate) fn check_spots(app: &AppHandle) -> Result<(), Error> {
     Ok(())
 }
 
-// ---------------------------------------------------------------------------------
 // Commands: settings and the first-start notice.
 
 #[tauri::command]
@@ -393,7 +390,6 @@ pub async fn cloud_ack_notice(app: AppHandle, state: State<'_, AppState>) -> Cmd
     store_settings(&app, &state, settings)
 }
 
-// ---------------------------------------------------------------------------------
 // Commands: reports of unreadable hands.
 
 /// An unreadable hand as it would be sent: anonymized.
@@ -445,7 +441,6 @@ pub async fn cloud_send_report(id: u64, app: AppHandle) -> CmdResult<()> {
     .map_err(err)?
 }
 
-// ---------------------------------------------------------------------------------
 // Anonymization.
 
 /// Words after a seat's name in the summary and in the posts of the hand.

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
   import MixBar from "../ui/MixBar.svelte";
   import { classCombos, comboClass } from "../solver/range";

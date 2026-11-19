@@ -48,7 +48,6 @@ export function saveConfig(c: PlayConfig) {
   try {
     localStorage.setItem(STORE, JSON.stringify(c));
   } catch {
-    // ignore
   }
 }
 
@@ -151,7 +150,6 @@ export async function resume() {
   }
 }
 
-// ---------------------------------------------------------------------------------------------
 // Session numbers.
 
 export interface Stats {

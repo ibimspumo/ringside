@@ -177,7 +177,6 @@
     try {
       localStorage.setItem(STORE, value);
     } catch {
-      // ignore
     }
   });
 

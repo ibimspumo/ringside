@@ -612,11 +612,6 @@ impl Db {
         tx.commit()
     }
 
-    /// Drops every analysis, so the next run starts over.
-    pub fn clear_analysis(&self) -> Result<(), Error> {
-        self.conn.execute_batch("DELETE FROM hero_decisions; DELETE FROM hand_analysis; DELETE FROM postflop_queue;")
-    }
-
     /// Every stored decision of a hand, in action order.
     pub fn hand_decisions(&self, hand_id: u64) -> Result<Vec<Decision>, Error> {
         let mut stmt = self.conn.prepare_cached(

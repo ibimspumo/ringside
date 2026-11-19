@@ -130,7 +130,7 @@ fn a_ready_flop_is_dealt_in_a_random_suit_renaming_with_cards_that_fit() {
     assert!(store.slots.load(Ordering::SeqCst) == 0, "nothing solved");
 }
 
-/// Nothing ready: a random flop, solved here as before.
+/// Nothing ready: a random flop, solved here.
 #[test]
 fn without_a_ready_flop_the_stock_deals_at_random_and_solves() {
     let store: &'static Store = Box::leak(Box::new(Store { ready: false, ..store() }));

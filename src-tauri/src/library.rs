@@ -206,7 +206,6 @@ fn due(last: &Mutex<Option<Instant>>, every: Duration) -> bool {
     due
 }
 
-// -----------------------------------------------------------------------------------
 // Files.
 
 pub(crate) use crate::store::Source;
@@ -240,7 +239,6 @@ fn disk_bytes(dir: &Path) -> u64 {
         .sum()
 }
 
-// -----------------------------------------------------------------------------------
 // Sharing.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -399,7 +397,6 @@ fn upload_next(app: &AppHandle, root: &Path) {
     }
 }
 
-// -----------------------------------------------------------------------------------
 // Worker.
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -722,7 +719,7 @@ pub(crate) fn offer(app: &AppHandle, id: SpotId, solution: &mut ringside_solver:
 }
 
 /// [`share`] on its own thread, so the next solve need not wait for the network. One
-/// upload at a time: a slow one holds up the next spot as before.
+/// upload at a time: a slow one holds up the next spot.
 fn share_aside(app: &AppHandle, root: &Path, id: SpotId, stored: Stored, size: usize) {
     let state = app.state::<LibraryState>();
     let mut sharing = state.sharing.lock().unwrap();
@@ -733,7 +730,6 @@ fn share_aside(app: &AppHandle, root: &Path, id: SpotId, stored: Stored, size: u
     *sharing = Some(std::thread::spawn(move || share(&app, &root, id, &stored, size)));
 }
 
-// -----------------------------------------------------------------------------------
 // The community queue: once the library has no spot left, a run the user started solves
 // spots other Ringside users need (`POST /v1/work/next`) and submits them.
 
@@ -945,7 +941,6 @@ fn import_pack(state: &AppState, data: &Path, root: &Path, bytes: &[u8]) -> Resu
     Ok(n)
 }
 
-// -----------------------------------------------------------------------------------
 // Commands.
 
 #[derive(Serialize)]

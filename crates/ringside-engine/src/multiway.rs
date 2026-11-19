@@ -293,7 +293,6 @@ pub fn evaluate(params: &Params, act: &[Vec<f64>]) -> Result<Solution, Error> {
     Ok(solver.solution(checked, 0, converged))
 }
 
-// ---------------------------------------------------------------------------------
 // Money: posting, side pots, utilities.
 
 struct Money {
@@ -430,7 +429,6 @@ impl Money {
     }
 }
 
-// ---------------------------------------------------------------------------------
 // Tree.
 
 #[derive(Clone, Copy)]
@@ -557,7 +555,6 @@ impl Tree {
     }
 }
 
-// ---------------------------------------------------------------------------------
 // Class tables and Monte Carlo showdowns.
 
 /// `cond[c * C + x]`: probability that another player holds class x given class c.
@@ -895,7 +892,6 @@ impl Showdowns<'_> {
     }
 }
 
-// ---------------------------------------------------------------------------------
 // Showdown tables per terminal.
 
 /// Every seat's utility per outcome of one terminal, filled on first use.
@@ -1046,7 +1042,6 @@ fn grow(old: Option<&[Vec<u8>]>, need: Vec<Vec<u8>>) -> Vec<Vec<u8>> {
     if size(&union) <= 1.25 * size(&need) { union } else { need }
 }
 
-// ---------------------------------------------------------------------------------
 // Solver.
 
 struct Profile {
@@ -1199,7 +1194,7 @@ impl<'p> Solver<'p> {
         Profile { sigma, amarg }
     }
 
-    // --- table building ---
+    // Table building.
 
     /// Supports a box over terminal `t` needs for `prof` (`role`: the observer's
     /// position, left out; heads-up showdowns use full tables built once).
@@ -1482,7 +1477,7 @@ impl<'p> Solver<'p> {
         }
     }
 
-    // --- evaluation ---
+    // Evaluation.
 
     /// Value of terminal `t` for `observer` per class, without the folders' factors.
     fn term_value(&self, t: usize, observer: usize, prof: &Profile, view: &View) -> Vec<f64> {

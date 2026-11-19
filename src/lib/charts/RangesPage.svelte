@@ -118,7 +118,6 @@
     queueMicrotask(() => (pin = t.hand));
   }
 
-  // ── Which engine answers ─────────────────────────────────────────
   const pfStacks = $derived(pfGrid?.antes.find((a) => a.ante === ante)?.stacks ?? []);
   const pfMax = $derived(pfStacks.length ? pfStacks[pfStacks.length - 1] : 25);
   const modelFrom = $derived(preGrid ? Math.min(...preGrid.stacks) : null);
@@ -157,7 +156,6 @@
     stack = v;
   }
 
-  // ── Push/fold data ───────────────────────────────────────────────
   let pf = $state<PfChart | null>(null);
   let pfLoading = $state(false);
   let pfError = $state<string | null>(null);
@@ -192,7 +190,6 @@
     return () => (alive = false);
   });
 
-  // ── Preflop model data ───────────────────────────────────────────
   let spots = $state<PreflopSpots | null>(null);
   let node = $state<PreflopNode | null>(null);
   let preLoading = $state(false);
@@ -239,7 +236,6 @@
   const live = $derived(!!preGrid && players <= preGrid.live_max_players);
   const onGrid = $derived(axis.includes(stack));
 
-  // ── Situations ───────────────────────────────────────────────────
   type Item = { key: string; label: string; reach: number };
 
   const pfKey = (n: PushFoldNode) => (n.shover === null ? "open" : `${n.shover}:${n.callers.join(",")}`);
@@ -322,7 +318,6 @@
     only = null;
   });
 
-  // ── The table ────────────────────────────────────────────────────
   const positions = $derived.by(() => {
     if (engine === "pushfold" && pf && pf.players === players) return range(0, players - 1).map((s) => ({ seat: s, name: pfPos(s) }));
     if (engine === "preflop" && spots && spots.players === players) return spots.positions.map((name, s) => ({ seat: s, name }));
@@ -346,7 +341,6 @@
     seat = s;
   }
 
-  // ── The answer ───────────────────────────────────────────────────
   const shove = $derived(pfNode?.shover === null);
   const answer = $derived.by(() => {
     if (engine === "pushfold" && pfNode && pf) {
@@ -393,11 +387,10 @@
         .map((a, i) => ({ name: actionName(a, spot.line), pct: a.pct, color: actionColor(a.kind), fold: a.kind === "fold", i }))
         .sort((x, y) => Number(x.fold) - Number(y.fold));
     return [];
-  });  /** Position of the picked action in the bar (the bar lists fold last). */
+  });
+  /** Position of the picked action in the bar (the bar lists fold last). */
   const onlyBar = $derived(only === null ? null : barActions.findIndex((b) => b.i === only));
 
-
-  // ── Open-raise share over the depth ──────────────────────────────
   let curve = $state<Series[] | null>(null);
   const curveCache = new Map<string, Series[]>();
 
@@ -459,7 +452,6 @@
   );
   const myName = $derived(positions.find((p) => p.seat === seat)?.name ?? "");
 
-  // ── The same seat at other table sizes ───────────────────────────
   let sizes = $state<TableOpens[]>([]);
   const sizeCache = new Map<string, TableOpens[]>();
 
@@ -488,7 +480,6 @@
     seat = s;
   }
 
-  // ── Live solve ───────────────────────────────────────────────────
   const done = $derived.by(() => {
     if (!progress) return 0;
     const { first, last } = progress;

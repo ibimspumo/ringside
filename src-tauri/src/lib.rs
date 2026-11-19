@@ -25,14 +25,14 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use ringside_core::db::{Attempt, Db, Filter, GroupRow, HandQuery, HandSummary, Results, Session, ShownHand};
+use ringside_core::db::{Attempt, Db, Filter, GroupRow, HandQuery, HandSummary, PlayerRow, Results, Session, ShownHand};
 use ringside_core::model::{GameKind, Hand};
 use ringside_core::notes::{Notes, NotesSource, PlayerNote};
 use ringside_core::stats::{StatValue, stat_values};
 use ringside_core::table::{REFERENCE_ASPECT, SeatPos, layout_key, normalize_layouts, to_reference, visual_index};
 use ringside_core::tournament::{Totals, TournamentRow, totals};
 use ringside_learn::own::{check_spot, parse_spot_id, prepare_spot};
-use ringside_learn::{Answer, Exercise, Feedback, Kind, OwnSpot, Progress, detect_spots};
+use ringside_learn::{Answer, Exercise, Feedback, Kind, OwnSpot, Progress, Read, detect_spots, player_read};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 
@@ -73,6 +73,8 @@ struct SeatView {
     bounty: Option<i64>,
     is_hero: bool,
     stats: Vec<StatValue>,
+    /// Player type; `None` while the client runs.
+    read: Option<Read>,
     note: Option<PlayerNote>,
 }
 
@@ -113,6 +115,7 @@ fn build_view(
     hand: &Hand,
     title: String,
     aspect: f64,
+    advice: bool,
 ) -> CmdResult<TableView> {
     let names: Vec<String> = hand.active_players().map(|s| s.name.clone()).collect();
     let game = settings.hud.split_by_game.then_some(hand.game);
@@ -129,6 +132,7 @@ fn build_view(
                 row.counters
             };
             let stack = seat.stack + hand.net(&seat.name);
+            let stats = stat_values(&counters);
             SeatView {
                 seat: seat.seat,
                 visual: visual_index(hand, seat.seat, settings.preferred_seating),
@@ -137,7 +141,8 @@ fn build_view(
                 stack_bb: if hand.big_blind > 0 { stack as f64 / hand.big_blind as f64 } else { 0.0 },
                 bounty: seat.bounty,
                 is_hero,
-                stats: stat_values(&counters),
+                read: advice.then(|| player_read(&stats)).flatten(),
+                stats,
                 note: notes.get(&seat.name).cloned(),
             }
         })
@@ -186,7 +191,7 @@ async fn overlay_view(label: String, aspect: f64, state: State<'_, AppState>) ->
     let Some(hand) = db.latest_hand_for_table(&key).map_err(err)? else { return Ok(None) };
     let settings = state.settings.lock().unwrap();
     let notes = state.notes.lock().unwrap();
-    build_view(&db, &settings, &notes.notes, &hand, info.title, aspect).map(Some)
+    build_view(&db, &settings, &notes.notes, &hand, info.title, aspect, !locked(&state)).map(Some)
 }
 
 /// The most recent real hand, for the HUD editor's preview.
@@ -198,7 +203,7 @@ async fn preview_view(aspect: f64, state: State<'_, AppState>) -> CmdResult<Opti
     let Some(hand) = db.hand(latest.id).map_err(err)? else { return Ok(None) };
     let settings = state.settings.lock().unwrap();
     let notes = state.notes.lock().unwrap();
-    build_view(&db, &settings, &notes.notes, &hand, hand.table_name.clone(), aspect).map(Some)
+    build_view(&db, &settings, &notes.notes, &hand, hand.table_name.clone(), aspect, !locked(&state)).map(Some)
 }
 
 #[derive(Serialize)]
@@ -329,6 +334,7 @@ struct LiveTable {
 #[tauri::command]
 async fn live_tables(state: State<'_, AppState>) -> CmdResult<Vec<LiveTable>> {
     let windows = state.overlays.client_windows.lock().unwrap().clone();
+    let advice = !locked(&state);
     let db = state.db.lock().unwrap();
     let settings = state.settings.lock().unwrap();
     let notes = state.notes.lock().unwrap();
@@ -339,7 +345,7 @@ async fn live_tables(state: State<'_, AppState>) -> CmdResult<Vec<LiveTable>> {
         .filter(|(_, key)| seen.insert(key.clone()))
         .map(|(title, table_key)| {
             let table = match db.latest_hand_for_table(&table_key).map_err(err)? {
-                Some(hand) => Some(build_view(&db, &settings, &notes.notes, &hand, title.clone(), REFERENCE_ASPECT)?),
+                Some(hand) => Some(build_view(&db, &settings, &notes.notes, &hand, title.clone(), REFERENCE_ASPECT, advice)?),
                 None => None,
             };
             Ok(LiveTable { title, table_key, table })
@@ -403,7 +409,7 @@ async fn dashboard(filter: Filter, state: State<'_, AppState>) -> CmdResult<Dash
             .map_err(err)?
             .into_iter()
             .find(|p| &p.name == name)
-            .map(|r| PlayerView { stats: stat_values(&r.counters), name: r.name, net: r.net }),
+            .map(|r| PlayerView::new(r, !locked(&state))),
         None => None,
     };
     Ok(Dashboard {
@@ -461,13 +467,23 @@ struct PlayerView {
     name: String,
     net: i64,
     stats: Vec<StatValue>,
+    /// Player type; `None` while the client runs.
+    read: Option<Read>,
+}
+
+impl PlayerView {
+    fn new(row: PlayerRow, advice: bool) -> Self {
+        let stats = stat_values(&row.counters);
+        PlayerView { read: advice.then(|| player_read(&stats)).flatten(), stats, name: row.name, net: row.net }
+    }
 }
 
 #[tauri::command]
 async fn players(filter: Filter, search: String, limit: usize, state: State<'_, AppState>) -> CmdResult<Vec<PlayerView>> {
     let db = state.db.lock().unwrap();
     let rows = db.players(&filter, &search, limit).map_err(err)?;
-    Ok(rows.into_iter().map(|r| PlayerView { stats: stat_values(&r.counters), name: r.name, net: r.net }).collect())
+    let advice = !locked(&state);
+    Ok(rows.into_iter().map(|r| PlayerView::new(r, advice)).collect())
 }
 
 #[tauri::command]

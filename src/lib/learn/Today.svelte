@@ -77,7 +77,6 @@
     try {
       localStorage.setItem(GOAL_STORE, String(g));
     } catch {
-      // ignore
     }
   }
 

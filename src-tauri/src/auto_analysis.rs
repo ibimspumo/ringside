@@ -3,14 +3,22 @@
 //! never calculates while PokerStars runs (account risk), so a run that PokerStars
 //! interrupts waits and goes on after the next close; it is still the same run.
 //!
+//! What is new needs a mark, set when PokerStars is seen opening. A fresh profile has none:
+//! until PokerStars was seen open every hand is new, so the history read in at the start
+//! is rated without a click.
+//!
 //! This module is the state machine only; `analysis.rs` feeds it and does the work.
 //!
 //! Invariants (tested below over every short sequence of events):
 //! - It may calculate only while the setting is on, PokerStars is seen closed and a run is on.
 //! - A run starts only on a close of PokerStars or the first look at it (the app start),
-//!   never while one is on: open/close in quick succession resumes the same run.
+//!   or without a mark on hands read in while it is closed; never while one is on:
+//!   open/close in quick succession resumes the same run.
+//! - Without a mark, with the setting on and no cancel, hands read in while PokerStars is
+//!   closed are always rated: by the run that is on or by one they start.
 //! - With the setting off nothing starts, and a run that is on ends.
-//! - A cancel holds until PokerStars closes the next time; an app restart does not lift it.
+//! - A cancel holds until PokerStars closes the next time with the setting on; an app
+//!   restart does not lift it.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Phase {
@@ -27,7 +35,8 @@ pub enum Phase {
 pub enum Edge {
     /// A run began.
     Started,
-    /// PokerStars was seen opening while no run was on: the hands from now on are new.
+    /// PokerStars was seen opening while no run was on: the hands from now on are new, and
+    /// this sets the mark.
     OpenedIdle,
     /// PokerStars closed after a cancel: the cancel no longer holds.
     CancelLifted,
@@ -38,18 +47,26 @@ pub struct Auto {
     phase: Phase,
     /// Whether PokerStars ran at the last observation; `None` before the first.
     client: Option<bool>,
+    /// Whether new hands are counted from a mark; without one every hand is new.
+    marked: bool,
 }
 
 impl Default for Auto {
     fn default() -> Auto {
-        Auto::new(false)
+        Auto::new(false, false)
     }
 }
 
 impl Auto {
-    /// `cancelled`: the user cancelled before the app was last closed.
-    pub fn new(cancelled: bool) -> Auto {
-        Auto { phase: if cancelled { Phase::Cancelled } else { Phase::Idle }, client: None }
+    /// `cancelled`: the user cancelled before the app was last closed; `marked`: a mark of
+    /// what is new is saved.
+    pub fn new(cancelled: bool, marked: bool) -> Auto {
+        Auto { phase: if cancelled { Phase::Cancelled } else { Phase::Idle }, client: None, marked }
+    }
+
+    /// No mark yet: the run rates every hand not rated so far.
+    pub fn unmarked(&self) -> bool {
+        !self.marked
     }
 
     pub fn phase(&self) -> Phase {
@@ -62,6 +79,7 @@ impl Auto {
         let mut edges = Vec::new();
         if client && before != Some(true) && self.phase == Phase::Idle {
             edges.push(Edge::OpenedIdle);
+            self.marked = true;
         }
         if !enabled {
             if self.phase == Phase::Running {
@@ -86,9 +104,27 @@ impl Auto {
         edges
     }
 
+    /// New hands were read in. Without a mark they start a run while PokerStars is closed.
+    pub fn imported(&mut self, enabled: bool) -> Vec<Edge> {
+        if enabled && !self.marked && self.phase == Phase::Idle && self.client == Some(false) {
+            self.phase = Phase::Running;
+            return vec![Edge::Started];
+        }
+        Vec::new()
+    }
+
     /// Whether a calculation step of the run may go now.
     pub fn may_compute(&self) -> bool {
         self.phase == Phase::Running && self.client == Some(false)
+    }
+
+    /// While a step may go, the id after which hands are new: the saved `mark`, without
+    /// one 0 (every hand).
+    pub fn after(&self, mark: Option<u64>) -> Option<u64> {
+        if !self.may_compute() {
+            return None;
+        }
+        if self.marked { mark } else { Some(0) }
     }
 
     /// The user stopped the analysis: no run until PokerStars closes the next time.
@@ -116,23 +152,30 @@ mod tests {
         Setting(bool),
         Cancel,
         Finish,
+        /// New hands were read in.
+        Import,
     }
 
-    const ALL: [Ev; 6] = [Ev::Client(true), Ev::Client(false), Ev::Setting(true), Ev::Setting(false), Ev::Cancel, Ev::Finish];
+    const ALL: [Ev; 7] = [Ev::Client(true), Ev::Client(false), Ev::Setting(true), Ev::Setting(false), Ev::Cancel, Ev::Finish, Ev::Import];
 
     /// Plays `events` from a fresh start (setting on) and checks the invariants after each.
-    fn play(cancelled: bool, events: &[Ev]) {
-        let mut auto = Auto::new(cancelled);
+    fn play(cancelled: bool, marked: bool, events: &[Ev]) {
+        let mut auto = Auto::new(cancelled, marked);
         let (mut client, mut enabled) = (None::<bool>, true);
-        // A cancel holds until a real close; true from the start when the app was closed cancelled.
+        // A cancel holds until a real close with the setting on; true from the start when the
+        // app was closed cancelled.
         let mut held = cancelled;
+        // The worker saves the mark on `OpenedIdle`.
+        let mut mark = marked.then_some(7u64);
+        // Hands read in while unmarked and closed that no run has rated yet.
+        let mut waiting = false;
         for (i, &ev) in events.iter().enumerate() {
             let was = auto.phase();
             let edges = match ev {
                 Ev::Client(c) => {
                     let before = client.replace(c);
                     let edges = auto.observe(c, enabled);
-                    if !c && before == Some(true) {
+                    if !c && before == Some(true) && enabled {
                         held = false;
                     }
                     edges
@@ -150,8 +193,24 @@ mod tests {
                     auto.finish();
                     Vec::new()
                 }
+                Ev::Import => auto.imported(enabled),
             };
             let at = || format!("after {:?}", &events[..=i]);
+            if edges.contains(&Edge::OpenedIdle) {
+                assert!(matches!(ev, Ev::Client(true)), "a mark without PokerStars opening, {}", at());
+                mark = Some(9);
+            }
+            if auto.may_compute() {
+                assert_eq!(auto.after(mark), Some(mark.unwrap_or(0)), "a run without hands to rate, {}", at());
+            }
+            match ev {
+                Ev::Import => waiting |= mark.is_none() && client == Some(false) && enabled && !held,
+                Ev::Finish | Ev::Cancel | Ev::Setting(false) => waiting = false,
+                _ => {}
+            }
+            if waiting && enabled && !held {
+                assert_eq!(auto.phase(), Phase::Running, "hands read in without a mark wait for a click, {}", at());
+            }
             if auto.may_compute() {
                 assert_eq!(client, Some(false), "calculates while PokerStars runs or before it was seen, {}", at());
                 assert!(enabled, "calculates with the setting off, {}", at());
@@ -160,7 +219,8 @@ mod tests {
             if started {
                 assert!(enabled, "started with the setting off, {}", at());
                 assert_ne!(was, Phase::Running, "a second run started while one was on, {}", at());
-                assert!(matches!(ev, Ev::Client(false)), "started without a close, {}", at());
+                let unmarked_import = matches!(ev, Ev::Import) && mark.is_none() && client == Some(false);
+                assert!(matches!(ev, Ev::Client(false)) || unmarked_import, "started without a close, {}", at());
                 assert!(!held, "started although cancelled, {}", at());
             }
             if held {
@@ -175,8 +235,9 @@ mod tests {
     #[test]
     fn invariants_hold_for_every_short_sequence() {
         fn all(depth: usize, prefix: &mut Vec<Ev>) {
-            play(false, prefix);
-            play(true, prefix);
+            for (cancelled, marked) in [(false, false), (false, true), (true, false), (true, true)] {
+                play(cancelled, marked, prefix);
+            }
             if depth == 0 {
                 return;
             }
@@ -191,7 +252,7 @@ mod tests {
 
     #[test]
     fn closing_pokerstars_starts_exactly_one_run() {
-        let mut auto = Auto::new(false);
+        let mut auto = Auto::new(false, true);
         assert_eq!(auto.observe(true, true), [Edge::OpenedIdle]);
         assert!(!auto.may_compute());
         assert_eq!(auto.observe(true, true), []);
@@ -203,14 +264,34 @@ mod tests {
 
     #[test]
     fn the_app_start_with_pokerstars_closed_starts_a_run() {
-        let mut auto = Auto::new(false);
+        let mut auto = Auto::new(false, true);
         assert_eq!(auto.observe(false, true), [Edge::Started]);
         assert!(auto.may_compute());
     }
 
+    /// A fresh profile rates the history read in at the start, and what comes in later
+    /// while PokerStars stays closed, until PokerStars was seen open once.
+    #[test]
+    fn without_a_mark_every_hand_is_new() {
+        let mut auto = Auto::new(false, false);
+        assert_eq!(auto.observe(false, true), [Edge::Started]);
+        assert_eq!(auto.after(None), Some(0));
+        assert_eq!(auto.imported(true), [], "the run that is on takes them");
+        assert!(auto.finish());
+        assert_eq!(auto.imported(true), [Edge::Started]);
+        assert!(auto.finish());
+        assert_eq!(auto.imported(false), [], "the setting off starts nothing");
+        assert_eq!(auto.observe(true, true), [Edge::OpenedIdle]);
+        assert_eq!(auto.imported(true), [], "a session's hands wait for the close");
+        assert_eq!(auto.observe(false, true), [Edge::Started]);
+        assert_eq!(auto.after(Some(42)), Some(42));
+        assert!(auto.finish());
+        assert_eq!(auto.imported(true), [], "with a mark, imports wait for the next close");
+    }
+
     #[test]
     fn flapping_pokerstars_pauses_and_resumes_the_same_run() {
-        let mut auto = Auto::new(false);
+        let mut auto = Auto::new(false, true);
         let mut starts = 0;
         for client in [false, true, false, true, true, false, true, false] {
             let edges = auto.observe(client, true);
@@ -225,13 +306,13 @@ mod tests {
 
     #[test]
     fn the_setting_off_starts_nothing_and_ends_a_run() {
-        let mut auto = Auto::new(false);
+        let mut auto = Auto::new(false, true);
         assert_eq!(auto.observe(false, false), []);
         assert_eq!(auto.observe(true, false), [Edge::OpenedIdle]);
         assert_eq!(auto.observe(false, false), []);
         assert!(!auto.may_compute());
 
-        let mut auto = Auto::new(false);
+        let mut auto = Auto::new(false, true);
         auto.observe(false, true);
         assert!(auto.may_compute());
         auto.observe(false, false);
@@ -243,7 +324,7 @@ mod tests {
 
     #[test]
     fn a_cancel_holds_until_the_next_close() {
-        let mut auto = Auto::new(false);
+        let mut auto = Auto::new(false, true);
         auto.observe(false, true);
         auto.cancel();
         assert!(!auto.may_compute());
@@ -255,7 +336,7 @@ mod tests {
 
     #[test]
     fn a_cancel_survives_an_app_restart() {
-        let mut auto = Auto::new(true);
+        let mut auto = Auto::new(true, true);
         assert_eq!(auto.observe(false, true), []);
         assert!(!auto.may_compute());
         auto.observe(true, true);

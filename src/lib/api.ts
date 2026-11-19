@@ -90,6 +90,9 @@ function advice<T>(fallback: () => T): () => T {
   };
 }
 
+/** Like the backend, the demo gives no player type while PokerStars runs. */
+const unread = <T extends { read: unknown }>(p: T): T => (demoLocked ? { ...p, read: null } : p);
+
 /** Browser-only stand-in for saved settings, so the demo reacts to edits. */
 let demoStore: Settings = structuredClone(demo.demoSettings);
 
@@ -143,7 +146,10 @@ export const api = {
       upgrade: null,
     })),
   clientWindows: () => call<ClientWindow[]>("client_windows", {}, demoWindows),
-  liveTables: () => call<LiveTable[]>("live_tables", {}, demo.demoLiveTables),
+  liveTables: () =>
+    call<LiveTable[]>("live_tables", {}, () =>
+      demo.demoLiveTables().map((l) => (l.table ? { ...l, table: { ...l.table, seats: l.table.seats.map(unread) } } : l)),
+    ),
   pokerClientRunning: () => call<boolean>("poker_client_running", {}, () => demoLocked),
   tournaments: (filter: Filter) =>
     sample<Tournaments>("tournaments", { filter }, demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
@@ -175,7 +181,7 @@ export const api = {
     call<RangeChart>("range_chart", { filter, range }, () => rangesDemo.demoChart(filter, range)),
   players: (filter: Filter, search: string, limit = 300) =>
     call<PlayerView[]>("players", { filter, search, limit }, () =>
-      demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())),
+      demo.demoPlayers(filter).filter((p) => p.name.toLowerCase().includes(search.toLowerCase())).map(unread),
     ),
   shownHands: (player: string) => call<ShownHand[]>("shown_hands", { player }, demo.demoShown),
   hands: (query: HandQuery) =>

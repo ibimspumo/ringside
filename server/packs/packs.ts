@@ -55,7 +55,7 @@ async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// --- signing ---------------------------------------------------------------------------
+// Signing.
 
 export async function generateKeyPair(): Promise<{ privateKey: string; publicKey: string }> {
   const pair = await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"]) as CryptoKeyPair;
@@ -92,7 +92,7 @@ export async function verifySignature(publicKey: string, data: Uint8Array<ArrayB
   return await crypto.subtle.verify("Ed25519", key, fromBase64(sig.trim()) as Uint8Array<ArrayBuffer>, data);
 }
 
-// --- index -----------------------------------------------------------------------------
+// Index.
 
 export function addVersion(index: Index, name: string, version: string, files: PackFile[], now: Date): Index {
   if (!NAME_RE.test(name)) throw new Error(`pack name must match ${NAME_RE}`);
@@ -116,7 +116,7 @@ export function removeVersion(index: Index, name: string, version: string, now: 
   return { format: FORMAT, serial: index.serial + 1, updated_at: now.toISOString(), packs };
 }
 
-// --- bunny -----------------------------------------------------------------------------
+// Bunny.
 
 class Storage {
   private constructor(
@@ -212,7 +212,7 @@ async function listFiles(dir: string, prefix = ""): Promise<string[]> {
   return out.sort();
 }
 
-// --- commands --------------------------------------------------------------------------
+// Commands.
 
 async function setup(bunny: Bunny) {
   let storage = Bunny.find(await bunny.storageZones(), ZONE);

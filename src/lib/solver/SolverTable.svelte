@@ -10,7 +10,7 @@
 
 <script lang="ts">
   import { REFERENCE_ASPECT } from "../hud/geometry";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import CardSlot from "../ui/CardSlot.svelte";
   import OvalFelt from "../table/OvalFelt.svelte";
   import { clear, layout, placeOf } from "../table/seats";

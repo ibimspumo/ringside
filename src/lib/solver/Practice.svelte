@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
   import { signed } from "../app/format";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import Button from "../ui/Button.svelte";
   import ActionBar from "./ActionBar.svelte";
   import { actionColors, bb, whole } from "./actions";

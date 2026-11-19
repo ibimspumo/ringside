@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../../../PlayingCard.svelte";
+  import PlayingCard from "../../../ui/PlayingCard.svelte";
   import CardRow from "../blocks/CardRow.svelte";
   import { hitChance, pct } from "../math";
   import { CATEGORY, RANKS, SUITS, outsTo } from "../poker";

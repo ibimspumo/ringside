@@ -65,7 +65,6 @@ const ERROR_TEXT =
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(path.join(OUT, "pages"), { recursive: true });
 
-// ---------------------------------------------------------------------------------
 // Test data: an empty data folder and the fixtures laid out like the client's folders.
 
 const fixtures = path.join(ROOT, "crates", "ringside-core", "tests", "fixtures");
@@ -80,7 +79,6 @@ copyTxt(path.join(fixtures, "summaries"), path.join(stars, "TournSummary", "Hero
 const dataDir = path.join(OUT, "data");
 mkdirSync(dataDir, { recursive: true });
 
-// ---------------------------------------------------------------------------------
 // Network trap: every connection to a trapped host lands here and is counted.
 
 const hits = Object.fromEntries(TRAPS.map((t) => [t.name, 0]));
@@ -98,7 +96,6 @@ if (process.env.E2E_NET_TRAP) {
   }
 }
 
-// ---------------------------------------------------------------------------------
 // Driver and session.
 
 const consoleFile = createWriteStream(path.join(OUT, "console.log"));
@@ -155,7 +152,6 @@ async function startSession() {
   }
 }
 
-// ---------------------------------------------------------------------------------
 // Helpers. Elements are found in the page by visible text, like a user would.
 
 function sleep(ms) {
@@ -313,7 +309,6 @@ async function consoleErrors() {
   return (errors.length ? errors : hooked).filter((m) => !benign(m));
 }
 
-// ---------------------------------------------------------------------------------
 // Steps.
 
 const steps = [];
@@ -396,7 +391,7 @@ async function sameFirstStep(where, sel) {
 
 step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
   await nav("Übersicht");
-  // A fresh profile rates imported hands only on request: no PokerStars session marked them as new.
+  // Without automatic analysis nothing rates the imported hands; then the user starts it here.
   if (TAURI) {
     const st = await invoke("analysis_status");
     if (!st.enabled && !st.auto_run && st.counts.analyzed === 0) await click("main button", `${st.counts.hands} Hände analysieren`);
@@ -546,7 +541,7 @@ step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", as
     return r;
   };
   await check();
-  // The analysis only stands beside the table in wide windows: the bug lived there.
+  // Only wide windows put the analysis beside the table.
   try {
     await s.cmd("POST", "/window/rect", { width: 1920, height: 1080 });
   } catch (e) {
@@ -1324,7 +1319,6 @@ if (!TAURI)
     if (problems.length) throw new Error(`${problems.length} Layout-Fehler:\n  ${problems.slice(0, 20).join("\n  ")}`);
   });
 
-// ---------------------------------------------------------------------------------
 // Run.
 
 let failed = null;
