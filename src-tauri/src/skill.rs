@@ -1,20 +1,25 @@
-//! The Spielwertung for the app: computed from the stored analysis on every request (see
-//! [`ringside_core::skill`]); a rating of decisions, so locked while PokerStars runs.
+//! The Spielwertung for the app: computed from the stored analysis (see
+//! [`ringside_core::skill`]) whenever it changed; a rating of decisions, so locked while
+//! PokerStars runs.
 
 use ringside_core::db::Db;
 use ringside_core::session::SessionSpan;
 use ringside_core::skill::{Change, SkillProfile, change, profile};
 use tauri::AppHandle;
 
-use crate::{CmdResult, blocking, err};
+use crate::memo::Memo;
+use crate::{AppState, CmdResult, blocking, err};
+
+static PROFILE: Memo<(u64, u64), SkillProfile> = Memo::new();
 
 #[tauri::command]
 pub async fn skill_profile(app: AppHandle) -> CmdResult<SkillProfile> {
-    blocking(app, |state| {
-        let moves = state.db.lock().unwrap().skill_moves().map_err(err)?;
-        Ok(profile(&moves))
-    })
-    .await
+    blocking(app, skill_of).await
+}
+
+pub(crate) fn skill_of(state: &AppState) -> CmdResult<SkillProfile> {
+    let db = state.db.lock().unwrap();
+    PROFILE.get_or(db.version(), || Ok(profile(&db.skill_moves().map_err(err)?)))
 }
 
 /// The change by the hands after `after` (0: every hand, no rating before).

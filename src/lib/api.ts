@@ -42,6 +42,7 @@ import type {
   ClientWindow,
   Dashboard,
   Filter,
+  GroupView,
   Hand,
   HandQuery,
   HandSummary,
@@ -185,6 +186,9 @@ export const api = {
       () => ({ positions: [], starting_hands: [], sessions: [] }),
       () => demo.demoReports(filter),
     ),
+  /** The overview's results by position, without the rest of `reports`. */
+  positions: (filter: Filter) =>
+    sample<GroupView[]>("positions", { filter }, () => demo.demoReports(filter).positions, () => [], () => demo.demoReports(filter).positions),
   leaks: (filter: Filter) =>
     sample<LeakReport>("leaks", { filter }, advice(() => demo.demoLeaks(filter)), () => ({
       ...demo.demoLeaks({ game: "cash", since: null, tournament_id: null }),

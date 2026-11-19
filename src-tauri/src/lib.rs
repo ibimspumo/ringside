@@ -7,9 +7,12 @@ mod drill;
 mod importer;
 mod jobs;
 mod library;
+mod memo;
 mod memory;
 mod next;
 mod overlay;
+#[cfg(test)]
+mod perf;
 mod play;
 mod ranges;
 mod report;
@@ -402,20 +405,24 @@ struct Dashboard {
 
 #[tauri::command]
 async fn dashboard(filter: Filter, state: State<'_, AppState>) -> CmdResult<Dashboard> {
+    dashboard_view(&state, &filter)
+}
+
+fn dashboard_view(state: &AppState, filter: &Filter) -> CmdResult<Dashboard> {
     let db = state.db.lock().unwrap();
     let heroes = db.heroes().map_err(err)?;
     let hero = match heroes.first() {
         Some(name) => db
-            .players(&filter, name, 50)
+            .players(filter, name, 50)
             .map_err(err)?
             .into_iter()
             .find(|p| &p.name == name)
-            .map(|r| PlayerView::new(r, !locked(&state))),
+            .map(|r| PlayerView::new(r, !locked(state))),
         None => None,
     };
     Ok(Dashboard {
         hand_count: db.hand_count().map_err(err)?,
-        results: db.hero_results(&filter, 1500).map_err(err)?,
+        results: db.hero_results(filter, 1500).map_err(err)?,
         heroes,
         hero,
     })
@@ -450,16 +457,25 @@ fn leak_report(state: &AppState, filter: &Filter) -> CmdResult<ringside_core::le
 
 #[tauri::command]
 async fn reports(filter: Filter, state: State<'_, AppState>) -> CmdResult<Reports> {
-    let db = state.db.lock().unwrap();
-    let view = |rows: Vec<GroupRow>| -> Vec<GroupView> {
-        rows.into_iter()
-            .map(|r| GroupView { stats: stat_values(&r.counters), key: r.key, net: r.net, net_bb: r.net_bb })
-            .collect()
-    };
+    reports_view(&state.db.lock().unwrap(), &filter)
+}
+
+/// The hero's results by position alone, for the overview.
+#[tauri::command]
+async fn positions(filter: Filter, state: State<'_, AppState>) -> CmdResult<Vec<GroupView>> {
+    Ok(group_view(state.db.lock().unwrap().hero_groups(&filter, false).map_err(err)?))
+}
+
+fn group_view(rows: Vec<GroupRow>) -> Vec<GroupView> {
+    rows.into_iter().map(|r| GroupView { stats: stat_values(&r.counters), key: r.key, net: r.net, net_bb: r.net_bb }).collect()
+}
+
+fn reports_view(db: &Db, filter: &Filter) -> CmdResult<Reports> {
+    let view = group_view;
     Ok(Reports {
-        positions: view(db.hero_groups(&filter, false).map_err(err)?),
-        starting_hands: view(db.hero_groups(&filter, true).map_err(err)?),
-        sessions: db.sessions(&filter).map_err(err)?,
+        positions: view(db.hero_groups(filter, false).map_err(err)?),
+        starting_hands: view(db.hero_groups(filter, true).map_err(err)?),
+        sessions: db.sessions(filter).map_err(err)?,
     })
 }
 
@@ -737,6 +753,7 @@ pub fn run() {
             poker_client_running,
             detected_dirs,
             dashboard,
+            positions,
             reports,
             leaks,
             ranges::range_groups,
