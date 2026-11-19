@@ -660,6 +660,8 @@
             <GradeBars counts={{ best: 9, mix: 3, good: 4, inaccurate: 2, mistake: 1, blunder: 0 }} />
             <p class="muted">Mit <code>grades</code> nur die Stufen einer Quelle, etwa die vier des Coaches:</p>
             <GradeBars grades={["best", "good", "inaccurate", "mistake"]} counts={{ best: 2, good: 1, inaccurate: 1, mistake: 1 }} />
+            <p class="muted">Mit <code>stacked</code> ein Balken für eine Zusammenfassung:</p>
+            <GradeBars stacked counts={{ best: 148, mix: 21, good: 34, inaccurate: 14, mistake: 9, blunder: 4 }} />
             <p class="muted">Eine Zahl über wenige Fälle, jeder Balken wählt seinen Fall (<code>ColumnBars</code>):</p>
             <ColumnBars
               label="Erster am Zug nach Tischgröße"
