@@ -72,3 +72,12 @@ test("time spans are written by the one formatter", () => {
   const lines = out.filter((l) => l.includes("[time-format]")).map((l) => l.split("  ")[0]);
   assert.deepEqual(lines.sort(), ["app/A.svelte:2", "app/A.svelte:4", "app/A.svelte:5", "app/b.ts:1", "app/b.ts:1"]);
 });
+
+test("toFixed is display text in markup and before a unit, not in paths and styles", () => {
+  const out = findings({
+    "app/A.svelte": '<script>\n  const d = `M${x.toFixed(1)},${y.toFixed(1)}`;\n  const k = `${(v / 1000).toFixed(1)}k`;\n</script>\n<p>{share.toFixed(1)} %</p>\n<i style="width:{w.toFixed(2)}%"></i>\n',
+    "app/b.ts": "export const s = (v: number) => `${v.toFixed(2)} BB`;\nexport const c = (p: number) => `${p.toFixed(1)}%`;\n",
+  });
+  const lines = out.filter((l) => l.includes("[raw-number]")).map((l) => l.split("  ")[0]);
+  assert.deepEqual(lines.sort(), ["app/A.svelte:3", "app/A.svelte:5", "app/A.svelte:6", "app/b.ts:1"]);
+});

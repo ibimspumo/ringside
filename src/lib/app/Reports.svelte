@@ -3,7 +3,7 @@
   import { bountyText, fmt, stat } from "../stats";
   import type { Filter, GroupView, Reports } from "../types";
   import { dayShort, floating, int, secondsBetween, sign, signed, time, type Anchor } from "./format";
-  import { duration } from "../ui/format";
+  import { compact, duration } from "../ui/format";
 
   let { filter, refresh }: { filter: Filter; refresh: number } = $props();
 
@@ -78,7 +78,7 @@
     if (blank(c)) return "";
     if (mode === "played") return c.vpip === null ? "–" : `${Math.round(c.vpip)}`;
     const v = c.bb100 ?? 0;
-    return Math.abs(v) >= 1000 ? `${v > 0 ? "+" : "−"}${(Math.abs(v) / 1000).toFixed(1)}k` : signed(v, 0);
+    return Math.abs(v) >= 1000 ? `${v > 0 ? "+" : "−"}${compact(Math.abs(v))}` : signed(v, 0);
   }
 
   function show(e: MouseEvent, g: Cell) {

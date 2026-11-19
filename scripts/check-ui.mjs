@@ -37,6 +37,7 @@ const RULES = {
   "page-heading": "Eigene Seitenüberschrift (<h1> oder Intro-Block .page-head) – Titel, Zeile und Bereiche gehören in den PageHeader (usePageHead).",
   jargon: "Fachbegriff als fester Text ohne Erklärung – in <Term id=\"…\"> setzen; Wörter und Erklärungen stehen in src/lib/ui/words.ts.",
   "old-word": "Altes Wort als Anzeigetext – „Leaks“ heißt „Schwachstellen“, „EV-Verlust“ heißt „kostet im Schnitt“ (src/lib/ui/words.ts).",
+  "raw-number": "Zahl mit toFixed als Anzeigetext (Punkt statt Komma) – nimm num, bb, pct, compact aus src/lib/ui/format.ts.",
   "time-format": "Eigene Zeitangabe (Std., Min., h, min) – nimm duration, ago oder remaining aus src/lib/ui/format.ts.",
 };
 
@@ -284,6 +285,13 @@ function scan(file, text, globals) {
       }
     }
   }
+
+  // In markup every toFixed is text; in code it is text when a unit follows (SVG paths and CSS take the dot).
+  if (file.endsWith(".svelte")) {
+    const markup = clean.replace(/<script[^>]*>[\s\S]*?<\/script>|<style[^>]*>[\s\S]*?<\/style>/g, (x) => x.replace(/[^\n]/g, " "));
+    for (const m of markup.matchAll(/\.toFixed\(/g)) add("raw-number", m.index, "toFixed im Markup");
+  }
+  for (const m of clean.matchAll(/\.toFixed\([^)]*\)\}\s?(?:k|M|BB|bb|h|min|×|€|\$(?!\{))(?![\wäöüß])/g)) add("raw-number", m.index, m[0]);
 
   if (rel !== "ui/format.ts" && !file.endsWith(".css")) {
     for (const m of clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, (x) => x.replace(/[^\n]/g, " ")).matchAll(TIME_UNIT)) add("time-format", m.index, m[0]);
