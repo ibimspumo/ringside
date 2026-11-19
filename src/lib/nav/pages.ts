@@ -62,7 +62,7 @@ export const PAGES: Record<Page, PageInfo> = {
   },
   leaks: {
     label: WORDS.leaks.word,
-    text: "Wo du immer wieder Blinds liegen lässt und was dagegen hilft.",
+    text: "Wo du immer wieder Chips verlierst und was dagegen hilft.",
     icon: "M12 4.5c3 4 5.5 6.9 5.5 10a5.5 5.5 0 0 1-11 0c0-3.1 2.5-6 5.5-10zM9.5 15.5a2.5 2.5 0 0 0 2.5 2.5",
   },
   reports: {

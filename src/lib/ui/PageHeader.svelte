@@ -24,7 +24,7 @@
     sections?: PageSections | null;
     /** Catalogue preview: the title is not a heading, so the page keeps its one h1. */
     demo?: boolean;
-    /** The page is locked while PokerStars runs; the note stays whatever line the page shows. */
+    /** The page is locked while PokerStars runs: the note takes the place of the line. */
     locked?: boolean;
     /** Lines the heading up with the page below; by default the page on screen (`followPage`). */
     frame?: PageFrame | null;
@@ -50,7 +50,7 @@
     <div class="title">
       {#if demo}<p class="h1">{title}</p>{:else}<h1 class="h1">{title}</h1>{/if}
       {#if locked}<SourceNote kind="locked" />{/if}
-      {#if line}<p title={line}>{line}</p>{/if}
+      {#if line && !locked}<p title={line}>{line}</p>{/if}
     </div>
     {#if actions}<div class="actions">{@render actions()}</div>{/if}
   </div>

@@ -499,7 +499,7 @@
             <NavItem size="sub" label="Nachrechnen" icon={NAV_ICON.stats} locked />
           </div>
           <div class="navtiles">
-            <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Blinds liegen lässt und was dagegen hilft." status="4 gefunden" tone="warn" active />
+            <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Chips verlierst und was dagegen hilft." status="4 gefunden" tone="warn" active />
             <NavItem size="tile" label="Nachrechnen" icon={NAV_ICON.stats} text="Eine Situation genau durchrechnen lassen." status="gesperrt" locked />
           </div>
         </div>

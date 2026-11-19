@@ -66,6 +66,10 @@ const CHECK = `
   if (page) {
     const left = rect(page).left + px(getComputedStyle(page).paddingLeft);
     if (Math.abs(left - barLeft) > 1) out.push("Seite beginnt bei " + Math.round(left) + ", Leiste bei " + Math.round(barLeft));
+    // The bar follows the page; a page with its own margin moves the logo when you switch pages.
+    const gutter = px(root.getPropertyValue("--page-gutter"));
+    const own = px(getComputedStyle(page).paddingLeft);
+    if (Math.abs(own - gutter) > 0.5) out.push("Seite hat eigenen Rand " + own + " px statt --page-gutter " + gutter + " px");
   }
 
   const visible = (el) => { const r = rect(el); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
@@ -157,10 +161,16 @@ export async function view(s, base, query, width) {
   let problems = [];
   // The dev server may reload the page once while it optimizes; a page that is not there yet is
   // loaded again before anything counts.
+  // A reload in the middle ends the wait with a script timeout; that attempt counts as not there.
   for (let attempt = 0; attempt < 2; attempt++) {
     await s.navigate(new URL(query, base).href);
-    await s.execAsync(SETTLED);
-    problems = await s.exec(CHECK);
+    try {
+      await s.execAsync(SETTLED);
+      problems = await s.exec(CHECK);
+    } catch (e) {
+      if (attempt === 1 || !/script timeout|navigat|context/i.test(e.message)) throw e;
+      problems = ["obere Leiste fehlt"];
+    }
     if (!problems.includes("obere Leiste fehlt")) break;
   }
   return problems.map((p) => `${width} px ${query}: ${p}`);

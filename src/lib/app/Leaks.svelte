@@ -537,7 +537,6 @@
 
 <style>
   .leaks {
-    padding-inline: 24px;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -1005,11 +1004,8 @@
     color: var(--text-2);
   }
 
-  /* Wide windows: a readable page width, the bar column gets the extra room. */
+  /* Wide windows: the bar column gets the extra room. */
   @container (min-width: 1900px) {
-    .leaks {
-      max-width: none;
-    }
     .body {
       grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
     }

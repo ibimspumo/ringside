@@ -375,7 +375,6 @@
 
 <style>
   .dash {
-    padding-inline: 24px;
     display: flex;
     flex-direction: column;
     gap: 18px;
@@ -752,11 +751,7 @@
     color: var(--text-2);
   }
 
-  /* Wide windows: the page grows so the curve and the style row use the room. */
   @container (min-width: 1900px) {
-    .dash {
-      max-width: none;
-    }
     .hero {
       grid-template-columns: 420px minmax(0, 1fr);
     }

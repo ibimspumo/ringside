@@ -38,7 +38,7 @@
     <p class="line">
       <b>Ringside Cloud ist an.</b>
       <span class="long">Geteilt werden nur Rechen-Eingaben und Ergebnisse, nichts Persönliches.</span>
-      <span class="short">Geteilt werden nur Rechnungen, nichts Persönliches.</span>
+      <span class="short">Geteilt werden nur Rechenergebnisse, nichts Persönliches.</span>
     </p>
     <div class="actions">
       <Button size="sm" variant="quiet" aria-expanded={details} aria-controls="cloud-details" onclick={() => (details = !details)}>

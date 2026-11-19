@@ -359,7 +359,6 @@
 
 <style>
   .tours {
-    padding-inline: 24px;
     display: flex;
     flex-direction: column;
     gap: 18px;
@@ -636,11 +635,6 @@
     color: var(--text-2);
   }
 
-  @container (min-width: 1900px) {
-    .tours {
-      max-width: none;
-    }
-  }
   @container (max-width: 1180px) {
     .verdict {
       grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);

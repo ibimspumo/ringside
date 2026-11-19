@@ -137,10 +137,10 @@
    * Folding of the bar when room runs short, one step at a time. What also shows elsewhere goes
    * first; marks and tables keep words as long as they can, the lock note longest:
    *   1 status without "im Blick" / "gespeichert"   2 hand count off
-   *   3 name "Ringside" off                          4 tasks as the ring alone
-   *   5 tab icons off                                6 marks shorter ("4 gefunden")
-   *   7 marks as a number ("4")                      8 open tables as dot and number
-   *   9 lock note short ("Teile gesperrt")          10 lock note as its icon (tabs and page keep theirs)
+   *   3 name "Ringside" off                          4 tab icons off
+   *   5 marks shorter ("4 gefunden")                 6 lock note short ("Teile gesperrt")
+   *   7 tasks as the ring alone                      8 marks as a number ("4")
+   *   9 open tables as dot and number               10 lock note as its icon (tabs and page keep theirs)
    *  11 marks off (the menus keep them)
    */
   let step = $state(0);
@@ -178,7 +178,7 @@
   const focusAt = Number(preview.get("navfocus"));
   $effect(() => {
     if (!Number.isInteger(focusAt) || focusAt < 1) return;
-    const t = window.setTimeout(() => document.querySelectorAll<HTMLElement>("[data-nav]")[focusAt - 1]?.focus(), 400);
+    const t = window.setTimeout(() => panel?.querySelectorAll<HTMLElement>("[data-nav]")[focusAt - 1]?.focus(), 400);
     return () => clearTimeout(t);
   });
 
@@ -204,11 +204,11 @@
           <NavItem
             size="top"
             label={area.label}
-            icon={step < 5 ? area.icon : undefined}
+            icon={step < 4 ? area.icon : undefined}
             active={single && tab === area.pages[0]}
             current={!single && current?.id === area.id}
             chevron={single ? undefined : "down"}
-            status={mark && step < 11 ? (step < 6 ? (mark.line ?? mark.long) : step < 7 ? mark.long : mark.text) : undefined}
+            status={mark && step < 11 ? (step < 5 ? (mark.line ?? mark.long) : step < 8 ? mark.long : mark.text) : undefined}
             tone={mark?.tone}
             locked={shut}
             title={shut ? "Gesperrt, solange PokerStars läuft" : undefined}
@@ -225,11 +225,11 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 9 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
           </span>
         {/if}
-        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 8} /></span>
-        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 4} /></span>
+        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 9} /></span>
+        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 7} /></span>
         <span class="item gear" class:on={tab === "settings"} data-bar-item>
           <IconButton label="Einstellungen" aria-current={tab === "settings" ? "page" : undefined} onclick={() => go("settings")}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={PAGES.settings.icon} /></svg>
