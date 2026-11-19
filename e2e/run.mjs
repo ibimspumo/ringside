@@ -18,7 +18,13 @@
 //
 // For writing steps, E2E_URL runs the same steps against the browser demo through any
 // WebDriver server at E2E_WEBDRIVER (e.g. chromedriver); checks that need the backend
-// are skipped there.
+// are skipped there. The demo is the build, served without a file watcher:
+//
+//   pnpm build && pnpm exec vite preview --port <p>
+//
+// A dev server reloads the page whenever SvelteKit rewrites .svelte-kit/generated (on its own
+// start, on `pnpm check` or `pnpm build`), and a step caught by the reload waits in vain, so the
+// run refuses one.
 
 import { spawn } from "node:child_process";
 import { createWriteStream, cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -138,7 +144,14 @@ if (TAURI) {
 
 const s = await startSession();
 await s.cmd("POST", "/timeouts", { script: 180_000 });
-if (!TAURI) await s.navigate(DEMO_URL);
+if (!TAURI) {
+  await s.navigate(DEMO_URL);
+  if (await s.exec(`return typeof __sveltekit_dev !== "undefined"`)) {
+    console.error(`E2E_URL ${DEMO_URL} ist ein Vite-Dev-Server; sein Neuladen bricht Schritte ab. Demo bauen und ohne Beobachter ausliefern: pnpm build && pnpm exec vite preview --port <p>`);
+    await s.quit().catch(() => {});
+    process.exit(1);
+  }
+}
 
 async function startSession() {
   const until = Date.now() + 60_000;
