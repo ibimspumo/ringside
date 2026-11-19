@@ -3,6 +3,7 @@
   import ActionChain from "./ActionChain.svelte";
   import ActionLabel from "./ActionLabel.svelte";
   import Badge from "./Badge.svelte";
+  import SiteMark from "./SiteMark.svelte";
   import BestHand from "./BestHand.svelte";
   import Button from "./Button.svelte";
   import Card from "./Card.svelte";
@@ -28,6 +29,7 @@
   import ProgressBar from "./ProgressBar.svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import RangeGrid, { type RangeCell } from "./RangeGrid.svelte";
+  import ScoreChip from "./ScoreChip.svelte";
   import SectionHead from "./SectionHead.svelte";
   import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
@@ -484,7 +486,7 @@
       <section id="navigation">
         <SectionHead
           title="Navigation"
-          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
+          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter, eine Wertung mit Trend rechts und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
         />
         <div class="stack">
           <div class="navbar">
@@ -497,6 +499,12 @@
             <NavItem size="sub" label="Hände" icon={NAV_ICON.play} status="rechnet 96 %" />
             <NavItem size="sub" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
             <NavItem size="sub" label="Nachrechnen" icon={NAV_ICON.stats} locked />
+          </div>
+          <div class="navbar">
+            <ScoreChip value="1287" trend={14} sub="+14 · Solide" subTone="good" title="Wertung 1287, +14" onclick={() => {}} />
+            <ScoreChip value="1273" trend={-6} sub="−6 · Solide" subTone="bad" active title="Wertung 1273, −6, Seite offen" onclick={() => {}} />
+            <ScoreChip value="1287" trend={14} compact title="Wertung 1287, schmal" onclick={() => {}} />
+            <ScoreChip locked value="Wertung" sub="gesperrt" title="Wertung gesperrt" onclick={() => {}} />
           </div>
           <div class="navtiles">
             <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Chips verlierst und was dagegen hilft." status="4 gefunden" tone="warn" active />
@@ -561,7 +569,7 @@
         <Tabs jump label="Gruppen" bind:value={jumpTo} tabs={[{ id: "haende", label: "Hände & Tische" }, { id: "rechnen", label: "Analyse & Rechnen" }, { id: "cloud", label: "Ringside Cloud" }]} />
         <div class="gap"></div>
         <Panel flush>
-          <SettingRow title="Neue Hände automatisch analysieren" sub="Sobald du PokerStars schließt, bewertet Ringside deine neuen Hände.">
+          <SettingRow title="Neue Hände automatisch analysieren" sub="Sobald du den Poker-Client schließt, bewertet Ringside deine neuen Hände.">
             {#snippet control()}<Switch label="Neue Hände automatisch analysieren" bind:checked={autoOn} />{/snippet}
           </SettingRow>
           <SettingRow title="Eigene Lösungen teilen" sub="Was dein PC gerechnet hat, hilft anderen – ohne deine Hände.">
@@ -571,7 +579,7 @@
           <SettingRow title="Bibliothek automatisch erweitern" sub="Gerechnet wird erst, wenn fünf Minuten lang niemand den PC benutzt.">
             {#snippet control()}<SegmentedControl label="Automatik" bind:value={libMode} options={[{ value: "off", label: "Aus" }, { value: "idle", label: "Wenn der PC frei ist" }, { value: "always", label: "Immer" }]} />{/snippet}
           </SettingRow>
-          <SettingRow title="Bibliothek mitrechnen" sub="Gesperrt: Während PokerStars läuft, startet Ringside keine Rechnung." locked>
+          <SettingRow title="Bibliothek mitrechnen" sub="Gesperrt: Während ein Poker-Client läuft, startet Ringside keine Rechnung." locked>
             {#snippet control()}<Button size="sm" disabled>Mitrechnen</Button>{/snippet}
           </SettingRow>
           <SettingRow title="Erkannte Tische" sub="Unter der Zeile steht, was zur Einstellung gehört: Listen, Ergebnisse, Zustände.">
@@ -599,6 +607,12 @@
         <div class="row">
           <Badge>Neutral</Badge><Badge tone="info">Turnier</Badge><Badge tone="good" dot>Live</Badge><Badge tone="warn">3 Schwachstellen</Badge><Badge tone="bad">Fehler</Badge><Badge size="sm">klein</Badge>
         </div>
+        <h3 class="sub-head">Client</h3>
+        <div class="row">
+          <SiteMark site="pokerstars" /><SiteMark site="ggpoker" /><SiteMark site="pokerstars" size="md" /><SiteMark site="ggpoker" size="md" /><span
+            class="muted">Woher eine Hand stammt – nur sichtbar, wenn Hände aus beiden Clients da sind.</span
+          >
+        </div>
         <h3 class="sub-head">Herkunft der Zahlen</h3>
         <div class="row">{#each SOURCES as s (s)}<SourceNote kind={s} />{/each}</div>
         <div class="two">
@@ -608,7 +622,7 @@
         <h3 class="sub-head">Ein Zeichen, eine Bedeutung</h3>
         <div class="two">
           <div class="row"><Badge tone="warn" size="sm" dashed>geschätzt</Badge><Badge size="sm" dashed>bei 137 Händen noch grob</Badge><SourceNote kind="estimate" /><span class="muted">Gestrichelt: geschätzt oder noch unsicher.</span></div>
-          <div class="row"><SourceNote kind="locked" /><span class="muted">Schloss auf eigener Fläche, durchgezogen: gesperrt, solange PokerStars läuft.</span></div>
+          <div class="row"><SourceNote kind="locked" /><span class="muted">Schloss auf eigener Fläche, durchgezogen: gesperrt, solange ein Poker-Client läuft.</span></div>
         </div>
       </section>
     {/if}

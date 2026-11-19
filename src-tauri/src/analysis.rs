@@ -117,6 +117,8 @@ pub struct AutoDone {
     pub mistakes: i64,
     /// The run's entry in the task center, whose own note this one replaces.
     pub job: Option<u64>,
+    /// How far the newly rated hands moved the Spielwertung.
+    pub skill: Option<ringside_core::skill::Change>,
 }
 
 /// Which hands a step may work on.
@@ -451,9 +453,9 @@ fn auto_finish(app: &AppHandle, after: u64) {
         auto.unmarked()
     };
     let main = app.state::<AppState>();
-    let since = {
+    let (since, skill) = {
         let db = main.db.lock().unwrap();
-        db.analysis_since(ENGINE, after)
+        (db.analysis_since(ENGINE, after), crate::skill::change_after(&db, if unmarked { 0 } else { after }))
     };
     match since {
         Ok(mut since) => {
@@ -468,7 +470,7 @@ fn auto_finish(app: &AppHandle, after: u64) {
             }
             if since.hands > 0 {
                 let job = analysis.job.lock().unwrap().as_ref().map(jobs::Job::id);
-                let _ = app.emit("analysis-auto-done", AutoDone { hands: since.hands, mistakes: since.mistakes, job });
+                let _ = app.emit("analysis-auto-done", AutoDone { hands: since.hands, mistakes: since.mistakes, job, skill });
             }
             publish(app, true, |s| s.auto_run = false);
         }

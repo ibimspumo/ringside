@@ -17,6 +17,7 @@ import { Session } from "./webdriver.mjs";
 export const WIDTHS = [980, 1280, 1440, 1920, 2560, 3840];
 export const PAGES = [
   "dashboard",
+  "skill",
   "overview",
   "tournaments",
   "hands",

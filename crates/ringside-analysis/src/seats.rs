@@ -51,8 +51,11 @@ pub fn table<'a>(hand: &'a Hand, hero: &str) -> Result<Table<'a>, String> {
     }
     let hero_combo = hero_combo(hand).ok_or("Deine Karten fehlen in der Hand-History.")?;
     let pre = || hand.actions.iter().filter(|a| a.street == Street::Preflop);
-    if pre().any(|a| a.kind == ActionKind::PostBoth) {
-        return Err("Totes Blind-Geld (Small und Big Blind auf einmal gesetzt) kennt das Modell nicht.".into());
+    if pre().any(|a| a.kind == ActionKind::PostBoth || a.kind == ActionKind::PostDead) {
+        return Err("Totes Blind-Geld (nachgezahlte Blinds) kennt das Modell nicht.".into());
+    }
+    if pre().any(|a| a.kind == ActionKind::PostStraddle) {
+        return Err("Hände mit Straddle kennt das Modell nicht.".into());
     }
     let poster = |kind: ActionKind| -> Result<&str, String> {
         let mut it = pre().filter(|a| a.kind == kind);

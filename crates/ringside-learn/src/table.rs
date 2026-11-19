@@ -41,8 +41,10 @@ fn labels(t: &Table) -> Vec<(u8, &'static str)> {
     actions.push(post(t.big_blind, ActionKind::PostBigBlind, 100));
     let hand = Hand {
         id: 0,
+        site: Default::default(),
         game: GameKind::Tournament,
         tournament_id: None,
+        tournament_name: None,
         variant: String::new(),
         table_name: String::new(),
         max_seats: t.size,
@@ -66,6 +68,7 @@ fn labels(t: &Table) -> Vec<(u8, &'static str)> {
         showdown: false,
         total_pot: 0,
         rake: 0,
+        cashouts: Vec::new(),
         bounties_won: Vec::new(),
         bounty_currency: None,
         buy_in: None,

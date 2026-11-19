@@ -245,6 +245,7 @@ pub(crate) fn test_state() -> AppState {
         import: Default::default(),
         overlays: Default::default(),
         client_running: Default::default(),
+        running_client: Default::default(),
         notes: Default::default(),
     }
 }

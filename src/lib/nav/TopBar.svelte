@@ -9,6 +9,9 @@
   import type { Filter, HudConfig, ImportStatus, TournamentRow } from "../types";
   import IconButton from "../ui/IconButton.svelte";
   import NavItem from "../ui/NavItem.svelte";
+  import { analysis } from "../analysis/store.svelte";
+  import SkillChip from "../skill/SkillChip.svelte";
+  import { loadSkill, skill } from "../skill/store.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import { folder } from "./fit";
   import { arrowNav } from "./keys";
@@ -57,6 +60,11 @@
   $effect(() => {
     void refresh;
     navLive.load(filter, tournaments, tables, status?.total_hands ?? 0, hud);
+  });
+  // The rating follows new analysis and the client: locked while PokerStars runs.
+  $effect(() => {
+    void [refresh, analysis.solved, pokerClient.running];
+    loadSkill();
   });
 
   const current = $derived(areaOf(tab) ?? null);
@@ -152,7 +160,7 @@
    *   1 status without "im Blick" / "gespeichert"   2 hand count off
    *   3 name "Ringside" off                          4 tab icons off
    *   5 marks shorter ("4 gefunden")                 6 lock note short ("Teile gesperrt")
-   *   7 tasks as the ring alone                      8 marks as a number ("4")
+   *   7 rating without its second line              8 marks as a number ("4")
    *   9 open tables as dot and number               10 lock note as its icon (tabs and page keep theirs)
    *  11 marks off (the menus keep them)
    */
@@ -178,7 +186,7 @@
   });
   // Content that changes the width: marks, the lock, tables, hands and running tasks.
   $effect(() => {
-    void [AREAS.map((a) => badge(a)?.long), locked, tables, status?.total_hands, jobs.list.map((j) => j.status), jobs.locked];
+    void [AREAS.map((a) => badge(a)?.long), locked, tables, status?.total_hands, jobs.list.map((j) => j.status), jobs.locked, skill.profile, skill.state];
     fold(row);
     foldSub(subRow);
   });
@@ -196,7 +204,7 @@
   });
 
   const LOCK_HINT =
-    "Gesperrt, solange PokerStars läuft. Lernen, Hände spielen, Schwachstellen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt; HUD und Statistik laufen weiter.";
+    "Gesperrt, solange ein Poker-Client läuft. Lernen, Hände spielen, Schwachstellen und die Werkzeuge öffnen wieder, sobald du den Poker-Client schließt; HUD und Statistik laufen weiter.";
 </script>
 
 <svelte:window onkeydown={key} onpointerdown={outside} />
@@ -224,7 +232,7 @@
             status={mark && step < 11 ? (step < 5 ? (mark.line ?? mark.long) : step < 8 ? mark.long : mark.text) : undefined}
             tone={mark?.tone}
             locked={shut}
-            title={shut ? "Gesperrt, solange PokerStars läuft" : undefined}
+            title={shut ? "Gesperrt, solange ein Poker-Client läuft" : undefined}
             aria-haspopup={single ? undefined : "true"}
             aria-expanded={single ? undefined : open === area.id}
             aria-controls={single ? undefined : "nav-menu"}
@@ -238,11 +246,13 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? "Poker-Client läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
           </span>
         {/if}
         <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 9} /></span>
-        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 7} /></span>
+        <span class="item" data-bar-item><SkillChip active={tab === "skill"} compact={step >= 7} onclick={() => go("skill")} /></span>
+        <!-- Tasks stay one click away as the ring alone; their tooltip names the state. -->
+        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact /></span>
         <span class="item gear" class:on={tab === "settings"} data-bar-item>
           <IconButton label="Einstellungen" aria-current={tab === "settings" ? "page" : undefined} onclick={() => go("settings")}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={PAGES.settings.icon} /></svg>
@@ -288,7 +298,7 @@
         </div>
         <div class="tiles">
           <!-- Above the tiles it names, across their width, so the menu stays as low as its tiles. -->
-          {#if shutHere}<div class="shut"><SourceNote kind="locked" variant="block">Öffnet wieder, sobald du PokerStars schließt.</SourceNote></div>{/if}
+          {#if shutHere}<div class="shut"><SourceNote kind="locked" variant="block">Öffnet wieder, sobald du den Poker-Client schließt.</SourceNote></div>{/if}
           {#each menu.pages as p (p)}
             {@const live = navLive.of(p, locked)}
             <NavItem

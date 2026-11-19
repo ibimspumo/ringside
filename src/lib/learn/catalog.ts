@@ -355,7 +355,7 @@ export function parseRange(range: string): string[] {
 /** German message for a rejected learn command. */
 export function errorText(e: unknown): string {
   const msg = typeof e === "string" ? e : e instanceof Error ? e.message : "";
-  if (msg === "gesperrt") return "Gesperrt, solange PokerStars läuft.";
+  if (msg === "gesperrt") return "Gesperrt, solange ein Poker-Client läuft.";
   return msg ? `Das hat nicht geklappt: ${msg}` : "Das hat nicht geklappt. Versuch es noch einmal.";
 }
 

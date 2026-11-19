@@ -132,7 +132,7 @@
   const liveRun = $derived(session.live?.status === "running" ? session.live : null);
   const solvingDetail = $derived.by(() => {
     if (!solving) return "";
-    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${remaining(liveRun.secs_left)}` : "";
+    const state = session.live?.status === "paused_client" ? " · pausiert, solange ein Poker-Client läuft" : liveRun?.secs_left ? ` · ${remaining(liveRun.secs_left)}` : "";
     return `Schnell gerechnet, Genauigkeit ${num(solving.target_pct)} % des Pots${state}. Danach geht die Hand weiter.`;
   });
   const STREET_ORDER: Street[] = ["preflop", "flop", "turn", "river"];

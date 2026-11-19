@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import { noteSites } from "./sites.svelte";
   import CloudNotice from "../cloud/CloudNotice.svelte";
   import Coach from "../coach/Coach.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
@@ -27,6 +28,8 @@
   import { chartsHandoff } from "../charts/handoff.svelte";
   import Ranges from "../ranges/Ranges.svelte";
   import SessionReview from "../session/SessionReview.svelte";
+  import SkillPage from "../skill/SkillPage.svelte";
+  import type { SkillArea } from "../skill/types";
   import type { RangePreset, SessionScope } from "../session/types";
   import Tag from "../ui/Tag.svelte";
   import type { RangeFilter } from "../ranges/types";
@@ -70,9 +73,9 @@
   };
   /** While the client runs: the lines of pages whose usual line promises a rating. */
   const LOCKED_NOTES: Partial<Record<Tab, string>> = {
-    tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du PokerStars schließt.",
+    tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du den Poker-Client schließt.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
-    leaks: "Deine Werte gegen Richtwerte – sobald du PokerStars schließt.",
+    leaks: "Deine Werte gegen Richtwerte – sobald du den Poker-Client schließt.",
   };
   watchPokerClient();
   const clientRunning = $derived(pokerClient.running === true);
@@ -160,7 +163,7 @@
     if (id !== null) showHands(null, id);
   });
   /** Hands tab: a leak-finder spot to list. */
-  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; label: string } | null>(null);
+  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; area?: SkillArea | null; label: string } | null>(null);
   /** Training tab: an article or exercise to open, set from the leak finder. */
   let learnOpen = $state<LearnTarget | null>(null);
 
@@ -255,7 +258,10 @@
 
   /** Current state from the backend; events only report changes. */
   function sync() {
-    api.importStatus().then((s) => (status = s));
+    api.importStatus().then((s) => {
+      status = s;
+      noteSites(s);
+    });
     api.clientWindows().then((w) => (tables = w.filter((x) => x.table_key).length));
   }
 
@@ -277,6 +283,7 @@
     const subs = [
       on<ImportStatus>("import-status", (s) => {
         status = s;
+        noteSites(s);
         refresh++;
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
@@ -362,6 +369,7 @@
       {#if tab === "dashboard"}
         <SessionReview
           {refresh}
+          onSkill={() => (tab = "skill")}
           {filter}
           onStepHands={stepHands}
           onReport={openReport}
@@ -387,6 +395,26 @@
             learnOpen = target;
             tab = "training";
           }}
+        />
+      {:else if tab === "skill"}
+        <SkillPage
+          {refresh}
+          tournaments={tournamentList}
+          hands={status?.total_hands ?? null}
+          onHand={(id, at) => {
+            showHands(null, id);
+            handOpenAt = at;
+          }}
+          onHands={(area, label) => {
+            showHands(null);
+            handsSpot = { area, label: `Bereich: ${label}` };
+          }}
+          onLearn={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
+          onReport={openReport}
+          onAllHands={() => showHands(null)}
         />
       {:else if tab === "overview"}
         <Dashboard

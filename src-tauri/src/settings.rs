@@ -134,6 +134,9 @@ pub fn stat_key(id: StatId) -> String {
 #[serde(default)]
 pub struct Settings {
     pub hand_history_dirs: Vec<String>,
+    /// Folders Ringside watches for GGPoker downloads (hand histories, summaries, ZIP archives).
+    /// GGPoker keeps no hand history folder of its own.
+    pub gg_dirs: Vec<String>,
     pub preferred_seating: bool,
     pub hud: HudConfig,
     /// Seat positions per table size ("8"), indexed by visual seat, in the coordinates of a
@@ -226,6 +229,7 @@ impl Default for Settings {
         let builtin = &*BUILTIN;
         Settings {
             hand_history_dirs: Vec::new(),
+            gg_dirs: Vec::new(),
             preferred_seating: builtin.preferred_seating,
             hud: builtin.hud.clone(),
             layouts: BTreeMap::new(),

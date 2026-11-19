@@ -13,6 +13,8 @@ import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
 import * as reportDemo from "./report/demo";
 import * as sessionDemo from "./session/demo";
+import * as skillDemo from "./skill/demo";
+import type { SkillProfile } from "./skill/types";
 import type { SessionPage } from "./session/types";
 import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
@@ -43,6 +45,7 @@ import type {
   Hand,
   HandQuery,
   HandSummary,
+  ImportReport,
   ImportStatus,
   LeakReport,
   LiveTable,
@@ -79,8 +82,9 @@ function sample<T>(cmd: string, args: Record<string, unknown>, full: () => T, no
   return call<T>(cmd, args, previewData === "empty" ? none : previewData === "big" ? big : full);
 }
 
-/** Browser preview: `?locked=1` plays a running PokerStars client. */
-const demoLocked = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
+/** Browser preview: `?locked=1` plays a running PokerStars client, `?locked=gg` a running GGPoker client. */
+const lockedParam = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("locked");
+const demoLocked = lockedParam === "1" || lockedParam === "gg";
 
 /** In the preview, commands that rate or recommend refuse like the backend while the client runs. */
 function advice<T>(fallback: () => T): () => T {
@@ -144,6 +148,18 @@ export const api = {
       malformed: 0,
       last_error: null,
       upgrade: null,
+      gg_dirs: demoStore.gg_dirs,
+      sites: previewData === "empty" ? {} : { pokerstars: 6383, ggpoker: 48 },
+    })),
+  /** Hand histories, summaries or ZIP archives picked or dropped by the user. */
+  importHandFiles: (paths: string[]) =>
+    call<ImportReport>("import_hand_files", { paths }, () => ({
+      files: paths.length,
+      new_hands: 0,
+      duplicates: 48,
+      malformed: 0,
+      tournaments: 0,
+      skipped: 0,
     })),
   clientWindows: () => call<ClientWindow[]>("client_windows", {}, demoWindows),
   liveTables: () =>
@@ -151,6 +167,9 @@ export const api = {
       demo.demoLiveTables().map((l) => (l.table ? { ...l, table: { ...l.table, seats: l.table.seats.map(unread) } } : l)),
     ),
   pokerClientRunning: () => call<boolean>("poker_client_running", {}, () => demoLocked),
+  /** "PokerStars" or "GGPoker" while one runs. */
+  pokerClientName: () =>
+    call<string | null>("poker_client_name", {}, () => (lockedParam === "gg" ? "GGPoker" : demoLocked ? "PokerStars" : null)),
   tournaments: (filter: Filter) =>
     sample<Tournaments>("tournaments", { filter }, demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
   /** The report of one tournament from Ringside's own numbers; locked while PokerStars runs. */
@@ -161,6 +180,11 @@ export const api = {
   /** The latest session (or the one starting at `start`); advice is left out while PokerStars runs. */
   sessionReview: (start: string | null) =>
     sample<SessionPage>("session_review", { start }, () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start)),
+  /** The Spielwertung over every analysed tournament; locked while PokerStars runs. `?data=few` shows three tournaments. */
+  skillProfile: () => {
+    const made = advice(() => (previewData === "few" ? skillDemo.fewSkill() : skillDemo.demoSkill()));
+    return sample<SkillProfile>("skill_profile", {}, made, advice(skillDemo.emptySkill), made);
+  },
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () =>

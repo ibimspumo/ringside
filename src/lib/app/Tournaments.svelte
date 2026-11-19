@@ -3,12 +3,14 @@
   import { api } from "../api";
   import { buyInText, cash, tournamentName } from "../stats";
   import type { Filter, TournamentRow, Tournaments } from "../types";
-  import { dateTime, int, sign, signed } from "./format";
+  import { dateTime, int, sign, signed, tournamentLabel } from "./format";
   import ResultsChart, { type Series } from "./ResultsChart.svelte";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
   import Panel from "../ui/Panel.svelte";
   import Term from "../ui/Term.svelte";
+  import SiteMark from "../ui/SiteMark.svelte";
+  import { severalSites } from "./sites.svelte";
 
   let {
     filter,
@@ -39,6 +41,7 @@
   const NAMES: Record<string, string> = { PLAY: "Spielgeld", FPP: "FPP", SC: "StarsCoin" };
 
   let data = $state<Tournaments | null>(null);
+  const several = $derived(severalSites());
   let failed = $state(false);
   let retry = $state(0);
   let picked = $state<string | null>(null);
@@ -290,7 +293,7 @@
       </Panel>
     {/if}
 
-    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · {adviceLocked() ? 'Den Bericht gibt es, sobald du PokerStars schließt' : 'Zeile anklicken: Bericht mit Fehlern, Glück und dem nächsten Übungsschritt'}">
+    <Panel flush title="Deine Turniere" sub="Beträge in der Währung des Turniers · {adviceLocked() ? 'Den Bericht gibt es, sobald du den Poker-Client schließt' : 'Zeile anklicken: Bericht mit Fehlern, Glück und dem nächsten Übungsschritt'}">
       <table class="table tours-table">
           <thead>
             <tr>
@@ -321,8 +324,9 @@
                 >
                 <td class="game">
                   <span class="gcell">
+                    {#if several}<SiteMark site={r.site} />{/if}
                     <span class="gname" title="{r.name ? `${r.name} · ${r.game}` : r.game} · #{r.id}">{(r.name || r.game || "Turnier").replace(/ (\S{1,3})$/, "\u00a0$1")}</span>
-                    <span class="gid">#{r.id}</span>
+                    <span class="gid">#{tournamentLabel(r.id)}</span>
                   </span>
                 </td>
                 <td title={buyInTitle(r)}>{buyInText(r)}</td>

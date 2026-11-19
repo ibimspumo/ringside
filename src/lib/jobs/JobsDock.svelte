@@ -90,7 +90,7 @@
 
     {#if jobs.locked}
       <p class="locked">
-        <b>PokerStars läuft.</b> Solange du spielst, rechnet Ringside nicht: laufende Lösungen stoppen, die Bibliothek wartet
+        <b>Ein Poker-Client läuft.</b> Solange du spielst, rechnet Ringside nicht: laufende Lösungen stoppen, die Bibliothek wartet
         und rechnet weiter, sobald der Client zu ist.
       </p>
     {/if}
