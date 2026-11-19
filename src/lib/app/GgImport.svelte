@@ -5,6 +5,7 @@
   import IconButton from "../ui/IconButton.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
   import SiteMark from "../ui/SiteMark.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import type { ImportReport, ImportStatus, Settings } from "../types";
   import { int } from "./format";
 
@@ -104,9 +105,6 @@
   sub="GGPoker legt keine Hände auf deinem PC ab. Lade sie in PokerCraft herunter und zieh die Datei hierher."
   {more}
 >
-  {#snippet control()}
-    <Button size="sm" disabled={busy} onclick={pick}>Datei wählen</Button>
-  {/snippet}
   <div
     class="drop"
     class:over
@@ -125,6 +123,7 @@
       <b>{busy ? "Liest die Hände …" : over ? "Loslassen zum Importieren" : "PokerCraft-Download hier ablegen"}</b>
       <span>ZIP oder .txt – Hände und Turnier-Ergebnisse</span>
     </span>
+    <Button size="sm" disabled={busy} onclick={pick}>oder Datei wählen</Button>
   </div>
   {#if failed}
     <p class="result bad"><span class="dot bad"></span>Import fehlgeschlagen: {failed}</p>
@@ -146,18 +145,17 @@
     </ul>
   {/if}
   <div class="foot">
-    <span class="count"><span class="num">{int(stored)}</span> GGPoker-Hände gespeichert</span>
-    <Button size="sm" variant="quiet" onclick={watchDir}>
+    <span class="count"><span class="dot" class:off={!stored}></span><span><span class="num">{int(stored)}</span> GGPoker-Hände gespeichert</span></span>
+    <Button size="sm" onclick={watchDir}>
       {settings.gg_dirs.length ? "Weiteren Ordner beobachten" : "Download-Ordner beobachten"}
     </Button>
   </div>
-  <p class="rule">
-    <svg class="ico" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5 14 13H2zM8 6.5v3M8 11.2v.1" /></svg>
-    <span>
-      GGPoker erlaubt seit 15.10.2026 keine Poker-Programme, die neben dem Client laufen. <b>Schließ Ringside ganz, bevor du GGPoker startest</b>,
-      und importier deine Hände danach.
-    </span>
-  </p>
+  <div class="rule">
+    <SourceNote kind="locked" variant="block">
+      GGPoker erlaubt seit 15.10.2026 keine Poker-Programme neben dem Client. Schließ Ringside ganz, bevor du GGPoker startest, und importier
+      deine Hände danach.
+    </SourceNote>
+  </div>
 </SettingRow>
 
 <style>
@@ -165,8 +163,8 @@
     display: flex;
     align-items: center;
     gap: var(--sp-3);
-    padding: var(--sp-4);
-    border: 1px dashed var(--line-2);
+    padding: var(--sp-4) var(--sp-5);
+    border: 1.5px dashed color-mix(in srgb, var(--site-gg) 45%, var(--line-2));
     border-radius: var(--r-md);
     background: var(--surface-sunken);
     transition:
@@ -178,6 +176,7 @@
     background: color-mix(in srgb, var(--site-gg) 8%, var(--surface-sunken));
   }
   .drop-text {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -201,6 +200,10 @@
   }
   .count {
     margin: 0;
+    font-size: var(--fs-base);
+  }
+  .dot.off {
+    background: var(--text-3);
   }
   .dot {
     width: 8px;
@@ -262,20 +265,6 @@
     margin-top: var(--sp-3);
   }
   .rule {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--sp-2);
-    margin: var(--sp-3) 0 0;
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-base);
-  }
-  .rule .ico {
-    margin-top: 2px;
-    color: var(--amber);
-  }
-  .rule b {
-    color: var(--text);
-    font-weight: var(--fw-semibold);
+    margin-top: var(--sp-3);
   }
 </style>

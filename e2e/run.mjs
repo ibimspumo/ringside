@@ -1390,8 +1390,8 @@ if (!TAURI)
     await find("[role=banner] nav button", "Start", { timeout: 60_000 });
     await nav("Turniere");
     await click("main tbody tr:has(.gname[title*='Sunday Million'])");
-    await waitText("gesperrt, solange GGPoker läuft");
-    await waitText("dass du Ringside ganz schließt");
+    await waitText("GGPoker läuft – schließ Ringside ganz.");
+    await find("main button", "Ringside beenden");
     const text = await mainText();
     if (/Besser:|Beste Wahl/.test(text)) throw new Error("advice while GGPoker runs");
   });

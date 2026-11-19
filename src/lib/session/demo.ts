@@ -387,6 +387,6 @@ export function demoSession(start: string | null): SessionPage {
     return { ...t, place, prize, profit, entrants: [null, 412, 690][i], hands: [61, 58, 33][i], started_at: ["2026/11/18 20:04:00", "2026/11/18 20:09:00", "2026/11/18 21:20:00"][i] };
   });
   const r = review(span, at);
-  const isLocked = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
+  const isLocked = typeof window !== "undefined" && ["1", "gg"].includes(new URLSearchParams(window.location.search).get("locked") ?? "");
   return { sessions, review: isLocked ? locked(r) : r, tournaments, skill: isLocked ? null : demoChange() };
 }

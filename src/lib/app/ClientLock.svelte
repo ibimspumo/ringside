@@ -1,5 +1,8 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
+  import { inTauri } from "../api";
+  import Button from "../ui/Button.svelte";
+  import SourceNote from "../ui/SourceNote.svelte";
   import { pokerClient, watchPokerClient } from "./client.svelte";
 
   /** Shows `children` only while no poker client runs (PokerStars or GGPoker). */
@@ -9,6 +12,12 @@
   watchPokerClient();
   const running = $derived(pokerClient.running);
   const name = $derived(pokerClient.name);
+
+  async function quit() {
+    if (!inTauri) return;
+    const { exit } = await import("@tauri-apps/plugin-process");
+    await exit(0);
+  }
 </script>
 
 {#if running === false}
@@ -20,14 +29,19 @@
         <rect x="5" y="10.5" width="14" height="9.5" rx="2" />
         <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2" />
       </svg>
-      <p class="msg">
-        {feature} ist gesperrt, solange {name ?? "ein Poker-Client"} läuft – so verlangen es die Regeln {name
-          ? `von ${name}`
-          : "der Poker-Clients"} für Hilfsprogramme. {name === "GGPoker" ? "Statistiken laufen" : "HUD und Statistiken laufen"} normal weiter.
-      </p>
       {#if name === "GGPoker"}
-        <p class="dim">GGPoker verlangt sogar, dass du Ringside ganz schließt, solange GGPoker läuft. Danach ist alles wieder da.</p>
+        <!-- GGPoker forbids any poker program beside its client, not only advice: the rule leads. -->
+        <p class="msg"><b>GGPoker läuft – schließ Ringside ganz.</b></p>
+        <SourceNote kind="locked" variant="block">
+          GGPoker erlaubt keine Poker-Programme neben dem Client. Beende Ringside, bevor du spielst, und importier deine Hände danach.
+        </SourceNote>
+        <Button variant="primary" onclick={quit}>Ringside beenden</Button>
       {:else}
+        <p class="msg">
+          {feature} ist gesperrt, solange {name ?? "ein Poker-Client"} läuft – so verlangen es die Regeln {name
+            ? `von ${name}`
+            : "der Poker-Clients"} für Hilfsprogramme. HUD und Statistiken laufen normal weiter.
+        </p>
         <p class="dim">Sobald du {name ?? "den Poker-Client"} schließt, ist alles wieder da.</p>
       {/if}
     </div>

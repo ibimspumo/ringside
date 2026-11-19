@@ -662,6 +662,7 @@
           </span>
           <span class="mid">
             <span class="line">
+              {#if several}<SiteMark site={h.site} />{/if}
               <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="quiet">kein Flop</span>{/each}</span>
               {#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
                   ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
@@ -670,7 +671,6 @@
                     r="2.8"
                   /></svg
                 >{/if}
-              {#if several}<SiteMark site={h.site} />{/if}
             </span>
             {#if w && v && !locked}
               <span class="verdict" title={w.rating ? `${RATING[w.rating].label} · ${SPOT[w.spot]}${w.best ? ` · besser ${w.best}` : ""} · ${sourceHint(w)}` : (w.reason ?? "")}>
