@@ -358,8 +358,9 @@
                     <span class="own-mark" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M4 19V5M4 19h16M8 15l3-4 3 2 5-6" /></svg></span>
                     <span class="pname">
                       <b>{d.group?.title ?? "Deine Spots"}</b>
-                      {#if d.group}<span class="sub">kostet dich etwa {bbText(d.group.mean_loss_bb)} je Entscheidung</span>{/if}
-                      <span class="sub">{[d.real ? `${d.real} echte ${d.real === 1 ? "Hand" : "Hände"}` : "", d.made ? `${d.made} neu gegeben` : ""].filter(Boolean).join(" + ")}</span>
+                      <span class="sub" title={[d.real ? `${d.real} echte ${d.real === 1 ? "Hand" : "Hände"}` : "", d.made ? `${d.made} neu gegeben` : ""].filter(Boolean).join(" + ")}
+                        >{d.group ? `kostet dich etwa ${bbText(d.group.mean_loss_bb)} je Entscheidung` : `${d.real + d.made} Aufgaben`}</span
+                      >
                     </span>
                   </li>
                 {/each}

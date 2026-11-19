@@ -450,14 +450,14 @@
                 {@const t = hud.thresholds[slotStat]}
                 {@const k = tone(hud, v)}
                 <div class="explain">
-                  <p><b>{m.name}:</b> {m.help}</p>
+                  <p><b>{slotStat ? PLAIN_NAME[slotStat] : m.name}</b>{#if slotStat && m.short !== PLAIN_NAME[slotStat]}{" "}<span class="faint">({m.short})</span>{/if}<b>:</b> {m.help}</p>
                   <p class="example">
                     Beispiel {sample.name}: {m.plain}
                     <b class="num" style="color:{toneColor(hud, v, 'var(--text-2)')}">{fmtUnit(v)}</b>{m.after ? ` ${m.after}` : ""}
                     {#if k === "none"}
                       – noch keine Daten.
                     {:else}
-                      → <b>{k === "mid" ? "normal" : MEANING[slotStat]?.[k === "low" ? 0 : 1]}</b>{#if t}{" "}<span class="faint">(normal bei dir: {t.low.toLocaleString("de-DE")}–{t.high.toLocaleString("de-DE")}{m.ratio ? "×" : " %"})</span>{/if}
+                      → <b>{k === "mid" ? "normal" : MEANING[slotStat]?.[k === "low" ? 0 : 1]}</b>{#if t}{" "}<span class="faint">(dein eingestellter Normalbereich: {t.low.toLocaleString("de-DE")}–{t.high.toLocaleString("de-DE")}{m.ratio ? "×" : " %"})</span>{/if}
                     {/if}
                   </p>
                 </div>

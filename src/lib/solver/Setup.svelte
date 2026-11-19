@@ -68,7 +68,7 @@
     } catch (e) {
       d = template(next);
       origin = "Vorlage";
-      deriveNote = "Preflop-Modell nicht verfügbar – die Ranges sind einfache Vorlagen. Die Lösung gilt für diese angenommenen Ranges.";
+      deriveNote = "Kein Modell vor dem Flop für diesen Spot – die Starthände sind einfache Vorlagen. Die Lösung gilt für diese angenommenen Starthände.";
       deriveDetail = e instanceof Error ? e.message : String(e);
     }
     if (mine !== token) return;
@@ -323,7 +323,7 @@
           {:else}
             <span class="faint">Schätze …</span>
           {/if}
-          {#if deriveNote && !solver.custom.oop && !solver.custom.ip}<span class="warn-inline">Ranges: einfache Vorlagen</span>{/if}
+          {#if deriveNote && !solver.custom.oop && !solver.custom.ip}<span class="warn-inline">Starthände: einfache Vorlagen</span>{/if}
       {#if solver.error}<span class="neg">{solver.error}</span>{/if}
           {#if solver.status === "cancelled" && !solver.error}<span class="dim">Abgebrochen.</span>{/if}
         </div>
@@ -392,7 +392,7 @@
       </p>
       {#if deriveNote}<p class="warn small" title={deriveDetail || undefined}>{deriveNote}</p>{/if}
       <Button variant="quiet" full aria-expanded={editing} onclick={() => (editing = !editing)}>
-        {editing ? "Ranges schließen" : "Ranges anpassen"}
+        {editing ? "Starthände schließen" : "Starthände anpassen"}
       </Button>
     </section>
   </aside>

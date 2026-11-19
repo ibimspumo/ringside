@@ -193,7 +193,7 @@
       "files": {}
     },
     "jargon": {
-      "total": 63,
+      "total": 62,
       "files": {
         "charts/ChartsButton.svelte": 1,
         "charts/PreflopChart.svelte": 2,
@@ -216,7 +216,7 @@
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 1,
         "solver/Saved.svelte": 1,
-        "solver/Setup.svelte": 3,
+        "solver/Setup.svelte": 2,
         "solver/Study.svelte": 11,
         "ui/Kit.svelte": 4
       }

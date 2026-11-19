@@ -1064,7 +1064,7 @@ step("Solver: kleiner River-Spot mit deiner Hand", async () => {
   }
   // At once, not after the estimate: the hint follows the board, not the debounced estimate.
   if ((await mainText()).includes("Wähle mindestens drei Boardkarten")) throw new Error("five board cards, yet the page asks for three");
-  await click("main button", "Ranges anpassen");
+  await click("main button", "Starthände anpassen");
   await fill("main textarea[aria-label='Range von OOP als Text']", "AA,KK");
   await fill("main textarea[aria-label='Range von IP als Text']", "QQ,JJ");
   await click("main button", "zuerst dran", { exact: false });

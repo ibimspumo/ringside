@@ -232,8 +232,9 @@
               {:else if totals.contributed === 0 && totals.onlyHere + totals.failed === 0}
                 <p class="meta">Was dein PC rechnet, lädt Ringside hoch, damit andere es nicht noch einmal rechnen müssen.</p>
               {:else}
+                <details class="keys-more">
+                  <summary>Von dir: <b class="num">{int(totals.contributed)}</b> geteilt · Stand ansehen</summary>
                 <ul class="keys">
-                  <li class="who">Von dir: <b class="num">{int(totals.contributed)}</b> geteilt</li>
                   <li>
                     <ShareMark mark="served" /><span><b class="num">{int(totals.served)}</b> <Term tip="Ringside Cloud hat deine Lösung angenommen und verteilt sie an alle. Angenommen wird, was richtig aufgebaut ist; nachgerechnet werden nur Stichproben.">{MARK_SHORT.served}</Term> <i>– für alle da</i></span>
                   </li>
@@ -264,6 +265,7 @@
                     </li>
                   {/if}
                 </ul>
+                </details>
               {/if}
             </div>
         </div>
@@ -536,6 +538,15 @@
     grid-column: 1 / -1;
     padding-top: var(--sp-3);
     border-top: 1px solid var(--line);
+  }
+  .keys-more summary {
+    width: fit-content;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+    cursor: pointer;
+  }
+  .keys-more[open] summary {
+    margin-bottom: var(--sp-2);
   }
   .keys {
     display: flex;
