@@ -262,6 +262,7 @@ fn a_player_all_in_with_the_ante_leaves_a_push_fold_spot() {
     let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
     assert_eq!((d.source, d.spot), (Some(Source::Equilibrium), SpotType::CallShove), "{d:?}");
     assert_eq!(d.best.as_deref(), Some("Call"), "{d:?}");
+    assert!(d.why.starts_with("Als UTG+1 gegen das All-in"), "the position the hand shows: {}", d.why);
 }
 
 /// The small blind shoves over the button's open: whoever else folds, the shove stays in.
