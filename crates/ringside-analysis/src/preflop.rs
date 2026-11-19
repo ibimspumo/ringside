@@ -305,7 +305,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
                     });
                 }
                 let pot = pot_before(hand, index);
-                let facts = ranked(node, class, &t.class().to_string(), format!("Als {pos} bei {} Tiefe", bb(stack)));
+                let facts = ranked(node, class, &t.class().to_string(), format!("Als {pos} mit {}", bb(stack)));
                 decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |d| {
                     why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0))
                 }));

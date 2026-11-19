@@ -150,18 +150,18 @@ pub struct Solved {
 
 pub fn solver(f: &Solved, strategy: &[Choice], pot_bb: f64) -> String {
     let mut out: Vec<String> = Vec::new();
-    let equity = pct(f.equity);
+    let wins = format!("Gegen die Hände, die der Gegner hier haben kann, gewinnt sie in {} der Fälle.", pct(f.equity));
     out.push(match f.third {
-        Some(Third::Top) => format!("Deine Hand gehört zum stärksten Drittel deiner Range und hat gegen die Range des Gegners {equity} Equity."),
-        Some(Third::Middle) => format!("Deine Hand liegt im mittleren Drittel deiner Range und hat gegen die Range des Gegners {equity} Equity."),
-        Some(Third::Bottom) => format!("Deine Hand gehört zum schwächsten Drittel deiner Range und hat gegen die Range des Gegners {equity} Equity."),
-        None => format!("Deine Hand hat gegen die Range des Gegners {equity} Equity."),
+        Some(Third::Top) => format!("Deine Hand gehört zum stärksten Drittel der Hände, die du hier haben kannst. {wins}"),
+        Some(Third::Middle) => format!("Deine Hand liegt im Mittelfeld der Hände, die du hier haben kannst. {wins}"),
+        Some(Third::Bottom) => format!("Deine Hand gehört zum schwächsten Drittel der Hände, die du hier haben kannst. {wins}"),
+        None => format!("Gegen die Hände, die der Gegner hier haben kann, gewinnt deine Hand in {} der Fälle.", pct(f.equity)),
     });
     let best = top(strategy);
     let best_move = best.map(|c| Move::of(&c.kind));
     if best_move.is_some_and(Move::aggressive) {
         match f.third {
-            Some(Third::Top) if f.equity >= 0.5 => out.push("Damit ist der Einsatz Value: Er soll von schwächeren Händen bezahlt werden.".into()),
+            Some(Third::Top) if f.equity >= 0.5 => out.push("Damit setzt du auf Wert: Schwächere Hände sollen bezahlen.".into()),
             Some(Third::Bottom) if f.equity < 0.35 => out.push("Damit ist der Einsatz ein Bluff: Er gewinnt vor allem, wenn der Gegner aufgibt.".into()),
             _ => {}
         }
@@ -172,17 +172,17 @@ pub fn solver(f: &Solved, strategy: &[Choice], pot_bb: f64) -> String {
     if let Some(need) = f.need {
         let enough = f.equity >= need;
         out.push(if enough {
-            format!("Ein Call braucht nur {} Equity.", pct(need))
+            format!("Für einen Call reichen schon {}.", pct(need))
         } else {
-            format!("Ein Call bräuchte {} Equity, mehr als du hast.", pct(need))
+            format!("Ein Call bräuchte {}, so oft gewinnst du nicht.", pct(need))
         });
         if !f.river {
             match best_move {
                 Some(Move::Fold) if enough => {
-                    out.push("Trotzdem verliert der Call: Auf Turn und River holst du diese Equity nicht ganz heraus.".into())
+                    out.push("Trotzdem verliert der Call: Auf Turn und River holst du diese Gewinnchance nicht ganz heraus.".into())
                 }
                 Some(Move::Call) if !enough => {
-                    out.push("Trotzdem lohnt der Call: Auf Turn und River gewinnst du mehr dazu, als die Equity allein zeigt.".into())
+                    out.push("Trotzdem lohnt der Call: Auf Turn und River gewinnst du mehr dazu, als die Gewinnchance allein zeigt.".into())
                 }
                 _ => {}
             }
@@ -260,8 +260,8 @@ pub struct Estimated {
 const CLOSE: f64 = 0.05;
 
 pub fn estimate(f: &Estimated, strategy: &[Choice], pot_bb: f64) -> String {
-    let against = if f.opponents == 1 { "des Gegners".to_string() } else { format!("von {} Gegnern", f.opponents) };
-    let mut out = vec![format!("Gegen die wahrscheinlichen Ranges {against} hat deine Hand geschätzt {} Equity.", pct(f.equity))];
+    let against = if f.opponents == 1 { "der Gegner wahrscheinlich hat".to_string() } else { format!("{} Gegner wahrscheinlich haben", f.opponents) };
+    let mut out = vec![format!("Gegen die Hände, die {against}, gewinnt deine Hand geschätzt in {} der Fälle.", pct(f.equity))];
     if let Some(need) = f.need {
         out.push(if f.equity >= need + CLOSE {
             format!("Ein Call braucht nur {}, das reicht klar.", pct(need))
@@ -285,13 +285,13 @@ pub fn estimate(f: &Estimated, strategy: &[Choice], pot_bb: f64) -> String {
         } else {
             "Viel Spielraum, die nächsten Straßen entscheiden mit."
         };
-        out.push(format!("Stack zu Pot (SPR) {}: {meaning}", crate::fmt::num(spr)));
+        out.push(format!("Stack zu Pot {}: {meaning}", crate::fmt::num(spr)));
     }
     out.extend(gap(strategy, pot_bb, true));
     if f.opponents > 1 {
         out.push("Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up.".into());
     } else if f.need.is_some_and(|n| (f.equity - n).abs() <= CLOSE) {
-        out.push("Equity und Preis liegen so nah beieinander, dass die Schätzung hier unsicher ist.".into());
+        out.push("Gewinnchance und Preis liegen so nah beieinander, dass die Schätzung hier unsicher ist.".into());
     }
     out.join(" ")
 }

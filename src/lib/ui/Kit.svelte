@@ -649,7 +649,7 @@
             potShare={0.02}
             context="Turn · 6♣"
             source="solver"
-            reason="Deine Hand gehört zum schwächsten Drittel deiner Range und hat gegen die Range des Gegners 31 % Equity. Auf Raise auf 14 BB gibt der Gegner in 47 % der Fälle auf. Raise auf 14 BB bringt 0,18 BB mehr als Call."
+            reason="Deine Hand gehört zum schwächsten Drittel der Hände, die du hier haben kannst. Gegen die Hände, die der Gegner hier haben kann, gewinnt sie in 31 % der Fälle. Auf Raise auf 14 BB gibt der Gegner in 47 % der Fälle auf. Raise auf 14 BB bringt 0,18 BB mehr als Call."
           >
             <p>Mit deinem Flush-Draw kannst du selbst Druck machen.</p>
           </Verdict>

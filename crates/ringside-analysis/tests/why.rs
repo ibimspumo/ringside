@@ -19,6 +19,10 @@ fn check(what: &str, s: &str) {
         assert!(!s.contains(bad), "{what}: «{bad}» in «{s}»");
     }
     assert!(!decimal_dot(s), "{what}: decimal point in «{s}»");
+    // Reasons are read by casual players: plain words, not the solver's vocabulary.
+    for word in ["Range", "Equity", "SPR", "Shove", "Value", "Tiefe"] {
+        assert!(!s.contains(word), "{what}: «{word}» in «{s}»");
+    }
     for unit in ["BB", "%"] {
         for (i, _) in s.match_indices(unit) {
             assert!(!s[..i].ends_with(|c: char| c.is_ascii_digit()), "{what}: no space before {unit} in «{s}»");
@@ -100,7 +104,7 @@ fn every_template_form_reads_as_german() {
             for act in std::iter::once(None).chain(Move::ALL.map(Some)) {
                 for all_hands in [false, true] {
                     for rank in [0.0, 0.1, 0.3, 0.32, 0.7, 1.0] {
-                        let f = Ranked { chart, place: "Als BTN bei 25 BB Tiefe".into(), act, share: 0.32, all_hands, class: "KJo".into(), rank };
+                        let f = Ranked { chart, place: "Als BTN mit 25 BB".into(), act, share: 0.32, all_hands, class: "KJo".into(), rank };
                         check("Rangliste", &ranked(&f, &s, 10.0));
                         n += 1;
                     }
@@ -129,7 +133,7 @@ fn the_reason_names_what_the_source_measured() {
     let f = Solved { equity: 0.21, third: Some(Third::Bottom), need: Some(0.25), river: false, fold: Some(0.47) };
     assert_eq!(
         solver(&f, &s, 10.0),
-        "Deine Hand gehört zum schwächsten Drittel deiner Range und hat gegen die Range des Gegners 21 % Equity. Damit ist der Einsatz ein Bluff: Er gewinnt vor allem, wenn der Gegner aufgibt. Auf Raise auf 7,5 BB gibt der Gegner in 47 % der Fälle auf. Ein Call bräuchte 25 % Equity, mehr als du hast. Raise auf 7,5 BB bringt 1,3 BB mehr als Call."
+        "Deine Hand gehört zum schwächsten Drittel der Hände, die du hier haben kannst. Gegen die Hände, die der Gegner hier haben kann, gewinnt sie in 21 % der Fälle. Damit ist der Einsatz ein Bluff: Er gewinnt vor allem, wenn der Gegner aufgibt. Auf Raise auf 7,5 BB gibt der Gegner in 47 % der Fälle auf. Ein Call bräuchte 25 %, so oft gewinnst du nicht. Raise auf 7,5 BB bringt 1,3 BB mehr als Call."
     );
     let f = Ranked { chart: Chart::Equilibrium, place: "Als SB bei 10 BB effektiv".into(), act: Some(Move::AllIn), share: 0.38, all_hands: true, class: "A7o".into(), rank: 0.21 };
     let fold = strategies().into_iter().find(|s| s[0].kind == "all_in" && s[1].kind == "fold" && s[1].ev_bb == Some(0.2)).unwrap();
@@ -143,7 +147,7 @@ fn the_reason_names_what_the_source_measured() {
     let e = Estimated { equity: 0.31, opponents: 2, need: Some(0.33), fold: None, spr: None };
     assert_eq!(
         estimate(&e, &s, 10.0),
-        "Gegen die wahrscheinlichen Ranges von 2 Gegnern hat deine Hand geschätzt 31 % Equity. Ein Call braucht 33 %, das ist knapp. Erhöhen bringt geschätzt 1,3 BB mehr als Callen. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
+        "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 31 % der Fälle. Ein Call braucht 33 %, das ist knapp. Erhöhen bringt geschätzt 1,3 BB mehr als Callen. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
     );
 }
 
