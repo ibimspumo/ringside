@@ -444,7 +444,8 @@ step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
     `const el = document.querySelector("main .first[data-step]");
      return el && (!arguments[0] || !el.textContent.includes("vorläufig")) ? el.dataset.step : null`,
     [TAURI],
-    90_000,
+    // A fresh profile rates every imported hand, its flop spots too; a 4-core runner needs minutes.
+    300_000,
   );
   if (!TAURI && firstStep !== "spot:river_vs_bet|-|3|6") throw new Error(`the demo's first step is „${firstStep}“`);
   if (firstStep) await sameFirstStep("„Fang hier an“", "main .focus [data-step]");
@@ -976,7 +977,7 @@ step("Starthand-Tabellen: Satz oben und Range nennen denselben Platz, auch nach 
     await find(".stepper span", `${n} Spieler`);
     const names = await waitFor(
       `beide Sätze bei ${n} Spielern und ${bb} BB`,
-      `const seat = (el) => el?.textContent.replace(/\\s+/g, " ").match(new RegExp("^(?:Von|Vom|Aus dem) (\\\\S+) mit " + arguments[0] + " BB"))?.[1];
+      `const seat = (el) => el?.textContent.replace(/\\s+/g, " ").match(new RegExp("^(?:Von|Vom|Aus dem) (\\\\S+)(?: \\\\([^)]*\\\\))? mit " + arguments[0] + " BB"))?.[1];
        const top = seat(document.querySelector(".pfr b"));
        const range = seat(document.querySelector("section.chart-panel:not([aria-busy='true']) header.answer h2"));
        return top && range ? { top, range } : null;`,
