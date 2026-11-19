@@ -411,7 +411,9 @@ export type LearnKind =
   | "stack_depth"
   | "hud_read"
   /** A decision of the playing profile decided again, real or a variation; never generated. */
-  | "own_decision";
+  | "own_decision"
+  /** One of the bundled learning spots („Wichtige Spots“); never generated. */
+  | "key_spot";
 
 /**
  * exakt = exact maths; formel = formula / rule of thumb; modell = exact within the model in `model_note`;

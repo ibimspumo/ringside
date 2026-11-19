@@ -43,6 +43,7 @@ const NAMES: Record<LearnKind, string> = {
   stack_depth: "Stacktiefe und M-Zahl",
   hud_read: "Gegner lesen mit HUD-Werten",
   own_decision: "Aus deinem Spiel",
+  key_spot: "Wichtige Spots",
 };
 const KINDS = Object.keys(NAMES) as LearnKind[];
 const LEVEL_NAMES = ["neu", "kennengelernt", "mit Hilfe", "selbstständig", "bestätigt"] as const;
@@ -1018,7 +1019,7 @@ export function demoDrillVariant(key: string, seed: number): DrillSpot {
 }
 
 /** The practice's grades (crates/ringside-play/src/grade.rs), in percent of the pot. */
-function demoRating(strategy: Decision["strategy"], chosen: number, pot: number): { rating: Rating; loss: number; points: number } {
+export function demoRating(strategy: Decision["strategy"], chosen: number, pot: number): { rating: Rating; loss: number; points: number } {
   const freq = strategy[chosen].freq;
   const main = strategy.reduce((m, c, i) => (c.freq > strategy[m].freq ? i : m), 0);
   const isMain = chosen === main || freq >= 0.5;

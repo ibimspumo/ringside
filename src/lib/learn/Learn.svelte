@@ -7,6 +7,7 @@
   import type { Filter, HudConfig, LearnKind, LearnProgress } from "../types";
   import { errorText } from "./catalog";
   import OwnHands from "./OwnHands.svelte";
+  import KeySpots from "./KeySpots.svelte";
   import Path from "./Path.svelte";
   import Today from "./Today.svelte";
   import Trainer from "./Trainer.svelte";
@@ -33,9 +34,14 @@
     onHands?: (hands: StepHands) => void;
   } = $props();
 
-  type Section = "today" | "path" | "own" | "trainer" | "wissen";
+  type Section = "today" | "spots" | "path" | "own" | "trainer" | "wissen";
   const SECTIONS: { id: Section; label: string; sub?: string }[] = [
     { id: "today", label: "Heute" },
+    {
+      id: "spots",
+      label: "Wichtige Spots",
+      sub: "Die hundert Entscheidungen, die in kleinen Turnieren am meisten kosten – vorgerechnet. Falsch beantwortete kommen in der nächsten Runde zuerst.",
+    },
     { id: "path", label: "Lernpfad", sub: "Elf Einheiten, aufeinander aufgebaut. Spring ruhig dorthin, wo du stehst – nichts ist gesperrt." },
     {
       id: "own",
@@ -177,9 +183,12 @@
         onPath={() => go("path")}
         onOwn={() => go("own")}
         onTrainer={() => go("trainer")}
+        onSpots={() => go("spots")}
         onLearn={learn}
         {onHands}
       />
+    {:else if section === "spots"}
+      <KeySpots onProgress={reload} />
     {:else if section === "path"}
       <Path {progress} {steps} onTrain={train} onRead={read} onLearn={learn} {onHands} />
     {:else if section === "own"}
