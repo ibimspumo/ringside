@@ -880,6 +880,8 @@ step("Starthand-Tabellen: Satz oben und Range nennen denselben Platz, auch nach 
        const range = seat(document.querySelector("section.chart-panel:not([aria-busy='true']) header.answer h2"));
        return top && range ? { top, range } : null;`,
       [bb],
+      // The app derives the deep-stack model live; a busy 4-core runner needs more than 20 s for it.
+      60_000,
     );
     if (names.top !== names.range) throw new Error(`${n} Spieler, ${bb} BB: oben ${names.top}, Range ${names.range}`);
   }
