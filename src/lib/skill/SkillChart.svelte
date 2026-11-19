@@ -40,10 +40,9 @@
     if (width === 0 || data.length < 2) return null;
     const h = height - M.top - M.bottom;
     const w = width - M.left - M.right;
-    // The band of the first tournaments is wide; the scale follows the line and the later band.
-    const settled = data.slice(Math.min(3, data.length - 1));
-    let lo = Math.min(...settled.map((d) => d.rating - d.sigma), ...data.map((d) => d.rating));
-    let hi = Math.max(...settled.map((d) => d.rating + d.sigma), ...data.map((d) => d.rating));
+    // The scale holds the whole band, so the funnel of the first tournaments shows.
+    let lo = Math.min(...data.map((d) => d.rating - d.sigma));
+    let hi = Math.max(...data.map((d) => d.rating + d.sigma));
     lo = Math.floor((lo - 40) / 100) * 100;
     hi = Math.ceil((hi + 40) / 100) * 100;
     const maxN = data[data.length - 1].n;

@@ -173,12 +173,15 @@
       </div>
     </section>
 
-    <Panel title="Verlauf" sub="Nach jedem analysierten Turnier · das helle Band zeigt, wie sicher die Zahl schon ist">
+    <Panel title="Verlauf" sub="Nach jedem analysierten Turnier · grün gestiegen, rot gefallen · das helle Band zeigt, wie sicher die Zahl schon ist">
       <SkillChart height={210} entries={p.entries} tiers={p.tiers} start={p.start} {names} onPick={(e) => e.tournament_id !== null && onReport(e.tournament_id)} />
     </Panel>
 
     <div class="sk-grid">
-      <Panel title="Stärken und Schwächen" sub="Deine letzten 20 Turniere je Bereich: Wertungspunkte über oder unter deiner Wertung">
+      <Panel
+        title="Stärken und Schwächen"
+        sub="{counted.length >= 20 ? 'Deine letzten 20 Turniere' : counted.length === 1 ? 'Dein Turnier' : `Deine ${counted.length} Turniere`} je Bereich, das Teuerste zuerst: Punkte über oder unter deiner Wertung. „Kosten“: dein Anteil an dem, was deine Fehler im Schnitt an Stack kosten."
+      >
         <ul class="sk-areas">
           {#each areas as a (a.area)}
             {@const v = VERDICT[a.verdict]}
@@ -186,8 +189,8 @@
             {@const practice = PRACTICE[a.area]}
             <li class="sk-area" class:few={a.verdict === "few"} data-skill-area={a.area}>
               <div class="sk-area-name">
-                <b><Term tip={AREA_HELP[a.area]}>{a.name}</Term></b>
-                <small>{decisions(a.decisions)}{#if a.burn_share_pct >= 1}{" · "}<Term tip="Was deine Fehler im Schnitt an Stack kosten, zusammengezählt: Dieser Anteil davon entsteht in diesem Bereich.">{Math.round(a.burn_share_pct)} % deiner Fehlerkosten</Term>{/if}</small>
+                <b><Term tip={AREA_HELP[a.area]}>{a.name}</Term>{#if focus?.area === a.area}{" "}<Badge size="sm" tone="info">Dein Fokus</Badge>{/if}</b>
+                <small>{decisions(a.decisions)}{#if a.burn_share_pct >= 1}{` · ${Math.round(a.burn_share_pct)} % der Kosten`}{/if}</small>
               </div>
               <div class="sk-diverge" role="img" aria-label="{a.name}: {a.verdict === 'few' ? 'noch zu wenig' : `${points(a.rating)}, ${delta(a.rating - rating)} gegen deine Wertung`}">
                 <span class="sk-axis"></span>
@@ -196,14 +199,16 @@
                 {/if}
               </div>
               <span class="sk-area-num num" class:up={a.verdict === "strong"} class:down={a.verdict === "weak"}>
-                {a.verdict === "few" ? "–" : delta(a.rating - rating)}
+                {#if a.verdict === "few"}–{:else}{delta(a.rating - rating)}<small>Pkt.</small>{/if}
               </span>
-              <span class="sk-area-tag"><Badge size="sm" tone={v.tone} dashed={a.verdict === "few"}>{v.label}</Badge></span>
+              <span class="sk-area-tag">
+                <Badge size="sm" tone={v.tone} dashed={a.verdict === "few" || (p.provisional && a.verdict !== "even")}>{p.provisional && (a.verdict === "strong" || a.verdict === "weak") ? `eher ${v.label}` : v.label}</Badge>
+              </span>
               <span class="sk-area-do">
                 <Button size="sm" variant="quiet" onclick={() => onHands(a.area, a.name)}>Hände</Button>
               </span>
               <span class="sk-area-do">
-                {#if practice}<Button size="sm" variant={a.verdict === "weak" ? "secondary" : "quiet"} onclick={() => onLearn(practice)}>Üben</Button>{/if}
+                {#if practice}<Button size="sm" variant="quiet" onclick={() => onLearn(practice)}>Üben</Button>{/if}
               </span>
             </li>
           {/each}
@@ -280,7 +285,7 @@
     grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
     gap: var(--sp-8);
     align-items: center;
-    padding: var(--sp-5) var(--sp-6);
+    padding: var(--sp-5) var(--sp-4);
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     background: var(--surface);
@@ -418,7 +423,7 @@
     top: 36px;
     left: 4px;
     color: var(--text-2);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-style: normal;
   }
   .sk-band {
@@ -477,7 +482,7 @@
 
   .sk-areas {
     display: grid;
-    grid-template-columns: minmax(250px, 1.6fr) minmax(90px, 1fr) 44px auto 64px 60px;
+    grid-template-columns: minmax(0, 1.7fr) minmax(70px, 1fr) 64px max-content 64px 60px;
     gap: 0 var(--sp-3);
     margin: 0;
     padding: 0;
@@ -507,6 +512,9 @@
     font-weight: var(--fw-semibold);
   }
   .sk-area-name small {
+    overflow: hidden;
+    max-width: 100%;
+    text-overflow: ellipsis;
     white-space: nowrap;
     color: var(--text-2);
     font-size: var(--fs-sm);
@@ -550,6 +558,15 @@
   }
   .sk-bar.sk-minus {
     background: var(--neg);
+  }
+  .sk-area-num small {
+    margin-left: 3px;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-regular);
+  }
+  .sk-area-tag {
+    gap: var(--sp-1);
   }
   .sk-area-num {
     justify-content: flex-end;
