@@ -565,7 +565,7 @@
 <style>
   .play {
     min-width: 0;
-    padding: 18px 24px 40px;
+    padding: 18px var(--page-gutter) 40px;
   }
   .foot {
     max-width: 1360px;
