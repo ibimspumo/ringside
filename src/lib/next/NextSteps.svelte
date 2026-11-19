@@ -88,6 +88,9 @@
   </div>
 {:else if mode === "list" && shown.length}
   <ol class="rows" class:compact>
+    {#if !compact}
+      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head">Was Üben bringt</span></li>
+    {/if}
     {#each shown as s, i (s.id)}
       <li class="row" data-step={s.id}>
         <span class="rank num" aria-hidden="true">{i + 1}</span>
@@ -97,7 +100,7 @@
           <span class="why">{s.why}</span>
           {#if note}{@render note(s)}{/if}
         </div>
-        {#if !compact}<span class="bar" aria-hidden="true"><span class="fill" class:estimate={s.estimate} style:width="{Math.max(4, (s.score / top) * 100)}%"></span></span>{/if}
+        {#if !compact}<span class="bar" role="img" aria-label="Was Üben bringt: {Math.round((s.score / top) * 100)} % von Platz 1" title="Was Üben hier bringt, verglichen mit Platz 1{s.estimate ? ' (geschätzt)' : ''}"><span class="fill" class:estimate={s.estimate} style:width="{Math.max(4, (s.score / top) * 100)}%"></span></span>{/if}
         <div class="go">{@render actions(s, primary && i === 0)}</div>
       </li>
     {/each}
@@ -203,6 +206,17 @@
   .compact {
     gap: 14px;
   }
+  .head {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    padding: 0 15px;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
   .rows:not(.compact) .go {
     display: contents;
   }
@@ -236,6 +250,9 @@
   @container (max-width: 760px) {
     .rows {
       grid-template-columns: 34px minmax(0, 1fr);
+    }
+    .head {
+      display: none;
     }
     .bar,
     .rows:not(.compact) .go {
