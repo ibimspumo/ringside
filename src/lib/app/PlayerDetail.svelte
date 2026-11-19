@@ -153,7 +153,7 @@
             {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
-                <span class="stat-name"><Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="left">{PLAIN_NAME[id]}</Term><span class="abbr">{STAT_META[id].short}</span></span>
+                <span class="stat-name"><Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="left">{PLAIN_NAME[id]}</Term>{#if STAT_META[id].name !== PLAIN_NAME[id]}<span class="abbr">{STAT_META[id].name}</span>{/if}</span>
                 <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
               </dt>
               <dd>
