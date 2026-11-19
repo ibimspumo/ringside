@@ -286,7 +286,7 @@
           Deine Hand <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>
           {#if !solver.source}<Button variant="quiet" size="sm" onclick={() => setHand([])}>Entfernen</Button>{/if}
         {:else}
-          <span>Klick aufs Board, um Karten zu ändern. Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
+          <span>Karten ändern: Klick aufs Board oder auf deinen Platz (deine Hand ist optional).</span>
         {/if}
       </span>
       <span class="spacer"></span>
