@@ -2,12 +2,13 @@
   import type { Snippet } from "svelte";
   import { pokerClient, watchPokerClient } from "./client.svelte";
 
-  /** Shows `children` only while the PokerStars client is closed. */
+  /** Shows `children` only while no poker client runs (PokerStars or GGPoker). */
   let { feature = "Training", children }: { feature?: string; children: Snippet } = $props();
 
   // Unknown until the backend answers; nothing is shown meanwhile, so locked content never flashes.
   watchPokerClient();
   const running = $derived(pokerClient.running);
+  const name = $derived(pokerClient.name);
 </script>
 
 {#if running === false}
@@ -20,10 +21,15 @@
         <path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2" />
       </svg>
       <p class="msg">
-        {feature} ist gesperrt, solange PokerStars läuft – so verlangen es die PokerStars-Regeln für Hilfsprogramme. HUD und
-        Statistiken laufen normal weiter.
+        {feature} ist gesperrt, solange {name ?? "ein Poker-Client"} läuft – so verlangen es die Regeln {name
+          ? `von ${name}`
+          : "der Poker-Clients"} für Hilfsprogramme. {name === "GGPoker" ? "Statistiken laufen" : "HUD und Statistiken laufen"} normal weiter.
       </p>
-      <p class="dim">Sobald du PokerStars schließt, ist alles wieder da.</p>
+      {#if name === "GGPoker"}
+        <p class="dim">GGPoker verlangt sogar, dass du Ringside ganz schließt, solange GGPoker läuft. Danach ist alles wieder da.</p>
+      {:else}
+        <p class="dim">Sobald du {name ?? "den Poker-Client"} schließt, ist alles wieder da.</p>
+      {/if}
     </div>
   </div>
 {/if}

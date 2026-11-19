@@ -146,7 +146,7 @@ export function listen() {
       if (solver.view !== "practice") solver.view = "result";
     } else if (d.status === "cancelled") {
       solver.status = "cancelled";
-      solver.error = d.locked ? "Abgebrochen, weil PokerStars gestartet wurde." : null;
+      solver.error = d.locked ? "Abgebrochen, weil ein Poker-Client gestartet wurde." : null;
     } else {
       solver.status = "failed";
       solver.error = d.error;

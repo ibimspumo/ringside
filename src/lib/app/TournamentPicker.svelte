@@ -1,7 +1,9 @@
 <script lang="ts">
   import { buyInText, tournamentName } from "../stats";
   import type { TournamentRow } from "../types";
-  import { date, floating, int, type Anchor } from "./format";
+  import { date, floating, int, tournamentLabel, type Anchor } from "./format";
+  import SiteMark from "../ui/SiteMark.svelte";
+  import { severalSites } from "./sites.svelte";
 
   let {
     tournaments,
@@ -18,7 +20,7 @@
   let input = $state<HTMLInputElement>();
 
   const current = $derived(selected === null ? null : (tournaments.find((t) => t.id === selected) ?? null));
-  const label = $derived(selected === null ? "Alle Turniere" : current ? tournamentName(current) : `Turnier #${selected}`);
+  const label = $derived(selected === null ? "Alle Turniere" : current ? tournamentName(current) : `Turnier #${tournamentLabel(selected)}`);
 
   /** Newest first; the search matches name, game and id. */
   const matches = $derived.by(() => {
@@ -95,6 +97,7 @@
     if (popover?.contains(target) || button?.contains(target)) return;
     close();
   }
+  const several = $derived(severalSites());
 </script>
 
 <svelte:window onpointerdown={outside} onresize={close} />
@@ -165,12 +168,12 @@
           onpointerenter={() => (active = index)}
           onclick={() => pick(t.id)}
         >
-          <span class="name" title={tournamentName(t)}>{tournamentName(t)}</span>
+          <span class="name" title={tournamentName(t)}>{#if several}<SiteMark site={t.site} />{" "}{/if}{tournamentName(t)}</span>
           <span class="meta">
             <span>{buyInText(t)}</span>
             <span>{t.started_at ? date(t.started_at) : "–"}</span>
             <span><span class="num">{int(t.hands)}</span> Hände</span>
-            {#if t.name}<span class="faint num">#{t.id}</span>{/if}
+            {#if t.name}<span class="faint num">#{tournamentLabel(t.id)}</span>{/if}
           </span>
         </button>
       {:else}

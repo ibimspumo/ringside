@@ -82,7 +82,7 @@ export const cancelLive = () =>
 
 function errorText(e: unknown): string {
   const msg = typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
-  return msg === "gesperrt" ? "Gesperrt, solange PokerStars läuft." : msg;
+  return msg === "gesperrt" ? "Gesperrt, solange ein Poker-Client läuft." : msg;
 }
 
 async function guarded(f: () => Promise<void>) {

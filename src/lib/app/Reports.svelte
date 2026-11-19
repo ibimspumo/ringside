@@ -1,4 +1,6 @@
 <script lang="ts">
+  import SiteMark from "../ui/SiteMark.svelte";
+  import { severalSites } from "./sites.svelte";
   import { api } from "../api";
   import { bountyText, fmt, stat } from "../stats";
   import type { Filter, GroupView, Reports } from "../types";
@@ -102,6 +104,7 @@
     const pos = data?.positions ?? [];
     return { hands: pos.reduce((a, g) => a + hands(g), 0), net: pos.reduce((a, g) => a + g.net_bb, 0) };
   });
+  const several = $derived(severalSites());
 </script>
 
 <div class="page">
@@ -249,7 +252,7 @@
                 {#each data.sessions as s (s.start)}
                   {@const v = s.hands ? (s.net_bb / s.hands) * 100 : 0}
                   <tr>
-                    <td class="ui">{dayShort(s.start)}</td>
+                    <td class="ui">{dayShort(s.start)}{#each several ? s.sites : [] as site (site)}{" "}<SiteMark {site} />{/each}</td>
                     <td>{time(s.start)}–{time(s.end)}</td>
                     <td>{duration(secondsBetween(s.start, s.end))}</td>
                     <td>{s.tables}</td>

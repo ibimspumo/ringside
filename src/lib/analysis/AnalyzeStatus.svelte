@@ -43,7 +43,7 @@
         {int(c.hands)} Hände analysieren
       </Button>
     {:else if p?.state === "paused_pokerstars" || s.state === "locked"}
-      <SourceNote kind="locked" hint="Die Analyse macht weiter, sobald du PokerStars schließt." />
+      <SourceNote kind="locked" hint="Die Analyse macht weiter, sobald du den Poker-Client schließt." />
     {:else if p}
       <ProgressRing
         size={20}

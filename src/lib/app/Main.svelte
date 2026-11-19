@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, inTauri, on } from "../api";
+  import { noteSites } from "./sites.svelte";
   import CloudNotice from "../cloud/CloudNotice.svelte";
   import Coach from "../coach/Coach.svelte";
   import type { Filter, GameKind, HudConfig, ImportStatus, SpotFilter, TournamentRow } from "../types";
@@ -70,9 +71,9 @@
   };
   /** While the client runs: the lines of pages whose usual line promises a rating. */
   const LOCKED_NOTES: Partial<Record<Tab, string>> = {
-    tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du PokerStars schließt.",
+    tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du den Poker-Client schließt.",
     ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
-    leaks: "Deine Werte gegen Richtwerte – sobald du PokerStars schließt.",
+    leaks: "Deine Werte gegen Richtwerte – sobald du den Poker-Client schließt.",
   };
   watchPokerClient();
   const clientRunning = $derived(pokerClient.running === true);
@@ -255,7 +256,10 @@
 
   /** Current state from the backend; events only report changes. */
   function sync() {
-    api.importStatus().then((s) => (status = s));
+    api.importStatus().then((s) => {
+      status = s;
+      noteSites(s);
+    });
     api.clientWindows().then((w) => (tables = w.filter((x) => x.table_key).length));
   }
 
@@ -277,6 +281,7 @@
     const subs = [
       on<ImportStatus>("import-status", (s) => {
         status = s;
+        noteSites(s);
         refresh++;
       }),
       on<number>("tables-tracked", (n) => (tables = n)),

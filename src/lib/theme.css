@@ -515,6 +515,10 @@ input[type="range"] {
   --grade-mistake: #ee7d33;
   --grade-blunder: #e5483b;
 
+  /* Which poker client a hand comes from: quiet, and none of the clients' own brand colours. */
+  --site-ps: #9fb4c9;
+  --site-gg: #d2ad82;
+
   /* Honesty notes: where a number comes from. */
   --source: #b9a6e8;
 

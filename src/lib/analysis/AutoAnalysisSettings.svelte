@@ -30,7 +30,7 @@
 
 <SettingRow
   title="Neue Hände automatisch analysieren"
-  sub="Sobald du PokerStars schließt, bewertet Ringside deine neuen Hände. Solange PokerStars läuft, rechnet Ringside nie."
+  sub="Sobald du den Poker-Client schließt, bewertet Ringside deine neuen Hände. Solange ein Poker-Client läuft, rechnet Ringside nie."
 >
   {#snippet control()}
     {#if auto !== null}<Switch label="Neue Hände automatisch analysieren" checked={auto} onchange={change} />{/if}

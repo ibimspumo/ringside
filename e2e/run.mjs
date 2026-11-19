@@ -529,6 +529,34 @@ step("Hände: auch die beste Aktion zeigt, was sie bringt", async () => {
 });
 
 /** Scroll boxes in "Hände" that are wider than their room, and how far the analysis sits from the right edge. */
+step("Hände: GGPoker-Hand mit Marke, Replayer öffnet sie, Filter Client", async () => {
+  if (TAURI) {
+    const r = await invoke("import_hand_files", { paths: [path.join(fixtures, "ggpoker", "mtt.txt")] });
+    if (r.new_hands + r.duplicates !== 2) throw new Error(`GGPoker import: ${JSON.stringify(r)}`);
+    await nav("Hände");
+  }
+  // The demo's GGPoker hand was played well: it is not among the costliest mistakes.
+  await click("main [role='tab']", "Alle Hände");
+  const rows = "main [role='option']";
+  const count = (site) => s.exec(`return document.querySelectorAll(arguments[0] + " .ui-site." + arguments[1]).length`, rows, site);
+  await clickEl(await find(`${rows}:has(.ui-site.ggpoker)`));
+  await find(".replayer");
+  await find("main .hand-head .ui-site.ggpoker");
+  await waitText(/#TM\d+/);
+  await click("main button[aria-expanded]", "Filter", { exact: false });
+  const seg = "main [role='radiogroup'][aria-label='Client'] [role='radio']";
+  await click(seg, "GGPoker");
+  await waitFor("only GGPoker hands", `return document.querySelectorAll(arguments[0]).length > 0 && [...document.querySelectorAll(arguments[0])].every((r) => r.querySelector(".ui-site.ggpoker"))`, [rows]);
+  await click(seg, "PokerStars");
+  await waitFor("only PokerStars hands", `return document.querySelectorAll(arguments[0]).length > 0 && ![...document.querySelectorAll(arguments[0])].some((r) => r.querySelector(".ui-site.ggpoker"))`, [rows]);
+  await click(seg, "Beide");
+  await waitFor("both clients again", `return document.querySelector(arguments[0] + " .ui-site.ggpoker")`, [rows]);
+  log(`client marks: ${await count("pokerstars")} PS, ${await count("ggpoker")} GG`);
+  await click("main .filters button", "Fertig", { exact: false });
+  await click("main [role='tab']", "Meine teuersten Fehler");
+  await click("main [role='option']");
+});
+
 const OVERFLOW = `
   const boxes = [document.querySelector("main .content"), ...document.querySelectorAll("main .hands *")].filter((e) => {
     if (!e || !e.getClientRects().length) return false;
@@ -1264,7 +1292,7 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
     await nav("Start");
     await nav("Einstellungen");
   };
-  await waitText("Solange PokerStars läuft, rechnet Ringside nie");
+  await waitText("Solange ein Poker-Client läuft, rechnet Ringside nie");
   await shows(true);
   await saved(true);
   for (const on of [false, true]) {
@@ -1277,9 +1305,9 @@ step("Einstellungen: „Neue Hände automatisch analysieren“ ist an und bleibt
 });
 
 if (!TAURI)
-  step("Start: gesperrt, solange PokerStars läuft – nur Ergebnisse, keine Bewertung", async () => {
+  step("Start: gesperrt, solange ein Poker-Client läuft – nur Ergebnisse, keine Bewertung", async () => {
     await s.navigate(new URL("?tab=dashboard&locked=1", DEMO_URL).href);
-    await waitText("Am Tisch – dein Rückblick kommt, sobald du PokerStars schließt.");
+    await waitText("Am Tisch – dein Rückblick kommt, sobald du den Poker-Client schließt.");
     await waitText(/Hände\s+152/);
     const text = (await mainText()).toLowerCase();
     for (const advice of ["Vor dem Flop", "das Modell würde", "Schlau entschieden", "Glück gehabt", "Grober Fehler", "statt", "Als Nächstes üben"]) {
@@ -1328,6 +1356,19 @@ if (!TAURI)
     await click("main tbody tr:has(.gname[title*='Sunday Million'])");
     await waitText("gesperrt, solange PokerStars läuft");
     await seen("Turnier-Bericht");
+  });
+
+  step("GGPoker läuft: dieselbe Sperre, und Ringside sagt, dass es ganz zu schließen ist", async () => {
+    const url = new URL(DEMO_URL);
+    url.searchParams.set("locked", "gg");
+    await s.navigate(url.href);
+    await find("[role=banner] nav button", "Start", { timeout: 60_000 });
+    await nav("Turniere");
+    await click("main tbody tr:has(.gname[title*='Sunday Million'])");
+    await waitText("gesperrt, solange GGPoker läuft");
+    await waitText("dass du Ringside ganz schließt");
+    const text = await mainText();
+    if (/Besser:|Beste Wahl/.test(text)) throw new Error("advice while GGPoker runs");
   });
 
 // The browser demo sizes its window over chromedriver's DevTools endpoint; the layout check of

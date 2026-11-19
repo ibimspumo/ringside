@@ -63,7 +63,7 @@
 </script>
 
 {#if locked}
-  <SourceNote kind="locked" variant="block">Die Analyse pausiert, bis du PokerStars schließt. Nachspielen geht weiter.</SourceNote>
+  <SourceNote kind="locked" variant="block">Die Analyse pausiert, bis du den Poker-Client schließt. Nachspielen geht weiter.</SourceNote>
 {:else if decisions === null}
   <EmptyState compact tone="loading" title="Lädt die Bewertung …" />
 {:else if decisions.length === 0 && analyzed}

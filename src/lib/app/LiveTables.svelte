@@ -106,7 +106,7 @@
   <div class="split" class:docked={docked && !!selected}>
   <div class="tables">
   {#if pokerClient.running}
-    <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar.</SourceNote>
+    <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du den Poker-Client schließt. Die Werte bleiben sichtbar.</SourceNote>
   {/if}
   {#if tables.some((t) => t.table)}
     <div class="tools">

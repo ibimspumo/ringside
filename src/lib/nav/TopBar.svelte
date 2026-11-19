@@ -196,7 +196,7 @@
   });
 
   const LOCK_HINT =
-    "Gesperrt, solange PokerStars läuft. Lernen, Hände spielen, Schwachstellen und die Werkzeuge öffnen wieder, sobald du PokerStars schließt; HUD und Statistik laufen weiter.";
+    "Gesperrt, solange ein Poker-Client läuft. Lernen, Hände spielen, Schwachstellen und die Werkzeuge öffnen wieder, sobald du den Poker-Client schließt; HUD und Statistik laufen weiter.";
 </script>
 
 <svelte:window onkeydown={key} onpointerdown={outside} />
@@ -224,7 +224,7 @@
             status={mark && step < 11 ? (step < 5 ? (mark.line ?? mark.long) : step < 8 ? mark.long : mark.text) : undefined}
             tone={mark?.tone}
             locked={shut}
-            title={shut ? "Gesperrt, solange PokerStars läuft" : undefined}
+            title={shut ? "Gesperrt, solange ein Poker-Client läuft" : undefined}
             aria-haspopup={single ? undefined : "true"}
             aria-expanded={single ? undefined : open === area.id}
             aria-controls={single ? undefined : "nav-menu"}
@@ -238,7 +238,7 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? "Poker-Client läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
           </span>
         {/if}
         <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 9} /></span>
@@ -288,7 +288,7 @@
         </div>
         <div class="tiles">
           <!-- Above the tiles it names, across their width, so the menu stays as low as its tiles. -->
-          {#if shutHere}<div class="shut"><SourceNote kind="locked" variant="block">Öffnet wieder, sobald du PokerStars schließt.</SourceNote></div>{/if}
+          {#if shutHere}<div class="shut"><SourceNote kind="locked" variant="block">Öffnet wieder, sobald du den Poker-Client schließt.</SourceNote></div>{/if}
           {#each menu.pages as p (p)}
             {@const live = navLive.of(p, locked)}
             <NavItem

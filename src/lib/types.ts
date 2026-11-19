@@ -74,8 +74,13 @@ export interface Preset {
   layouts: Record<string, SeatPos[]>;
 }
 
+/** The poker client a hand comes from. */
+export type Site = "pokerstars" | "ggpoker";
+
 export interface Settings {
   hand_history_dirs: string[];
+  /** Watched folders for GGPoker downloads. */
+  gg_dirs: string[];
   preferred_seating: boolean;
   hud: HudConfig;
   /** One layout per table size ("8"), shared by every table window and the editor. */
@@ -147,6 +152,9 @@ export interface RebuildProgress {
 
 export interface ImportStatus {
   dirs: string[];
+  gg_dirs: string[];
+  /** Stored hands per client. */
+  sites: Partial<Record<Site, number>>;
   files_read: number;
   hands_imported: number;
   total_hands: number;
@@ -234,6 +242,8 @@ export interface GroupView {
 }
 
 export interface Session {
+  /** The clients played in this session, PokerStars first. */
+  sites: Site[];
   start: string;
   end: string;
   hands: number;
@@ -261,6 +271,8 @@ export interface ShownHand {
 
 export interface HandQuery extends Filter {
   player: string | null;
+  /** Hands from one client only. */
+  site?: Site | null;
   showdown_only: boolean;
   result: "won" | "lost" | null;
   min_pot_bb: number | null;
@@ -280,6 +292,7 @@ export interface HandQuery extends Filter {
 
 export interface HandSummary {
   id: number;
+  site: Site;
   game: GameKind;
   played_at: string;
   table_name: string;
@@ -319,6 +332,8 @@ export interface Action {
 
 export interface Hand {
   id: number;
+  /** Missing in hands stored before GGPoker support: PokerStars. */
+  site?: Site;
   game: GameKind;
   tournament_id: number | null;
   variant: string;
@@ -354,6 +369,7 @@ export interface BuyIn {
 
 export interface TournamentRow {
   id: number;
+  site: Site;
   game: string;
   currency: string | null;
   buy_in: BuyIn | null;
@@ -775,4 +791,14 @@ export interface LeakReport {
   too_small: number;
   bands: string[];
   sources: LeakSource[];
+}
+
+/** What importing files by hand brought. */
+export interface ImportReport {
+  files: number;
+  new_hands: number;
+  duplicates: number;
+  malformed: number;
+  tournaments: number;
+  skipped: number;
 }

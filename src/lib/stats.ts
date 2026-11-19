@@ -1,5 +1,6 @@
 import type { ClassicPreset, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
 import { cash, compact, moneyShort, num } from "./ui/format";
+import { tournamentLabel } from "./app/format";
 import { WORDS, explain, type WordId } from "./ui/words";
 
 export { cash, compact, money, moneyShort } from "./ui/format";
@@ -106,7 +107,7 @@ export function fill(s: StatValue | undefined): number {
 
 /** The name from the table window, else the game: "NL Hold'em #4046789300". */
 export function tournamentName(t: Pick<TournamentRow, "id" | "game" | "name">): string {
-  return t.name || `${t.game || "Turnier"} #${t.id}`;
+  return t.name || `${t.game || "Turnier"} #${tournamentLabel(t.id)}`;
 }
 
 /** Buy-in as paid, "Freeroll", or "–" while unknown. */

@@ -97,7 +97,7 @@
     {#if hero}
       <p class="self">Das bist du. Wie gut deine eigenen Werte sind, zeigt dir die Seite <b>Schwachstellen</b>.</p>
     {:else if !advice}
-      <div class="lock"><SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar." /></div>
+      <div class="lock"><SourceNote kind="locked" hint="Spielertyp und Gegenzug siehst du wieder, sobald du den Poker-Client schließt. Die Werte bleiben sichtbar." /></div>
     {:else if r?.type}
       {@const t = r.type}
       <section class="read" aria-label="Spielertyp">
