@@ -172,8 +172,10 @@
     const key = `${ante}|${players}|${stack}`;
     const hit = pfCache.get(key);
     if (hit) {
+      // A request this run replaced may still have set the flag; it no longer clears it.
       pf = hit;
       pfError = null;
+      pfLoading = false;
       return;
     }
     let alive = true;
@@ -208,6 +210,7 @@
     if (hit) {
       spots = hit;
       preError = null;
+      preLoading = false;
       return;
     }
     let alive = true;
