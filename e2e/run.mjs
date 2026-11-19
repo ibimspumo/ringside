@@ -806,6 +806,36 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await waitFor("the weakness as filter chip", `return document.querySelector("main")?.innerText.includes(arguments[0])`, [title]);
 });
 
+step("Wichtige Spots: einen Spot beantworten, Erklärung und Range sehen, Stand zählt mit", async () => {
+  await nav("Lernen");
+  await click("main [role='tab']", "Wichtige Spots");
+  await waitText("Die wichtigsten Spots für kleine Turniere");
+  await click("main button", "Runde starten", { exact: false });
+  await find("main .drill .origin", "Wichtiger Spot", { exact: false });
+  await waitText("Was spielst du?");
+  await click("main .drill .choices button");
+  await find("main .drill .verdict");
+  await find("main .drill .verdict .ui-reason", "Warum?", { exact: false });
+  await waitText("Merksatz");
+  await click("main .drill button", "Wie spielt jede Hand hier?");
+  await find("main .spot-range .legend li");
+  const marked = await s.exec(`return document.querySelectorAll("main .run .steps li.ok, main .run .steps li.miss").length`);
+  if (marked !== 1) throw new Error(`${marked} answers marked in the round, not 1`);
+  await click("main .drill button", "Nächster Spot", { exact: false });
+  await find("main .drill .origin", "Wichtiger Spot", { exact: false });
+  await click("main button", "Runde beenden");
+  await find("main .done .recap li");
+  await click("main button", "Zur Übersicht");
+  const counted = await waitFor(
+    "the answer in the overview",
+    `const k = [...document.querySelectorAll("main .stand .key li b")].map((b) => Number(b.textContent));
+     return k.length === 3 && k[0] + k[1] === 1 ? k : null;`,
+  );
+  // The browser demo carries two spots per topic, the app all of them.
+  const all = TAURI ? 100 : 20;
+  if (counted[0] + counted[1] + counted[2] !== all) throw new Error(`the overview counts ${counted.join("/")}, not ${all} spots`);
+});
+
 step("Deine Hände: die Antes stehen in einer Zeile, nicht je Spieler", async () => {
   await nav("Lernen");
   await click("main [role='tab']", "Deine Hände");

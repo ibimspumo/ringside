@@ -45,7 +45,7 @@
   const weakFirst = $derived(!!steps[0]?.practice);
   /** The three costliest first, so the path itself stays in view. */
   let allWeak = $state(false);
-  const total = $derived(progress?.skills.filter((s) => s.id !== "all_in" && s.id !== "own_decision") ?? []);
+  const total = $derived(progress?.skills.filter((s) => s.id !== "all_in" && s.id !== "own_decision" && s.id !== "key_spot") ?? []);
   const solid = $derived(total.filter((s) => s.level >= 3).length);
 </script>
 

@@ -67,6 +67,12 @@ pub struct Preflop {
 }
 
 pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
+    analyze_in(hand, hero, Family::Limps)
+}
+
+/// [`analyze`] against the model tables of `family`: the learning spots take the plain
+/// tables of the charts and the trainer.
+pub(crate) fn analyze_in(hand: &Hand, hero: &str, family: Family) -> Preflop {
     let indices: Vec<usize> =
         hero_actions(hand, hero).filter(|(_, a)| a.street == Street::Preflop).map(|(i, _)| i).collect();
     let fail = |reason: &str| Preflop {
@@ -87,7 +93,7 @@ pub fn analyze(hand: &Hand, hero: &str) -> Preflop {
             .collect();
         return Preflop { decisions, flop: Err("Push/Fold-Hand".into()), ranges: None, targets: target.into_iter().collect() };
     }
-    walk(hand, &t, &indices)
+    walk(hand, &t, &indices, family)
 }
 
 /// Seat of the model for real seat `i`: smaller tables take the model's last seats, so
@@ -161,7 +167,7 @@ fn spot_type(line: &[Step], played: Kind, hero_position: &str) -> SpotType {
     }
 }
 
-fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
+fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
     let n = t.players();
     let Some(&players) = LIMP_PLAYERS.iter().find(|&&p| p >= n) else {
         return unrated_all(hand, indices, "Für diese Tischgröße gibt es kein Preflop-Modell.");
@@ -174,7 +180,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
         return unrated_all(hand, indices, "Zu wenig Chips für das Preflop-Modell und kein reiner Push/Fold-Spot.");
     }
     let stack = nearest(&STACKS, effective);
-    let Some(sol) = cached(Family::Limps, t.ante, players, stack) else {
+    let Some(sol) = cached(family, t.ante, players, stack) else {
         return unrated_all(hand, indices, "Diese Modell-Konfiguration ist nicht vorgerechnet.");
     };
 
@@ -351,7 +357,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize]) -> Preflop {
                         .collect(),
                     raises,
                     note,
-                    model: ModelLine { family: Family::Limps, ante: t.ante, players, stack_bb: stack, line: line.clone() },
+                    model: ModelLine { family, ante: t.ante, players, stack_bb: stack, line: line.clone() },
                 })
             }
         }
