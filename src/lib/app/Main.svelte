@@ -45,6 +45,7 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { followPage, pageFrame, pageHead } from "../ui/page.svelte";
   import TopBar from "../nav/TopBar.svelte";
+  import { historyMissing } from "../nav/NavNotices.svelte";
   import { ALL_PAGES, LOCKED_PAGES, PAGES, type Page } from "../nav/pages";
 
   type Tab = Page;
@@ -311,7 +312,7 @@
   />
 
   <main>
-    <CloudNotice onSettings={() => (tab = "settings")} />
+    <CloudNotice quiet={historyMissing(status, tab === "settings")} onSettings={() => (tab = "settings")} />
     <PageHeader title={PAGES[tab].label} sub={(clientRunning && LOCKED_NOTES[tab]) || NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED_PAGES.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab) && !showingReport}

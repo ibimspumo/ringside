@@ -18,7 +18,8 @@
   import SectionHead from "../ui/SectionHead.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
-  import { duration, tokens } from "./api";
+  import { tokens } from "./api";
+  import { duration } from "../ui/format";
   import { conceptName } from "./concepts";
   import type { Choice } from "./drill";
   import { COACH_GRADES, VERDICTS, money, shortModel, termsIn, toPractise, verdictOf, say } from "./meaning";

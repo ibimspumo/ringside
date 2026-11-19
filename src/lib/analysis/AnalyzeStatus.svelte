@@ -4,7 +4,7 @@
   import Button from "../ui/Button.svelte";
   import ProgressRing from "../ui/ProgressRing.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
-  import { duration } from "./labels";
+  import { duration } from "../ui/format";
   import { analysis, watchAnalysis } from "./store.svelte";
 
   /** The run over the whole history in one line, for pages that are about something else. `short`: the ring alone, its line on hover. */
@@ -16,7 +16,7 @@
   const p = $derived(s?.progress);
   const started = $derived(!!s && (s.enabled || (c?.analyzed ?? 0) > 0));
   const preDone = $derived(!!c && c.hands > 0 && c.analyzed >= c.hands);
-  const eta = $derived(p?.eta_secs && p.eta_secs > 1 ? ` · etwa ${duration(p.eta_secs)}` : "");
+  const eta = $derived(p?.eta_secs && p.eta_secs > 1 ? ` · ${duration(p.eta_secs, { about: true })}` : "");
   const line = $derived.by(() => {
     if (!c || !p) return "";
     if (p.state === "done" || (preDone && !c.queued)) return `Alle ${int(c.hands)} Hände bewertet`;

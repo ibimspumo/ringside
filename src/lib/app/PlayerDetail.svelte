@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from "../api";
   import PlayingCard from "../ui/PlayingCard.svelte";
-  import { STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
+  import { STAT_META, fmtUnit, stat, tone, toneColor, usual } from "../stats";
   import type { HudConfig, PlayerNote, PlayerView, ShownHand, StatId } from "../types";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
@@ -165,7 +165,7 @@
                     max={STAT_META[id].ratio ? 6 : 100}
                     color={toneColor(hud, s, "var(--text-3)")}
                     {thin}
-                    label={`${STAT_META[id].name} ${fmtUnit(s)}, üblich ${range.low}–${range.high}`}
+                    label={`${STAT_META[id].name} ${fmtUnit(s)}, üblich ${usual(id, range)}`}
                   />
                 {/if}
                 <b class="num" style="color:{toneColor(hud, s, 'var(--text-3)')}">{fmtUnit(s)}</b>

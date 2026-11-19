@@ -71,7 +71,7 @@ Der Nutzer hält GTO Wizard für das beste Vorbild an Bedienung und Feinschliff.
 **Verboten im Prüfer-Auftrag:** Ziel oder Zielnote, „wir haben gebaut/verbessert“, vorherige Noten oder Runden, Vorher-Bilder als „alt“, Hinweise auf gewünschte Ergebnisse, die festen Entscheide.
 
 ## Abschluss
-- Lokaler E2E gegen das Browser-Demo (Vite und ChromeDriver auf freien Ports, danach beenden): `E2E_URL=http://localhost:<port>/ E2E_WEBDRIVER=http://localhost:<port> node e2e/run.mjs`. Geänderte Texte oder Selektoren, die `e2e/run.mjs` nutzt, im selben Branch nachziehen.
+- Lokaler E2E gegen das gebaute Browser-Demo (`pnpm build`, dann `pnpm exec vite preview --port <port>` und ChromeDriver auf freien Ports, danach beenden): `E2E_URL=http://localhost:<port>/ E2E_WEBDRIVER=http://localhost:<port> node e2e/run.mjs`. Gegen `vite dev` verweigert der Lauf den Start. Geänderte Texte oder Selektoren, die `e2e/run.mjs` nutzt, im selben Branch nachziehen.
 - Grün vor jedem Push: `pnpm check` (0 Fehler, 0 Warnungen, Baseline gesenkt) und `pnpm build`; bei Rust-Änderungen zusätzlich `cargo clippy --workspace --all-targets -- -D warnings` und `cargo test --workspace`. Volle Logs in Dateien, rote Stellen lesen.
 - Bildskripte und Screenshots bleiben in `/tmp`.
 - Bericht an den Koordinator (Deutsch, knapp): Branch und letzter Commit, Noten je Runde und Prüfer als Tabelle, wichtigste Änderungen mit Vorher/Nachher-Bildpfaden, ENTSCHEID-Zeilen, was offen bleibt.

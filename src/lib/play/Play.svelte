@@ -16,7 +16,8 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { playApi } from "./api";
   import InfoPanel from "./InfoPanel.svelte";
-  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, etaText, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
+  import { remaining } from "../ui/format";
+  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
   import { openSolverTab } from "./nav.svelte";
   import PoolChip from "./PoolChip.svelte";
   import { act, askHint, cancelLive, listen, nextHand, prepare, repeatHand, resume, saveConfig, session, stats, type SessionHand } from "./session.svelte";
@@ -131,7 +132,7 @@
   const liveRun = $derived(session.live?.status === "running" ? session.live : null);
   const solvingDetail = $derived.by(() => {
     if (!solving) return "";
-    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${etaText(liveRun.secs_left)}` : "";
+    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${remaining(liveRun.secs_left)}` : "";
     return `Schnell gerechnet, Genauigkeit ${num(solving.target_pct)} % des Pots${state}. Danach geht die Hand weiter.`;
   });
   const STREET_ORDER: Street[] = ["preflop", "flop", "turn", "river"];
@@ -549,7 +550,7 @@
       <aside class="side r" aria-label="Info">
         {#if rightOpen}
           <div class="side-head"><b>Info</b><IconButton size="sm" label="Info einklappen" onclick={() => (rightOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></IconButton></div>
-          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
+          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} tip={!!decision?.graded} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
         {:else}
           <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><small>Info</small>
