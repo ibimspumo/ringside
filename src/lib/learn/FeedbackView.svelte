@@ -16,6 +16,7 @@
     nextLabel = "Weiter",
     estimate = null,
     unit = "",
+    shown = false,
   }: {
     feedback: Feedback;
     onNext?: () => void;
@@ -23,6 +24,8 @@
     /** The number the player entered, for a plain sentence instead of answer and gap tiles. */
     estimate?: number | null;
     unit?: string;
+    /** The stage already lays the facts out (a showdown names every best hand). */
+    shown?: boolean;
   } = $props();
 
   const verdict = $derived(feedback.correct ? "ok" : feedback.score >= 0.5 ? "close" : "miss");
@@ -55,7 +58,8 @@
   const SAID = new Set(["Deine Antwort", "Abweichung"]);
   const facts = $derived(
     feedback.facts.filter(
-      (f) => !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
+      (f) =>
+        !shown && !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
     ),
   );
   /** The action in its colour, the rest in the colour of the passive move (check after a bet, fold after an open). */
