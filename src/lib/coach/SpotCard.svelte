@@ -73,7 +73,7 @@
       <GradeBadge grade={verdict.grade} size="sm" />
       <span class="meaning">{verdict.meaning}</span>
       {#if practised}
-        <Badge size="sm" tone={practised.right === true ? "good" : practised.right === false ? "warn" : "neutral"} title="In dieser Sitzung geübt"
+        <Badge size="sm" tone={practised.right === true ? "good" : practised.right === false ? "warn" : "neutral"} title="In dieser Runde geübt"
           >Geübt: {CHOICE_NAME[practised.answer]}{practised.right === true
             ? " · wie der Coach"
             : practised.right === false

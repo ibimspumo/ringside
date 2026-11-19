@@ -192,7 +192,7 @@
   usePageHead(() => ({ sub: "Fertig gelöste Spots für die häufigsten Turnier-Situationen – gerechnet hier oder geladen aus Ringside Cloud." }));
 </script>
 
-<ClientLock feature="Die Bibliothek">
+<ClientLock>
   <div class="page library">
     {#if data && worker}
       <Card pad="md">
@@ -444,10 +444,10 @@
         {/if}
       </div>
     {:else if error}
-      <div class="state">
       <EmptyState
+        page
         tone="error"
-        title="Die Bibliothek ließ sich nicht laden"
+        title="Die Bibliothek konnte nicht geladen werden"
         text="{error} Meist sperrt ein Virenscanner den Datenordner von Ringside. Gib diesen Ordner im Virenscanner frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
       >
         {#snippet action()}
@@ -455,12 +455,11 @@
             <code class="path">{DATA_DIR}</code>
             <Button variant="quiet" size="sm" onclick={() => navigator.clipboard?.writeText(DATA_DIR)}>Pfad kopieren</Button>
           </div>
-          <Button variant="primary" onclick={load}>Noch einmal versuchen</Button>
+          <Button variant="primary" onclick={load}>Erneut laden</Button>
         {/snippet}
       </EmptyState>
-      </div>
     {:else}
-      <div class="state"><EmptyState tone="loading" title="Bibliothek wird geladen" text="Das dauert nur einen Moment." /></div>
+      <EmptyState page tone="loading" title="Bibliothek wird geladen …" text="Das dauert nur einen Moment." />
     {/if}
   </div>
 </ClientLock>
@@ -483,12 +482,6 @@
   }
 
   /* Like the lock of the page: error and loading sit in the middle of the window. */
-  .state {
-    display: grid;
-    place-items: center;
-    min-height: calc(100vh - 220px);
-  }
-
   /* The band: where the library stands, what you gave, and the worker. */
   .band {
     display: grid;

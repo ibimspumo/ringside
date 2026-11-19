@@ -196,12 +196,12 @@
 {/snippet}
 
 {#snippet loadFailed(message: string)}
-  <EmptyState tone="error" title="Die Berichte lassen sich gerade nicht laden." text={message}>
-    {#snippet action()}<Button onclick={() => loadList()}>Erneut laden</Button>{/snippet}
+  <EmptyState tone="error" title="Die Berichte konnten nicht geladen werden" text={message}>
+    {#snippet action()}<Button variant="primary" onclick={() => loadList()}>Erneut laden</Button>{/snippet}
   </EmptyState>
 {/snippet}
 
-<ClientLock feature="Der Coach">
+<ClientLock>
   <div class="page wide">
     {#if list}
       <div class="layout" class:busy={runFor !== null || focus !== null || setupOpen || !status?.has_key}

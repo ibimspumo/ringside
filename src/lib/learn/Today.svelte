@@ -1,5 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
   import { api } from "../api";
   import type { ConceptCount } from "../coach/types";
   import type { Exercise, LearnKind, LearnProgress, SkillProgress } from "../types";
@@ -474,8 +476,9 @@
     </div>
     <div class="panel body">
       {#if error}
-        <p class="error" role="alert">{error}</p>
-        <button class="btn" onclick={() => load(index)}>Nochmal versuchen</button>
+        <EmptyState tone="error" title="Die Aufgabe konnte nicht geladen werden" text={error}>
+          {#snippet action()}<Button variant="primary" onclick={() => load(index)}>Erneut laden</Button>{/snippet}
+        </EmptyState>
       {:else if current?.type === "skill"}
         {@const exercise = current.exercise}
         {#key `${index}:${exercise.seed}`}
@@ -506,7 +509,7 @@
           />
         {/key}
       {:else}
-        <p class="faint loading">{items[index]?.type === "drill" ? "Spot aus deinem Spiel wird vorbereitet …" : "Aufgabe wird gemischt …"}</p>
+        <EmptyState tone="loading" title={items[index]?.type === "drill" ? "Spot aus deinem Spiel wird vorbereitet …" : "Aufgabe wird gemischt …"} />
       {/if}
     </div>
   </div>
@@ -618,7 +621,7 @@
     min-width: 0;
   }
   .eyebrow {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
     color: var(--text-2);
   }
   .lead-title {
@@ -644,7 +647,7 @@
     gap: 8px;
   }
   .lane-label {
-    font-size: 12px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: var(--text-2);
   }
@@ -672,7 +675,7 @@
     border: 0;
     background: none;
     color: var(--text-2);
-    font-size: 12px;
+    font-size: var(--fs-xs);
     font-weight: 400;
     text-decoration: underline;
     text-decoration-color: var(--line-2);
@@ -704,11 +707,11 @@
     line-height: 1.25;
   }
   .pname b {
-    font-size: 13.5px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
   .pname .dim {
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
   .cta {
     margin-top: 18px;
@@ -720,7 +723,7 @@
   .go {
     height: 44px;
     padding: 0 24px;
-    font-size: 15px;
+    font-size: var(--fs-base);
     border-radius: var(--r);
   }
   .week {
@@ -739,7 +742,7 @@
     text-wrap: balance;
   }
   .week-text b {
-    font-size: 13.5px;
+    font-size: var(--fs-md);
     font-weight: 600;
   }
   .goal {
@@ -748,15 +751,15 @@
     gap: 8px;
   }
   .big {
-    font-size: 34px;
+    font-size: var(--fs-4xl);
     font-weight: 600;
   }
   .huge {
-    font-size: 46px;
+    font-size: var(--fs-hero);
     font-weight: 600;
   }
   .small {
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .doors {
     display: grid;
@@ -797,11 +800,11 @@
     gap: 3px;
   }
   .door b {
-    font-size: 14.5px;
+    font-size: var(--fs-base);
   }
   .door-txt span {
     color: var(--text-2);
-    font-size: 13px;
+    font-size: var(--fs-sm);
     line-height: 1.4;
   }
   svg {
@@ -861,14 +864,6 @@
   .body {
     padding: 20px 22px;
   }
-  .loading {
-    margin: 30px 0;
-    text-align: center;
-  }
-  .error {
-    margin: 0 0 10px;
-    color: var(--danger-text);
-  }
 
   .done {
     display: grid;
@@ -925,7 +920,7 @@
     border-radius: 4px;
     background: var(--t);
     color: var(--bg);
-    font-size: 10px;
+    font-size: var(--fs-xs);
     font-style: normal;
     font-weight: 700;
     line-height: 1;
@@ -959,7 +954,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px 14px;
-    font-size: 12px;
+    font-size: var(--fs-xs);
     color: var(--text-2);
   }
   .stats {
@@ -971,17 +966,17 @@
     display: grid;
   }
   .stats b {
-    font-size: 26px;
+    font-size: var(--fs-3xl);
     font-weight: 600;
   }
   .of {
-    font-size: 16px;
+    font-size: var(--fs-lg);
     color: var(--text-3);
     font-weight: 500;
   }
   .stats div > span {
     color: var(--text-2);
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .grown {
     display: grid;
@@ -991,7 +986,7 @@
   }
   .grown h2 {
     margin: 0;
-    font-size: 14.5px;
+    font-size: var(--fs-base);
     font-weight: 600;
   }
   .changes {
@@ -1019,10 +1014,10 @@
     display: grid;
     gap: 1px;
     min-width: 0;
-    font-size: 12.5px;
+    font-size: var(--fs-sm);
   }
   .cname b {
-    font-size: 14px;
+    font-size: var(--fs-md);
   }
   .lvl-up {
     color: var(--pos);
@@ -1037,7 +1032,7 @@
   .big-btn {
     height: 40px;
     padding: 0 20px;
-    font-size: 14px;
+    font-size: var(--fs-md);
   }
   @container (max-width: 560px) {
     .result {

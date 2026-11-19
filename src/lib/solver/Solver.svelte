@@ -70,7 +70,7 @@
 </script>
 
 <div class="page solver">
-  <ClientLock feature="Der Solver">
+  <ClientLock>
     {#if solver.status === "running" && solver.replay?.notice}
       <p class="source" role="status">{solver.replay.notice}</p>
     {:else if solver.source && view === "setup"}

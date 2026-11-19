@@ -48,8 +48,6 @@
     font: inherit;
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     /* Titles break only where they say so ("Fold\n3-Bet"). */
     white-space: pre;
     text-align: inherit;
@@ -68,8 +66,6 @@
     color: var(--text-3);
     font-size: var(--fs-xs);
     font-weight: var(--fw-medium);
-    letter-spacing: 0.02em;
-    text-transform: none;
   }
   .term .main {
     text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent);

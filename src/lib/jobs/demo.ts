@@ -113,7 +113,8 @@ export function demoList(): JobsView {
   if (on && !jobs.length) seed();
   if (on && !timer) timer = setInterval(tick, 1000);
   const locked = new URLSearchParams(window.location.search).get("locked") === "1";
-  const analysis = analysisJob();
+  // Without hands (`?data=empty`) there is nothing to analyse.
+  const analysis = new URLSearchParams(window.location.search).get("data") === "empty" ? null : analysisJob();
   const all = analysis ? [analysis, ...jobs] : jobs;
   const view = structuredClone(all).map((j) => (locked && j.status === "running" ? { ...j, status: "paused" as const } : j));
   return { jobs: view, locked };

@@ -48,6 +48,7 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { followPage, pageFrame, pageHead } from "../ui/page.svelte";
   import TopBar from "../nav/TopBar.svelte";
+  import { handleGo } from "../nav/go";
   import { historyMissing } from "../nav/NavNotices.svelte";
   import { ALL_PAGES, LOCKED_PAGES, PAGES, type Page } from "../nav/pages";
 
@@ -64,7 +65,7 @@
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
     leaks: "Was dich am meisten kostet, das Wichtigste zuerst. Darunter deine Werte gegen veröffentlichte Richtwerte.",
-    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
+    ranges: "Welche Hände du vor dem Flop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Optional: Ein Sprachmodell erklärt deine Zahlen und bespricht Turniere ausführlich. Jede Zahl rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
     play: "Postflop-Spots rechnet Ringside im Hintergrund vor.",
@@ -74,7 +75,7 @@
   /** While the client runs: the lines of pages whose usual line promises a rating. */
   const LOCKED_NOTES: Partial<Record<Tab, string>> = {
     tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du den Poker-Client schließt.",
-    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
+    ranges: "Welche Hände du vor dem Flop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
     leaks: "Deine Werte gegen Richtwerte – sobald du den Poker-Client schließt.",
   };
   watchPokerClient();
@@ -220,6 +221,7 @@
     if (id === "tournaments") reportTournament = null;
     tab = id;
   }
+  handleGo(go);
 
   function showHands(player: string | null, handId: number | null = null) {
     handsPlayer = player;
@@ -369,6 +371,7 @@
       {#if tab === "dashboard"}
         <SessionReview
           {refresh}
+          noHistory={historyMissing(status, false)}
           onSkill={() => (tab = "skill")}
           {filter}
           onStepHands={stepHands}
@@ -431,7 +434,7 @@
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
       {:else if tab === "leaks" && adviceLocked()}
-        <AtTable hands={status?.total_hands} />
+        <div class="page"><AtTable hands={status?.total_hands} /></div>
       {:else if tab === "leaks"}
         <Leaks
           {filter}
@@ -459,7 +462,7 @@
         />
       {:else if tab === "tournaments" && reportTournament !== null}
         {@const id = reportTournament}
-        <ClientLock feature="Der Turnier-Bericht">
+        <ClientLock>
           <TournamentReport
             tournamentId={id}
             {refresh}

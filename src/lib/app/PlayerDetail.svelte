@@ -180,7 +180,7 @@
     <section class="group" aria-label="Gezeigte Karten">
       <h3>Gezeigte Karten</h3>
       {#if shown === null}
-        <EmptyState inline tone="loading" title="Lädt …" />
+        <EmptyState inline tone="loading" title="Gezeigte Karten werden geladen …" />
       {:else if shown.length === 0}
         <EmptyState inline title="Noch keine gezeigten Karten" text="Sobald {player.name} am Showdown Karten zeigt, stehen sie hier." />
       {:else}

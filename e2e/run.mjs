@@ -412,7 +412,7 @@ step("Meine Wertung: die Leiste öffnet sie, Zahl, Verlauf und Bereiche; ein Ber
   if (TAURI) return;
   await waitText("Was dich zuletzt bewegt hat");
   await waitText("Gut entschieden, Pech gehabt");
-  await click("main [data-skill-area='vs_all_in'] button", "Hände");
+  await click("main [data-skill-area='vs_all_in'] button", "Hände ansehen");
   await find("main h1", "Hände");
   await waitText("Bereich: Gegen ein All-in");
 });
@@ -572,6 +572,9 @@ step("Hände: GGPoker-Hand mit Marke, Replayer öffnet sie, Filter Client", asyn
   await find("main .hand-head .ui-site.ggpoker");
   // Narrow windows keep the hand number in the title's tooltip only.
   await waitFor("the GGPoker hand number", `return /#TM\\d+/.test(document.querySelector("main .hand-head h2")?.title ?? "")`);
+  await waitText("Gegner 1");
+  const ids = await s.exec(`return document.querySelector(".replayer").innerText.match(/\\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\\d)[0-9a-f]{7,8}\\b/g)`);
+  if (ids) throw new Error(`GGPoker ids shown in the replayer: ${ids.join(", ")}`);
   await click("main button[aria-expanded]", "Filter", { exact: false });
   const seg = "main [role='radiogroup'][aria-label='Client'] [role='radio']";
   await click(seg, "GGPoker");
@@ -1397,7 +1400,7 @@ if (!TAURI)
     await find("[role=banner] nav button", "Start", { timeout: 60_000 });
     await nav("Turniere");
     await click("main tbody tr:has(.gname[title*='Sunday Million'])");
-    await waitText("GGPoker läuft – schließ Ringside ganz.");
+    await waitText("GGPoker läuft – schließ Ringside ganz");
     await find("main button", "Ringside beenden");
     const text = await mainText();
     if (/Besser:|Beste Wahl/.test(text)) throw new Error("advice while GGPoker runs");

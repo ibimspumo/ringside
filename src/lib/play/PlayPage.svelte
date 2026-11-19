@@ -3,6 +3,6 @@
   import Play from "./Play.svelte";
 </script>
 
-<ClientLock feature="Hände spielen">
+<ClientLock>
   <Play />
 </ClientLock>

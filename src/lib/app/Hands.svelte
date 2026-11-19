@@ -658,11 +658,10 @@
             <span class="hole">
               {#each cards(h.hero_cards) as c (c)}<PlayingCard card={c} size={22} />{:else}<span class="quiet">–</span>{/each}
             </span>
-            <b class="posn num">{h.hero_position ?? "–"}</b>
+            <span class="tags"><b class="posn num">{h.hero_position ?? "–"}</b>{#if several}<SiteMark site={h.site} />{/if}</span>
           </span>
           <span class="mid">
             <span class="line">
-              {#if several}<SiteMark site={h.site} />{/if}
               <span class="board">{#each cards(h.board) as c (c)}<MiniCard card={c} />{:else}<span class="quiet">kein Flop</span>{/each}</span>
               {#if h.hero_showdown}<svg class="sd" viewBox="0 0 24 24" width="13" height="13" role="img" aria-label="Showdown"
                   ><title>Showdown: die Karten wurden aufgedeckt</title><path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z" /><circle
@@ -706,7 +705,7 @@
             <EmptyState compact title="Keine Hände für diese Filter" text="Lockere die Filter oder wähle oben einen längeren Zeitraum." />
           {/if}
         {:else}
-          <EmptyState compact tone="loading" title="Lädt deine Hände …" />
+          <EmptyState compact tone="loading" title="Deine Hände werden geladen …" />
         {/if}
       {/each}
       {#if more}
@@ -993,6 +992,13 @@
     display: flex;
     gap: 2px;
     flex-shrink: 0;
+  }
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 3px;
   }
   .who {
     display: flex;

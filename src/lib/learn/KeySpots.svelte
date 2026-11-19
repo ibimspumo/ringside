@@ -122,8 +122,8 @@
 </script>
 
 {#if error && !data}
-  <EmptyState tone="error" title="Die Spots lassen sich gerade nicht laden" text={error}>
-    {#snippet action()}<Button onclick={load}>Nochmal versuchen</Button>{/snippet}
+  <EmptyState tone="error" title="Die Spots konnten nicht geladen werden" text={error}>
+    {#snippet action()}<Button variant="primary" onclick={load}>Erneut laden</Button>{/snippet}
   </EmptyState>
 {:else if !data}
   <EmptyState tone="loading" title="Spots werden geladen …" />
@@ -193,8 +193,8 @@
       <Button variant="quiet" onclick={finish}>Runde beenden</Button>
     </div>
     {#if error}
-      <EmptyState tone="error" title="Dieser Spot lässt sich gerade nicht laden" text={error}>
-        {#snippet action()}<Button onclick={() => show(index)}>Nochmal versuchen</Button>{/snippet}
+      <EmptyState tone="error" title="Dieser Spot konnte nicht geladen werden" text={error}>
+        {#snippet action()}<Button onclick={() => show(index)}>Erneut laden</Button>{/snippet}
       </EmptyState>
     {:else if view}
       {@const v = view}

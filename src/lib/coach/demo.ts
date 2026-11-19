@@ -54,10 +54,10 @@ function report(tournament: number, created: number): CoachReport {
   return {
     tournament_id: tournament,
     summary:
-      "Vor dem Flop spielst du mit kurzem Stack meist sauber. Ein Fold im Small Blind kostet dich aber Chips, und am River callst du gegen große Bets, ohne genug Equity zu haben.",
+      "Vor dem Flop spielst du mit kurzem Stack meist sauber. Ein Fold im Small Blind kostet dich aber Chips, und am River gehst du große Einsätze mit, obwohl deine Gewinnchance dafür zu klein ist.",
     focus: [
       "Push/Fold im Small Blind bis 12 bb",
-      "River-Calls gegen große Bets mit Pot Odds prüfen",
+      "Am River vor dem Mitgehen den Preis gegen deine Gewinnchance prüfen",
       "Mit Top Pair auf nassen Boards kleiner setzen",
     ],
     spots: [
@@ -72,8 +72,8 @@ function report(tournament: number, created: number): CoachReport {
         why: "Mit 8 bb und Antes im Pot schiebt das Gleichgewicht K6o immer. Mit dem Fold gibst du die Blinds und Antes kampflos ab.",
         numbers: [
           { label: "Nash-Shove mit K6o", value: "100 %", source: "berechnet" },
-          { label: "EV All-in", value: "+0,61 bb", source: "berechnet" },
-          { label: "EV Fold", value: "−0,62 bb", source: "berechnet" },
+          { label: "All-in bringt im Schnitt", value: "+0,61 bb", source: "berechnet" },
+          { label: "Fold bringt im Schnitt", value: "−0,62 bb", source: "berechnet" },
         ],
         concept: "push_fold_sb",
       }),
