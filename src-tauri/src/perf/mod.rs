@@ -116,7 +116,7 @@ fn analyse_all(state: &AppState) -> usize {
     done
 }
 
-fn pages(state: &AppState, t: &mut Timings) {
+fn pages(state: &AppState, path: &Path, t: &mut Timings) {
     let all = Filter::default();
     let tour = Filter { game: Some(ringside_core::model::GameKind::Tournament), ..Default::default() };
     let tournaments = state.db.lock().unwrap().tournaments(&all).unwrap();
@@ -184,6 +184,7 @@ fn pages(state: &AppState, t: &mut Timings) {
     let latest = state.db.lock().unwrap().hands(&HandQuery { limit: 1, ..Default::default() }).unwrap();
     let hand = state.db.lock().unwrap().hand(latest[0].id).unwrap().unwrap();
     let key = hand.table_key();
+    t.time("App-Start: Datenbank öffnen", || Db::open(path).unwrap());
     t.time("HUD: ein Tisch (overlay_view)", || {
         let db = state.db.lock().unwrap();
         let hand = db.latest_hand_for_table(&key).unwrap().unwrap();
@@ -261,7 +262,7 @@ fn run(hands: usize, keep: Option<&Path>) {
     println!("  Datenbank: {:.1} MB (+ WAL {:.1} MB)", size(&db_path) as f64 / 1e6, size(&wal) as f64 / 1e6);
 
     let mut t = Timings { rows: Vec::new() };
-    pages(&state, &mut t);
+    pages(&state, &db_path, &mut t);
     let (avg, worst, refresh) = live_import(&state, &dirs, &mut scanner, &extra);
     println!("  Laufender Import je Hand: {avg:.1} ms (höchstens {worst:.1} ms); Auffrischen danach {refresh:.1} ms");
     let slow: Vec<_> = t.rows.iter().filter(|r| r.1 > 300.0).map(|r| r.0.as_str()).collect();
@@ -277,7 +278,7 @@ fn pages_of(db: &Path) {
     let state = state_on(&path);
     println!("\n== {} Hände aus {} ==", state.db.lock().unwrap().hand_count().unwrap(), db.display());
     println!("  RSS vor den Seiten {:.0} MB", rss_mb());
-    pages(&state, &mut Timings { rows: Vec::new() });
+    pages(&state, &path, &mut Timings { rows: Vec::new() });
     println!("  RSS danach {:.0} MB", rss_mb());
 }
 

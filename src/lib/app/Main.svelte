@@ -284,15 +284,29 @@
       on<ImportStatus>("import-status", (s) => {
         status = s;
         noteSites(s);
-        refresh++;
+        reload();
       }),
       on<number>("tables-tracked", (n) => (tables = n)),
-      on("tournament-named", () => refresh++),
+      on("tournament-named", reload),
     ];
     // Listen first, then read the state, so nothing sent at startup is missed.
     Promise.all(subs).then(sync);
     const poll = setInterval(sync, 5000);
+    // While the window is minimized during play, new hands reload the page once it shows again.
+    let stale = false;
+    function reload() {
+      if (document.hidden) stale = true;
+      else refresh++;
+    }
+    const shown = () => {
+      if (!document.hidden && stale) {
+        stale = false;
+        refresh++;
+      }
+    };
+    document.addEventListener("visibilitychange", shown);
     return () => {
+      document.removeEventListener("visibilitychange", shown);
       clearInterval(poll);
       subs.forEach((s) => s.then((f) => f()));
     };
