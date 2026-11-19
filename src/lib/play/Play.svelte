@@ -408,7 +408,7 @@
               <span><CardText text={sit.you} /></span>
               {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
-                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
+                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Gewinnchance (<Term id="equity">Equity</Term>).</span>
               {/if}
             </p>
             <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>
@@ -786,7 +786,7 @@
     color: var(--text);
   }
   .odds {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   .actions {
     display: flex;

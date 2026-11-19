@@ -5,7 +5,7 @@
   import DrillStage, { isDrill } from "./DrillStage.svelte";
   import SeatRing from "./SeatRing.svelte";
   import Matrix from "./wissen/blocks/Matrix.svelte";
-  import { score } from "./wissen/poker";
+  import { CATEGORY, categoryOf, score } from "./wissen/poker";
   import Badge from "../ui/Badge.svelte";
   import BestHand from "../ui/BestHand.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
@@ -179,6 +179,18 @@
             </li>
           {/each}
         </ol>
+        {@const kinds = prompt.players.map((h) => categoryOf([...h, ...prompt.board]))}
+        {@const w = scores.indexOf(top)}
+        {@const rival = Math.max(...kinds.filter((_, i) => scores[i] !== top), -1)}
+        <p class="why">
+          {#if split}
+            Die besten fünf Karten sind gleich stark – der Pot wird geteilt.
+          {:else if kinds[w] > rival}
+            „{CATEGORY[kinds[w]]}“ ist stärker als „{CATEGORY[rival]}“ – deshalb gewinnt Spieler {w + 1}.
+          {:else}
+            Beide haben „{CATEGORY[kinds[w]]}“ – die höheren Karten entscheiden, deshalb gewinnt Spieler {w + 1}.
+          {/if}
+        </p>
         {#if choice === "split" && !split}
           <p class="split-miss"><GradeIcon grade="mistake" size={16} />Deine Wahl „Pot teilen“ ist falsch – eine Hand ist klar besser.</p>
         {/if}
@@ -459,6 +471,12 @@
   .player.on {
     border-color: var(--text);
     background: rgba(236, 235, 231, 0.08);
+  }
+  .why {
+    margin: var(--sp-3) 0 0;
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    color: var(--text);
   }
   .results {
     display: flex;

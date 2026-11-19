@@ -683,6 +683,12 @@
               </div>
             {/if}
             {#if barActions.length}<ActionBar actions={barActions} selected={onlyBar} onSelect={(k) => (only = k === null ? null : barActions[k].i)} />{/if}
+            {#if answer}
+              <p class="legend">
+                Auf der Diagonale stehen die Paare (AA bis 22). Rechts oben: beide Karten gleiche Farbe (<b>s</b>), links unten: verschiedene
+                Farben (<b>o</b>). Eine kleine Zahl im Feld sagt, wie oft du die Hand so spielst.
+              </p>
+            {/if}
           </header>
           <div class="chart-wrap">
             <div class:stale={loading}>
@@ -1018,6 +1024,15 @@
     margin: 4px 0 0;
     color: var(--text-2);
     font-size: var(--fs-md);
+  }
+  .answer .legend {
+    margin-top: var(--sp-3);
+    font-size: var(--fs-md);
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .answer .legend b {
+    color: var(--text);
   }
   .answer :global(.action-bar) {
     margin-top: 14px;

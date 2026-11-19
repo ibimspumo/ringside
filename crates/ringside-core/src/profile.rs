@@ -91,19 +91,19 @@ impl Lage {
     pub fn name(self) -> &'static str {
         match self {
             Lage::FirstIn => "Eröffnen",
-            Lage::PushFold => "Shove oder Fold als Erster",
-            Lage::VsLimp => "Gegen Limper",
+            Lage::PushFold => "All-in oder Fold als Erster",
+            Lage::VsLimp => "Wenn einer nur mitgeht (Limp)",
             Lage::VsOpen => "Gegen Open",
             Lage::VsThreeBet => "Gegen 3-Bet",
             Lage::VsAllIn => "Gegen All-in",
-            Lage::CBet => "C-Bet am Flop",
-            Lage::VsCBet => "Gegen C-Bet am Flop",
+            Lage::CBet => "Am Flop nachsetzen (C-Bet)",
+            Lage::VsCBet => "Gegen Nachsetzen am Flop (C-Bet)",
             Lage::FlopBet => "Flop: setzen oder checken",
-            Lage::FlopVsBet => "Flop gegen Bet",
+            Lage::FlopVsBet => "Flop: auf einen Einsatz reagieren",
             Lage::TurnBet => "Turn: setzen oder checken",
-            Lage::TurnVsBet => "Turn gegen Bet",
+            Lage::TurnVsBet => "Turn: auf einen Einsatz reagieren",
             Lage::RiverBet => "River: setzen oder checken",
-            Lage::RiverVsBet => "River gegen Bet",
+            Lage::RiverVsBet => "River: auf einen Einsatz reagieren",
         }
     }
 

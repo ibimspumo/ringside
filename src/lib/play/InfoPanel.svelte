@@ -61,7 +61,9 @@
     const street = STREET[lesson.street] ?? "";
     if ("chosen" in lesson && typeof lesson.chosen === "number") {
       const l = choiceLabel(lesson.choices[lesson.chosen], lesson.street !== "preflop");
-      return { street: `Bewertung deines vorherigen Zugs · ${street}`, text: `Du hast gespielt: ${l.label}${l.size ? ` ${l.size}` : ""}` };
+      const j = "judgement" in lesson ? (lesson as Verdict).judgement : null;
+      const grade = j ? ` – ${GRADE[j.grade].label}` : "";
+      return { street: `Bewertung deines vorherigen Zugs · ${street}`, text: `Du hast gespielt: ${l.label}${l.size ? ` ${l.size}` : ""}${grade}` };
     }
     return { street, text: "Tipp für deine Entscheidung" };
   });

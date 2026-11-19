@@ -217,7 +217,7 @@
           {#if s && acting === s}<span class="turn">am Zug</span>{/if}
           <div class="who">
             <span class="posname">{pos}</span>
-            {#if s}<span class="role" title={explain(s)}>{s === "oop" ? "OOP" : "IP"}</span>{/if}
+            {#if s}<span class="role" title={explain(s)}>{s === "oop" ? "zuerst" : "zuletzt"}</span>{/if}
           </div>
           {#if s}
             <div class="num stack"><b>{bb(stacks[idx(s)], 2)}</b> <span>BB</span></div>

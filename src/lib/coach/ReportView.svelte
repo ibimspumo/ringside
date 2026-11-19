@@ -184,7 +184,8 @@
             </ProgressRing>
             <p class="big">
               {#if weak.length}
-                <b class="num">{weak.length}</b> von <span class="num">{spots.length}</span> zum Üben
+                <small class="of">{spots.length} Entscheidungen bewertet</small>
+                <b class="num">{weak.length}</b> davon zum Üben
               {:else}
                 Alle <b class="num">{spots.length}</b> Entscheidungen gut gespielt
               {/if}
@@ -547,5 +548,11 @@
       grid-template-columns: minmax(0, 1fr);
       gap: var(--sp-5);
     }
+  }
+  .big .of {
+    display: block;
+    font-size: var(--fs-md);
+    font-weight: 400;
+    color: var(--text-2);
   }
 </style>

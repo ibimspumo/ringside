@@ -20,7 +20,7 @@ const WORST: Moment[] = [
     position: "SB",
     street: "preflop",
     spot: "vs_limp",
-    situation: "Gegen Limper",
+    situation: "Wenn einer nur mitgeht (Limp)",
     stack_bb: 42,
     played: "Call 0,5 BB",
     best: "Raise auf 4,5 BB",
@@ -40,7 +40,7 @@ const WORST: Moment[] = [
     position: "BTN",
     street: "preflop",
     spot: "shove",
-    situation: "Shove oder Fold als Erster",
+    situation: "All-in oder Fold als Erster",
     stack_bb: 10,
     played: "Fold",
     best: "All-in",
@@ -83,7 +83,7 @@ const BEST: Moment[] = [
     position: "SB",
     street: "flop",
     spot: "flop",
-    situation: "Flop gegen Bet",
+    situation: "Flop: auf einen Einsatz reagieren",
     stack_bb: 42,
     played: "Raise auf 8 BB",
     best: "Raise auf 8 BB",
@@ -199,9 +199,9 @@ export function demoReport(id: number): TournamentReport {
             key: "situation",
             title: "Spot-Art",
             groups: [
-              group("river_vs_bet", "River gegen Bet", 9, 3, 5.4, true, ["river"]),
-              group("vs_limp", "Gegen Limper", 14, 4, 4.1, false, ["vs_limp"]),
-              group("push_fold", "Shove oder Fold als Erster", 31, 3, 3.2, false, ["open", "steal", "shove"]),
+              group("river_vs_bet", "River: auf einen Einsatz reagieren", 9, 3, 5.4, true, ["river"]),
+              group("vs_limp", "Wenn einer nur mitgeht (Limp)", 14, 4, 4.1, false, ["vs_limp"]),
+              group("push_fold", "All-in oder Fold als Erster", 31, 3, 3.2, false, ["open", "steal", "shove"]),
               group("vs_open", "Gegen Open", 48, 4, 2.6, false, ["vs_open", "three_bet"]),
               group("c_bet", "C-Bet am Flop", 12, 2, 1.9, false, ["c_bet"]),
               group("first_in", "Eröffnen", 96, 3, 1.4, false, ["open", "steal"]),
@@ -309,8 +309,8 @@ export async function demoAsk(about: AskAbout): Promise<AskAnswer> {
 
 /** Loss per kind of spot of the demo tournament, costliest first. */
 const KINDS: KindLoss[] = [
-  { key: "river_vs_bet|-|3|6", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 9, flawed: 3, loss_bb: 5.4 },
-  { key: "vs_limp|SB|3|6", title: "Gegen Limper im Small Blind", detail: "ab 40 BB · 6 Spieler", lage: "vs_limp", decisions: 6, flawed: 3, loss_bb: 4.1 },
-  { key: "push_fold|BTN|1|6", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler", lage: "push_fold", decisions: 31, flawed: 3, loss_bb: 3.2 },
+  { key: "river_vs_bet|-|3|6", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 9, flawed: 3, loss_bb: 5.4 },
+  { key: "vs_limp|SB|3|6", title: "Wenn einer nur mitgeht (Limp) im Small Blind", detail: "ab 40 BB · 6 Spieler", lage: "vs_limp", decisions: 6, flawed: 3, loss_bb: 4.1 },
+  { key: "push_fold|BTN|1|6", title: "All-in oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler", lage: "push_fold", decisions: 31, flawed: 3, loss_bb: 3.2 },
   { key: "vs_open|BB|2|6", title: "Gegen Open im Big Blind", detail: "20–40 BB · 6 Spieler", lage: "vs_open", decisions: 7, flawed: 2, loss_bb: 2.6 },
 ];
