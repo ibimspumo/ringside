@@ -274,7 +274,7 @@ const START = "2026/11/18 20:04:00";
 
 /** Loss per kind of spot of the demo session, costliest first: the hands behind „Als Nächstes üben“. */
 export const SESSION_KINDS: KindLoss[] = [
-  { key: "vs_open|BB|2|9", title: "Gegen Open im Big Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_open", decisions: 14, flawed: 5, loss_bb: 6.1 },
+  { key: "vs_open|BB|2|9", title: "Gegen eine Erhöhung im Big Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_open", decisions: 14, flawed: 5, loss_bb: 6.1 },
   { key: "river_vs_bet|-|3|6", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 4, flawed: 2, loss_bb: 3.0 },
 ];
 

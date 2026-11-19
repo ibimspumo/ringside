@@ -183,7 +183,7 @@
   }
   .kind {
     width: 38px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .opt {
@@ -238,7 +238,7 @@
   th {
     color: var(--text-3);
     font-weight: 500;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     text-align: left;
     padding: 0 0 4px 6px;
   }

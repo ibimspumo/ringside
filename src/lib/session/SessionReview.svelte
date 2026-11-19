@@ -200,7 +200,7 @@
         <section class="sr-tile sr-next" aria-labelledby="sr-next-title">
           <header class="sr-head"><h2 id="sr-next-title" class="sr-title">Als Nächstes üben</h2></header>
           {#if steps.length}
-            <NextSteps {steps} mode="first" {onLearn} onHands={onStepHands} />
+            <NextSteps {steps} mode="first" label="" {onLearn} onHands={onStepHands} />
           {:else if pattern?.practice}
             {@const key = pattern.practice}
             <p class="sr-next-what"><b>Dein auffälligstes Muster</b></p>
@@ -301,18 +301,6 @@
             {#if pre.sample === "few"}
               <p class="sr-hint">Noch zu wenige Hände für ein Urteil: {int(pre.compared)} verglichen. Ab 30 nennt Ringside, welche Hände und Situationen auffallen.</p>
             {:else}
-              <div class="sr-hands">
-                <div class="sr-mini">
-                  <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
-                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen</span>
-                </div>
-                <div class="sr-keycol">
-                  {@render classRow(pre.tight, "Hättest du auch spielen sollen", "--range-tight")}
-                  {@render classRow(pre.wide, "Hättest du folden sollen", "--range-wide")}
-                  {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
-                </div>
-              </div>
-
               {#if pre.patterns.length}
                 <ul class="sr-patterns">
                   {#each pre.patterns as p (p.text)}
@@ -321,12 +309,24 @@
                       <span class="sr-pattern-text">{p.text}</span>
                       <span class="sr-pattern-do">
                         {#if scope}<Button size="sm" variant="quiet" onclick={() => onRanges(scope, { history: p.history, position: p.position, vs: p.vs_position })}>Ansehen</Button>{/if}
-                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="quiet" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
+                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="secondary" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
                       </span>
                     </li>
                   {/each}
                 </ul>
               {/if}
+              <div class="sr-hands">
+                <div class="sr-mini">
+                  <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
+                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
+                </div>
+                <div class="sr-keycol">
+                  {@render classRow(pre.tight, "Laut Modell öfter spielen", "--range-tight")}
+                  {@render classRow(pre.wide, "Laut Modell eher folden", "--range-wide")}
+                  {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
+                </div>
+              </div>
+
             {/if}
           {/if}
 
@@ -339,8 +339,6 @@
           {/if}
         </section>
 
-        <!-- What to practise next: right under the answer it follows from. -->
-        {@render nextTile()}
         </div>
         <div class="sr-col">
         <section class="sr-tile sr-res" aria-labelledby="sr-res-title">
@@ -356,8 +354,14 @@
             </span>
           </div>
           <p class="sr-say">{luckLine(rep.luck)}</p>
+        </section>
 
-          {#if review.bad_luck.length || review.good_luck.length}
+        <!-- Right under the result, so the one thing to do next is in view without scrolling. -->
+        {@render nextTile()}
+
+        {#if review.bad_luck.length || review.good_luck.length}
+          <section class="sr-tile sr-luck" aria-labelledby="sr-luck-title">
+            <header class="sr-head"><h2 id="sr-luck-title" class="sr-title">Glück oder gut gespielt?</h2></header>
             <div class="sr-swings">
               {#if review.bad_luck[0]}
                 {@const s = review.bad_luck[0]}
@@ -383,8 +387,8 @@
               {/if}
             </div>
             <span class="sr-more"><Button size="sm" variant="quiet" onclick={() => (detail = true)}>Alle Beispiele ansehen ({review.bad_luck.length + review.good_luck.length})</Button></span>
-          {/if}
-        </section>
+          </section>
+        {/if}
 
         <section class="sr-tile sr-worst" aria-labelledby="sr-worst-title">
           <header class="sr-head"><h2 id="sr-worst-title" class="sr-title">Deine teuersten Entscheidungen</h2></header>
@@ -657,7 +661,7 @@
 
   .sr-hands {
     display: grid;
-    grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 460px) minmax(0, 1fr);
     gap: var(--sp-5);
     align-items: center;
     padding-top: var(--sp-3);

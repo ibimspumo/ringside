@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from "../api";
   import PlayingCard from "../ui/PlayingCard.svelte";
-  import { STAT_META, fmtUnit, stat, tone, toneColor, usual } from "../stats";
+  import { PLAIN_NAME, STAT_META, fmtUnit, stat, tone, toneColor, usual } from "../stats";
   import type { HudConfig, PlayerNote, PlayerView, ShownHand, StatId } from "../types";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
@@ -10,7 +10,7 @@
   import StatMeter from "../ui/StatMeter.svelte";
   import Term from "../ui/Term.svelte";
   import { dateTime, int, sign, signed } from "./format";
-  import { HINT, SMALL_SAMPLE, sampleNote } from "./reads";
+  import { HINT, SMALL_SAMPLE, TYPE_PLAIN, sampleNote } from "./reads";
   import Wheel from "./Wheel.svelte";
 
   let {
@@ -105,7 +105,7 @@
           <span class="kicker">Spielertyp</span>
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
         </div>
-        <p class="type"><b>{t.name}{#if t.long !== t.name}<small>· {t.long.slice(t.name.length).replace(/[()]/g, "").trim()}</small>{/if}</b> <span>{t.sketch}</span></p>
+        <p class="type"><b>{TYPE_PLAIN[t.id]}<small>· {t.long.replace(" (", ", ").replace(")", "")}</small></b> <span>{t.sketch}</span></p>
         <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
         <p class="why">{r.sure === "sure" ? t.why : `Bisher: ${t.why}`}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>
@@ -153,7 +153,7 @@
             {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
-                <Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="left">{STAT_META[id].name}</Term>
+                <span class="stat-name"><Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="left">{PLAIN_NAME[id]}</Term>{#if STAT_META[id].name !== PLAIN_NAME[id]}<span class="abbr">{STAT_META[id].name}</span>{/if}</span>
                 <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
               </dt>
               <dd>
@@ -447,6 +447,15 @@
   dt {
     min-width: 0;
     font-size: var(--fs-base);
+  }
+  .stat-name {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+  }
+  .abbr {
+    color: var(--text-3);
+    font-size: var(--fs-xs);
   }
   dt small {
     display: block;

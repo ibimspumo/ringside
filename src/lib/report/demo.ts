@@ -202,7 +202,7 @@ export function demoReport(id: number): TournamentReport {
               group("river_vs_bet", "River: auf einen Einsatz reagieren", 9, 3, 5.4, true, ["river"]),
               group("vs_limp", "Wenn einer nur mitgeht (Limp)", 14, 4, 4.1, false, ["vs_limp"]),
               group("push_fold", "All-in oder Fold als Erster", 31, 3, 3.2, false, ["open", "steal", "shove"]),
-              group("vs_open", "Gegen Open", 48, 4, 2.6, false, ["vs_open", "three_bet"]),
+              group("vs_open", "Gegen eine Erhöhung", 48, 4, 2.6, false, ["vs_open", "three_bet"]),
               group("c_bet", "C-Bet am Flop", 12, 2, 1.9, false, ["c_bet"]),
               group("first_in", "Eröffnen", 96, 3, 1.4, false, ["open", "steal"]),
             ],
@@ -302,7 +302,7 @@ export async function demoAsk(about: AskAbout): Promise<AskAnswer> {
   await new Promise((r) => setTimeout(r, 900));
   const text =
     about.kind === "tournament"
-      ? "Dein Score ist ordentlich: 88,3 % deiner Entscheidungen waren gut. Teuer wurde es vor allem am River gegen eine Bet.\n\nDort hast du mit starken Händen nur gecallt. Ein Raise holt mehr Chips aus Gegnern, die schwächere Hände bezahlen. Das nennt man Value: Du setzt, weil schlechtere Hände mitgehen.\n\nÜbe als Nächstes „River gegen Bet“ – dort hast du 5,4 BB verloren."
+      ? "Dein Score ist ordentlich: 88,3 % deiner Entscheidungen waren gut. Teuer wurde es vor allem am River gegen eine Bet.\n\nDort hast du mit starken Händen nur gecallt. Ein Raise holt mehr Chips aus Gegnern, die schwächere Hände bezahlen. Das nennt man Value: Du setzt, weil schlechtere Hände mitgehen.\n\nÜbe als Nächstes „River: Gegner setzt“ – dort hast du 5,4 BB verloren."
       : "Ein Raise ist hier besser, weil du mit 99 eine starke Hand hast und der Limper meist schwächer ist.\n\nMit dem Call lässt du ihn billig mitspielen und spielst später ohne Position. Ringside rechnet den Unterschied mit 1,52 BB.";
   return { text, unchecked: [], cost_usd: 0.0041, model: "openai/gpt-6.1-sol" };
 }
@@ -312,5 +312,5 @@ const KINDS: KindLoss[] = [
   { key: "river_vs_bet|-|3|6", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 9, flawed: 3, loss_bb: 5.4 },
   { key: "vs_limp|SB|3|6", title: "Wenn einer nur mitgeht (Limp) im Small Blind", detail: "ab 40 BB · 6 Spieler", lage: "vs_limp", decisions: 6, flawed: 3, loss_bb: 4.1 },
   { key: "push_fold|BTN|1|6", title: "All-in oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler", lage: "push_fold", decisions: 31, flawed: 3, loss_bb: 3.2 },
-  { key: "vs_open|BB|2|6", title: "Gegen Open im Big Blind", detail: "20–40 BB · 6 Spieler", lage: "vs_open", decisions: 7, flawed: 2, loss_bb: 2.6 },
+  { key: "vs_open|BB|2|6", title: "Gegen eine Erhöhung im Big Blind", detail: "20–40 BB · 6 Spieler", lage: "vs_open", decisions: 7, flawed: 2, loss_bb: 2.6 },
 ];

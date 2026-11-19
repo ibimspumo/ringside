@@ -53,8 +53,9 @@ class NavLive {
     if (tournaments.length) v.tournaments = live(int(tournaments.length), `${int(tournaments.length)} gespielt`);
     v.live = tables > 0 ? live(String(tables), tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`, "good", tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`) : live("", "keiner offen");
 
+    // The leaks page lists these steps, numbered; the mark counts the same list.
     const [leaks, summary, progress, library, players] = await Promise.allSettled([
-      api.leaks(filter),
+      api.nextSteps(filter),
       api.analysisSummary(filter),
       api.learnProgress(),
       libraryApi.overview(),
@@ -64,8 +65,8 @@ class NavLive {
       const n = players.value.length >= 300 ? "300+" : int(players.value.length);
       v.players = live(n, `${n} Gegner`);
     }
-    if (leaks.status === "fulfilled" && leaks.value.leaks.length) {
-      const n = leaks.value.leaks.length;
+    if (leaks.status === "fulfilled" && leaks.value.length) {
+      const n = leaks.value.length;
       v.leaks = live(String(n), `${n} gefunden`, "warn", n === 1 ? "1 Schwachstelle" : `${n} Schwachstellen`);
     }
     if (summary.status === "fulfilled" && summary.value.costliest.length) {

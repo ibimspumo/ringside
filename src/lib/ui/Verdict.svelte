@@ -21,6 +21,7 @@
     sourceHint,
     lead,
     reason,
+    reasonCollapsed = false,
     children,
     actions,
   }: {
@@ -42,6 +43,8 @@
     lead?: string;
     /** Why the best move is best, shown as "Warum?" right under the verdict. */
     reason?: string;
+    /** "Warum?" one click away, for places where the table beside it needs the room. */
+    reasonCollapsed?: boolean;
     /** The reason in one or two sentences. */
     children?: Snippet;
     actions?: Snippet;
@@ -81,7 +84,7 @@
         {/if}
       </p>
     {/if}
-    {#if reason}<Reason text={reason} />{/if}
+    {#if reason}<Reason text={reason} collapsed={reasonCollapsed} />{/if}
     {#if children}<div class="why">{@render children()}</div>{/if}
     {#if source || actions}
       <footer>

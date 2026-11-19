@@ -82,7 +82,7 @@
   {#if !strip}<AtTable compact />{/if}
 {:else if data && data.rated > 0 && strip}
   <section class="band">
-    <span class="lead"><abbr title={EV_LOSS_EXPLAIN}>Kostet dich zusammen</abbr> <b class="num">{bb(data.loss_bb)}</b></span>
+    <span class="lead"><abbr title={EV_LOSS_EXPLAIN}>Deine Fehler in diesen Händen kosten dich auf Dauer</abbr> <b class="num">{bb(data.loss_bb)}</b></span>
     {#if focus.length}
       <span class="faint">Fang hier an:</span>
       {#each focus as f (f.id)}
@@ -101,7 +101,7 @@
   <section class="summary">
     <div class="totals">
       <span class="label"
-        ><Term id="ev_loss">Kostet dich zusammen</Term>{#if analysis.status?.progress?.state === "running"}&nbsp;– bisher{/if}</span
+        ><Term id="ev_loss">Deine Fehler in diesen Händen kosten dich auf Dauer</Term>{#if analysis.status?.progress?.state === "running"}&nbsp;– bisher{/if}</span
       >
       <b class="big num">{bb(data.loss_bb)}</b>
       <p class="mean">

@@ -626,7 +626,8 @@ export function bigTournaments(): Tournaments {
       place: r.place === null ? null : r.place * 120,
       prize: r.prize === null ? null : r.prize * 1000,
       bounties: r.bounties * 1000,
-      profit: r.profit === null ? null : r.profit * 1000,
+      // Prizes and bounties a thousand times larger, the buy-in as it was: the same sum as the totals.
+      profit: r.profit === null ? null : r.profit + ((r.prize ?? 0) + r.bounties) * 999,
     })),
   ).flat();
   const totals = t.totals.map((x) => ({

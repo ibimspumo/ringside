@@ -5,6 +5,7 @@
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import Button from "../ui/Button.svelte";
+  import MixBar from "../ui/MixBar.svelte";
   import { bb as fmtBb } from "../ui/format";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
@@ -86,6 +87,11 @@
     }
   });
 
+  const TONE_COLOR: Record<string, string> = { fold: "var(--act-fold)", limp: "var(--act-limp)", passive: "var(--act-call)", raise: "var(--act-raise)", allin: "var(--act-allin)" };
+  /** The source's mix for the kit bar, your choice marked. */
+  const mix = $derived(d.strategy.map((c) => ({ label: c.label, share: Math.round(c.freq * 100), color: TONE_COLOR[tone(c)] })));
+  const mine = $derived(d.strategy.findIndex((c) => c.played));
+
   function tone(c: Choice): string {
     if (c.kind === "fold") return "fold";
     if (c.kind === "all_in") return "allin";
@@ -119,6 +125,7 @@
       context={d.source === "estimate" ? `${context} · geschätzt` : context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       reason={d.why || undefined}
+      reasonCollapsed={!quiet}
       source={quiet && kit ? kit : undefined}
     >
       {#if stillWins}<p class="still">{stillWins}</p>{/if}
@@ -141,12 +148,8 @@
 
     {#if d.source !== "estimate"}
       <div class="mix-box">
-        <span class="mix-head">So oft spielt {d.source === "solver" ? "der" : "das"} {SOURCE[d.source].label} das mit deiner Hand; umrandet: deine Wahl</span>
-        <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
-          {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-            <span class="part {tone(c)}" class:mine={c.played} class:never={c.freq < 0.005} style:flex-grow={c.freq < 0.005 ? 0 : Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
-          {/each}
-        </div>
+        <span class="mix-head">So oft spielt {d.source === "solver" ? "der" : "das"} {SOURCE[d.source].label} das mit deiner Hand; „du“ zeigt deine Wahl</span>
+        <MixBar parts={mix} mine={mine < 0 ? null : mine} mineColor="var(--grade-{grade})" label="So oft spielt {d.source === 'solver' ? 'der' : 'das'} {SOURCE[d.source].label} jede Aktion mit deiner Hand" />
       </div>
     {/if}
     <ul class="options">
@@ -244,29 +247,6 @@
   .mix-head {
     color: var(--text-2);
     font-size: var(--fs-sm);
-  }
-  .mix {
-    display: flex;
-    gap: 2px;
-    height: 12px;
-  }
-  /* A move the source never plays has no share, only the ring that marks your choice. */
-  .part.never {
-    flex-basis: 2px;
-    min-width: 2px;
-    margin: 0 3px;
-    background: transparent;
-  }
-  .part {
-    flex-basis: 0;
-    border-radius: 3px;
-    min-width: 4px;
-  }
-  /* Your share carries the grade's colour, so a bad call is never outlined like a good one. */
-  .part.mine {
-    box-shadow:
-      0 0 0 2px var(--surface),
-      0 0 0 4px var(--ring);
   }
   .fold {
     background: var(--act-fold);

@@ -22,7 +22,7 @@ export function luckLine(l: SessionReport["luck"]): string {
   const n = l.all_ins === 1 ? "einem All-in" : `${int(l.all_ins)} All-ins`;
   if (Math.abs(l.luck_bb) < 1) return `In ${n} hielten sich Glück und Pech die Waage.`;
   const what = l.luck_bb < 0 ? "Pech" : "Glück";
-  return `Insgesamt hattest du diese Session etwa ${bb(Math.abs(l.luck_bb))} ${what} in ${n}. Mit normalem Glück stündest du bei ${bb(l.ev_bb, { sign: true })}.`;
+  return `Insgesamt hattest du diese Session etwa ${bb(Math.abs(l.luck_bb))} ${what} in ${n}. Ohne dieses ${what} stündest du in Chips rechnerisch bei ${bb(l.ev_bb, { sign: true })}.`;
 }
 
 /**

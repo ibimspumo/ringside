@@ -2,20 +2,32 @@
   import { api } from "../api";
   import { bountyText, fmt, stat } from "../stats";
   import type { Filter, GroupView, Reports } from "../types";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
+  import SortHeader from "../ui/SortHeader.svelte";
+  import Term from "../ui/Term.svelte";
   import { dayShort, floating, int, secondsBetween, sign, signed, time, type Anchor } from "./format";
   import { compact, duration } from "../ui/format";
+  import { POSITION_HELP, POSITION_PLAIN } from "./positions";
 
   let { filter, refresh }: { filter: Filter; refresh: number } = $props();
 
   let data = $state<Reports | null>(null);
+  let failed = $state(false);
+  let retry = $state(0);
   let mode = $state<"bb100" | "played">("bb100");
   let hover = $state<{ g: Cell; anchor: Anchor } | null>(null);
 
   $effect(() => {
     void refresh;
+    void retry;
     const f = { ...filter };
     let live = true;
-    api.reports(f).then((r) => live && (data = r));
+    failed = false;
+    api.reports(f).then(
+      (r) => live && (data = r),
+      () => live && (failed = true),
+    );
     return () => (live = false);
   });
 
@@ -93,7 +105,13 @@
 </script>
 
 <div class="page">
-  {#if data}
+  {#if failed && !data}
+    <EmptyState tone="error" title="Statistik konnte nicht geladen werden" text="Deine Hände sind sicher gespeichert. Versuch es gleich noch einmal.">
+      {#snippet action()}<Button onclick={() => retry++}>Erneut laden</Button>{/snippet}
+    </EmptyState>
+  {:else if !data}
+    <EmptyState tone="loading" title="Statistik wird geladen …" />
+  {:else}
     <div class="grid">
       <section class="panel matrix-panel">
         <div class="panel-head">
@@ -136,7 +154,7 @@
             {#if mode === "bb100"}
               <div class="scale">
                 <span class="ramp bb"></span>
-                <span class="ticks num"><span>−{int(grid.scale)}</span><span>0</span><span>+{int(grid.scale)}</span></span>
+                <span class="ticks num"><span>−{int(grid.scale)} und weniger</span><span>0</span><span>+{int(grid.scale)} und mehr</span></span>
               </div>
               <p class="note">
                 Gewinn je 100 Hände mit dieser Starthand. Rot verliert, Grün gewinnt; je kräftiger, desto deutlicher.
@@ -149,7 +167,7 @@
               </div>
               <p class="note">Wie oft du die Hand freiwillig gespielt hast. Je kräftiger das Blau, desto öfter.</p>
             {/if}
-            <p class="note">Gepaart auf der Diagonale, suited oben rechts, offsuit unten links.</p>
+            <p class="note">Paare auf der Diagonale. Oben rechts gleiche Farbe (AKs = Ass und König in einer Farbe), unten links verschiedene Farben (AKo).</p>
           </div>
           </div>
         {:else}
@@ -165,20 +183,23 @@
               <table class="table">
                 <thead>
                   <tr>
-                    <th>Position</th>
-                    <th>Hände</th>
-                    <th>BB</th>
-                    <th>BB/100</th>
-                    <th title="Freiwillig gespielt">VPIP</th>
-                    <th title="Preflop erhöht">PFR</th>
-                    <th title="Steal-Versuche aus CO, BTN und SB">ST</th>
+                    <th><SortHeader>Position</SortHeader></th>
+                    <th><SortHeader>Hände</SortHeader></th>
+                    <th><SortHeader sub="BB">Ergebnis</SortHeader></th>
+                    <th><SortHeader sub="BB/100">Je 100 Hände</SortHeader></th>
+                    <th><SortHeader sub="VPIP %" term title="Wie oft du freiwillig mitgespielt hast">Gespielt</SortHeader></th>
+                    <th><SortHeader sub="PFR %" term title="Wie oft du vor dem Flop erhöht hast">Erhöht</SortHeader></th>
+                    <th><SortHeader sub="Steal %" term title="Wie oft du aus Cutoff, Button und Small Blind die Blinds angegriffen hast">Blinds geklaut</SortHeader></th>
                   </tr>
                 </thead>
                 <tbody>
                   {#each data.positions as g (g.key)}
                     {@const v = per100(g)}
                     <tr>
-                      <td class="pos-name">{g.key}</td>
+                      <td class="pos-name">
+                        {#if POSITION_HELP[g.key]}<Term tip={POSITION_HELP[g.key]}>{g.key}</Term>{:else}{g.key}{/if}
+                        {#if POSITION_PLAIN[g.key]}<small>{POSITION_PLAIN[g.key]}</small>{/if}
+                      </td>
                       <td>{int(hands(g))}</td>
                       <td class={sign(g.net_bb)}>{signed(g.net_bb)}</td>
                       <td class={sign(v)}>{v === null ? "–" : signed(v)}</td>
@@ -199,6 +220,7 @@
                 </tfoot>
               </table>
             </div>
+            <p class="pos-note">Small und Big Blind liegen fast immer im Minus, weil du dort Pflichteinsätze zahlst. Wichtig ist nur, dort nicht mehr als nötig zu verlieren.</p>
           {:else}
             <div class="empty-state">Noch keine eigenen Hände in diesem Zeitraum.</div>
           {/if}
@@ -289,6 +311,19 @@
   .pos-name {
     font-weight: 600;
   }
+  .pos-note {
+    margin: 0;
+    padding: var(--sp-3) var(--sp-5) var(--sp-4);
+    border-top: 1px solid var(--line);
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+  }
+  .pos-name small {
+    display: block;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-regular);
+  }
   tfoot td {
     border-bottom: 0;
     border-top: 1px solid var(--line-2);
@@ -328,14 +363,14 @@
   }
   .k {
     font-family: var(--font-num);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     line-height: 1;
     opacity: 0.9;
   }
   .v {
     align-self: flex-end;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     line-height: 1;
   }
   .played .cell {
@@ -392,7 +427,7 @@
   .ticks {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-2);
   }
 

@@ -242,6 +242,9 @@
           {#if cmp.extra.length}
             <p><i class="dot" style="background:{WIDE}"></i>Zu oft spielst du: <b>{cmp.extra.join(", ")}</b>.</p>
           {/if}
+          {#if cmp.missing.length || cmp.extra.length}
+            <p class="key">s = beide Karten in einer Farbe, o = verschiedene Farben, z. B. Q9o = Dame und Neun ungleichfarbig.</p>
+          {/if}
           {#if !cmp.missing.length && !cmp.extra.length}
             <p><i class="dot" style="background:var(--pos)"></i>Keine Hand weicht deutlich ab – deine Range passt hier zum Modell.</p>
           {/if}
@@ -307,7 +310,7 @@
         {/if}
 
         <div class="pick full">
-          <span class="pick-label" title="Effektiver Stack: der kleinere von deinem Stack und dem größten Stack eines Gegners, in Big Blinds">Stacktiefe (effektiv, in BB)</span>
+          <span class="pick-label" title="Effektiver Stack: der kleinere von deinem Stack und dem größten Stack eines Gegners, in Big Blinds">Dein Stack in Big Blinds</span>
           <div class="tiles bands">
             {#each BAND_LABEL as b, k (b)}
               <button class="tile" class:on={sel.depth.kind === "band" && sel.depth.band === k} disabled={!counts.band.get(k as Band)} onclick={() => setBand(k as Band)}>
@@ -484,6 +487,11 @@
     font-size: 14px;
     color: var(--text-2);
   }
+  .gaps p.key {
+    flex-basis: 100%;
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+  }
   .gaps b {
     color: var(--text);
     font-family: var(--font-num);
@@ -645,7 +653,7 @@
     font-weight: 600;
   }
   .seat small {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .meter {
@@ -677,7 +685,7 @@
   .seg button small {
     margin-left: 3px;
     color: var(--text-3);
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .wrap-seg {
     flex-wrap: wrap;

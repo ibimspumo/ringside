@@ -312,13 +312,13 @@
     display: flex;
     gap: 5px;
     align-items: baseline;
-    max-width: 110px;
-    font-size: var(--fs-sm);
+    max-width: 136px;
+    font-size: var(--fs-md);
     line-height: 1.1;
   }
   .who b {
-    color: var(--text-2);
-    font-size: var(--fs-xs);
+    color: var(--text);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
   }
   .name {
@@ -337,7 +337,7 @@
     padding: 3px 6px;
   }
   .compact .who {
-    max-width: 72px;
+    max-width: 84px;
   }
   .compact .middle {
     gap: 4px;
@@ -361,15 +361,15 @@
       var(--shadow-1);
   }
   .folded {
-    opacity: 0.62;
+    opacity: 0.72;
     transition: opacity var(--dur) var(--ease-standard);
   }
   .free {
     min-width: 64px;
     border-style: dashed;
     background: transparent;
-    color: var(--text-3);
-    font-size: var(--fs-xs);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
   }
   .dealer {
     display: grid;

@@ -198,7 +198,7 @@
     color: var(--text);
   }
   .tag {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     padding: 1px 8px;
     border-radius: 999px;
     background: var(--surface-3);
@@ -232,7 +232,7 @@
     font-size: 13px;
   }
   .row.head {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .label small {
@@ -241,7 +241,7 @@
   }
   .label em {
     font-style: normal;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     margin-left: 6px;
     padding: 0 6px;
     border-radius: 999px;

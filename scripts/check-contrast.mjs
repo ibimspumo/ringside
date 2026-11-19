@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Contrast of the 13×13 grid labels (src/lib/ui/RangeGrid.svelte). For every fill colour and
 // fill height it composites what lies under the label (cell, fill, faded fill, the label plate)
-// from the tokens in theme.css and requires WCAG 4.5:1.
+// from the tokens in theme.css and requires WCAG 4.5:1. The text colours need the same on every
+// surface they sit on, the faintest (--text-3) included.
 //
 //   node scripts/check-contrast.mjs [--theme <file>] [--table]
 
@@ -102,6 +103,18 @@ for (const token of FILL_TOKENS) {
 const outside = ratio(over(labelOut, cellOut), cellOut);
 worst = Math.min(worst, outside);
 
+const TEXTS = ["--text", "--text-2", "--text-3"];
+const SURFACES = ["--bg", "--surface", "--surface-2", "--surface-3"];
+const textFails = [];
+let textWorst = Infinity;
+for (const t of TEXTS)
+  for (const sfc of SURFACES) {
+    const back = over(rgba(`var(${sfc})`), bg);
+    const r = ratio(over(rgba(`var(${t})`), back), back);
+    textWorst = Math.min(textWorst, r);
+    if (r < MIN) textFails.push({ t, sfc, r });
+  }
+
 const failing = rows.flatMap((r) => r.values.map((v, k) => ({ token: r.token, h: HEIGHTS[k], v }))).filter((x) => x.v < MIN);
 
 if (args.includes("--table") || failing.length || outside < MIN) {
@@ -110,9 +123,12 @@ if (args.includes("--table") || failing.length || outside < MIN) {
   console.log(`nicht in Range ${outside.toFixed(2).padStart(5)}`);
 }
 
-if (failing.length || outside < MIN) {
+if (failing.length || outside < MIN || textFails.length) {
+  for (const t of textFails) console.error(`✗ Text ${t.t} auf ${t.sfc}: ${t.r.toFixed(2)} : 1 (mindestens ${MIN} : 1)`);
   for (const f of failing) console.error(`✗ Raster-Beschriftung auf ${f.token} bei ${f.h * 100} % Füllung: ${f.v.toFixed(2)} : 1 (mindestens ${MIN} : 1)`);
   if (outside < MIN) console.error(`✗ Beschriftung außerhalb der Range: ${outside.toFixed(2)} : 1`);
   process.exit(1);
 }
-console.log(`check-contrast: ok (Raster-Beschriftung mindestens ${worst.toFixed(2)} : 1 über ${FILL_TOKENS.length} Farben × ${HEIGHTS.length} Füllhöhen)`);
+console.log(
+  `check-contrast: ok (Raster-Beschriftung mindestens ${worst.toFixed(2)} : 1 über ${FILL_TOKENS.length} Farben × ${HEIGHTS.length} Füllhöhen; Text mindestens ${textWorst.toFixed(2)} : 1 auf ${SURFACES.length} Flächen)`,
+);

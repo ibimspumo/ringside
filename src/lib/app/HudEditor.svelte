@@ -964,7 +964,7 @@
     border: 1px solid var(--line);
   }
   .picker-head {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;

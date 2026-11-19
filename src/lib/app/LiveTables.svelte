@@ -110,7 +110,7 @@
   {/if}
   {#if tables.some((t) => t.table)}
     <div class="tools">
-      <div class="legend-slot"><MeterLegend meters={columns === "core"} types={pokerClient.running === false} /></div>
+      <div class="legend-slot"><MeterLegend ring={tables.find((t) => t.table)?.table?.hud.graphic.segments ?? []} meters={columns === "core"} types={pokerClient.running === false} /></div>
       <SegmentedControl
         label="Spalten"
         size="sm"
