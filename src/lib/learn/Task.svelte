@@ -506,6 +506,7 @@
   .hint.side {
     align-self: center;
     text-align: left;
+    color: var(--text-2);
   }
   .actions {
     display: flex;

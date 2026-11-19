@@ -53,7 +53,7 @@
     gap: 12px;
   }
   .big {
-    font-size: var(--fs-hero);
+    font-size: var(--fs-4xl);
     line-height: 1;
     font-weight: 600;
     letter-spacing: -0.02em;

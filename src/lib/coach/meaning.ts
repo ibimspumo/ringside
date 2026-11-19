@@ -55,7 +55,7 @@ export function notAnalyzable(r: { prize: number | null; game: string; hands: nu
 /** Poker terms the coach's figures use, explained in a sentence where they appear. */
 const TERMS: [RegExp, string, string][] = [
   [/\bEV\b/, "EV", "Erwartungswert – was dir die Entscheidung im Schnitt bringt, in Big Blinds"],
-  [/Nash/, "Nash", "die Spielweise, die kein Gegner ausnutzen kann"],
+  [/Nash|Gleichgewicht/, "Gleichgewicht", "die Spielweise, die kein Gegner ausnutzen kann"],
   [/Benötigte Equity|Pot Odds/, "Benötigte Equity", "so oft musst du gewinnen, damit sich der Call lohnt"],
   [/Equity gegen/, "Equity", "dein Anteil am Pot, wenn alle Karten aufgedeckt würden"],
   [/\bOuts\b/, "Outs", "Karten, die deine Hand zur besten machen"],
@@ -74,7 +74,11 @@ export function termsIn(labels: string[]): { term: string; meaning: string }[] {
 }
 
 /** The model's texts write "bb"; the app writes big blinds as "BB". */
-export const say = (text: string) => text.replace(/(\d)\s?bb\b/g, "$1 BB").replace(/\bbb\b/g, "BB");
+export const say = (text: string) =>
+  text
+    .replace(/(\d)\s?bb\b/g, "$1 BB")
+    .replace(/\bbb\b/g, "BB")
+    .replace(/Nash-Shove/g, "All-in im Gleichgewicht");
 
 /** Writes the hero's own hand class ("K6o") as the exact cards ("Kh6d"), so text and table show the same cards. */
 export function ownCards(text: string, hero: string[]): string {

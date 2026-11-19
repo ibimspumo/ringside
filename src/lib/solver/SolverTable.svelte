@@ -402,7 +402,7 @@
     color: var(--text-2);
   }
   .role {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
     color: var(--text-2);
   }
@@ -418,7 +418,7 @@
     color: var(--text);
   }
   .fold {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .tag {

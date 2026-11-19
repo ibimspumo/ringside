@@ -38,10 +38,10 @@
     },
     {
       id: "short",
-      title: "Kurze Stacks",
+      title: "Wenige Chips",
       figure: "6–20",
       unit: "Big Blinds",
-      text: "Push oder Fold: alles rein oder weglegen, aus jeder Position, mit wechselnden Stacks.",
+      text: "Kurzer Stack: alles setzen (Push) oder aussteigen (Fold) – aus jeder Position, mit wechselnden Stacks.",
       seats: 6,
       streets: 1,
       config: { mode: "push_fold", players: 6, ante: "big_blind", stack_bb: 10, mixed_stacks: true, hero_seat: null },
