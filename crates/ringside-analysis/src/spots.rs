@@ -430,7 +430,7 @@ pub fn history(spec: &Spec, id: u64) -> Result<String, String> {
 
 fn split_cards(s: &str) -> Result<Vec<String>, String> {
     let s: String = s.chars().filter(|c| !c.is_whitespace()).collect();
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(format!("Karten „{s}“ unvollständig"));
     }
     let cards: Vec<String> = (0..s.len()).step_by(2).map(|i| s[i..i + 2].to_string()).collect();
@@ -567,7 +567,7 @@ fn rate_icm(spec: &Spec, hand: &Hand, index: usize) -> Result<(Decision, SpotGri
     Ok((clean(d), SpotGrid { actions, cells, weights: None }))
 }
 
-fn label_of<'a>(hand: &'a Hand, name: &str) -> Option<&'static str> {
+fn label_of(hand: &Hand, name: &str) -> Option<&'static str> {
     ringside_core::stats::position_labels(hand).into_iter().find(|(n, _)| n == name).map(|(_, l)| l)
 }
 
@@ -735,7 +735,7 @@ const REVIEW_DAYS: i64 = 7;
 /// then the rest by age.
 pub fn queue<'a>(spots: &'a [LernSpot], seen: &BTreeMap<String, Seen>, now: i64) -> Vec<&'a str> {
     let state = |s: &LernSpot| seen.get(&s.id).cloned().unwrap_or_default();
-    let mut wrong: Vec<(&LernSpot, i64)> = spots.iter().filter_map(|s| (state(s).right == Some(false)).then(|| (s, state(s).at.unwrap_or(0)))).collect();
+    let mut wrong: Vec<(&LernSpot, i64)> = spots.iter().filter(|s| state(s).right == Some(false)).map(|s| (s, state(s).at.unwrap_or(0))).collect();
     wrong.sort_by_key(|(_, at)| *at);
     // New spots take turns across the topics, each topic in its own order.
     let mut fresh: Vec<(usize, usize, &LernSpot)> = Vec::new();
@@ -745,7 +745,7 @@ pub fn queue<'a>(spots: &'a [LernSpot], seen: &BTreeMap<String, Seen>, now: i64)
         }
     }
     fresh.sort_by_key(|(k, t, _)| (*k, *t));
-    let mut right: Vec<(&LernSpot, i64)> = spots.iter().filter_map(|s| (state(s).right == Some(true)).then(|| (s, state(s).at.unwrap_or(0)))).collect();
+    let mut right: Vec<(&LernSpot, i64)> = spots.iter().filter(|s| state(s).right == Some(true)).map(|s| (s, state(s).at.unwrap_or(0))).collect();
     right.sort_by_key(|(_, at)| *at);
     let due = |at: i64| now - at >= REVIEW_DAYS * 86_400;
     wrong
