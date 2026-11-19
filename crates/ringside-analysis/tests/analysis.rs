@@ -302,6 +302,18 @@ fn one_missing_seat_reads_in_the_singular() {
     assert!(d.note.contains("am Tisch 7 Spieler, der erste Platz des Modells gilt als gefoldet"), "{}", d.note);
 }
 
+/// Three players see the flop: the estimate rates the decision and says why the solver
+/// doesn't, not that nothing is rated.
+#[test]
+fn a_multiway_flop_says_why_the_solver_is_not_used() {
+    let deep: Vec<(&str, i64)> = SIX.iter().map(|(n, _)| (*n, 8000)).collect();
+    let raw = hand(14, &deep, 4, 200, 25, "Ah Kh", "P1: raises 300 to 500\nP2: folds\nP3: folds\nP4: folds\nHero: calls 400\nP6: calls 300\n*** FLOP *** [Kd 7s 2c]\nHero: bets 900\nP6: folds\nP1: folds\nUncalled bet (900) returned to Hero\nHero collected 1650 from pot\n*** SUMMARY ***\nTotal pot 1650 | Rake 0\nBoard [Kd 7s 2c]\n");
+    let a = analyze_hand(&parsed(&raw));
+    let flop = a.decisions.iter().find(|d| d.street == Street::Flop).unwrap();
+    assert_eq!(flop.status, Status::Rated, "{flop:?}");
+    assert!(flop.note.contains("Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern."), "{}", flop.note);
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.

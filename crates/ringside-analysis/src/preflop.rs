@@ -350,7 +350,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         None => {
             let left: Vec<usize> = (0..n).filter(|&i| !folded[i]).collect();
             if left.len() != 2 {
-                Err(format!("Multiway-Pot ({} Spieler am Flop) wird nicht bewertet.", left.len()))
+                Err(format!("Multiway-Pot ({} Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern.", left.len()))
             } else if line.iter().any(|s| s.action.kind == Kind::AllIn) {
                 Err("Schon vor dem Flop all-in.".into())
             } else {
