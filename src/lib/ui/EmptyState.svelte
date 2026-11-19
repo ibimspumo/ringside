@@ -142,6 +142,10 @@
     font-size: var(--fs-md);
   }
   .action {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--sp-2);
     margin-top: var(--sp-2);
   }
   .spin {

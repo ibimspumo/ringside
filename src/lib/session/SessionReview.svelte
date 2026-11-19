@@ -203,7 +203,7 @@
           {#if rep!.pending > 0}
             <span class="sr-state" title="Flop-Spots rechnet Ringside im Hintergrund nach. Bis dahin sind die Zahlen nach dem Flop vorläufig.">
               <ProgressRing size={18} stroke={3} value={null} tone="info" label="Flop-Spots" />
-              {rep!.pending === 1 ? "1 Flop-Spot wird noch gerechnet" : `${int(rep!.pending)} Flop-Spots werden noch gerechnet`}
+              {rep!.pending === 1 ? "1 Entscheidung nach dem Flop wird noch gerechnet" : `${int(rep!.pending)} Entscheidungen nach dem Flop werden noch gerechnet`}
             </span>
           {/if}
         {/if}
@@ -252,9 +252,12 @@
       <EmptyState
         page
         title="Zuerst: PokerStars deine Hände speichern lassen"
-        text="Schalte in PokerStars unter Einstellungen → Spielhistorie „Handverläufe speichern“ ein – die Anleitung steht oben. Danach steht hier nach jeder Session, wie sie lief und was du als Nächstes üben kannst."
+        text="Schalte in PokerStars unter Einstellungen → Spielhistorie „Handverläufe speichern“ ein. Danach steht hier nach jeder Session, wie sie lief und was du als Nächstes üben kannst."
       >
-        {#snippet action()}<Button onclick={() => go("play")}>Solange: Hände gegen Bots spielen</Button>{/snippet}
+        {#snippet action()}
+          <Button variant="primary" onclick={() => go("settings")}>Hände einrichten</Button>
+          <Button variant="quiet" onclick={() => go("play")}>Solange: gegen Bots spielen</Button>
+        {/snippet}
       </EmptyState>
     {:else}
       <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars oder importier deine GGPoker-Hände in den Einstellungen. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst.">

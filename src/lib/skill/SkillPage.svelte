@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { go } from "../nav/go";
   import { GRADE_OF } from "../analysis/labels";
   import type { LearnTarget } from "../app/Leaks.svelte";
   import AtTable from "../app/AtTable.svelte";
@@ -120,7 +121,7 @@
       text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. Ringside analysiert neue Turniere von selbst, sobald du den Poker-Client schließt – oder du lässt deine Hände gleich jetzt bewerten."
     >
       {#snippet icon()}<path d="M4 19.5h16M5 15l4.5-4.5 3 3L19 7" />{/snippet}
-      {#snippet action()}<Button variant="primary" onclick={onAllHands}>Zu deinen Händen</Button>{/snippet}
+      {#snippet action()}{#if hands}<Button variant="primary" onclick={onAllHands}>Zu deinen Händen</Button>{:else}<Button variant="primary" onclick={() => go("settings")}>Hände einrichten</Button>{/if}{/snippet}
     </EmptyState>
   {:else}
     <section class="sk-hero" aria-label="Deine Spielwertung">

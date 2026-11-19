@@ -246,7 +246,7 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? "Poker-Client läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 6 ? `${pokerClient.name ?? "Poker-Client"} läuft: ${pokerClient.name === "GGPoker" ? "Ringside beenden" : "Teile gesperrt"}` : step < 10 ? "Teile gesperrt" : ""} />
           </span>
         {/if}
         <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 9} /></span>

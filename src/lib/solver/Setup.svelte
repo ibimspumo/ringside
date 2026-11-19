@@ -338,7 +338,7 @@
       <div class="pair">
         <div class="seg" role="group" aria-label="Spieler am Tisch">
           {#each TABLES as n (n)}
-            <button class:on={solver.scenario.players === n} onclick={() => setTable(n)}>{n}-max</button>
+            <button class:on={solver.scenario.players === n} onclick={() => setTable(n)}>{n} Spieler</button>
           {/each}
         </div>
         <div class="seg" role="group" aria-label="Ante">

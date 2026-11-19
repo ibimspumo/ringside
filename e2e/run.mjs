@@ -969,7 +969,7 @@ step("Starthand-Tabellen: Satz oben und Range nennen denselben Platz, auch nach 
     await find(".stepper span", `${n} Spieler`);
     const names = await waitFor(
       `beide Sätze bei ${n} Spielern und ${bb} BB`,
-      `const seat = (el) => el?.textContent.replace(/\\s+/g, " ").match(new RegExp("^(?:Von|Vom|Aus dem) (\\\\S+) mit " + arguments[0] + " BB"))?.[1];
+      `const seat = (el) => el?.textContent.replace(/\\s+/g, " ").match(new RegExp("^(?:Von|Vom|Aus dem) (\\\\S+)(?: \\\\([^)]*\\\\))? mit " + arguments[0] + " BB"))?.[1];
        const top = seat(document.querySelector(".pfr b"));
        const range = seat(document.querySelector("section.chart-panel:not([aria-busy='true']) header.answer h2"));
        return top && range ? { top, range } : null;`,
@@ -1046,7 +1046,7 @@ step("Solver: Durchspielen erklärt vor dem Lösen, was dort kommt", async () =>
 step("Solver: kleiner River-Spot mit deiner Hand", async () => {
   await click("main [role='tab']", "Aufbau");
   // A new table drops a hand handed over from the analysis, so you pick your own.
-  await click("main [aria-label='Spieler am Tisch'] button", "6-max");
+  await click("main [aria-label='Spieler am Tisch'] button", "6 Spieler");
   // Five board cards make it a river spot, which solves in a moment.
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Board leeren")?.click()`);
   const slots = ["Flop", "Flop", "Flop", "Turn", "River"];

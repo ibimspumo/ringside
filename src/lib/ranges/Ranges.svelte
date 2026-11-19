@@ -67,7 +67,7 @@
   let chart = $state<RangeChart | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
-  /** Narrow windows show two grids and switch the second; wide ones show all three. */
+  /** Two grids, the second switched; only very wide windows show all three. */
   let second = $state<"model" | "diff">("model");
   let outline = $state(true);
 
@@ -802,7 +802,8 @@
     display: none;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  @container (min-width: 1500px) {
+  /* Three grids only where each still has room for readable labels. */
+  @container (min-width: 1900px) {
     .wide-set {
       display: grid;
     }

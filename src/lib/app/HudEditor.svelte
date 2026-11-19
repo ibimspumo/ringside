@@ -170,7 +170,7 @@
     const g = settings.hud.graphic;
     return slot.kind === "ring" ? (g.segments[slot.i] ?? null) : (g.plate_pages[platePage]?.[slot.i] ?? null);
   });
-  const slotName = $derived(slot.kind === "ring" ? `Ring, Segment ${QUARTER[slot.i]}` : `Zahlenfeld, Seite ${platePage + 1}, Wert ${slot.i + 1}`);
+  const slotName = $derived(slot.kind === "ring" ? `Ring ${QUARTER[slot.i]}` : `Zahlenfeld, Seite ${platePage + 1}, Wert ${slot.i + 1}`);
 
   function assign(id: StatId) {
     const g = settings!.hud.graphic;
@@ -463,7 +463,7 @@
                 </div>
               {/if}
               <div class="picker-head">
-                <span>Anderer Wert für: {slotName}</span>
+                <span>{slotName}{#if slotStat}: <b>{PLAIN_NAME[slotStat]}</b>{/if} – wähle einen anderen Wert</span>
               </div>
               <div class="picker">
                 {#each RATED_STATS as id (id)}
