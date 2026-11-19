@@ -154,7 +154,7 @@
     color: var(--focus);
   }
   .head .name {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -187,7 +187,7 @@
     background: var(--g);
     color: var(--bg);
     font-style: normal;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 700;
   }
 </style>

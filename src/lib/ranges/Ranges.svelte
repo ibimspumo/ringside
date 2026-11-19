@@ -645,7 +645,7 @@
     font-weight: 600;
   }
   .seat small {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-3);
   }
   .meter {
@@ -677,7 +677,7 @@
   .seg button small {
     margin-left: 3px;
     color: var(--text-3);
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .wrap-seg {
     flex-wrap: wrap;

@@ -446,7 +446,7 @@
     min-width: 0;
     padding: 0 6px;
     border-radius: 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .bet.stack .coin {
     width: 13px;
@@ -471,7 +471,7 @@
     border-radius: 50%;
     background: var(--text);
     color: var(--bg);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 700;
     display: grid;
     place-items: center;

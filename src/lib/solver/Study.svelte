@@ -911,7 +911,7 @@
     font-size: 12.5px;
   }
   .sum th {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 500;
     color: var(--text-3);
     text-align: right;

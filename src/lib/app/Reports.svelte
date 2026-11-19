@@ -327,14 +327,14 @@
   }
   .k {
     font-family: var(--font-num);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     line-height: 1;
     opacity: 0.9;
   }
   .v {
     align-self: flex-end;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     line-height: 1;
   }
   .played .cell {
@@ -391,7 +391,7 @@
   .ticks {
     display: flex;
     justify-content: space-between;
-    font-size: 11px;
+    font-size: var(--fs-xs);
     color: var(--text-2);
   }
 

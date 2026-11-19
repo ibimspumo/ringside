@@ -25,7 +25,7 @@ const root = option("--root", join(repo, "src", "lib"));
 const baselinePath = option("--baseline", join(repo, "scripts", "ui-baseline.json"));
 
 /** Font sizes of the type scale in theme.css (--fs-*). Literals outside it count as free sizes. */
-const SCALE = [11, 12, 13, 14, 16, 18, 22, 26, 34, 44];
+const SCALE = [12, 13, 14, 15, 16, 18, 22, 26, 34, 44];
 
 const RULES = {
   "color-literal": "Feste Farbe (Hex/rgb/hsl) außerhalb von theme.css und src/lib/ui/ – nimm ein Token aus theme.css.",
