@@ -43,7 +43,8 @@
   const PICK_NAME: Partial<Record<StatId, string>> = { vpip: "Freiwillig gespielt" };
 
   const params = new URLSearchParams(window.location.search);
-  let pane = $state<Pane>((!inTauri && (params.get("pane") as Pane)) || "look");
+  const askedPane = inTauri ? null : PANES.find((p) => p.id === params.get("pane"))?.id;
+  let pane = $state<Pane>(askedPane ?? "look");
 
   let settings = $state<Settings | null>(null);
   let base = $state<TableView | null>(null);
