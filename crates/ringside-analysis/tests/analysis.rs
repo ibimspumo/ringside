@@ -241,6 +241,28 @@ fn against_players_all_in_a_raise_is_only_a_call() {
     assert_eq!(d.ev_loss_bb, Some(0.0), "{d:?}");
 }
 
+/// A player all in with the ante has no decision left: a call of a shove with 5 BB is
+/// still a push/fold spot, rated by the equilibrium; tens call.
+#[test]
+fn a_player_all_in_with_the_ante_leaves_a_push_fold_spot() {
+    let seats: Vec<(&str, i64)> = vec![
+        ("P1", 126),
+        ("P2", 36439),
+        ("P3", 51400),
+        ("P4", 328031),
+        ("P5", 36300),
+        ("P6", 46027),
+        ("P7", 24445),
+        ("Hero", 14844),
+    ];
+    let raw = hand(9, &seats, 4, 3000, 375, "Td Ts", "P7: raises 21070 to 24070 and is all-in\nHero: calls 14469 and is all-in\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nP6: folds\nUncalled bet (9601) returned to P7\n*** FLOP *** [Kh 4c 5h]\n*** TURN *** [Kh 4c 5h] [Tc]\n*** RIVER *** [Kh 4c 5h Tc] [2s]\n*** SHOW DOWN ***\nHero collected 35181 from side pot\nHero collected 1008 from main pot\n*** SUMMARY ***\nTotal pot 36189 | Rake 0\n")
+    .replace("P1: posts the ante 375", "P1: posts the ante 126 and is all-in");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!((d.source, d.spot), (Some(Source::Equilibrium), SpotType::CallShove), "{d:?}");
+    assert_eq!(d.best.as_deref(), Some("Call"), "{d:?}");
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.
