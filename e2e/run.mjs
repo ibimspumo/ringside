@@ -1394,6 +1394,7 @@ if (!TAURI)
     await seen("Turnier-Bericht");
   });
 
+if (!TAURI)
   step("GGPoker läuft: dieselbe Sperre, und Ringside sagt, dass es ganz zu schließen ist", async () => {
     const url = new URL(DEMO_URL);
     url.searchParams.set("locked", "gg");
