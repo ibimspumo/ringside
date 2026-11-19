@@ -77,80 +77,123 @@ fn cloud_settings_of(app: &AppHandle) -> CloudSettings {
     app.state::<AppState>().settings.lock().unwrap().cloud
 }
 
-/// Whether a request may go out now: not before the user has seen what the cloud shares
-/// (the first-start notice), not while PokerStars runs, not while the cloud is down.
+/// What the cloud may be used for now.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct Allowed {
+    /// A request may go out at all.
+    pub talk: bool,
+    /// Solutions may be fetched (`cloud.fetch`).
+    pub fetch: bool,
+    /// Own solutions may be offered (`cloud.share`).
+    pub share: bool,
+}
+
+impl Allowed {
+    /// Nothing before the user has seen what the cloud shares (the first-start notice),
+    /// nothing while PokerStars runs, nothing while the cloud is down; else what the
+    /// user switched on.
+    fn of(settings: CloudSettings, pokerstars_running: bool, reachable: bool) -> Allowed {
+        let talk = settings.notice_seen && !pokerstars_running && reachable;
+        Allowed { talk, fetch: talk && settings.fetch, share: talk && settings.share }
+    }
+}
+
+pub(crate) fn allowed(app: &AppHandle) -> Allowed {
+    Allowed::of(cloud_settings_of(app), unlocked(&app.state::<AppState>()).is_err(), app.state::<CloudState>().reachable())
+}
+
 pub(crate) fn may_talk(app: &AppHandle) -> bool {
-    cloud_settings_of(app).notice_seen
-        && unlocked(&app.state::<AppState>()).is_ok()
-        && app.state::<CloudState>().reachable()
+    allowed(app).talk
 }
 
 // Solutions.
 
-/// Push/fold Nash for one table of 2–9 players, for the learning area and the coach.
+/// A fresh solve to offer the cloud.
+type Offer = (PushFoldMwInput, PushFoldMwSolution);
+
+/// Push/fold Nash for one table of 2–9 players off the bundled tables: what
+/// `ringside_learn::lookup_or_solve` (practice, the coach, the charts) solves through.
 ///
-/// Blocking (seconds when it has to solve), so call it from a blocking task. Order:
+/// Blocking (seconds when it has to solve). Order:
 /// 1. the solutions cached on this computer;
-/// 2. with `cloud.fetch`, the cloud's solution, checked here again (its
-///    exploitability is measured with the engine) and dropped if it fails;
+/// 2. with `cloud.fetch`, the cloud's solution, checked here again (its exploitability
+///    is measured with the engine) and dropped if it fails;
 /// 3. otherwise solved here and, with `cloud.share`, offered to the cloud in the
 ///    background.
+pub(crate) fn pushfold(app: &AppHandle, params: &Params) -> Result<PushFoldSolution, String> {
+    let Some(cache) = cache_dir(app) else {
+        return multiway::solve(params).map_err(|e| e.to_string());
+    };
+    let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient());
+    let (solution, offer) = pushfold_with(params, &cache, &client, allowed(app), |e| app.state::<CloudState>().note(e))?;
+    if let Some(offer) = offer {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            // Asked again when it goes out: the user may have switched sharing off or
+            // opened PokerStars meanwhile.
+            let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(10), ..RetryPolicy::default() };
+            if let Err(e) = offer_pushfold(&Client::with_policy(DEFAULT_BASE_URL, policy), allowed(&app), &offer) {
+                eprintln!("cloud submit: {e}");
+                app.state::<CloudState>().note(&e);
+            }
+        });
+    }
+    Ok(solution)
+}
+
+/// [`pushfold`] with the cache in `cache` and the cloud behind `client`; returns the
+/// solution and, for a fresh solve the user shares, what to offer.
 ///
 /// Amounts are rounded to milli-BB and ICM payouts are normalized for the cloud; values
-/// come back in `params`' units. Params whose solver settings differ from the
-/// cloud's ([`PushFoldMwInput::from_params`]) or that are outside its range (more
-/// than three players all in, stacks above 100 BB, …) are solved here without cache or
-/// cloud. `None` only for params the engine rejects.
-pub fn cloud_lookup_or_submit(app: &AppHandle, params: &Params) -> Option<PushFoldSolution> {
+/// come back in `params`' units. Params whose solver settings differ from the cloud's
+/// ([`PushFoldMwInput::from_params`]) or that are outside its range (more than three
+/// players all in, stacks above 100 BB, …) are solved here without cache or cloud.
+fn pushfold_with(
+    params: &Params,
+    cache: &Path,
+    client: &Client,
+    allowed: Allowed,
+    note: impl Fn(&Error),
+) -> Result<(PushFoldSolution, Option<Offer>), String> {
     let input = PushFoldMwInput::from_params(params).and_then(|i| PushFoldMw::check_input(&i).map(|()| i));
-    let (Ok(input), Some(cache)) = (input, cache_dir(app)) else {
-        return multiway::solve(params).ok();
+    let Ok(input) = input else {
+        return Ok((multiway::solve(params).map_err(|e| e.to_string())?, None));
     };
-    let key = PushFoldMw::key(&input).ok()?;
+    let key = PushFoldMw::key(&input).map_err(|e| e.to_string())?;
     let path = cache.join(format!("{key}.json"));
     if let Some(cached) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<PushFoldSolution>(&b).ok()) {
-        return Some(to_caller_units(cached, params));
+        return Ok((to_caller_units(cached, params), None));
     }
-    let settings = cloud_settings_of(app);
-    let state = app.state::<CloudState>();
-    if settings.fetch && may_talk(app) {
-        match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<PushFoldMw>(&input) {
+    if allowed.fetch {
+        match client.get_solution::<PushFoldMw>(&input) {
             // `get_solution` has already measured the download; measuring it once more
             // gives the full solution with EVs, still far cheaper than solving.
-            Ok(Some(download)) => {
-                if let Ok(solution) = evaluated(&input, &download) {
-                    store(&cache, &path, &solution);
-                    return Some(to_caller_units(solution, params));
+            Ok(Some(download)) => match evaluated(&input, &download) {
+                Ok(solution) => {
+                    store(cache, &path, &solution);
+                    return Ok((to_caller_units(solution, params), None));
                 }
-            }
+                Err(e) => eprintln!("cloud lookup {key}: {e}"),
+            },
             Ok(None) => {}
             Err(e) => {
                 eprintln!("cloud lookup {key}: {e}");
-                state.note(&e);
+                note(&e);
             }
         }
     }
-    let solution = reference(&input).ok()?;
-    store(&cache, &path, &solution);
-    if settings.share && solution.converged {
-        submit_later(app.clone(), input, PushFoldMwSolution::from(&*solution));
-    }
-    Some(to_caller_units((*solution).clone(), params))
+    let solution = reference(&input)?;
+    store(cache, &path, &solution);
+    let offer = (allowed.share && solution.converged).then(|| (input, PushFoldMwSolution::from(&*solution)));
+    Ok((to_caller_units((*solution).clone(), params), offer))
 }
 
-fn submit_later(app: AppHandle, input: PushFoldMwInput, solution: PushFoldMwSolution) {
-    std::thread::spawn(move || {
-        // Checked again when it goes out: the user may have switched sharing off or
-        // opened PokerStars meanwhile.
-        if !cloud_settings_of(&app).share || !may_talk(&app) {
-            return;
-        }
-        let policy = RetryPolicy { attempts: 2, timeout: Duration::from_secs(10), ..RetryPolicy::default() };
-        if let Err(e) = Client::with_policy(DEFAULT_BASE_URL, policy).submit_solution::<PushFoldMw>(&input, &solution) {
-            eprintln!("cloud submit: {e}");
-            app.state::<CloudState>().note(&e);
-        }
-    });
+/// Sends `offer` if sharing is allowed now: only the calculation input and its result.
+fn offer_pushfold(client: &Client, allowed: Allowed, (input, solution): &Offer) -> Result<(), Error> {
+    if allowed.share {
+        client.submit_solution::<PushFoldMw>(input, solution)?;
+    }
+    Ok(())
 }
 
 fn cache_dir(app: &AppHandle) -> Option<PathBuf> {
@@ -233,7 +276,7 @@ fn compact(board: &str) -> String {
 /// With `cloud.fetch`: the cloud's solution of `input` on its canonical flop, served as
 /// accepted or verified, its form checked here (`Client::get_solution`).
 pub(crate) fn download_spot(app: &AppHandle, input: &SpotInput) -> Option<Stored> {
-    if !cloud_settings_of(app).fetch || !may_talk(app) {
+    if !allowed(app).fetch {
         return None;
     }
     match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).get_solution::<SpotKind>(input) {
@@ -249,7 +292,7 @@ pub(crate) fn download_spot(app: &AppHandle, input: &SpotInput) -> Option<Stored
 
 /// Which of `keys` the cloud serves (accepted or verified); empty when it may not be asked.
 pub(crate) fn served(app: &AppHandle, keys: &[String]) -> Vec<String> {
-    if !cloud_settings_of(app).fetch || !may_talk(app) || keys.is_empty() {
+    if !allowed(app).fetch || keys.is_empty() {
         return Vec::new();
     }
     let client = Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient());
@@ -269,7 +312,7 @@ pub(crate) fn served(app: &AppHandle, keys: &[String]) -> Vec<String> {
 /// The flops on which the line of `input` is served, in one request; `None` when the
 /// cloud may not be asked, fails, or does not know the request yet (API before 1.5.0).
 pub(crate) fn served_flops(app: &AppHandle, input: &SpotInput) -> Option<Vec<String>> {
-    if !cloud_settings_of(app).fetch || !may_talk(app) {
+    if !allowed(app).fetch {
         return None;
     }
     match Client::with_policy(DEFAULT_BASE_URL, RetryPolicy::impatient()).served_flops(input) {
@@ -284,7 +327,7 @@ pub(crate) fn served_flops(app: &AppHandle, input: &SpotInput) -> Option<Vec<Str
 /// With `cloud.share`: asks the community queue to solve a spot this computer could not.
 /// A refusal is only logged; it must not keep the cloud away for the other requests.
 pub(crate) fn request_spot(app: &AppHandle, input: SpotInput) {
-    if !cloud_settings_of(app).share || !may_talk(app) {
+    if !allowed(app).share {
         return;
     }
     std::thread::spawn(move || {
@@ -297,7 +340,7 @@ pub(crate) fn request_spot(app: &AppHandle, input: SpotInput) {
 /// With `cloud.share`: offers a fresh local solve of `input`'s spot. The library format is
 /// written here (it needs the solution), the upload runs in the background.
 pub(crate) fn share_spot(app: &AppHandle, input: SpotInput, solution: &mut Solution) {
-    if !cloud_settings_of(app).share || !may_talk(app) {
+    if !allowed(app).share {
         return;
     }
     let Ok(local_key) = spot_key(&solution.spot) else { return };
@@ -311,7 +354,7 @@ pub(crate) fn share_spot(app: &AppHandle, input: SpotInput, solution: &mut Solut
     };
     let app = app.clone();
     std::thread::spawn(move || {
-        if !cloud_settings_of(&app).share || !may_talk(&app) {
+        if !allowed(&app).share {
             return;
         }
         let key = SpotKind::key(&input).unwrap_or_default();
@@ -725,6 +768,184 @@ Board [Kd 7s 2c]
         // The limps ranges are not the plain ones: a spot never passes for the other family.
         let swapped = ModelLine { family: Family::Plain, ..analysed };
         assert!(spot_input(&swapped, &job.spot).is_none());
+    }
+
+    /// Ringside Cloud on a local port: serves `served` for any solution asked for (404
+    /// without), accepts every submission and records each request with its body.
+    struct FakeCloud {
+        client: Client,
+        seen: std::sync::Arc<Mutex<Vec<(String, serde_json::Value)>>>,
+    }
+
+    impl FakeCloud {
+        fn start(served: Option<PushFoldMwSolution>) -> FakeCloud {
+            use std::io::{BufRead, BufReader, Read, Write};
+            let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}", listener.local_addr().unwrap());
+            let seen = std::sync::Arc::new(Mutex::new(Vec::new()));
+            let log = seen.clone();
+            std::thread::spawn(move || {
+                for stream in listener.incoming() {
+                    let Ok(mut stream) = stream else { return };
+                    let mut reader = BufReader::new(stream.try_clone().unwrap());
+                    let (mut request, mut length) = (String::new(), 0);
+                    reader.read_line(&mut request).unwrap();
+                    loop {
+                        let mut line = String::new();
+                        if reader.read_line(&mut line).unwrap_or(0) == 0 || line == "\r\n" {
+                            break;
+                        }
+                        if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                            length = v.trim().parse().unwrap();
+                        }
+                    }
+                    let mut body = vec![0; length];
+                    reader.read_exact(&mut body).unwrap();
+                    let body: serde_json::Value = serde_json::from_slice(&body).unwrap_or_default();
+                    let request: Vec<&str> = request.split_whitespace().take(2).collect();
+                    let (status, reply) = match request[0] {
+                        "GET" => match &served {
+                            Some(solution) => {
+                                let key = request[1].rsplit('/').next().unwrap();
+                                let input = serde_json::from_slice::<serde_json::Value>(&std::fs::read(input_file(key)).unwrap()).unwrap();
+                                let r = serde_json::json!({"kind": PushFoldMw::NAME, "engine_version": PushFoldMw::ENGINE_VERSION, "key": key, "input": input, "result": solution});
+                                (200, r.to_string())
+                            }
+                            None => (404, "{}".to_string()),
+                        },
+                        _ => {
+                            let input: PushFoldMwInput = serde_json::from_value(body["input"].clone()).unwrap();
+                            (200, serde_json::json!({"key": PushFoldMw::key(&input).unwrap(), "status": "accepted"}).to_string())
+                        }
+                    };
+                    log.lock().unwrap().push((format!("{} {}", request[0], request[1]), body));
+                    let _ = write!(stream, "HTTP/1.1 {status} X\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
+                }
+            });
+            FakeCloud { client: Client::with_policy(&url, RetryPolicy::impatient()), seen }
+        }
+
+        fn requests(&self) -> Vec<String> {
+            self.seen.lock().unwrap().iter().map(|(r, _)| r.split('/').take(3).collect::<Vec<_>>().join("/")).collect()
+        }
+    }
+
+    /// Where the fake cloud finds the input of a key it serves.
+    fn input_file(key: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("ringside-fake-cloud-{}-{key}.json", std::process::id()))
+    }
+
+    /// Three players off the bundled grid, solved in well under a second.
+    fn table() -> (Params, PushFoldMwInput) {
+        let params = Params::new(vec![10.0, 12.0, 8.0]);
+        let input = PushFoldMwInput::from_params(&params).unwrap();
+        std::fs::write(input_file(&PushFoldMw::key(&input).unwrap()), serde_json::to_vec(&input).unwrap()).unwrap();
+        (params, input)
+    }
+
+    fn cache(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("ringside-pushfold-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn switched(fetch: bool, share: bool) -> CloudSettings {
+        CloudSettings { fetch, share, notice_seen: true, practice_ready: true }
+    }
+
+    const ON: Allowed = Allowed { talk: true, fetch: true, share: true };
+
+    fn aces() -> usize {
+        "AA".parse::<ringside_engine::HandClass>().unwrap().index()
+    }
+
+    #[test]
+    fn a_served_pushfold_solution_is_used_and_kept() {
+        let (params, input) = table();
+        let good = PushFoldMwSolution::from(&*reference(&input).unwrap());
+        let cloud = FakeCloud::start(Some(good.clone()));
+        let dir = cache("hit");
+        let (solution, offer) = pushfold_with(&params, &dir, &cloud.client, ON, |_| {}).unwrap();
+        assert_eq!(cloud.requests(), ["GET /v1/solutions"]);
+        assert!(offer.is_none(), "a download is not offered back");
+        assert_eq!(PushFoldMwSolution::from(&solution), good);
+        assert!(dir.join(format!("{}.json", PushFoldMw::key(&input).unwrap())).exists());
+
+        pushfold_with(&params, &dir, &cloud.client, ON, |_| {}).unwrap();
+        assert_eq!(cloud.requests().len(), 1, "the second time it comes from this computer");
+    }
+
+    #[test]
+    fn a_pushfold_miss_is_solved_here_and_only_the_calculation_is_shared() {
+        let (params, input) = table();
+        let cloud = FakeCloud::start(None);
+        let (solution, offer) = pushfold_with(&params, &cache("miss"), &cloud.client, ON, |_| {}).unwrap();
+        assert_eq!(cloud.requests(), ["GET /v1/solutions"]);
+        assert!(solution.converged);
+        let offer = offer.expect("a fresh solve is offered");
+        assert_eq!(offer.0, input);
+
+        offer_pushfold(&cloud.client, ON, &offer).unwrap();
+        assert_eq!(cloud.requests(), ["GET /v1/solutions", "POST /v1/solutions"]);
+        let body = cloud.seen.lock().unwrap()[1].1.clone();
+        ringside_cloud::privacy::assert_anonymous(&body);
+        let mut fields: Vec<&String> = body.as_object().unwrap().keys().collect();
+        fields.sort();
+        assert_eq!(fields, ["engine_version", "input", "kind", "result"]);
+        assert_eq!(body["input"], serde_json::to_value(&input).unwrap());
+    }
+
+    #[test]
+    fn without_consent_no_pushfold_request_goes_out() {
+        let (params, _) = table();
+        let off = [
+            Allowed::of(switched(false, false), false, true),
+            Allowed::of(CloudSettings { notice_seen: false, ..switched(true, true) }, false, true),
+            Allowed::of(switched(true, true), false, false),
+        ];
+        for allowed in off {
+            let cloud = FakeCloud::start(None);
+            let (_, offer) = pushfold_with(&params, &cache("off"), &cloud.client, allowed, |_| {}).unwrap();
+            assert!(offer.is_none(), "{allowed:?}");
+            assert!(cloud.requests().is_empty(), "{allowed:?}");
+        }
+        let fetch_only = Allowed::of(switched(true, false), false, true);
+        let cloud = FakeCloud::start(None);
+        let (_, offer) = pushfold_with(&params, &cache("fetch-only"), &cloud.client, fetch_only, |_| {}).unwrap();
+        assert!(offer.is_none());
+        assert_eq!(cloud.requests(), ["GET /v1/solutions"]);
+    }
+
+    #[test]
+    fn while_pokerstars_runs_no_pushfold_request_goes_out() {
+        let (params, input) = table();
+        let locked = Allowed::of(switched(true, true), true, true);
+        assert_eq!(locked, Allowed { talk: false, fetch: false, share: false });
+        let cloud = FakeCloud::start(None);
+        let (_, offer) = pushfold_with(&params, &cache("locked"), &cloud.client, locked, |_| {}).unwrap();
+        assert!(offer.is_none());
+        // PokerStars started between the solve and the upload.
+        let solved = (input.clone(), PushFoldMwSolution::from(&*reference(&input).unwrap()));
+        offer_pushfold(&cloud.client, locked, &solved).unwrap();
+        assert!(cloud.requests().is_empty());
+    }
+
+    #[test]
+    fn a_manipulated_pushfold_solution_is_rejected_and_solved_here() {
+        let (params, input) = table();
+        let mut bad = PushFoldMwSolution::from(&*reference(&input).unwrap());
+        bad.act[0][aces()] = 0.0;
+        let cloud = FakeCloud::start(Some(bad));
+        let e = cloud.client.get_solution::<PushFoldMw>(&input).unwrap_err();
+        assert!(e.to_string().contains("served solution fails the local check"), "{e}");
+
+        let dir = cache("manipulated");
+        let (solution, offer) = pushfold_with(&params, &dir, &cloud.client, ON, |_| {}).unwrap();
+        assert_eq!(solution.nodes[0].act[aces()], 1.0, "the first seat shoves aces in the own solve");
+        assert!(offer.is_some(), "the correct solution is offered instead");
+        let kept: PushFoldSolution = serde_json::from_slice(&std::fs::read(dir.join(format!("{}.json", PushFoldMw::key(&input).unwrap()))).unwrap()).unwrap();
+        assert_eq!(kept.nodes[0].act[aces()], 1.0, "the download is not kept");
     }
 
     #[test]
