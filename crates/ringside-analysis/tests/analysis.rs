@@ -98,6 +98,32 @@ fn an_isolation_raise_behind_a_limp_is_rated_by_the_model() {
 }
 
 #[test]
+fn folds_between_the_three_bettor_and_the_opener_keep_the_model_line() {
+    // 40 BB, six players: the hero opens from the cutoff, the button 3-bets, both
+    // blinds fold, the hero decides.
+    let seats: Vec<(&str, i64)> = vec![("P1", 8000), ("P2", 8000), ("Hero", 8000), ("P4", 8000), ("P5", 8000), ("P6", 8000)];
+    let raw = hand(
+        7,
+        &seats,
+        4,
+        200,
+        25,
+        "Ks Qs",
+        "P1: folds\nP2: folds\nHero: raises 240 to 440\nP4: raises 770 to 1210\nP5: folds\nP6: folds\nHero: folds\nUncalled bet (770) returned to P4\nP4 collected 1330 from pot\n*** SUMMARY ***\nTotal pot 1330 | Rake 0\n",
+    );
+    let a = analyze_hand(&parsed(&raw));
+    let [open, vs_three_bet] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!((open.source, open.spot), (Some(Source::Model), SpotType::Steal), "{open:?}");
+    assert_eq!((vs_three_bet.status, vs_three_bet.source, vs_three_bet.spot), (Status::Rated, Some(Source::Model), SpotType::VsThreeBet), "{vs_three_bet:?}");
+
+    // The hero in the small blind between them: the model only folds there.
+    let raw = raw.replace("Hero", "P3").replace("P5", "Hero").replace("Dealt to P3 [Ks Qs]", "Dealt to Hero [Ks Qs]");
+    let a = analyze_hand(&parsed(&raw));
+    let [fold] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!((fold.status, fold.source, fold.spot), (Status::Rated, Some(Source::Estimate), SpotType::VsThreeBet), "{fold:?}");
+}
+
+#[test]
 fn a_three_way_flop_is_estimated_with_its_reliability() {
     let raw = hand(
         6,

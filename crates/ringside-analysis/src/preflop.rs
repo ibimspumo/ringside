@@ -233,6 +233,16 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         };
         let seat = model_seat(t, players, real);
         let Some(v) = sol.node(seat, &line) else {
+            // The model folds the seats still to act behind a 3-bet or an isolation raise
+            // without asking them, so their real folds keep the line.
+            if a.kind == ActionKind::Fold {
+                folded[real] = true;
+                if is_hero {
+                    let reason = "Hier lässt das Preflop-Modell diesen Platz nur folden (z. B. hinter einer 3-Bet).";
+                    decisions.push(unrated(hand, index, spot_type(&line, Kind::Fold, position(&a.player)), reason));
+                }
+                continue;
+            }
             let reason = "Diese Linie kommt im Preflop-Modell nicht vor (z. B. ein dritter Limper, ein Call hinter einer Isolation oder ein zweiter Caller).";
             broken = Some(reason.into());
             if is_hero {
