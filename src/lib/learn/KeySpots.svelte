@@ -184,7 +184,7 @@
 {:else if phase === "run"}
   <div class="run">
     <div class="bar">
-      <span class="count num">{index + 1} / {round.length}</span>
+      <span class="count">Spot <b class="num">{index + 1}</b> von <span class="num">{round.length}</span></span>
       <ol class="steps" aria-label="Fortschritt der Runde">
         {#each round as id, i (id)}
           <li class:now={i === index} class:ok={results[i] === true} class:miss={results[i] === false}></li>
@@ -207,17 +207,19 @@
           nextLabel={index + 1 < round.length ? "Nächster Spot" : "Zum Ergebnis"}
         >
           {#snippet origin()}
-            <Badge tone="info" size="sm">Wichtiger Spot {v.number} von {v.total}</Badge>
+            <Badge tone="info" size="sm">Wichtiger Spot</Badge>
           {/snippet}
-          {#snippet after()}
+          {#snippet lesson()}
             <div class="lesson">
               <b>Merksatz</b>
               <p>{v.topic.lesson}</p>
             </div>
+          {/snippet}
+          {#snippet after()}
             {#if v.grid}
               <div class="depth">
                 <Button variant="secondary" full onclick={() => (showRange = !showRange)} aria-expanded={showRange}>
-                  {showRange ? "Range ausblenden" : "Wie spielt jede Hand hier?"}
+                  {showRange ? "Alle Hände ausblenden" : "Wie spielt jede Hand hier?"}
                 </Button>
                 {#if showRange}<div in:appear><SpotRange grid={v.grid} cards={v.spot.hero_cards} /></div>{/if}
               </div>
@@ -445,7 +447,11 @@
   .count {
     font-size: var(--fs-md);
     color: var(--text-2);
-    min-width: 4ch;
+    white-space: nowrap;
+  }
+  .count b {
+    color: var(--text);
+    font-weight: var(--fw-semibold);
   }
   .steps {
     display: flex;

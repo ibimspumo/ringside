@@ -31,6 +31,7 @@
     nextLabel = "Weiter",
     why = null,
     origin,
+    lesson,
     after,
   }: {
     spot: DrillSpot;
@@ -42,6 +43,8 @@
     why?: string | null;
     /** Replaces the line naming where the hand comes from, e.g. for the learning spots. */
     origin?: Snippet;
+    /** The rule to take away, above the verdict once answered, so both are seen without scrolling. */
+    lesson?: Snippet;
     /** More under the verdict once answered. */
     after?: Snippet;
   } = $props();
@@ -266,6 +269,7 @@
       {/if}
     {:else}
       <div class="after" in:rise>
+        {#if lesson}{@render lesson()}{/if}
         {#if decision}<div class="verdict"><DecisionCard {decision} quiet /></div>{/if}
         {#if after}{@render after()}{/if}
         {#if then && then.rating}
