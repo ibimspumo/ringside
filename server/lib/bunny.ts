@@ -4,7 +4,6 @@
  * changed or deleted.
  */
 
-export const PREFIX = "ringside-";
 const API = "https://api.bunny.net";
 
 export function assertOurs(name: unknown): string {

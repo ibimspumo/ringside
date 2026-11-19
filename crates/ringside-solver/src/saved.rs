@@ -160,7 +160,6 @@ fn unscaled(x: i16, scale: f32) -> f64 {
     x as f64 / 32767.0 * scale as f64
 }
 
-// -----------------------------------------------------------------------------------
 // Which spots count as the same.
 
 fn fnv(bytes: &[u8]) -> u64 {
@@ -201,7 +200,6 @@ pub fn spot_key(spot: &Spot) -> Result<String, Error> {
     Ok(format!("{:016x}", fnv(&bytes)))
 }
 
-// -----------------------------------------------------------------------------------
 // Taking a snapshot.
 
 fn save_node(node: &Node, lookup: &[HashMap<(u8, u8), u16>; 2]) -> Result<SavedNode, Error> {
@@ -471,7 +469,6 @@ impl Snapshot {
         node
     }
 
-    // -------------------------------------------------------------------------------
     // Bytes.
 
     pub fn to_bytes(&self) -> Vec<u8> {

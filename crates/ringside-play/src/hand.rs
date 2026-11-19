@@ -232,7 +232,6 @@ fn steered(config: &Config, seed: u64, taken: Taken, rng: &mut ChaCha8Rng) -> Re
     })
 }
 
-// ---------------------------------------------------------------------------------
 // What the page shows.
 
 #[derive(Clone, Debug, Serialize)]
@@ -429,7 +428,6 @@ pub struct Summary {
     pub graded: usize,
 }
 
-// ---------------------------------------------------------------------------------
 // The hand.
 
 /// Frequencies, EVs per action (where stored per combo) and equity of one hand.
@@ -974,7 +972,6 @@ impl Hand {
         self.phase = Phase::Over;
     }
 
-    // -----------------------------------------------------------------------------
     // Waiting for a live solve, and playing on without one.
 
     /// Goes on with the spot the hand waited for, or without it (`Err`: why there is none).
@@ -1113,7 +1110,6 @@ impl Hand {
         Outcome { reason, winners, net, shown, made }
     }
 
-    // -----------------------------------------------------------------------------
     // The hero.
 
     pub fn decision(&self) -> Option<Decision> {
@@ -1500,7 +1496,6 @@ pub fn settle(put: &[f64], ante: &[f64], left: &[usize], ranks: &[u16]) -> Vec<f
     net
 }
 
-// ---------------------------------------------------------------------------------
 // Push/fold.
 
 /// Walking the push/fold equilibrium: shoves while everyone before folded, then calls.

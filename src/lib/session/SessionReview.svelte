@@ -238,7 +238,6 @@
   {:else if detail && !review.locked}
     <Luck {review} onBack={() => (detail = false)} onHand={(id, at) => scope && onHand(scope, id, at)} />
   {:else}
-    <!-- Tournaments of the session; each opens its report. -->
     <div class="sr-strip" aria-label="Turniere dieser Session">
       {#each page.tournaments as t (t.id)}
         <Card pad="sm" onclick={() => onReport(t.id)} title="{tournamentName(t)} – Turnier-Bericht öffnen">
@@ -271,7 +270,6 @@
     {:else}
       <div class="sr-grid">
         <div class="sr-col">
-        <!-- Preflop: the answer first, then which hands, then patterns. -->
         <section class="sr-tile sr-pre" aria-labelledby="sr-pre-title">
           <header class="sr-head">
             <h2 id="sr-pre-title" class="sr-title">Vor dem Flop</h2>
@@ -345,7 +343,6 @@
         {@render nextTile()}
         </div>
         <div class="sr-col">
-        <!-- Result and luck. -->
         <section class="sr-tile sr-res" aria-labelledby="sr-res-title">
           <header class="sr-head"><h2 id="sr-res-title" class="sr-title">Ergebnis und Glück</h2></header>
           <div class="sr-result">
@@ -389,7 +386,6 @@
           {/if}
         </section>
 
-        <!-- The three costliest decisions. -->
         <section class="sr-tile sr-worst" aria-labelledby="sr-worst-title">
           <header class="sr-head"><h2 id="sr-worst-title" class="sr-title">Deine teuersten Entscheidungen</h2></header>
           {#if rep.worst.length}<p class="sr-note">Die Beträge sagen, was dich die Entscheidung im Schnitt kostet – nicht, wie die Hand ausging.</p>{/if}

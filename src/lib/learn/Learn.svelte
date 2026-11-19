@@ -82,7 +82,6 @@
     try {
       localStorage.setItem(STORE, s);
     } catch {
-      // ignore
     }
   });
 

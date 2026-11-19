@@ -216,7 +216,6 @@ pub fn hands(range: &str, flop: &[Card]) -> Result<Vec<(Combo, f32)>, Error> {
     Ok(r.live_combos(CardSet::from_cards(flop)))
 }
 
-// -----------------------------------------------------------------------------------
 // Encoding from a solution.
 
 fn actions_of(node: &Node) -> Vec<StoredAction> {
@@ -377,7 +376,6 @@ pub fn encode(solution: &mut Solution, catalog: &Catalog, scenario: &Scenario, f
     })
 }
 
-// -----------------------------------------------------------------------------------
 // Suit renaming.
 
 impl Stored {
@@ -480,7 +478,6 @@ impl Stored {
     }
 }
 
-// -----------------------------------------------------------------------------------
 // Bytes.
 
 struct W(Vec<u8>);
@@ -794,7 +791,6 @@ impl Stored {
     }
 }
 
-// -----------------------------------------------------------------------------------
 // Viewing.
 
 const NOT_STORED: &str =
@@ -1073,7 +1069,6 @@ fn action_infos(actions: &[StoredAction], classes: &[ClassInfo], k: usize) -> Ve
         .collect()
 }
 
-// -----------------------------------------------------------------------------------
 // Packs.
 
 pub const PACK_MAGIC: &[u8; 4] = b"RSLB";

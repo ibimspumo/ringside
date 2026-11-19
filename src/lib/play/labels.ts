@@ -132,8 +132,6 @@ export function sourceLine(source: Source | null, config: PlayConfig, stack: num
   }
 }
 
-export const SOURCE_SHORT = SOURCE_NAME;
-
 const WHO: Record<Source, Who> = {
   model: "model",
   equilibrium: "equilibrium",

@@ -337,7 +337,7 @@ function wider(hand: Script, extra: number): Script {
   };
 }
 
-// --- A tiny engine that plays a script into hand views ---------------------------------------
+// A tiny engine that plays a script into hand views.
 
 type State = {
   config: PlayConfig;
@@ -517,7 +517,7 @@ function run(s: State) {
   s.view.board = [...s.board];
 }
 
-// --- A live solve that takes a few seconds -------------------------------------------------
+// A live solve that takes a few seconds.
 
 const RULE =
   "Die Gegner spielen hier nach einer einfachen Regel: Sie setzen und erhöhen mit starken Händen, callen, wenn ihre Gewinnchance gegen zufällige Hände den Preis deckt, und folden sonst.";

@@ -2,7 +2,7 @@
   import { untrack } from "svelte";
   import type { Anchor } from "../app/format";
   import { signed } from "../app/format";
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import ActionBar from "./ActionBar.svelte";
   import { actionColors, bb, bytes, duration, whole } from "./actions";
   import DeckPopover from "./DeckPopover.svelte";

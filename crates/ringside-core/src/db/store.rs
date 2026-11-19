@@ -149,10 +149,6 @@ impl Db {
             .optional()
     }
 
-    pub fn store_row(&self, id: i64) -> Result<Option<StoreRow>, Error> {
-        self.conn.query_row(&format!("SELECT {COLUMNS} FROM spot_store WHERE id = ?1"), [id], read).optional()
-    }
-
     pub fn store_delete_file(&self, file: &str) -> Result<(), Error> {
         self.conn.execute("DELETE FROM spot_store WHERE file = ?1", [file])?;
         Ok(())

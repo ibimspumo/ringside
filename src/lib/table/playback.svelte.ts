@@ -31,7 +31,6 @@ export function setSpeed(id: Speed) {
   try {
     localStorage.setItem(STORE, id);
   } catch {
-    // ignore
   }
 }
 

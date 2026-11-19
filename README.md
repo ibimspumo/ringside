@@ -32,8 +32,8 @@
 - *Deine Hände:* eigene All-ins und Push/Fold-Spots noch einmal entscheiden – danach EV, Ergebnis und Glück in BB.
 - *Trainer:* Outs, Pot Odds, Equity, Kombos, Push/Fold aus jeder Position an Tischen mit 2–9 Spielern und mehr, in drei Stufen. Jede Antwort rechnet Ringsides eigene Engine nach.
 - *Deine Schwachstellen:* Themen aus den Coach-Berichten fließen in die tägliche Auswahl ein.
-- *Charts:* Push/Fold-Gleichgewicht für 2–9 Spieler, jede Position, Shove oder Call gegen Shove, ohne Ante, mit Ante oder BB-Ante (720 Tabellen vorgerechnet, alles andere live). Dazu Preflop-Charts für 15–100 BB an 6-, 8- und 9-max-Tischen mit Open, 3-Bet, 4-Bet und All-in – als *Modell*, weil das Spiel nach dem Flop über Equity-Realisierung geschätzt wird.
-- *Hände spielen:* endlos zufällige, ganze Hände an einem 6-, 8- oder 9-max-Tisch. Die Gegner spielen nach dem Modell bzw. der Lösung, du bekommst nach jedem Zug eine Bewertung mit Begründung, dazu Session-Statistik, „Hand wiederholen“ und „Tipp anzeigen“. Postflop-Spots rechnet Ringside im Hintergrund voraus.
+- *Charts:* Push/Fold-Gleichgewicht für 2–9 Spieler, jede Position, Shove oder Call gegen Shove, ohne Ante, mit Ante oder BB-Ante (720 Tabellen vorgerechnet, alles andere live). Dazu Preflop-Charts für 15–100 BB an Tischen mit 2–9 Spielern mit Open, 3-Bet, 4-Bet und All-in – als *Modell*, weil das Spiel nach dem Flop über Equity-Realisierung geschätzt wird.
+- *Hände spielen:* endlos zufällige, ganze Hände an Tischen mit 2–9 Spielern. Die Gegner spielen nach dem Modell bzw. der Lösung, du bekommst nach jedem Zug eine Bewertung mit Begründung, dazu Session-Statistik, „Hand wiederholen“ und „Tipp anzeigen“. Postflop-Spots rechnet Ringside im Hintergrund voraus.
 - *Solver:* Spot am Tisch aufbauen (Positionen anklicken, Ranges aus dem Preflop-Modell), lösen, Zug um Zug durchspielen und gegen die Lösung üben. Eigene Einsatzgrößen lassen sich nachrechnen. Lösungen bleiben unter „Meine Lösungen“ gespeichert. „Diesen Spot lösen“ im Replayer übernimmt Board, Pot und Stack einer Hand.
 - *Bibliothek:* häufige Postflop-Spots über eine repräsentative Flop-Auswahl, als signiertes Paket geladen oder im Leerlauf selbst gerechnet und über Ringside Cloud geteilt.
 - *Wissen:* visuelle Erklärseiten wie „Warum C-Bet?“.
@@ -102,16 +102,20 @@ RINGSIDE_SCALE_HANDS=1000000 cargo test --release -p ringside-core --test scale 
 ```
 
 - `crates/ringside-core` – Hand-History-Parser, Statistik-Zähler, Positionen, SQLite mit laufenden Summen und fortsetzbarem Upgrade, inkrementeller Import, Tisch-Layouts.
-- `crates/ringside-solver` – Heads-up-Postflop-Solver: Spot aus Ranges und Einsatzgrößen, Speicherschätzung, Lösen mit Fortschritt und Abbruch, Navigation durch den Baum. Rechnet mit `crates/postflop-solver` (Kopie von b-inary/postflop-solver, AGPL).
+- `crates/ringside-engine` – Equity, ICM, Push/Fold-Gleichgewicht und Preflop-Modell.
+- `crates/ringside-solver` – Heads-up-Postflop-Solver: Spot aus Ranges und Einsatzgrößen, Speicherschätzung, Lösen mit Fortschritt und Abbruch, Navigation durch den Baum, Spot-Bibliothek. Rechnet mit `crates/postflop-solver` (Kopie von b-inary/postflop-solver, AGPL).
+- `crates/ringside-analysis`, `ringside-play`, `ringside-learn`, `ringside-coach` – Hand-Analyse, „Hände spielen“, Lernbereich und KI-Coach.
+- `crates/ringside-cloud`, `ringside-store` – Ringside Cloud (Client und Betreiber-Werkzeuge) und gespeicherte Lösungen.
+- `server` – Edge-Script der Cloud-API (Deno).
 - `src-tauri` – Tauri-App: Import-Thread, Tisch-Erkennung (Win32), Overlay-Fenster, Einstellungen und Profile, Updater.
 - `src` – Svelte-Oberfläche: Overlay (`src/lib/hud`) und Statistik-App (`src/lib/app`).
 
 ## Release
 
-Version in `package.json` erhöhen, committen, taggen, pushen:
+Version in `package.json` und `Cargo.toml` erhöhen, committen, taggen, pushen:
 
 ```sh
-git tag v0.2.0 && git push origin main --tags
+git tag vX.Y.Z && git push origin main --tags
 ```
 
 Der Workflow baut den Windows-Installer, signiert das Update und veröffentlicht `latest.json`. Er braucht das Repo-Secret `TAURI_SIGNING_PRIVATE_KEY`.

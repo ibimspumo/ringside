@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../../../PlayingCard.svelte";
+  import PlayingCard from "../../../ui/PlayingCard.svelte";
 
   let { cards, size = 40, highlight = null }: { cards: string[]; size?: number; highlight?: string[] | null } = $props();
 </script>

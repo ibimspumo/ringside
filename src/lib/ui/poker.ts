@@ -21,12 +21,6 @@ export function actionColor(kind: ActionKind, step?: SizeStep): string {
   return `var(--act-${kind})`;
 }
 
-/** Size steps for the aggressive actions of one node, smallest first; all-ins are always the darkest. */
-export function sizeSteps(count: number): SizeStep[] {
-  if (count <= 1) return [3];
-  return Array.from({ length: count }, (_, k) => (1 + Math.round((k * 3) / (count - 1))) as SizeStep);
-}
-
 export type Grade = "best" | "mix" | "good" | "inaccurate" | "mistake" | "blunder";
 
 export const GRADES: Grade[] = ["best", "mix", "good", "inaccurate", "mistake", "blunder"];
@@ -43,8 +37,6 @@ export const GRADE: Record<Grade, { label: string; short: string; symbol: string
   mistake: { label: "Fehler", short: "Fehler", symbol: "✕", lead: "Hier lässt du spürbar etwas liegen.", bad: true },
   blunder: { label: "Grober Fehler", short: "Grob", symbol: "✕✕", lead: "Das wird teuer.", bad: true },
 };
-
-export const gradeColor = (g: Grade) => `var(--grade-${g})`;
 
 export type Source = "model" | "equilibrium" | "solver" | "computed" | "estimate" | "opinion" | "locked";
 

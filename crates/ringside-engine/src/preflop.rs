@@ -39,7 +39,7 @@
 //! the hands of [`limp_shape`] (a typical limping range of recreational players), and
 //! the rest of the strategy is solved around it. Limping first in is taken exactly that
 //! often (it stands for the other players, the model itself does not limp in), except
-//! from the small blind, which limps by choice as before. The best responses that measure
+//! from the small blind, which limps by choice. The best responses that measure
 //! exploitability keep the same minimum, so the solve converges to an equilibrium of
 //! this constrained game.
 //!
@@ -650,25 +650,16 @@ pub fn solve_with(params: &Params, on_check: impl FnMut(&Progress) -> bool) -> R
     Ok(solver.run(on_check))
 }
 
-/// Number of decision nodes and terminals of the tree for these parameters.
-pub fn tree_size(params: &Params) -> Result<(usize, usize), Error> {
-    params.validate()?;
-    let t = Tree::build(params);
-    Ok((t.nodes.len(), t.terms.len()))
-}
-
-/// The tree's node shapes (seat, line, actions) without solving; tables store only
-/// the numbers and rebuild these.
 /// A node's seat, line and actions.
 pub(crate) type Shape = (usize, Vec<Step>, Vec<Action>);
 
+/// The tree's node shapes without solving; tables store only the numbers and rebuild these.
 pub(crate) fn skeleton(params: &Params) -> Result<Vec<Shape>, Error> {
     params.validate()?;
     let t = Tree::build(params);
     Ok(t.nodes.into_iter().map(|n| (n.seat, n.line, n.actions)).collect())
 }
 
-// ---------------------------------------------------------------------------------
 // Tree.
 
 #[derive(Clone, Copy)]
@@ -1074,7 +1065,6 @@ impl Builder<'_> {
     }
 }
 
-// ---------------------------------------------------------------------------------
 // Pot shares.
 
 /// All-in pot share of each player of every sorted class triple (`NaN` where the three
@@ -1228,7 +1218,6 @@ fn dot32(a: &[f32], b: &[f32]) -> f64 {
     acc.iter().map(|&x| x as f64).sum::<f64>() + tail
 }
 
-// ---------------------------------------------------------------------------------
 // Solver.
 
 struct Profile {

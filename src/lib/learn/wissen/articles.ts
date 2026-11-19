@@ -921,14 +921,3 @@ export function fold(text: string): string {
 export function searchText(a: Article): string {
   return fold([a.title, a.oneLiner, ...(a.aliases ?? [])].join(" "));
 }
-
-/** All prose a reader sees on the page, for the word budget. */
-export function proseWords(a: Article): number {
-  const parts: string[] = [a.oneLiner];
-  for (const b of a.blocks) {
-    if (b.kind === "points" || b.kind === "avoid") parts.push(...b.items);
-    else if (b.kind === "note") parts.push(b.text);
-    if ("caption" in b && b.caption) parts.push(b.caption);
-  }
-  return parts.join(" ").split(/\s+/).filter(Boolean).length;
-}

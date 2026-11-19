@@ -253,7 +253,6 @@ fn cancel_live(app: &AppHandle) {
     go_on(app);
 }
 
-// -----------------------------------------------------------------------------------
 // Stored solutions.
 
 struct AppLookup(AppHandle);
@@ -404,7 +403,6 @@ impl Lookup for AppLookup {
     }
 }
 
-// -----------------------------------------------------------------------------------
 // The learning area.
 
 #[derive(Serialize, Deserialize)]
@@ -461,7 +459,6 @@ fn finish_if_over(state: &AppState, current: &mut Current) -> CmdResult<()> {
     Ok(())
 }
 
-// -----------------------------------------------------------------------------------
 // Commands.
 
 fn new_seed() -> u64 {

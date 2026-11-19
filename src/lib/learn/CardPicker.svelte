@@ -1,5 +1,5 @@
 <script lang="ts">
-  import PlayingCard from "../PlayingCard.svelte";
+  import PlayingCard from "../ui/PlayingCard.svelte";
   import type { Highlight } from "../types";
 
   /** The deck as four suit rows; only cards in `from` can be picked. After grading, `highlight` marks them. */
