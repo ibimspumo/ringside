@@ -614,3 +614,34 @@ fn a_hand_cut_off_by_the_next_one() {
     assert_eq!(parts.len(), hands(TOURNAMENT).len(), "{parts:#?}");
     assert_eq!(hands(&text)[0], hands(TOURNAMENT)[0]);
 }
+
+/// PokerStars' all-in cash out: the player takes the offered amount instead of the pot.
+#[test]
+fn a_cashed_out_hand_pays_what_was_offered() {
+    let text = "PokerStars Hand #8:  Hold'em No Limit ($0.50/$1.00 USD) - 2020/04/20 13:55:03 ET\n\
+                Table 'Pool' 6-max Seat #1 is the button\n\
+                Seat 1: P1 ($123.12 in chips)\n\
+                Seat 3: P3 ($55.29 in chips)\n\
+                Seat 6: Hero ($147.11 in chips)\n\
+                P3: posts small blind $0.50\n\
+                Hero: posts big blind $1\n\
+                *** HOLE CARDS ***\n\
+                Dealt to Hero [Js As]\n\
+                P1: folds\n\
+                P3: raises $54.79 to $55.29 and is all-in\n\
+                Hero: calls $54.29\n\
+                *** FLOP *** [Jd 7c 2h]\n\
+                *** TURN *** [Jd 7c 2h] [7h]\n\
+                *** RIVER *** [Jd 7c 2h 7h] [3d]\n\
+                *** SHOW DOWN ***\n\
+                P3: shows [Th 9d] (a pair of Sevens)\n\
+                Hero: shows [Js As] (two pair, Jacks and Sevens)\n\
+                Hero cashed out the hand for $56.99 | Cash Out Fee $0.58\n\
+                *** SUMMARY ***\n\
+                Total pot $110.58 | Rake $2.50\n\
+                Board [Jd 7c 2h 7h 3d]\n\
+                Seat 3: P3 (small blind) showed [Th 9d] and lost with a pair of Sevens\n\
+                Seat 6: Hero (big blind) showed [Js As] and won ($108.08) with two pair, Jacks and Sevens (pot not awarded as player cashed out)\n\n\n";
+    let hand = parse_hand(split_hands(text)[0]).unwrap();
+    assert_eq!(hand.net("Hero"), 5699 - 5529);
+}

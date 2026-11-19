@@ -497,6 +497,14 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             }
             continue;
         }
+        // "Hero cashed out the hand for $56.99 | Cash Out Fee $0.58": that is what the player
+        // gets instead of the pot.
+        if let Some((name, rest)) = find_player(line, " cashed out the hand for ") {
+            if let Some(amount) = rest.split_whitespace().next().and_then(parse_amount) {
+                hand.cashouts.push((name, amount));
+            }
+            continue;
+        }
         let Some((player, rest)) = find_player(line, ": ") else {
             continue;
         };
