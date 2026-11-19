@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 
 pub use hud::{Read, Sureness, TypeRead, read as player_read};
 pub use mastery::{Progress, SkillProgress, progress};
-pub use multiway::{TableSpot, lookup_or_solve, position_names};
+pub use multiway::{TableSpot, lookup_or_solve, position_names, set_solver};
 pub use own::{AllInResult, OwnSpot, detect_spots};
 
 /// Exercise families. Each one is a skill in [`Progress`]; `all_in` only comes from
