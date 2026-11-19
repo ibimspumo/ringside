@@ -389,6 +389,28 @@ step("Start: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick
   await waitText("Deine teuersten Entscheidungen");
 });
 
+step("Meine Wertung: die Leiste öffnet sie, Zahl, Verlauf und Bereiche; ein Bereich zeigt seine Hände", async () => {
+  await click("[role=banner] [data-skill-chip]");
+  await find("main h1", "Meine Wertung");
+  // The fixture hands may give no counted tournament yet.
+  const none = await s.exec(`return /Noch keine Wertung/.test(document.querySelector("main")?.innerText ?? "")`);
+  if (TAURI && none) return;
+  const rating = await find("main [data-skill-rating]");
+  const value = (await s.exec(`return arguments[0].textContent.trim()`, rating)) ?? "";
+  if (!/^\d{3,4}$/.test(value)) throw new Error(`the rating reads „${value}“`);
+  const chip = await s.exec(`return document.querySelector("[role=banner] [data-skill-chip]")?.innerText ?? ""`);
+  if (!chip.includes(value)) throw new Error(`the top bar shows „${chip}“, the page ${value}`);
+  await find("main .sk-chart svg path.line");
+  const areas = await s.exec(`return document.querySelectorAll("main [data-skill-area]").length`);
+  if (!areas) throw new Error("no area of strengths and weaknesses");
+  if (TAURI) return;
+  await waitText("Was dich zuletzt bewegt hat");
+  await waitText("Gut entschieden, Pech gehabt");
+  await click("main [data-skill-area='vs_all_in'] button", "Hände");
+  await find("main h1", "Hände");
+  await waitText("Bereich: Gegen ein All-in");
+});
+
 /** The first entry of „Was als Nächstes?“ on the overview; every page has to name the same. */
 let firstStep = null;
 /** The first entry under `sel`; the demo always has one, the fixture hands may have none. */
@@ -1347,6 +1369,9 @@ if (!TAURI)
       await nav(page);
       await seen(page);
     }
+    // The rating in the top bar keeps no number while PokerStars runs.
+    const chip = await s.exec(`return document.querySelector("[role=banner] [data-skill-chip]")?.innerText ?? ""`);
+    if (/\d/.test(chip)) throw new Error(`die Leiste zeigt die Wertung „${chip}“, obwohl PokerStars läuft`);
     // One level deeper: a hand in the replayer and a tournament's report.
     await nav("Hände");
     await click("main [data-id]");

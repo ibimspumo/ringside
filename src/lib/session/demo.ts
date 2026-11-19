@@ -2,6 +2,7 @@
 // about 150 hands. `?data=empty` has no hands yet, `?data=few` a session too short for
 // patterns, `?data=pending` one whose analysis still runs; `&locked=1` is what the backend
 // sends while PokerStars runs.
+import { demoChange } from "../skill/demo";
 import type { KindLoss, Moment } from "../report/types";
 import { demoTournaments } from "../demo";
 import { siteOfId } from "../app/format";
@@ -371,7 +372,7 @@ function locked(r: SessionReview): SessionReview {
 }
 
 export function demoSession(start: string | null): SessionPage {
-  if (preview === "empty") return { sessions: [], review: null, tournaments: [] };
+  if (preview === "empty") return { sessions: [], review: null, tournaments: [], skill: null };
   const sessions = spans();
   const at = Math.max(0, sessions.findIndex((s) => s.start === start));
   const span = sessions[at];
@@ -387,5 +388,5 @@ export function demoSession(start: string | null): SessionPage {
   });
   const r = review(span, at);
   const isLocked = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
-  return { sessions, review: isLocked ? locked(r) : r, tournaments };
+  return { sessions, review: isLocked ? locked(r) : r, tournaments, skill: isLocked ? null : demoChange() };
 }

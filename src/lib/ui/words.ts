@@ -25,6 +25,16 @@ export const WORDS = {
     long: "Das Werkzeug dafür heißt Solver: Es sucht die Strategie, die kein Gegner mehr ausnutzen kann.",
   },
 
+  skill_rating: {
+    word: "Spielwertung",
+    short: "Eine Zahl wie im Schach: Sie zeigt, wie gut du entscheidest, und steigt oder fällt nach jedem analysierten Turnier. Gezählt wird die Entscheidung, nicht ob die Karten gehalten haben.",
+    long: "Was eine Entscheidung im Schnitt kostet, zählt als Anteil deines Stacks: Ein falsches All-in wiegt viel, ein kleiner Fehler vor dem Flop wenig, leichte Folds gar nicht.",
+  },
+  skill_spread: {
+    word: "Unsicherheit",
+    short: "Wie weit die wahre Zahl noch danebenliegen kann. Am Anfang groß, mit jedem Turnier kleiner; nach einer langen Pause wieder größer.",
+  },
+
   // Money and results.
   bb: {
     word: "BB",

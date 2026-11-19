@@ -1,3 +1,4 @@
+import type { SkillChange } from "../skill/types";
 import type { MoveKind } from "../play/words";
 import type { Street } from "../types";
 
@@ -119,6 +120,8 @@ export interface AutoDone {
   mistakes: number;
   /** The run's entry in the task center, whose own note this one replaces. */
   job: number | null;
+  /** How far the new hands moved the Spielwertung. */
+  skill: SkillChange | null;
 }
 
 export interface SpotLoss {

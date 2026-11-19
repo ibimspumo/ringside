@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::allin::hero_all_in;
 use crate::model::{GameKind, Hand, Site};
 use crate::parser::parse_hand;
-use crate::profile::{ProfileRow, kind_of};
+use crate::profile::kind_of;
 use crate::leaks::{self, Cell};
 use crate::stats::{Counters, StatId, analyze, hand_class, position_labels};
 use crate::tournament::{BuyIn, Summary, TournamentRow};
@@ -20,6 +20,7 @@ mod analysis;
 mod report;
 mod ranges;
 mod session;
+mod skill;
 mod solutions;
 mod store;
 pub use ranges::{RangeCounts, RangeFilter, RangeGroup};
@@ -31,7 +32,7 @@ pub use analysis::{
 };
 
 /// Bump when derived columns or counters change; older databases are rebuilt from raw hands.
-const SCHEMA_VERSION: i32 = 7;
+const SCHEMA_VERSION: i32 = 8;
 
 pub struct Db {
     conn: Connection,
@@ -85,6 +86,9 @@ pub struct HandQuery {
     /// Hands from one poker client.
     #[serde(default)]
     pub site: Option<Site>,
+    /// Hands with a rated decision in this area of the Spielwertung.
+    #[serde(default)]
+    pub area: Option<crate::skill::Area>,
     pub limit: usize,
     pub offset: usize,
 }
@@ -361,6 +365,7 @@ impl Db {
             ("hands", "hero_stack_bb", "REAL"),
             // Every hand stored before GGPoker support came from PokerStars.
             ("hands", "site", "TEXT NOT NULL DEFAULT 'pokerstars'"),
+            ("hands", "hero_chips_bb", "REAL"),
             ("player_hands", "position", "TEXT"),
             ("player_hands", "shown", "TEXT NOT NULL DEFAULT ''"),
             ("player_hands", "bounty", "INTEGER NOT NULL DEFAULT 0"),
@@ -786,20 +791,28 @@ impl Db {
         let decisions = q.decisions.clone().unwrap_or_default();
         let decision_sql = if decisions.is_empty() { String::new() } else { decisions.hands_sql() };
         let range_sql = q.range.as_ref().map(RangeFilter::hands_sql).unwrap_or_default();
-        // The kind of spot is computed, not stored: the matching decisions are looked up first.
-        let profile_rows: Option<Vec<ProfileRow>> = match &q.profile {
-            Some(key) => Some(
+        // Kind of spot and area are computed, not stored: the matching decisions are looked up first.
+        let picked: Option<Vec<(u64, usize, f64)>> = match (&q.profile, q.area) {
+            (Some(key), _) => Some(
                 self.profile_rows(&q.filter)?
                     .into_iter()
                     .filter(|r| kind_of(r).is_some_and(|k| k.key() == *key))
+                    .map(|r| (r.hand_id, r.action_index, r.ev_loss_bb.unwrap_or(-1.0)))
                     .collect(),
             ),
-            None => None,
+            (None, Some(area)) => Some(
+                self.skill_moves()?
+                    .into_iter()
+                    .filter(|m| crate::skill::Area::of(m) == area)
+                    .map(|m| (m.hand_id, m.action_index, m.ev_loss_bb.unwrap_or(-1.0)))
+                    .collect(),
+            ),
+            (None, None) => None,
         };
-        let profile_sql = match &profile_rows {
+        let profile_sql = match &picked {
             Some(rows) if rows.is_empty() => "AND 0".to_string(),
             Some(rows) => {
-                let ids: std::collections::BTreeSet<u64> = rows.iter().map(|r| r.hand_id).collect();
+                let ids: std::collections::BTreeSet<u64> = rows.iter().map(|r| r.0).collect();
                 format!("AND h.id IN ({})", ids.iter().map(u64::to_string).collect::<Vec<_>>().join(","))
             }
             None => String::new(),
@@ -866,14 +879,10 @@ impl Db {
         )?;
         let mut list: Vec<HandSummary> = rows.collect::<Result<_, _>>()?;
         for h in &mut list {
-            h.worst = match &profile_rows {
+            h.worst = match &picked {
                 // The costliest decision of that kind in the hand.
-                Some(rows) => match rows
-                    .iter()
-                    .filter(|r| r.hand_id == h.id)
-                    .max_by(|a, b| a.ev_loss_bb.unwrap_or(-1.0).total_cmp(&b.ev_loss_bb.unwrap_or(-1.0)))
-                {
-                    Some(r) => self.decision_brief(r.hand_id, r.action_index)?,
+                Some(rows) => match rows.iter().filter(|r| r.0 == h.id).max_by(|a, b| a.2.total_cmp(&b.2)) {
+                    Some(r) => self.decision_brief(r.0, r.1)?,
                     None => None,
                 },
                 None => self.worst_decision(h.id, &decisions)?,
@@ -1197,7 +1206,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
     tx.prepare_cached(
         "UPDATE hands SET hero_position = ?2, hero_class = ?3, hero_showdown = ?4, hero_bounty = ?5,
              pot = ?6, board = ?7, bounty_currency = ?8, played_at = ?9, hero_net = ?10, hero_ev = ?11,
-             hero_stack_bb = ?12 WHERE id = ?1",
+             hero_stack_bb = ?12, hero_chips_bb = ?13 WHERE id = ?1",
     )?
     .execute(params![
         hand.id as i64,
@@ -1212,6 +1221,7 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         hero.map(|h| hand.net(h)),
         hero_ev,
         hero.and_then(|h| effective_stack_bb(hand, h)),
+        hero.and_then(|h| own_stack_bb(hand, h)),
     ])?;
 
     if let Some(tid) = hand.tournament_id {
@@ -1257,6 +1267,12 @@ fn write_derived(tx: &Transaction, hand: &Hand, add_totals: bool) -> Result<(), 
         }
     }
     Ok(())
+}
+
+/// The hero's own stack at the start of the hand, in big blinds.
+pub fn own_stack_bb(hand: &Hand, hero: &str) -> Option<f64> {
+    let own = hand.seats.iter().find(|s| s.name == hero)?.stack;
+    (hand.big_blind > 0).then(|| own as f64 / hand.big_blind as f64)
 }
 
 /// The hero's stack against the biggest other stack dealt in, in big blinds.

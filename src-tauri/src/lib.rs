@@ -17,6 +17,7 @@ mod play;
 mod ranges;
 mod report;
 mod settings;
+mod skill;
 mod solutions;
 mod solver;
 mod spots;
@@ -800,6 +801,7 @@ pub fn run() {
             report::tournament_report,
             next::next_steps,
             report::session_review,
+            skill::skill_profile,
             solver::solver_estimate,
             solver::solver_start,
             solver::solver_model_spot,

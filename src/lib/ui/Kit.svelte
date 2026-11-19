@@ -29,6 +29,7 @@
   import ProgressBar from "./ProgressBar.svelte";
   import ProgressRing from "./ProgressRing.svelte";
   import RangeGrid, { type RangeCell } from "./RangeGrid.svelte";
+  import ScoreChip from "./ScoreChip.svelte";
   import SectionHead from "./SectionHead.svelte";
   import ChoiceMenu from "./ChoiceMenu.svelte";
   import SegmentedControl from "./SegmentedControl.svelte";
@@ -485,7 +486,7 @@
       <section id="navigation">
         <SectionHead
           title="Navigation"
-          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
+          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter, eine Wertung mit Trend rechts und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
         />
         <div class="stack">
           <div class="navbar">
@@ -498,6 +499,12 @@
             <NavItem size="sub" label="Hände" icon={NAV_ICON.play} status="rechnet 96 %" />
             <NavItem size="sub" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
             <NavItem size="sub" label="Nachrechnen" icon={NAV_ICON.stats} locked />
+          </div>
+          <div class="navbar">
+            <ScoreChip value="1287" trend={14} sub="+14 · Solide" subTone="good" title="Wertung 1287, +14" onclick={() => {}} />
+            <ScoreChip value="1273" trend={-6} sub="−6 · Solide" subTone="bad" active title="Wertung 1273, −6, Seite offen" onclick={() => {}} />
+            <ScoreChip value="1287" trend={14} compact title="Wertung 1287, schmal" onclick={() => {}} />
+            <ScoreChip locked value="Wertung" sub="gesperrt" title="Wertung gesperrt" onclick={() => {}} />
           </div>
           <div class="navtiles">
             <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Chips verlierst und was dagegen hilft." status="4 gefunden" tone="warn" active />

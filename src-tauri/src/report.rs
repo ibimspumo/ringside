@@ -50,6 +50,8 @@ pub struct SessionPage {
     review: Option<SessionReview>,
     /// The tournaments of the chosen session, in order of their first hand.
     tournaments: Vec<TournamentRow>,
+    /// How far the session moved the Spielwertung; `None` while locked.
+    skill: Option<ringside_core::skill::Change>,
 }
 
 /// The session starting at `start`, or the latest one; reduced to its results while `locked`.
@@ -59,13 +61,14 @@ fn session_page(db: &Db, start: Option<&str>, locked: bool) -> Result<SessionPag
         Some(s) => sessions.iter().find(|x| x.start == s).or(sessions.first()),
         None => sessions.first(),
     };
-    let Some(span) = span else { return Ok(SessionPage { sessions, review: None, tournaments: Vec::new() }) };
+    let Some(span) = span else { return Ok(SessionPage { sessions, review: None, tournaments: Vec::new(), skill: None }) };
     let review = db.session_review(span, ENGINE).map_err(err)?;
     let review = if locked { review.locked() } else { review };
     let mut all = db.tournaments(&Filter::default()).map_err(err)?;
     all.retain(|t| span.tournaments.contains(&t.id));
     all.sort_by_key(|t| span.tournaments.iter().position(|x| *x == t.id));
-    Ok(SessionPage { review: Some(review), tournaments: all, sessions })
+    let skill = if locked { None } else { crate::skill::change_in(db, span) };
+    Ok(SessionPage { review: Some(review), tournaments: all, sessions, skill })
 }
 
 #[tauri::command]
@@ -125,10 +128,11 @@ mod tests {
         let open = session_page(&db, None, false).unwrap();
         let r = open.review.as_ref().unwrap();
         assert!(!r.report.worst.is_empty() && !r.good_luck.is_empty() && r.report.score.decisions == 1);
+        assert!(open.skill.as_ref().is_some_and(|s| s.delta.is_none()), "the first session starts the rating");
 
         let page = session_page(&db, None, true).unwrap();
         let r = page.review.as_ref().unwrap();
-        assert!(r.locked);
+        assert!(r.locked && page.skill.is_none(), "no rating while PokerStars runs");
         assert_eq!(r.report.hands, 1, "the hand counter stays");
         let json = serde_json::to_string(&page).unwrap();
         for advice in ["Blunder", "blunder", "Fold wäre besser", "\"best\":\"Fold\"", "model_pct\":1", "rating\":"] {
