@@ -6,9 +6,10 @@ import type { StatId, StatValue } from "../types";
 
 export type PlayerType = "nit" | "tag" | "lag" | "station";
 
-export const TYPE: Record<PlayerType, { name: string; long: string; sketch: string; counter: string; why: string; band: [number, number] }> = {
+export const TYPE: Record<PlayerType, { name: string; plain: string; long: string; sketch: string; counter: string; why: string; band: [number, number] }> = {
   nit: {
     name: "Nit",
+    plain: "Vorsichtig",
     long: "Nit (sehr eng)",
     sketch: "Spielt nur sehr starke Hände.",
     counter: "Öfter seine Blinds stehlen, gegen seine Raises folden.",
@@ -17,6 +18,7 @@ export const TYPE: Record<PlayerType, { name: string; long: string; sketch: stri
   },
   tag: {
     name: "TAG",
+    plain: "Solide",
     long: "TAG (eng und aggressiv)",
     sketch: "Spielt wenige Hände, die aber mit Raise.",
     counter: "Solide spielen, ohne große Anpassung.",
@@ -25,6 +27,7 @@ export const TYPE: Record<PlayerType, { name: string; long: string; sketch: stri
   },
   lag: {
     name: "LAG",
+    plain: "Wild",
     long: "LAG (locker und aggressiv)",
     sketch: "Spielt viele Hände und erhöht oft.",
     counter: "Öfter mitgehen und mit starken Händen selbst erhöhen.",
@@ -33,6 +36,7 @@ export const TYPE: Record<PlayerType, { name: string; long: string; sketch: stri
   },
   station: {
     name: "Calling Station",
+    plain: "Zahlt viel",
     long: "Calling Station (locker und passiv)",
     sketch: "Spielt viele Hände, callt aber meist nur.",
     counter: "Mit guten Händen oft und groß setzen, kaum bluffen.",

@@ -105,7 +105,7 @@
           <span class="kicker">Spielertyp</span>
           <SourceNote kind="estimate" hint="Faustregel aus VPIP und PFR, wie im Lernmodul „Gegner lesen“." />
         </div>
-        <p class="type"><b>{t.name}{#if t.long !== t.name}<small>· {t.long.slice(t.name.length).replace(/[()]/g, "").trim()}</small>{/if}</b> <span>{t.sketch}</span></p>
+        <p class="type"><b>{t.plain}<small>· {t.long.replace(" (", ", ").replace(")", "")}</small></b> <span>{t.sketch}</span></p>
         <p class="counter"><span class="kicker">{r.sure === "sure" ? "Gegenzug" : "Gegenzug, vorläufig"}</span>{t.counter}</p>
         <p class="why">{r.sure === "sure" ? t.why : `Bisher: ${t.why}`}</p>
         <p class="sure" class:warn={r.sure !== "sure"}>

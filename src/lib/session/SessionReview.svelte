@@ -339,8 +339,6 @@
           {/if}
         </section>
 
-        <!-- What to practise next: right under the answer it follows from. -->
-        {@render nextTile()}
         </div>
         <div class="sr-col">
         <section class="sr-tile sr-res" aria-labelledby="sr-res-title">
@@ -385,6 +383,9 @@
             <span class="sr-more"><Button size="sm" variant="quiet" onclick={() => (detail = true)}>Alle Beispiele ansehen ({review.bad_luck.length + review.good_luck.length})</Button></span>
           {/if}
         </section>
+
+        <!-- Right under the result, so the one thing to do next is in view without scrolling. -->
+        {@render nextTile()}
 
         <section class="sr-tile sr-worst" aria-labelledby="sr-worst-title">
           <header class="sr-head"><h2 id="sr-worst-title" class="sr-title">Deine teuersten Entscheidungen</h2></header>
@@ -657,7 +658,7 @@
 
   .sr-hands {
     display: grid;
-    grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 460px) minmax(0, 1fr);
     gap: var(--sp-5);
     align-items: center;
     padding-top: var(--sp-3);

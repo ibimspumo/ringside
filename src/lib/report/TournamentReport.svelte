@@ -147,7 +147,7 @@
     if (t.place !== null && t.prize) return `Platz ${int(t.place)}${t.entrants ? ` von ${int(t.entrants)}` : ""} – ${cash(t.prize, t.currency)} Preisgeld`;
     if (t.place !== null) return `Platz ${int(t.place)}${t.entrants ? ` von ${int(t.entrants)}` : ""}, ohne Preisgeld`;
     if (t.prize === 0) return "Ausgeschieden ohne Preisgeld";
-    return "Noch kein Ergebnis";
+    return "Noch offen";
   }
 
   function luckLine(r: TournamentReport): string {
@@ -156,7 +156,7 @@
     const chips = int(Math.abs(l.luck) / 100);
     if (Math.abs(l.luck_bb) < 1) return `In ${l.all_ins} All-ins hielten sich Glück und Pech die Waage.`;
     const what = l.luck_bb < 0 ? "Pech" : "Glück";
-    return `Mit normalem Glück hättest du ${bb(l.ev_bb, { sign: true })} statt ${bb(l.net_bb, { sign: true })} gemacht – du hattest ${what} von etwa ${bb(Math.abs(l.luck_bb))} (${chips} Chips) in ${l.all_ins} All-ins.`;
+    return `Nach den Gewinnchancen ${l.all_ins === 1 ? "deines All-ins" : `deiner ${l.all_ins} All-ins`} wären im Schnitt ${bb(l.ev_bb, { sign: true })} zu erwarten gewesen, du hast ${bb(l.net_bb, { sign: true })} gemacht: ${what} von etwa ${bb(Math.abs(l.luck_bb))} (${chips} Chips).`;
   }
 
   const LUCK_HELP =
@@ -236,6 +236,12 @@
       <div class="cell">
         <span class="eyebrow">Ergebnis</span>
         <strong class="big">{resultLine()}</strong>
+        {#if t.place === null && t.prize === null}
+          <span class="say"
+            >Bisher <b class="num {report.luck.net_bb >= 0 ? 'pos' : 'neg'}">{bb(report.luck.net_bb, { sign: true })}</b> in Chips nach {int(report.hands)} Händen. Platz und Preisgeld
+            stehen hier, sobald PokerStars die Turnier-Zusammenfassung schreibt.</span
+          >
+        {/if}
         {#if t.profit !== null}
           <span class="say">Nach Buy-in <b class="num {t.profit >= 0 ? 'pos' : 'neg'}">{t.profit > 0 ? "+" : ""}{cash(t.profit, t.currency)}</b>{t.bounties
               ? `, davon ${cash(t.bounties, t.currency)} Bounties`

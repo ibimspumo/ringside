@@ -72,6 +72,8 @@
   } = $props();
 
   const SHORT: Partial<Record<StatId, string>> = { pfr: "PFR", three_bet: "3-Bet", af: "AF" };
+  /** The four core columns in words a casual player reads at once; the abbreviation sits below. */
+  const PLAIN: Partial<Record<StatId, string>> = { vpip: "Spielt mit", pfr: "Erhöht", three_bet: "Erhöht nochmal", af: "Aggression" };
   /** All twelve side by side: German words, two lines where needed. */
   const NARROW: Record<StatId, string> = {
     hands: "Hände",
@@ -120,8 +122,8 @@
   }
 </script>
 
-{#snippet head(id: StatId | "name", text: string)}
-  <SortHeader term={id !== "name"} active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
+{#snippet head(id: StatId | "name", text: string, sub?: string)}
+  <SortHeader term={id !== "name"} {sub} active={sort?.by === id} asc={sort?.asc} onclick={sort ? () => sort.on(id) : undefined}>{text}</SortHeader>
 {/snippet}
 
 <div class="frame" class:more>
@@ -138,7 +140,11 @@
       {#each cols as id (id)}
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
           <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="top">
-            {@render head(id, columns === "core" ? `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}` : NARROW[id])}
+            {#if columns === "core"}
+              {@render head(id, PLAIN[id] ?? STAT_META[id].name, `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}`)}
+            {:else}
+              {@render head(id, NARROW[id])}
+            {/if}
           </Tooltip>
         </th>
       {/each}
@@ -170,7 +176,7 @@
               <span class="q">–</span>
             {:else if r?.type}
               <span class="t" title={`${TYPE[r.type].long} – ${r.note}`}>
-                <Badge size="sm" dashed={r.sure !== "sure"}>{TYPE[r.type].name}</Badge>
+                <Badge size="sm" dashed={r.sure !== "sure"}>{TYPE[r.type].plain}</Badge>
               </span>
             {:else}
               <span class="q" title="Die Werte passen zu keinem der vier Typen.">kein klarer Typ</span>
