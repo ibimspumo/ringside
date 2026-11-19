@@ -24,6 +24,7 @@ pub mod postflop;
 mod preflop;
 mod pushfold;
 pub mod ranges;
+pub mod spots;
 pub mod replay;
 mod seats;
 pub mod why;

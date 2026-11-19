@@ -16,6 +16,7 @@ mod report;
 mod settings;
 mod solutions;
 mod solver;
+mod spots;
 mod store;
 
 use std::collections::HashSet;
@@ -694,6 +695,8 @@ pub fn run() {
             app.manage(coach::CoachState::default());
             app.manage(analysis::AnalysisState::default());
             app.manage(cloud::CloudState::default());
+            let handle = app.handle().clone();
+            ringside_learn::set_solver(move |params| cloud::pushfold(&handle, params));
             app.manage(library::LibraryState::default());
             importer::spawn(app.handle().clone());
             overlay::spawn(app.handle().clone());
@@ -754,6 +757,9 @@ pub fn run() {
             drill::learn_drill_real,
             drill::learn_drill_variant,
             drill::learn_drill_check,
+            spots::learn_key_spots,
+            spots::learn_key_spot,
+            spots::learn_key_spot_check,
             charts::pushfold_grid,
             charts::pushfold_chart,
             charts::preflop_grid,

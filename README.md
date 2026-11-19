@@ -47,7 +47,7 @@
 
 **Unter der Haube:** komplett lokal (SQLite), getestet mit einer Million Händen (Overlay-Abfrage 0,1 ms, unter 100 MB RAM). Eigene Poker-Engine in Rust: exakte Equity, ICM und Push/Fold-Gleichgewicht für 2–9 Spieler (heads-up identisch mit HoldemResources, 3-handed auf einen Prozentpunkt bei Ganzfried & Sandholm 2008).
 
-**Internet:** „Nach Updates suchen“, der KI-Coach, wenn du ihn nutzt, und *Ringside Cloud*: Selbst gerechnete Push/Fold-Lösungen werden geteilt und fertige abgerufen – nur Rechen-Eingaben und Ergebnisse, nichts Persönliches. Geteilte Lösungen sind sofort für alle verfügbar: Ringside prüft ihren Aufbau, rechnet Push/Fold vor der Nutzung nach und lässt Stichproben stündlich neu rechnen; fällt eine durch, werden alle Lösungen dieses Absenders zurückgezogen. Standardmäßig an, in den Einstellungen abschaltbar; solange PokerStars läuft, ist die Cloud still.
+**Internet:** „Nach Updates suchen“, der KI-Coach, wenn du ihn nutzt, und *Ringside Cloud*: Selbst gerechnete Lösungen werden geteilt und fertige abgerufen – Push/Fold für Tische mit 2–9 Spielern, die nicht vorgerechnet sind (Trainer, Charts, Coach; Chip-EV und ICM), und Postflop-Spots. Heads-up-Push/Fold rechnet Ringside in Millisekunden selbst. Übertragen werden nur Rechen-Eingaben und Ergebnisse, nichts Persönliches. Geteilte Lösungen sind sofort für alle verfügbar: Ringside prüft ihren Aufbau, rechnet Push/Fold vor der Nutzung nach und lässt Stichproben stündlich neu rechnen; fällt eine durch, werden alle Lösungen dieses Absenders zurückgezogen. Abrufen und Teilen sind standardmäßig an und einzeln abschaltbar; vor dem Hinweis beim ersten Start und solange PokerStars läuft, ist die Cloud still.
 
 | Grafisch | Klassisch („Klartext“) |
 | --- | --- |

@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-use ringside_engine::multiway::{MAX_PLAYERS, Solution, seat_name, solve};
+use ringside_engine::multiway::{MAX_PLAYERS, Solution, seat_name};
 use ringside_engine::preflop::{self, Kind, Realization, Sizes};
 use ringside_engine::preflop_table;
 use ringside_engine::pushfold_table::{Ante, MIN_PLAYERS, lookup, params, stacks};
@@ -139,12 +139,11 @@ pub async fn pushfold_chart(ante: Ante, players: usize, stack_bb: f64, app: AppH
                     Target::to("charts", None),
                 );
                 task.not_cancellable();
-                let result = solve(&p);
+                let result = ringside_learn::lookup_or_solve(&p);
                 if let Err(e) = &result {
-                    task.fail(e.to_string());
+                    task.fail(e.clone());
                 }
-                let sol = result.map_err(|e| e.to_string())?;
-                Ok(chart(ante, players, stack_bb, false, &sol))
+                Ok(chart(ante, players, stack_bb, false, &*result?))
             }
         }
     })

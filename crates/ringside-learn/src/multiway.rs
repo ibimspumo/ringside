@@ -7,7 +7,7 @@
 //! cache that holds the whole grid of one level; practising one level stops solving
 //! once every table of it has come up.
 
-use std::sync::{Arc, LazyLock, Mutex, PoisonError};
+use std::sync::{Arc, LazyLock, Mutex, OnceLock, PoisonError};
 
 use rand::Rng;
 pub use ringside_engine::multiway::position_names;
@@ -36,9 +36,19 @@ type Slot = Arc<Mutex<Option<Arc<Solution>>>>;
 /// Most recently used last.
 static CACHE: LazyLock<Mutex<Vec<(String, Slot)>>> = LazyLock::new(Default::default);
 
-/// The push/fold equilibrium for `params`: from the cache, the bundled tables or solved
-/// now. Callers asking
-/// for the same parameters at once wait for a single solve.
+type Solver = Box<dyn Fn(&Params) -> Result<Solution, String> + Send + Sync>;
+
+static SOLVER: OnceLock<Solver> = OnceLock::new();
+
+/// How [`lookup_or_solve`] gets what the bundled tables lack, instead of solving with the
+/// engine; the app puts its cache and Ringside Cloud in front. The first call wins.
+pub fn set_solver(solver: impl Fn(&Params) -> Result<Solution, String> + Send + Sync + 'static) {
+    let _ = SOLVER.set(Box::new(solver));
+}
+
+/// The push/fold equilibrium for `params`: from the cache, the bundled tables or the
+/// solver ([`set_solver`], else the engine). Callers asking for the same parameters at
+/// once wait for a single solve.
 pub fn lookup_or_solve(params: &Params) -> Result<Arc<Solution>, String> {
     // Debug prints every f64 so that it parses back exactly, so equal keys mean equal parameters.
     let key = format!("{params:?}");
@@ -58,11 +68,15 @@ pub fn lookup_or_solve(params: &Params) -> Result<Arc<Solution>, String> {
     if let Some(s) = &*solved {
         return Ok(s.clone());
     }
-    // Equal stacks on the bundled grid come precomputed; everything else is solved here.
     let s = match ringside_engine::pushfold_table::lookup(params) {
-        Some(table) => Arc::new(table),
-        None => Arc::new(multiway::solve(params).map_err(|e| format!("Push/Fold nicht lösbar: {e}"))?),
+        Some(table) => table,
+        None => match SOLVER.get() {
+            Some(solve) => solve(params),
+            None => multiway::solve(params).map_err(|e| e.to_string()),
+        }
+        .map_err(|e| format!("Push/Fold nicht lösbar: {e}"))?,
     };
+    let s = Arc::new(s);
     *solved = Some(s.clone());
     Ok(s)
 }

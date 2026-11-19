@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 
 pub use hud::{Read, Sureness, TypeRead, read as player_read};
 pub use mastery::{Progress, SkillProgress, progress};
-pub use multiway::{TableSpot, lookup_or_solve, position_names};
+pub use multiway::{TableSpot, lookup_or_solve, position_names, set_solver};
 pub use own::{AllInResult, OwnSpot, detect_spots};
 
 /// Exercise families. Each one is a skill in [`Progress`]; `all_in` only comes from
@@ -69,11 +69,13 @@ pub enum Kind {
     OwnDecision,
     /// Open or fold at a table of two to five players (heads-up the button opens).
     OpenFoldShort,
+    /// One of the bundled learning spots (`ringside_analysis::spots`).
+    KeySpot,
 }
 
 impl Kind {
     /// New kinds go at the end: the position seeds each kind's random stream.
-    pub const ALL: [Kind; 22] = [
+    pub const ALL: [Kind; 23] = [
         Kind::Outs,
         Kind::PotOdds,
         Kind::Probability,
@@ -96,6 +98,7 @@ impl Kind {
         Kind::HudRead,
         Kind::OwnDecision,
         Kind::OpenFoldShort,
+        Kind::KeySpot,
     ];
 
     /// The snake_case id used in JSON and in the database.
@@ -123,6 +126,7 @@ impl Kind {
             Kind::HudRead => "hud_read",
             Kind::OwnDecision => "own_decision",
             Kind::OpenFoldShort => "open_fold_short",
+            Kind::KeySpot => "key_spot",
         }
     }
 
@@ -154,12 +158,13 @@ impl Kind {
             Kind::HudRead => "Gegner lesen mit HUD-Werten",
             Kind::OwnDecision => "Aus deinem Spiel",
             Kind::OpenFoldShort => "Öffnen am kurzen Tisch",
+            Kind::KeySpot => "Wichtige Spots",
         }
     }
 
     /// Whether [`generate`] can make exercises of this kind.
     pub fn generated(self) -> bool {
-        !matches!(self, Kind::AllIn | Kind::FullHands | Kind::OwnDecision)
+        !matches!(self, Kind::AllIn | Kind::FullHands | Kind::OwnDecision | Kind::KeySpot)
     }
 }
 
@@ -573,6 +578,7 @@ pub fn generate(kind: Kind, level: u8, seed: u64) -> Result<Exercise, String> {
         Kind::AllIn => return Err("All-in-Übungen gibt es nur aus eigenen Händen".into()),
         Kind::FullHands => return Err("Ganze Hände gibt es im Übungsmodus „Hände spielen“".into()),
         Kind::OwnDecision => return Err("Diese Spots kommen aus deinem Spielprofil".into()),
+        Kind::KeySpot => return Err("Diese Spots kommen aus dem Paket der wichtigsten Spots".into()),
         Kind::BountyOdds => bounty::generate(level, &mut rng),
         Kind::IcmCall => icm::generate(level, &mut rng)?,
         Kind::OpenFold => open::generate(level, false, &mut rng)?,
