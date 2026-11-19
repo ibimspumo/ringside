@@ -314,6 +314,16 @@ fn a_multiway_flop_says_why_the_solver_is_not_used() {
     assert!(flop.note.contains("Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern."), "{}", flop.note);
 }
 
+/// Two bets of the same odd size on flop and turn: each note names its street.
+#[test]
+fn a_snapped_bet_names_its_street() {
+    let seats: Vec<(&str, i64)> = vec![("P1", 3000), ("P2", 3000), ("P3", 3000), ("Hero", 3000), ("P5", 3000), ("P6", 3000)];
+    let raw = hand(15, &seats, 4, 200, 25, "Ah Kh", "P1: folds\nP2: folds\nP3: folds\nHero: raises 200 to 400\nP5: folds\nP6: calls 200\n*** FLOP *** [Kd 7s 2c]\nP6: checks\nHero: bets 450\nP6: calls 450\n*** TURN *** [Kd 7s 2c] [3h]\nP6: checks\nHero: bets 840\nP6: folds\nUncalled bet (840) returned to Hero\nHero collected 1950 from pot\n*** SUMMARY ***\nTotal pot 1950 | Rake 0\nBoard [Kd 7s 2c 3h]\n");
+    let (_, json) = analyze_hand(&parsed(&raw)).job.expect("a heads-up flop");
+    let job: PostflopJob = serde_json::from_str(&json).unwrap();
+    assert!(job.note.contains("Bet am Flop von 43 % Pot") && job.note.contains("Bet am Turn von 43 % Pot"), "{}", job.note);
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.
