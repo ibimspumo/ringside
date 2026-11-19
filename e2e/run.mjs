@@ -422,6 +422,26 @@ step("Start: „Als Nächstes üben“ nennt denselben ersten Schritt", async ()
   if (TAURI) return;
   await sameFirstStep("the review", "main .sr-next [data-step]");
 });
+// Moving from an open menu to the next tab opens it on hover at once; the click that follows opens it too.
+step("Menü: Klick nach dem Hover lässt das Menü offen", async () => {
+  const state = await s.execAsync(`
+    const done = arguments[0];
+    const tabs = [...document.querySelectorAll("[role=banner] nav button[aria-haspopup]")];
+    const [a, b] = tabs.slice(-2);
+    a.click();
+    setTimeout(() => {
+      b.dispatchEvent(new PointerEvent("pointerenter"));
+      setTimeout(() => {
+        b.click();
+        requestAnimationFrame(() => {
+          const out = b.getAttribute("aria-expanded");
+          window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+          done(out);
+        });
+      }, 30);
+    }, 50);`);
+  if (state !== "true") throw new Error(`the menu is ${state === "false" ? "closed" : state} after hover and click`);
+});
 step("Statistik", () => nav("Statistik"));
 step("Turniere", async () => {
   await nav("Turniere");

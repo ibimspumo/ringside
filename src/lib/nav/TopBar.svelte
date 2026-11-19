@@ -68,10 +68,13 @@
   const triggers: Partial<Record<AreaId, HTMLButtonElement>> = $state({});
   let panel = $state<HTMLElement>();
   let timer = 0;
+  /** When hover last opened a menu: a click right after it means "open", not "close". */
+  let hoveredAt = 0;
 
   async function show(id: AreaId, focus: "first" | "none" = "none") {
     clearTimeout(timer);
     open = id;
+    hoveredAt = 0;
     if (focus === "first") {
       await tick();
       panel?.querySelector<HTMLElement>("[data-nav]")?.focus();
@@ -88,7 +91,17 @@
   function rest(id: AreaId) {
     clearTimeout(timer);
     if (!hasMenu(id)) return;
-    timer = window.setTimeout(() => (open = id), open ? 0 : 140);
+    timer = window.setTimeout(
+      () => {
+        open = id;
+        hoveredAt = performance.now();
+      },
+      open ? 0 : 140,
+    );
+  }
+  function toggle(id: AreaId) {
+    if (open === id && performance.now() - hoveredAt > 500) close();
+    else show(id);
   }
   function leave() {
     clearTimeout(timer);
@@ -218,7 +231,7 @@
             bind:el={triggers[area.id]}
             onpointerenter={() => rest(area.id)}
             onkeydown={(e) => triggerKey(e, area.id)}
-            onclick={() => (single ? go(area.pages[0]) : open === area.id ? close() : show(area.id))}
+            onclick={() => (single ? go(area.pages[0]) : toggle(area.id))}
           />
         {/each}
       </nav>
