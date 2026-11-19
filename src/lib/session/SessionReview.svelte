@@ -396,7 +396,7 @@
               <strong class="sr-big" class:sr-up={rep.luck.net_bb > 0} class:sr-down={rep.luck.net_bb < 0}>{bb(rep.luck.net_bb, { sign: true })}</strong>
             {/each}
             <span class="sr-result-sub">
-              {#if money.sums.length}{bb(rep.luck.net_bb, { sign: true })} in Chips{/if}{#if money.open}{money.sums.length ? " · " : ""}{money.open === 1 ? "1 Turnier läuft noch" : `${money.open} Turniere laufen noch`}{/if}
+              {#if money.sums.length}in Geld · in Chips {bb(rep.luck.net_bb, { sign: true })}{/if}{#if money.open}{money.sums.length ? " · " : ""}{money.open === 1 ? "1 Turnier läuft noch" : `${money.open} Turniere laufen noch`}{/if}
             </span>
           </div>
           <p class="sr-say">{luckLine(rep.luck)}</p>
