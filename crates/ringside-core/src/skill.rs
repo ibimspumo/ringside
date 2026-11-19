@@ -529,8 +529,7 @@ fn areas(window: &[&Unit], rating: f64) -> Vec<AreaScore> {
         }
     }
     let total_burn: f64 = by.values().map(|v| sums(v).0).sum();
-    let mut out: Vec<AreaScore> = by
-        .into_iter()
+    by.into_iter()
         .map(|(area, v)| {
             let (burn, real) = sums(&v);
             let mut grades = Grades::default();
@@ -558,9 +557,7 @@ fn areas(window: &[&Unit], rating: f64) -> Vec<AreaScore> {
                 grades,
             }
         })
-        .collect();
-    out.sort_by(|a, b| a.area.cmp(&b.area));
-    out
+        .collect()
 }
 
 /// Whether the played action put chips at risk: a fold or a check loses nothing by luck.
