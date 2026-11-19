@@ -817,8 +817,9 @@
     font-weight: var(--fw-semibold);
     color: var(--text-2);
   }
+  /* Always a line of its own, so both cards put the hand's result in the same place. */
   .sr-swing-net {
-    margin-left: auto;
+    flex-basis: 100%;
     font-family: var(--font-num);
     font-size: var(--fs-sm);
     white-space: nowrap;

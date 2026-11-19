@@ -5,7 +5,6 @@
   import IconButton from "../ui/IconButton.svelte";
   import SettingRow from "../ui/SettingRow.svelte";
   import SiteMark from "../ui/SiteMark.svelte";
-  import SourceNote from "../ui/SourceNote.svelte";
   import type { ImportReport, ImportStatus, Settings } from "../types";
   import { int } from "./format";
 
@@ -151,10 +150,7 @@
     </Button>
   </div>
   <div class="rule">
-    <SourceNote kind="locked" variant="block">
-      GGPoker erlaubt seit 15.10.2026 keine Poker-Programme neben dem Client. Schließ Ringside ganz, bevor du GGPoker startest, und importier
-      deine Hände danach.
-    </SourceNote>
+    <p><b>Schließ Ringside ganz, bevor du GGPoker startest.</b> GGPoker erlaubt seit 15.10.2026 keine Poker-Programme neben dem Client – importier deine Hände danach.</p>
   </div>
 </SettingRow>
 
@@ -266,5 +262,13 @@
   }
   .rule {
     margin-top: var(--sp-3);
+  }
+  .rule p {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .rule b {
+    color: var(--text);
   }
 </style>

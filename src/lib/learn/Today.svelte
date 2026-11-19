@@ -649,9 +649,6 @@
     font-weight: 600;
     color: var(--text-2);
   }
-  .lane-label.weak {
-    color: var(--neg);
-  }
   .own li {
     border-color: color-mix(in srgb, var(--neg) 35%, var(--line));
   }

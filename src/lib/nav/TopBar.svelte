@@ -320,7 +320,8 @@
     <div class="scrim" aria-hidden="true"></div>
   {/if}
 </div>
-<NavNotices {status} settingsOpen={tab === "settings"} {onChooseFolder} />
+<!-- Start without any hand already leads with the same setup in its empty state. -->
+<NavNotices {status} settingsOpen={tab === "settings" || (tab === "dashboard" && !status?.total_hands)} {onChooseFolder} />
 
 <style>
   .top {

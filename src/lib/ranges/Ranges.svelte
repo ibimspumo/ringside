@@ -421,7 +421,7 @@
               </ul>
             </details>
           {/if}
-          <p class="howto">Fahr über eine Hand für Details. Klick zeigt deine Hände damit – dort kannst du jede Hand analysieren.</p>
+          <p class="howto">Kleine Zahl bei dir: so oft hattest du die Hand, dunkles Feld: nie bekommen. Beim Modell: wie oft (in %) es sie so spielt. Fahr über eine Hand für Details, ein Klick zeigt deine Hände damit.</p>
         {/if}
       </section>
     </div>

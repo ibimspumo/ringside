@@ -89,7 +89,7 @@
 {:else if mode === "list" && shown.length}
   <ol class="rows" class:compact>
     {#if !compact}
-      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head">Geschätzter Nutzen <span class="key">· gestreift: grob</span></span></li>
+      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head" title="Gestreift: grob geschätzt">Was es dir bringt</span></li>
     {/if}
     {#each shown as s, i (s.id)}
       <li class="row" data-step={s.id}>
@@ -224,11 +224,6 @@
     color: var(--text-3);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-  }
-  .head .key {
-    font-weight: var(--fw-regular);
-    letter-spacing: normal;
-    text-transform: none;
   }
   .rows:not(.compact) .go {
     display: contents;

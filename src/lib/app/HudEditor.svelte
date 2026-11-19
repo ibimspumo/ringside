@@ -286,7 +286,7 @@
           </div>
           <label class="check toggle" title="Zeigt hier die Karten der letzten Hand und das Board, damit du sie verschieben kannst. Wie lange der Rückblick am Tisch steht, stellst du unter „Aussehen“ ein.">
             <input type="checkbox" bind:checked={showRecap} />
-            <span>Rückblick in der Vorschau</span>
+            <span>Letzte Hand in der Vorschau</span>
           </label>
         </div>
 
@@ -328,7 +328,7 @@
               {#each [["low", "niedrig"], ["mid", "üblich"], ["high", "hoch"]] as [k, word] (k)}
                 <span class="tone"><i style:background={pal[k as "low" | "mid" | "high"]}></i>{word}</span>
               {/each}
-              <span>– was das je Wert heißt, steht unter „Farben“</span>
+              <span>– keine Note; was das je Wert heißt, steht unter „Farben“</span>
             </li>
             {#if view.seats.some((s) => s.note?.label)}
               <li><b class="gesture frame">Farbiger Rahmen</b>deine eigene Spieler-Markierung aus PokerStars</li>

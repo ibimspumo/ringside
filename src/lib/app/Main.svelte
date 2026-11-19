@@ -321,7 +321,7 @@
   />
 
   <main>
-    <CloudNotice quiet={historyMissing(status, tab === "settings")} onSettings={() => (tab = "settings")} />
+    {#if !clientRunning}<CloudNotice quiet={historyMissing(status, tab === "settings")} onSettings={() => (tab = "settings")} />{/if}
     <PageHeader title={PAGES[tab].label} sub={(clientRunning && LOCKED_NOTES[tab]) || NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED_PAGES.includes(tab)}>
       {#snippet actions()}
       {#if DATA_TABS.includes(tab) && !showingReport}

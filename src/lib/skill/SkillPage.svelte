@@ -482,7 +482,7 @@
 
   .sk-areas {
     display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(64px, 1fr) max-content max-content max-content;
+    grid-template-columns: minmax(250px, 2.2fr) minmax(64px, 1fr) max-content max-content max-content;
     gap: 0 var(--sp-3);
     margin: 0;
     padding: 0;
