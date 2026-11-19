@@ -81,6 +81,17 @@ fn unequal_stacks_and_icm_final_table_converge() {
     assert!(s.icm && s.approximation.ev_sum_error.abs() < 0.05, "{}", s.approximation.ev_sum_error);
 }
 
+/// Six even stacks on the bubble (five paid), as the community queue seeds it: plain
+/// regret matching+ cycled here, its average stalled at three times the target.
+#[test]
+fn a_bubble_where_regret_matching_cycled_converges() {
+    for (stack, ante, bb_ante) in [(15.0, 0.0, 1.0), (12.0, 0.125, 0.0)] {
+        let p = Params { ante_bb: ante, bb_ante_bb: bb_ante, max_all_in: 2, ..Params::equal(6, stack) }
+            .with_payouts(vec![5.0, 4.0, 3.0, 2.0, 1.0]);
+        check_converged(&solve(&p).unwrap(), &format!("6p {stack} BB bubble"));
+    }
+}
+
 /// Every configuration of the brief: 3, 6 and 9 players, 5–20 BB, with and without
 /// antes, unequal stacks, ICM.
 #[test]
