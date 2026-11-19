@@ -409,6 +409,7 @@
             tab = "training";
           }}
           onReport={openReport}
+          onAllHands={() => showHands(null)}
         />
       {:else if tab === "overview"}
         <Dashboard

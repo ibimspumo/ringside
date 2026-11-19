@@ -15,8 +15,9 @@
   import { usePageHead } from "../ui/page.svelte";
   import Panel from "../ui/Panel.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
+  import Term from "../ui/Term.svelte";
   import { WORDS } from "../ui/words";
-  import { PRACTICE, cardsOf, decisions, delta, points, spread } from "./labels";
+  import { AREA_HELP, PRACTICE, cardsOf, decisions, delta, points, spread, spreadOf } from "./labels";
   import SkillChart from "./SkillChart.svelte";
   import { loadSkill, skill } from "./store.svelte";
   import type { AreaScore, SkillArea, SkillEntry } from "./types";
@@ -29,6 +30,7 @@
     onHands,
     onLearn,
     onReport,
+    onAllHands,
   }: {
     refresh: number;
     tournaments: TournamentRow[];
@@ -38,6 +40,8 @@
     onHands: (area: SkillArea, label: string) => void;
     onLearn: (target: LearnTarget) => void;
     onReport: (tournamentId: number) => void;
+    /** The hand list, where any hand can be analysed now. */
+    onAllHands: () => void;
   } = $props();
 
   $effect(() => {
@@ -85,6 +89,8 @@
   const total = $derived(p ? p.grades.perfect + p.grades.good + p.grades.inaccurate + p.grades.mistake + p.grades.blunder : 0);
   const share = (n: number) => (total ? Math.round((n / total) * 100) : 0);
   const areaName = (a: SkillArea) => p?.areas.find((x) => x.area === a)?.name ?? "";
+  /** What to work on first: the weakness that costs most. */
+  const focus = $derived([...(p?.areas ?? [])].filter((a) => a.verdict === "weak").sort((a, b) => b.burn_share_pct - a.burn_share_pct)[0] ?? null);
 </script>
 
 {#snippet arrow(d: number)}
@@ -105,9 +111,10 @@
   {:else if rating === null}
     <EmptyState
       title="Noch keine Wertung"
-      text="Sobald Ringside dein erstes Turnier analysiert hat, steht hier deine Spielwertung: eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt. Jeder startet bei {points(p.start)}."
+      text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. Ringside analysiert neue Turniere von selbst, sobald du PokerStars schließt – oder du lässt deine Hände gleich jetzt bewerten."
     >
       {#snippet icon()}<path d="M4 19.5h16M5 15l4.5-4.5 3 3L19 7" />{/snippet}
+      {#snippet action()}<Button variant="primary" onclick={onAllHands}>Zu deinen Händen</Button>{/snippet}
     </EmptyState>
   {:else}
     <section class="sk-hero" aria-label="Deine Spielwertung">
@@ -115,11 +122,11 @@
         <span class="sk-kicker">Deine {WORDS.skill_rating.word}</span>
         <div class="sk-number">
           <b class="num" data-skill-rating>{points(rating)}</b>
-          <span class="sk-spread num" title={WORDS.skill_spread.short}>{spread(p.sigma)}</span>
+          <span class="sk-spread"><span class="num sk-spread-n">{spread(p.sigma)}</span><Term tip={WORDS.skill_spread.short}>wohl zwischen {Math.round(rating) - spreadOf(p.sigma)} und {Math.round(rating) + spreadOf(p.sigma)}</Term></span>
         </div>
         <div class="sk-tier">
           <Badge tone="info">{p.tier}</Badge>
-          {#if p.provisional}<Badge dashed size="sm" title="Nach wenigen Turnieren schwankt die Zahl noch stark.">vorläufig</Badge>{/if}
+          {#if p.provisional}<Badge dashed size="sm" title="Nach wenigen Turnieren schwankt die Zahl noch stark.">vorläufig – schwankt noch stark</Badge>{/if}
         </div>
         {#if last}
           <p class="sk-trend">
@@ -127,6 +134,17 @@
             <b class="num" class:up={last.delta > 0} class:down={last.delta < 0}>{delta(last.delta)}</b>
             <span>im letzten Turnier</span>
           </p>
+        {/if}
+        {#if focus}
+          {@const practice = PRACTICE[focus.area]}
+          <div class="sk-focus">
+            <span>Bringt dir jetzt am meisten: <b>{focus.name}</b></span>
+            {#if practice}
+              <Button size="sm" variant="primary" onclick={() => onLearn(practice)}>{focus.name} üben</Button>
+            {:else}
+              <Button size="sm" variant="primary" onclick={() => onHands(focus.area, focus.name)}>Deine Hände dazu</Button>
+            {/if}
+          </div>
         {/if}
       </div>
       <div class="sk-ladder">
@@ -153,11 +171,11 @@
     </section>
 
     <Panel title="Verlauf" sub="Nach jedem analysierten Turnier · das helle Band zeigt, wie sicher die Zahl schon ist">
-      <SkillChart entries={p.entries} tiers={p.tiers} start={p.start} {names} onPick={(e) => e.tournament_id !== null && onReport(e.tournament_id)} />
+      <SkillChart height={210} entries={p.entries} tiers={p.tiers} start={p.start} {names} onPick={(e) => e.tournament_id !== null && onReport(e.tournament_id)} />
     </Panel>
 
     <div class="sk-grid">
-      <Panel title="Stärken und Schwächen" sub="Deine letzten 20 Turniere je Bereich, verglichen mit deiner Wertung">
+      <Panel title="Stärken und Schwächen" sub="Deine letzten 20 Turniere je Bereich: Wertungspunkte über oder unter deiner Wertung">
         <ul class="sk-areas">
           {#each areas as a (a.area)}
             {@const v = VERDICT[a.verdict]}
@@ -165,8 +183,8 @@
             {@const practice = PRACTICE[a.area]}
             <li class="sk-area" class:few={a.verdict === "few"} data-skill-area={a.area}>
               <div class="sk-area-name">
-                <b>{a.name}</b>
-                <small>{decisions(a.decisions)}{a.burn_share_pct >= 1 ? ` · ${Math.round(a.burn_share_pct)} % deiner Verluste` : ""}</small>
+                <b><Term tip={AREA_HELP[a.area]}>{a.name}</Term></b>
+                <small>{decisions(a.decisions)}{a.burn_share_pct >= 1 ? ` · ${Math.round(a.burn_share_pct)} % deiner Fehlerkosten` : ""}</small>
               </div>
               <div class="sk-diverge" role="img" aria-label="{a.name}: {a.verdict === 'few' ? 'noch zu wenig' : `${points(a.rating)}, ${delta(a.rating - rating)} gegen deine Wertung`}">
                 <span class="sk-axis"></span>
@@ -204,10 +222,10 @@
                     <span class="sk-moment">
                       <span class="sk-cards">{#each cardsOf(m.hero_cards) as c (c)}<MiniCard card={c} />{/each}</span>
                       <span class="sk-moment-text">
-                        <b>{m.played}{#if m.best && m.points < 0} <span class="sk-better">statt {m.best}</span>{/if}</b>
+                        <b>{m.played}{#if m.best && m.points < 0}{" "}<span class="sk-better">statt {m.best}</span>{/if}</b>
                         <small>
                           {areaName(m.area)}
-                          {#if m.lost_pct >= 0.5} · kostete {Math.round(m.lost_pct)} % deines Stacks{:else if m.pot_pct >= 50} · Pot so groß wie {Math.round(m.pot_pct)} % deines Stacks{/if}
+                          {#if m.lost_pct >= 0.5} · kostet im Schnitt {Math.round(m.lost_pct)} % deines Stacks{:else if m.pot_pct >= 50} · Pot so groß wie {Math.round(m.pot_pct)} % deines Stacks{/if}
                         </small>
                       </span>
                       <span class="sk-moment-tags">
@@ -285,8 +303,29 @@
     line-height: 1;
   }
   .sk-spread {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
     color: var(--text-2);
+    font-size: var(--fs-xs);
+  }
+  .sk-spread-n {
     font-size: var(--fs-xl);
+    line-height: 1;
+  }
+  .sk-focus {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--sp-2);
+    margin-top: var(--sp-2);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--line);
+    color: var(--text-2);
+    font-size: var(--fs-md);
+  }
+  .sk-focus b {
+    color: var(--text);
   }
   .sk-tier {
     display: flex;
@@ -360,7 +399,7 @@
     left: 4px;
     right: 4px;
     overflow: hidden;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -373,7 +412,7 @@
     position: absolute;
     top: 36px;
     left: 4px;
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-xs);
     font-style: normal;
   }
@@ -413,7 +452,7 @@
     font-size: var(--fs-md);
   }
   .sk-ref {
-    color: var(--text-3);
+    color: var(--text-2);
     font-size: var(--fs-sm);
   }
 
@@ -432,7 +471,7 @@
 
   .sk-areas {
     display: grid;
-    grid-template-columns: minmax(220px, 1.5fr) minmax(100px, 1fr) 44px auto minmax(118px, auto);
+    grid-template-columns: minmax(250px, 1.6fr) minmax(90px, 1fr) 44px auto minmax(118px, auto);
     gap: 0 var(--sp-3);
     margin: 0;
     padding: 0;
@@ -462,6 +501,7 @@
     font-weight: var(--fw-semibold);
   }
   .sk-area-name small {
+    white-space: nowrap;
     color: var(--text-2);
     font-size: var(--fs-sm);
   }
@@ -555,11 +595,8 @@
     font-weight: var(--fw-regular);
   }
   .sk-moment-text small {
-    overflow: hidden;
     color: var(--text-2);
     font-size: var(--fs-sm);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .sk-points {
     color: var(--text-2);

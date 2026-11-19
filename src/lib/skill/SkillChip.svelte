@@ -19,7 +19,7 @@
   <ScoreChip
     value={points(p.rating)}
     trend={last ? d : null}
-    sub={last ? `${delta(d)} · ${p.tier}` : (p.tier ?? undefined)}
+    sub={last ? `${delta(d)} · Spielwertung` : "Spielwertung"}
     subTone={d > 0 ? "good" : d < 0 ? "bad" : "neutral"}
     {active}
     {compact}
