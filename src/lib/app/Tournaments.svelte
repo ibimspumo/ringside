@@ -133,6 +133,11 @@
     });
   });
 
+  /** Rows on screen; a long history shows in steps, the chosen tournament always among them. */
+  const STEP = 200;
+  let more = $state(0);
+  const shown = $derived(Math.max(STEP + more, rows.findIndex((r) => r.id === selected) + 1));
+
   function sortOn(col: Col) {
     if (sortBy === col) asc = !asc;
     else {
@@ -310,7 +315,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each rows as r (r.id)}
+            {#each rows.slice(0, shown) as r (r.id)}
               {@const d = depth(r)}
               <tr
                 class:on={r.id === selected}
@@ -357,11 +362,21 @@
             {/each}
           </tbody>
       </table>
+      {#if rows.length > shown}
+        <div class="more">
+          <Button size="sm" full onclick={() => (more = shown)}
+            >Weitere {int(Math.min(STEP, rows.length - shown))} Turniere zeigen · {int(rows.length - shown)} noch nicht gezeigt</Button
+          >
+        </div>
+      {/if}
     </Panel>
   {/if}
 </div>
 
 <style>
+  .more {
+    padding: var(--sp-2) var(--sp-1);
+  }
   .tours {
     display: flex;
     flex-direction: column;
