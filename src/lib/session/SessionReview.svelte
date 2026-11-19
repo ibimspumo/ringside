@@ -67,6 +67,7 @@
   let failed = $state(false);
   let retry = $state(0);
   /** The page of all luck examples ("Alle ansehen"). */
+  let showGrid = $state(false);
   let detail = $state(query.get("sub") === "luck");
 
   $effect(() => {
@@ -357,16 +358,19 @@
                   {/each}
                 </ul>
               {/if}
-              <div class="sr-hands">
-                <div class="sr-mini">
-                  <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
-                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
-                </div>
+              <div class="sr-hands" class:open={showGrid}>
                 <div class="sr-keycol">
                   {@render classRow(pre.tight, "Laut Modell öfter spielen", "--range-tight")}
                   {@render classRow(pre.wide, "Laut Modell eher folden", "--range-wide")}
                   {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
+                  <span><Button size="sm" variant="quiet" aria-expanded={showGrid} onclick={() => (showGrid = !showGrid)}>{showGrid ? "Raster ausblenden" : "Alle Starthände dieser Session"}</Button></span>
                 </div>
+                {#if showGrid}
+                  <div class="sr-mini">
+                    <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
+                    <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
+                  </div>
+                {/if}
               </div>
 
             {/if}
@@ -689,11 +693,14 @@
 
   .sr-hands {
     display: grid;
-    grid-template-columns: minmax(220px, 460px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-5);
     align-items: center;
     padding-top: var(--sp-3);
     border-top: 1px solid var(--line);
+  }
+  .sr-hands.open {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 460px);
   }
   .sr-keycol {
     display: flex;

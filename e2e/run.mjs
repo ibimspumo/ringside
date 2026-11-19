@@ -481,7 +481,7 @@ step("Turniere", async () => {
 
 step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async () => {
   await click(TAURI ? "main tbody tr:has(.gname[title*='#3500000001'])" : "main tbody tr:has(.gname[title*='Sunday Million'])");
-  await waitText("Glück gegen All-in-EV");
+  await waitText("Glück: Ergebnis gegen Erwartung");
   await waitText("Deine Entscheidungen");
   // The report filters the same list: in the demo the overview's first step was played in this tournament.
   if (!TAURI) {

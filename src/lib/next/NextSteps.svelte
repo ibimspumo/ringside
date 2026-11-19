@@ -102,7 +102,7 @@
         </div>
         {#if !compact}<span class="gain" role="img" aria-label="Was Üben bringt: {Math.round((s.score / top) * 100)} % von Platz 1" title="Was Üben hier bringt, verglichen mit Platz 1{s.estimate ? ' (geschätzt)' : ''}"
             ><span class="bar"><span class="fill" class:estimate={s.estimate} style:width="{Math.max(4, (s.score / top) * 100)}%"></span></span
-            ><small class="num">{i === 0 ? "am meisten" : `${Math.round((s.score / top) * 100)} % davon`}</small></span
+            ><small class="num">{i === 0 ? "am meisten" : `${Math.round((s.score / top) * 100)} % von Platz 1`}</small></span
           >{/if}
         <div class="go">{@render actions(s, primary && i === 0)}</div>
       </li>

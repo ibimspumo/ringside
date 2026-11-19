@@ -19,7 +19,7 @@ export interface NextStep {
   title: string;
   /** One sentence why. */
   why: string;
-  /** The number with its meaning: „kostet dich im Schnitt etwa 0,4 BB pro Mal, 31-mal gespielt“. */
+  /** The number with its meaning: „kostet dich im Schnitt etwa 0,4 BB je Entscheidung, 31-mal gespielt“. */
   number: string;
   /** Glossary id of the poker word in the title. */
   term: WordId | null;

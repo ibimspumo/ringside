@@ -20,8 +20,8 @@ export interface Scenario {
 }
 
 export const ANTES: { id: PreflopAnte; label: string }[] = [
-  { id: "big_blind", label: "Big Blind zahlt" },
-  { id: "classic", label: "Alle zahlen" },
+  { id: "big_blind", label: "Big Blind" },
+  { id: "classic", label: "Alle" },
   { id: "none", label: "Keine" },
 ];
 

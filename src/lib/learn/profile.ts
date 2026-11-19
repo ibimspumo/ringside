@@ -116,10 +116,10 @@ export function bbText(x: number): string {
   return `${nf(v >= 0.095 || v === 0 ? 1 : 2).format(v)} BB`;
 }
 
-/** "38-mal gespielt, kostet dich etwa 0,4 BB pro Mal". */
+/** "38-mal gespielt, kostet dich etwa 0,4 BB je Entscheidung". */
 export function costLine(g: SpotGroup): string {
   const times = g.decisions === 1 ? "einmal gespielt" : `${g.decisions}-mal gespielt`;
   if (g.mean_loss_bb < 0.005) return `${times}, kostet dich so gut wie nichts`;
-  return `${times}, kostet dich etwa ${bbText(g.mean_loss_bb)} pro Mal`;
+  return `${times}, kostet dich etwa ${bbText(g.mean_loss_bb)} je Entscheidung`;
 }
 

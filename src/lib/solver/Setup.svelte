@@ -334,7 +334,7 @@
 
   <aside class="panel scen">
     <section>
-      <h3>An welchem Tisch?</h3>
+      <h3>An welchem Tisch, und wer zahlt Ante?</h3>
       <div class="pair">
         <div class="seg" role="group" aria-label="Spieler am Tisch">
           {#each TABLES as n (n)}
