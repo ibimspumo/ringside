@@ -559,3 +559,12 @@ fn a_cancelled_hand_is_no_hand() {
     assert!(matches!(parse_hand(split_hands(text)[0]), Err(ringside_core::parser::ParseError::Unsupported(_))));
 }
 
+/// Until 2014 the client wrote "PokerStars Game #" where it now writes "Hand #".
+#[test]
+fn older_hand_histories_are_read() {
+    let text = CASH.replacen("PokerStars Hand #", "PokerStars Game #", 1);
+    let new = hands(CASH);
+    let old: Vec<Hand> = split_hands(&text).into_iter().filter_map(|h| parse_hand(h).ok()).collect();
+    assert_eq!(old.len(), new.len());
+    assert_eq!(old[0].id, new[0].id);
+}

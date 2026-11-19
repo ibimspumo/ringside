@@ -31,7 +31,8 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
-static HAND_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Hand #(\d+):").unwrap());
+/// "Hand #" since 2014, "Game #" before.
+static HAND_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:Hand|Game) #(\d+):").unwrap());
 static TOURNAMENT_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Tournament #(\d+)").unwrap());
 static VARIANT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"((?:5 Card |6 Card )?Omaha(?: Hi/Lo)?|Hold'em|Courchevel(?: Hi/Lo)?) (No Limit|Pot Limit|Limit)").unwrap()
@@ -107,7 +108,7 @@ fn hand_starts(text: &str) -> Vec<usize> {
     let mut offset = 0;
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start_matches('\u{feff}');
-        if (trimmed.starts_with("PokerStars ") && trimmed.contains("Hand #")) || trimmed.starts_with("Poker Hand #") {
+        if (trimmed.starts_with("PokerStars ") && (trimmed.contains("Hand #") || trimmed.contains("Game #"))) || trimmed.starts_with("Poker Hand #") {
             starts.push(offset + (line.len() - trimmed.len()));
         }
         offset += line.len();
