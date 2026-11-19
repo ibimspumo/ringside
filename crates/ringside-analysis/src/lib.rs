@@ -39,7 +39,7 @@ use serde::Serialize;
 pub use postflop::{PostflopJob, solve_job};
 
 /// Stored with every decision; a hand analysed with another version is analysed again.
-pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.7");
+pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.8");
 
 /// The analysis of one hand. Postflop decisions are pending until their job is solved;
 /// what neither the tables nor the solver cover is estimated ([`replay::rate`]), forced

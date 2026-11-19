@@ -298,7 +298,7 @@ pub fn rate_with(
         .enumerate()
         .map(|(i, &o)| Choice { label: opt_label(o), freq: freq[i], ev_bb: Some(est.evs[i]), played: i == played, kind: o.key().into() })
         .collect();
-    let opponents = spot.opponents.len();
+    let opponents = spot.expected_opponents(tuning.behind).round().max(1.0) as usize;
     let top = (0..opts.len()).max_by(|&x, &y| est.evs[x].total_cmp(&est.evs[y]));
     let behind = spot.opponents.iter().map(|o| o.behind).fold(0.0, f64::max).min(spot.hero_behind);
     let facts = why::Estimated {
