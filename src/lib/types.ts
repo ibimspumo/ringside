@@ -1,3 +1,4 @@
+import type { SkillArea } from "./skill/types";
 import type { DecisionBrief, DecisionFilter } from "./analysis/types";
 import type { RangeFilter } from "./ranges/types";
 export type StatId =
@@ -274,6 +275,8 @@ export interface HandQuery extends Filter {
   range?: RangeFilter | null;
   /** Hands with a decision of this kind of spot of the playing profile. */
   profile?: string | null;
+  /** Hands with a rated decision in this area of the Spielwertung. */
+  area?: SkillArea | null;
   limit: number;
   offset: number;
 }

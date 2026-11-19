@@ -228,7 +228,7 @@ fn sort(list: &mut [NextStep]) {
 }
 
 /// Days since 1970 of "YYYY/MM/DD …" (the hand history's format).
-fn day_number(played_at: &str) -> Option<i64> {
+pub(crate) fn day_number(played_at: &str) -> Option<i64> {
     let date = played_at.split_whitespace().next()?;
     let mut parts = date.split(['/', '-']).map(|p| p.parse::<i64>().ok());
     let (y, m, d) = (parts.next()??, parts.next()??, parts.next()??);

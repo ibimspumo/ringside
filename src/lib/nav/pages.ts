@@ -7,6 +7,7 @@ import { WORDS } from "../ui/words";
 
 export type Page =
   | "dashboard"
+  | "skill"
   | "overview"
   | "reports"
   | "leaks"
@@ -44,6 +45,11 @@ export const PAGES: Record<Page, PageInfo> = {
     label: "Start",
     text: "Deine letzte Session auf einen Blick: Ergebnis, Glück oder Fehler und was du als Nächstes übst.",
     icon: "M4.5 11 12 4.5l7.5 6.5V19a.5.5 0 0 1-.5.5h-4.5v-5h-5v5H5a.5.5 0 0 1-.5-.5z",
+  },
+  skill: {
+    label: "Meine Wertung",
+    text: "Deine Spielwertung wie im Schach: Verlauf, Stärken und Schwächen, was dich zuletzt bewegt hat.",
+    icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7M15 7h4v4",
   },
   overview: {
     label: "Übersicht",
@@ -148,7 +154,7 @@ export const AREAS: Area[] = [
     text: "Wie läuft es, und wo verlierst du?",
     short: "Ergebnisse und Schwachstellen",
     icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7",
-    pages: ["overview", "tournaments", "hands", "leaks", "reports", "ranges"],
+    pages: ["skill", "overview", "tournaments", "hands", "leaks", "reports", "ranges"],
   },
   { id: "ueben", label: "Üben", text: "Besser werden in kurzen Runden.", short: "Kurze Runden, eigene Hände", icon: PAGES.training.icon, pages: ["training", "play", "coach"] },
   { id: "gegner", label: "Gegner", text: "Wer sitzt am Tisch, und wie spielst du gegen ihn?", short: "Wer mit dir am Tisch sitzt", icon: PAGES.players.icon, pages: ["players", "live", "hud"] },
@@ -167,4 +173,4 @@ export const ALL_PAGES = Object.keys(PAGES) as Page[];
 export const areaOf = (page: Page): Area | undefined => AREAS.find((a) => a.pages.includes(page));
 
 /** Pages PokerStars' rules lock while the client runs. */
-export const LOCKED_PAGES: Page[] = ["leaks", "training", "play", "charts", "solver", "library"];
+export const LOCKED_PAGES: Page[] = ["skill", "leaks", "training", "play", "charts", "solver", "library"];

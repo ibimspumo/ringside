@@ -27,6 +27,8 @@
   import { chartsHandoff } from "../charts/handoff.svelte";
   import Ranges from "../ranges/Ranges.svelte";
   import SessionReview from "../session/SessionReview.svelte";
+  import SkillPage from "../skill/SkillPage.svelte";
+  import type { SkillArea } from "../skill/types";
   import type { RangePreset, SessionScope } from "../session/types";
   import Tag from "../ui/Tag.svelte";
   import type { RangeFilter } from "../ranges/types";
@@ -160,7 +162,7 @@
     if (id !== null) showHands(null, id);
   });
   /** Hands tab: a leak-finder spot to list. */
-  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; label: string } | null>(null);
+  let handsSpot = $state<{ filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; area?: SkillArea | null; label: string } | null>(null);
   /** Training tab: an article or exercise to open, set from the leak finder. */
   let learnOpen = $state<LearnTarget | null>(null);
 
@@ -362,6 +364,7 @@
       {#if tab === "dashboard"}
         <SessionReview
           {refresh}
+          onSkill={() => (tab = "skill")}
           {filter}
           onStepHands={stepHands}
           onReport={openReport}
@@ -387,6 +390,26 @@
             learnOpen = target;
             tab = "training";
           }}
+        />
+      {:else if tab === "skill"}
+        <SkillPage
+          {refresh}
+          tournaments={tournamentList}
+          hands={status?.total_hands ?? null}
+          onHand={(id, at) => {
+            showHands(null, id);
+            handOpenAt = at;
+          }}
+          onHands={(area, label) => {
+            showHands(null);
+            handsSpot = { area, label: `Bereich: ${label}` };
+          }}
+          onLearn={(target) => {
+            learnOpen = target;
+            tab = "training";
+          }}
+          onReport={openReport}
+          onAllHands={() => showHands(null)}
         />
       {:else if tab === "overview"}
         <Dashboard

@@ -24,6 +24,8 @@
   import SourceNote from "../ui/SourceNote.svelte";
   import Term from "../ui/Term.svelte";
   import Luck from "./Luck.svelte";
+  import { delta, points } from "../skill/labels";
+  import { WORDS } from "../ui/words";
   import { cardsOf, classCards, classWords, luckLine, swingLine } from "./labels";
   import type { ClassGap, RangePreset, SessionPage, SessionScope, SessionSpan } from "./types";
 
@@ -36,8 +38,11 @@
     onHands,
     onLearn,
     onStepHands,
+    onSkill,
   }: {
     refresh: number;
+    /** Opens the Spielwertung. */
+    onSkill: () => void;
     /** The app's game and period: „Als Nächstes üben“ filters the overview's list to the session. */
     filter: Filter;
     onReport: (tournamentId: number) => void;
@@ -253,6 +258,18 @@
       {/each}
       {#if span.cash_hands}
         <Card pad="sm"><span class="sr-t"><span class="sr-t-name">Cash</span><span class="sr-t-meta">{int(span.cash_hands)} Hände</span></span></Card>
+      {/if}
+      {#if page.skill}
+        {@const s = page.skill}
+        <Card pad="sm" onclick={onSkill} title="Deine Spielwertung öffnen">
+          <span class="sr-t" data-session-skill>
+            <span class="sr-t-name">{WORDS.skill_rating.word}</span>
+            <span class="sr-t-meta">
+              {#if s.delta !== null}<b class="sr-money" class:sr-up={s.delta > 0} class:sr-down={s.delta < 0}>{delta(s.delta)}</b>{/if}
+              <span>{s.delta !== null ? "jetzt " : ""}<b class="sr-money">{points(s.rating)}</b>{` · ${s.tier}`}</span>
+            </span>
+          </span>
+        </Card>
       {/if}
     </div>
 
