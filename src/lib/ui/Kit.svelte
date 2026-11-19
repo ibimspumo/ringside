@@ -590,7 +590,7 @@
 
     {#if show("schilder")}
       <section id="schilder">
-        <SectionHead title="Schilder" sub="Aktionen in festen Farben, Status als Badge, Herkunft als gestrichelter Hinweis." />
+        <SectionHead title="Schilder" sub="Aktionen in festen Farben, Status als Badge, Herkunft als gestrichelter Hinweis, gesperrt mit Schloss auf eigener Fläche." />
         <h3 class="sub-head">Poker-Aktionen</h3>
         <div class="row">{#each KINDS as k, i (k)}<ActionLabel kind={k} amount={k === "fold" || k === "check" ? undefined : [0, 0, 6, 4.5, 12, 37.5][i]} step={k === "bet" ? 1 : k === "raise" ? 3 : undefined} />{/each}</div>
         <div class="row">{#each KINDS as k (k)}<ActionLabel kind={k} variant="text" />{/each}</div>
@@ -604,6 +604,11 @@
         <div class="two">
           <SourceNote kind="equilibrium" variant="block" />
           <SourceNote kind="locked" variant="block" />
+        </div>
+        <h3 class="sub-head">Ein Zeichen, eine Bedeutung</h3>
+        <div class="two">
+          <div class="row"><Badge tone="warn" size="sm" dashed>geschätzt</Badge><Badge size="sm" dashed>bei 137 Händen noch grob</Badge><SourceNote kind="estimate" /><span class="muted">Gestrichelt: geschätzt oder noch unsicher.</span></div>
+          <div class="row"><SourceNote kind="locked" /><span class="muted">Schloss auf eigener Fläche, durchgezogen: gesperrt, solange PokerStars läuft.</span></div>
         </div>
       </section>
     {/if}

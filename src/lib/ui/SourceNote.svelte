@@ -54,8 +54,14 @@
     --c: var(--source);
     color: color-mix(in srgb, var(--c) 75%, var(--text));
   }
+  /* Dashed means "estimated, where from"; locked is a state of its own: lock, solid edge, own ground. */
   .locked {
     --c: var(--amber);
+  }
+  .inline.locked,
+  .block.locked {
+    border-style: solid;
+    background: color-mix(in srgb, var(--c) 12%, var(--surface));
   }
   /* A computed figure is a fact: solid frame and text colour instead of the dashed "where from". */
   .fact {
