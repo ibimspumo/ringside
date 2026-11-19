@@ -277,6 +277,19 @@ fn a_shove_in_front_stays_in_when_the_others_fold() {
     assert!(!d.why.contains("geben alle Gegner"), "{}", d.why);
 }
 
+/// Calling all in with 10 BB against a shove of 38 BB wins at most 10 BB from the shover:
+/// the rest of the shove is no part of the price. Six-four needs about 38 %, not 17 %.
+#[test]
+fn a_call_for_less_counts_only_the_pot_it_can_win() {
+    let seats: Vec<(&str, i64)> =
+        vec![("P1", 11538), ("Hero", 4982), ("P3", 6353), ("P4", 7916), ("P5", 13801), ("P6", 5405), ("P7", 24155), ("P8", 19162)];
+    let raw = hand(11, &seats, 8, 500, 65, "6d 4c", "P3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: raises 500 to 1000\nP8: raises 18097 to 19097 and is all-in\nP1: folds\nHero: folds\nP7: folds\nUncalled bet (18097) returned to P8\nP8 collected 3270 from pot\n*** SUMMARY ***\nTotal pot 3270 | Rake 0\n");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert!(d.rating <= Some(Rating::Inaccuracy) && d.ev_loss_bb < Some(0.5), "{d:?}");
+    assert!(!d.why.contains("braucht nur 1"), "{}", d.why);
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.

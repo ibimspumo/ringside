@@ -12,7 +12,7 @@
 //!   of anyone else (lead, probe), a raise, a call, a check with others still to act or
 //!   one behind.
 //! - **Equity** of the hero's two cards against all opponents at once, sampled with card
-//!   removal.
+//!   removal. What an opponent bet beyond the hero's stack is no part of the pot.
 //! - **EV of each option**, in BB from now on: fold 0; check `R × equity × pot`, heads-up
 //!   out of position with what the opponent's bet after it brings; call
 //!   `R × equity × (pot + call) − call`; a bet or raise wins the pot when everyone folds
@@ -533,6 +533,13 @@ impl Spot {
         let top = self.opponents.iter().map(|o| o.street_in).fold(self.hero_in, f64::max);
         (top - self.hero_in).min(self.hero_behind).max(0.0)
     }
+
+    /// The pot the hero can win: what an opponent put in on this street beyond the hero's
+    /// whole stack goes back or into a side pot.
+    pub fn winnable_pot(&self) -> f64 {
+        let cap = self.hero_in + self.hero_behind;
+        self.pot - self.opponents.iter().map(|o| (o.street_in - cap).max(0.0)).sum::<f64>()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -616,17 +623,18 @@ pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &S
     let ranges: Vec<&Range> = spot.opponents.iter().map(|o| &o.range).collect();
     let eq = equity(spot.hero, &ranges, &spot.board, &mut rng);
     let call = spot.to_call();
+    let pot = spot.winnable_pot();
     let behind_after_call = spot.hero_behind - call;
-    let spr_now = behind_after_call / (spot.pot + call).max(0.01);
+    let spr_now = behind_after_call / (pot + call).max(0.01);
     let r = realization(spot, spr_now, eq, t);
-    let pot_odds = (call > 0.0).then(|| call / (spot.pot + call));
+    let pot_odds = (call > 0.0).then(|| call / (pot + call));
     let ev_of = |opt: Opt, rng: &mut ChaCha8Rng| -> (f64, Option<f64>) {
         match opt {
             Opt::Fold => (0.0, None),
             Opt::Check => (r * checked(spot, eq, strength, board_dead, dead, curves, rng), None),
             Opt::Call => {
                 let rr = if call >= spot.hero_behind - 1e-9 { 1.0 } else { r };
-                (rr * eq * (spot.pot + call) - call, None)
+                (rr * eq * (pot + call) - call, None)
             }
             Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), &strength.equity, board_dead, dead, rng, t),
             Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, &strength.equity, board_dead, dead, rng, t),
@@ -765,7 +773,7 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
         // Nobody can put in more: the bet is a call of what is there, the rest comes back.
         let call = spot.to_call();
         let eq = equity(spot.hero, &spot.opponents.iter().map(|o| &o.range).collect::<Vec<_>>(), &spot.board, rng);
-        return (realization(spot, 0.0, eq, t) * eq * (spot.pot + call) - call, None);
+        return (realization(spot, 0.0, eq, t) * eq * (spot.winnable_pot() + call) - call, None);
     }
     let all_fold: f64 = shares.iter().map(|s| 1.0 - s).product();
     let callers: f64 = shares.iter().sum::<f64>() / (1.0 - all_fold).max(1e-9);
