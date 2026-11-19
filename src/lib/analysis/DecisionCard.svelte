@@ -295,8 +295,6 @@
     font-size: var(--fs-xs);
     font-style: normal;
     font-weight: var(--fw-semibold);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--bg);
     background: var(--text);
   }

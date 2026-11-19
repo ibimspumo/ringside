@@ -236,6 +236,12 @@
     "time-format": {
       "total": 0,
       "files": {}
+    },
+    "caps-label": {
+      "total": 1,
+      "files": {
+        "hud/Recap.svelte": 1
+      }
     }
   }
 }

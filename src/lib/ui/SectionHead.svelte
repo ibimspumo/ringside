@@ -6,13 +6,14 @@
     title,
     sub,
     level = 2,
+    id,
     actions,
-  }: { title: string; sub?: string; level?: 2 | 3; actions?: Snippet } = $props();
+  }: { title: string; sub?: string; level?: 2 | 3; id?: string; actions?: Snippet } = $props();
 </script>
 
 <header class="ui-section-head">
   <div>
-    <svelte:element this={`h${level}`} class="title l{level}">{title}</svelte:element>
+    <svelte:element this={`h${level}`} {id} class="title l{level}">{title}</svelte:element>
     {#if sub}<p class="sub">{sub}</p>{/if}
   </div>
   {#if actions}<div class="actions">{@render actions()}</div>{/if}

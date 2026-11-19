@@ -300,10 +300,8 @@
   }
   .kicker {
     color: var(--text-3);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
   }
   .read {
     display: flex;
@@ -410,10 +408,8 @@
   h3 {
     margin: 0 0 var(--sp-1);
     color: var(--text-3);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
   }
   dl {
     margin: 0;

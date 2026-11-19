@@ -71,10 +71,8 @@
   .name {
     margin-right: var(--sp-1);
     color: var(--text-3);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
   }
   .cards {
     display: inline-flex;
