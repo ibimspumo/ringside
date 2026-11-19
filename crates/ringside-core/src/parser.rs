@@ -14,7 +14,8 @@ use crate::tournament::parse_buy_in;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
-    /// A valid hand of a game Ringside does not track (stud, draw, ...).
+    /// A valid hand of a game Ringside does not track (stud, draw, ...), or one the client
+    /// cancelled before it was played.
     Unsupported(String),
     Malformed(String),
 }
@@ -260,6 +261,10 @@ fn ggpoker_head(header: &str) -> Result<Head, ParseError> {
 pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
     let mut lines = text.lines().map(|l| l.trim_start_matches('\u{feff}').trim_end());
     let header = lines.next().ok_or_else(|| malformed("empty"))?;
+    // The blinds go back: nothing was played.
+    if text.lines().any(|l| l.trim_end() == "Hand cancelled") {
+        return Err(ParseError::Unsupported("hand cancelled".into()));
+    }
     let head = if header.starts_with("Poker Hand #") { ggpoker_head(header)? } else { pokerstars_head(header)? };
     let Head { id, site, game, tournament_id, tournament_name, variant, buy_in, small_blind, big_blind, currency, played_at } =
         head;

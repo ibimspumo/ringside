@@ -543,3 +543,19 @@ fn leak_cells_and_spot_filter() {
     assert!(ids(spot(Some(true), &["BB"], Some(2))).is_empty());
     assert_eq!(db.hands(&HandQuery { limit: 10, ..Default::default() }).unwrap().len(), 2);
 }
+
+/// A hand the client cancelled before it was dealt gives the posted blind back: no hand
+/// was played, so none is stored and nobody lost the blind.
+#[test]
+fn a_cancelled_hand_is_no_hand() {
+    let text = "PokerStars Hand #7:  Omaha Pot Limit ($5/$10 USD) - 2024/01/16 13:17:20 CET [2024/01/16 7:17:20 ET]\n\
+                Table 'Pool' 6-max Seat #6 is the button\n\
+                Seat 6: Hero ($1467.77 in chips) \n\
+                Hero: posts small blind $5\n\
+                P2: is sitting out \n\
+                Hand cancelled\n\
+                *** SUMMARY ***\n\
+                Seat 6: Hero (button) collected ($0)\n\n\n";
+    assert!(matches!(parse_hand(split_hands(text)[0]), Err(ringside_core::parser::ParseError::Unsupported(_))));
+}
+
