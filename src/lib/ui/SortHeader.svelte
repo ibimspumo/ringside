@@ -9,6 +9,7 @@
     active = false,
     asc = false,
     term = false,
+    sub,
     title,
     onclick,
     children,
@@ -17,16 +18,22 @@
     asc?: boolean;
     /** Has an explanation on hover: dotted underline like a Term. */
     term?: boolean;
+    /** Quieter second line under the plain title, e.g. the abbreviation pros know ("VPIP %"). */
+    sub?: string;
     title?: string;
     onclick?: () => void;
     children: Snippet;
   } = $props();
 </script>
 
+{#snippet label()}
+  {#if sub}<span class="two"><span class="main">{@render children()}</span><small>{sub}</small></span>{:else}<span class="main">{@render children()}</span>{/if}
+{/snippet}
+
 {#if onclick}
-  <button type="button" class="ui-sort" class:on={active} class:asc class:term {title} {onclick}><span>{@render children()}</span></button>
+  <button type="button" class="ui-sort" class:on={active} class:asc class:term {title} {onclick}>{@render label()}</button>
 {:else}
-  <span class="ui-sort" class:term {title}><span>{@render children()}</span></span>
+  <span class="ui-sort" class:term {title}>{@render label()}</span>
 {/if}
 
 <style>
@@ -52,7 +59,19 @@
   button {
     cursor: pointer;
   }
-  .term > span {
+  .two {
+    display: inline-block;
+  }
+  small {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-medium);
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  .term .main {
     text-decoration: underline dotted color-mix(in srgb, currentColor 55%, transparent);
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
