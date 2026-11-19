@@ -7,6 +7,17 @@ use crate::db::{Rating, Source, SpotType, Status};
 use crate::skill::Move;
 
 impl Db {
+    /// Whether the hero played cash hands on a day from `start` to `end`: a cash day is one
+    /// unit of the rating and may reach over a session's edge.
+    pub fn cash_on_days(&self, start: &str, end: &str) -> Result<bool, Error> {
+        let day = |t: &str| t.get(..10).unwrap_or(t).to_string();
+        self.conn.prepare_cached(
+            "SELECT EXISTS (SELECT 1 FROM hands WHERE played_at >= ?1 AND played_at < ?2 || '~'
+                            AND tournament_id IS NULL AND hero IS NOT NULL)",
+        )?
+        .query_row(rusqlite::params![day(start), day(end)], |r| r.get(0))
+    }
+
     /// The hero's rated decisions of every hand, in hand order.
     pub fn skill_moves(&self) -> Result<Vec<Move>, Error> {
         let mut stmt = self.conn.prepare_cached(

@@ -250,16 +250,18 @@ pub(crate) const MINUTES_SQL: &str =
 /// Lets a date, session or tournament filter range-scan by hand id (`col`: `h.id`,
 /// `ph.hand_id`, `d.hand_id`, ...) instead of reading every row. The bounds only narrow the
 /// scan, however ids relate to time; `FILTER_SQL` still decides which hands count. Written
-/// without `OR`, which would stop SQLite from using the key.
+/// without `OR`, which would stop SQLite from using the key; the bounds of a date filter are
+/// found among the hands between its dates alone, so a session costs what its hands cost.
 pub(crate) fn hand_range(col: &str) -> String {
+    let dates = "played_at >= COALESCE(?2, '') AND played_at <= COALESCE(?4, '~')";
     format!(
         "{col} BETWEEN
-    MAX(CASE WHEN ?2 IS NULL THEN 0 ELSE COALESCE((SELECT MIN(id) FROM hands WHERE played_at >= ?2), 0) END,
-        CASE WHEN ?3 IS NULL THEN 0 ELSE COALESCE((SELECT MIN(id) FROM hands WHERE tournament_id = ?3), 0) END)
-    AND MIN(CASE WHEN ?3 IS NULL THEN 9223372036854775807
-                 ELSE COALESCE((SELECT MAX(id) FROM hands WHERE tournament_id = ?3), -1) END,
-            CASE WHEN ?4 IS NULL THEN 9223372036854775807
-                 ELSE COALESCE((SELECT MAX(id) FROM hands WHERE played_at <= ?4), -1) END)"
+    CASE WHEN ?3 IS NOT NULL THEN COALESCE((SELECT MIN(id) FROM hands WHERE tournament_id = ?3), 0)
+         WHEN ?2 IS NULL AND ?4 IS NULL THEN 0
+         ELSE COALESCE((SELECT MIN(id) FROM hands WHERE {dates}), 0) END
+    AND CASE WHEN ?3 IS NOT NULL THEN COALESCE((SELECT MAX(id) FROM hands WHERE tournament_id = ?3), -1)
+         WHEN ?2 IS NULL AND ?4 IS NULL THEN 9223372036854775807
+         ELSE COALESCE((SELECT MAX(id) FROM hands WHERE {dates}), -1) END"
     )
 }
 
@@ -412,6 +414,23 @@ impl Db {
     /// and between handles: a key for results computed from the database.
     pub fn version(&self) -> (u64, u64) {
         (self.id, self.conn.total_changes())
+    }
+
+    /// `f`'s result and the thousands of SQLite steps it took: a measure of work that, unlike
+    /// time, does not depend on the machine, for tests of how queries scale.
+    pub fn steps_of<T>(&self, f: impl FnOnce(&Db) -> T) -> (T, u64) {
+        let steps = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+        let count = steps.clone();
+        self.conn.progress_handler(
+            1000,
+            Some(move || {
+                count.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                false
+            }),
+        );
+        let out = f(self);
+        self.conn.progress_handler(0, None::<fn() -> bool>);
+        (out, steps.load(std::sync::atomic::Ordering::Relaxed))
     }
 
     /// True after an upgrade until [`Db::rebuild_step`] has gone through all stored hands.

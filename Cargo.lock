@@ -3470,6 +3470,7 @@ name = "ringside"
 version = "0.17.0"
 dependencies = [
  "keyring",
+ "libc",
  "rayon",
  "ringside-analysis",
  "ringside-cloud",

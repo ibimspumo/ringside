@@ -34,7 +34,7 @@ fn compute(state: &AppState, filter: &Filter) -> CmdResult<Vec<NextStep>> {
         (
             db.profile_rows(filter).map_err(err)?,
             db.spot_practice().map_err(err)?,
-            db.hero_cells(filter).map_err(err)?,
+            crate::hero_cells(&db, filter)?,
             db.costliest(filter, COSTLIEST).map_err(err)?,
             db.attempts().map_err(err)?,
         )

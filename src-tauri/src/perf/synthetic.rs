@@ -9,6 +9,8 @@ use ringside_engine::Card;
 use ringside_engine::eval::{HandCategory, evaluate_cards};
 
 pub const HERO: &str = "Hero";
+/// The id of the first tournament of every history.
+pub const FIRST_TOURNAMENT: u64 = 4_100_000_000;
 
 /// One tournament's hand history file.
 pub struct Tournament {
@@ -38,7 +40,7 @@ pub fn history(total: usize, pool: usize, seed: u64) -> Vec<Tournament> {
             if made >= total {
                 break;
             }
-            let id = 4_100_000_000 + out.len() as u64;
+            let id = FIRST_TOURNAMENT + out.len() as u64;
             let begin = start + rng.below(40 * 60) as i64;
             let mut t = play(&mut rng, &names, id, begin, slot as u64);
             t.hands.truncate(total - made);

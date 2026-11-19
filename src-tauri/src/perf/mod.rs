@@ -38,24 +38,39 @@ fn rss_mb() -> f64 {
     out.ok().and_then(|o| String::from_utf8(o.stdout).ok()).and_then(|s| s.trim().parse::<f64>().ok()).map_or(0.0, |kb| kb / 1024.0)
 }
 
+/// CPU time of this thread in ms: on a busy machine steadier than the wall clock.
+#[cfg(unix)]
+fn cpu_ms() -> f64 {
+    let mut t = libc::timespec { tv_sec: 0, tv_nsec: 0 };
+    // SAFETY: `t` is a valid timespec for the call to write.
+    unsafe { libc::clock_gettime(libc::CLOCK_THREAD_CPUTIME_ID, &mut t) };
+    t.tv_sec as f64 * 1000.0 + t.tv_nsec as f64 / 1e6
+}
+
+#[cfg(not(unix))]
+fn cpu_ms() -> f64 {
+    0.0
+}
+
 struct Timings {
     rows: Vec<(String, f64, f64)>,
 }
 
 impl Timings {
     /// The first call, then the best of three more: what a page costs when opened and when
-    /// it is opened again.
+    /// it is opened again; wall clock and, in brackets, CPU time of the first call.
     fn time<T>(&mut self, label: &str, mut f: impl FnMut() -> T) -> T {
-        let t = Instant::now();
+        let (t, cpu) = (Instant::now(), cpu_ms());
         let out = f();
         let first = t.elapsed().as_secs_f64() * 1000.0;
+        let cpu = cpu_ms() - cpu;
         let mut best = f64::MAX;
         for _ in 0..3 {
             let t = Instant::now();
             std::hint::black_box(f());
             best = best.min(t.elapsed().as_secs_f64() * 1000.0);
         }
-        println!("  {label:<46} {first:>9.1} ms {best:>9.1} ms");
+        println!("  {label:<46} {first:>9.1} ms ({cpu:>6.1}) {best:>9.1} ms");
         self.rows.push((label.to_string(), first, best));
         out
     }
@@ -107,11 +122,11 @@ fn pages(state: &AppState, t: &mut Timings) {
     let spans = state.db.lock().unwrap().session_spans(ringside_core::session::LISTED_SESSIONS).unwrap();
     let since = Filter { since: spans.last().map(|s| s.start.clone()), ..Default::default() };
 
-    println!("  {:<46} {:>12} {:>12}", "", "erster Aufruf", "wiederholt");
+    println!("  {:<46} {:>21} {:>12}", "", "erster Aufruf (CPU)", "wiederholt");
     // The top bar and every page on each refresh (a new hand, a finished analysis).
     t.time("Kopfleiste: Turnierliste", || crate::totals(&state.db.lock().unwrap().tournaments(&tour).unwrap()));
     t.time("Kopfleiste: Spieler (300)", || state.db.lock().unwrap().players(&all, "", 300).unwrap());
-    t.time("Kopfleiste: Analyse-Zusammenfassung", || state.db.lock().unwrap().analysis_summary(&all, ENGINE, 5).unwrap());
+    t.time("Kopfleiste: Analyse-Zusammenfassung", || crate::analysis::summary(&state.db.lock().unwrap(), &all).unwrap());
     t.time("Kopfleiste: Lernfortschritt", || {
         ringside_learn::progress(&state.db.lock().unwrap().attempts().unwrap(), crate::now_secs())
     });
@@ -156,7 +171,7 @@ fn pages(state: &AppState, t: &mut Timings) {
     t.time("Turniere: Liste", || crate::totals(&state.db.lock().unwrap().tournaments(&tour).unwrap()));
     t.time("Turnierbericht", || crate::report::report_page(state, last_tournament).unwrap());
     t.time("Session-Rückblick", || crate::report::session_page(&state.db.lock().unwrap(), None, false).unwrap());
-    t.time("Analyse-Zusammenfassung", || state.db.lock().unwrap().analysis_summary(&all, ENGINE, 5).unwrap());
+    t.time("Analyse-Zusammenfassung ab Datum", || crate::analysis::summary(&state.db.lock().unwrap(), &since).unwrap());
     t.time("Ranges: Situationen", || state.db.lock().unwrap().range_groups(&all).unwrap());
     t.time("Ranges: Tabelle", || state.db.lock().unwrap().range_counts(&all, &RangeFilter::default()).unwrap());
     t.time("Lernen: Spielprofil", || {
@@ -276,3 +291,52 @@ fn scale() {
 }
 
 
+
+
+/// A history of `hands` hands stored straight away, without files and analysis.
+fn stored(hands: usize) -> AppState {
+    let state = state_on(Path::new(":memory:"));
+    let rows: Vec<_> = synthetic::history(hands, 1_000, 3)
+        .iter()
+        .flat_map(|t| t.hands.iter())
+        .map(|raw| (ringside_core::parse_hand(raw).unwrap(), raw.clone()))
+        .collect();
+    state.db.lock().unwrap().insert_hands(&rows).unwrap();
+    state
+}
+
+/// What one tournament or session reads must not grow with the history around it: SQLite
+/// steps of the same first tournament and session in a history and in one four times as long.
+#[test]
+fn one_tournament_costs_the_same_in_a_longer_history() {
+    let work = |state: &AppState| {
+        let db = state.db.lock().unwrap();
+        let first = synthetic::FIRST_TOURNAMENT;
+        let filter = Filter { tournament_id: Some(first), ..Default::default() };
+        let span = db.session_spans(usize::MAX).unwrap().pop().unwrap();
+        let hand = db.hand(db.report_hands(&filter, ENGINE).unwrap().0.last().unwrap().hand_id).unwrap().unwrap();
+        [
+            db.steps_of(|db| db.report_hands(&filter, ENGINE).unwrap()).1,
+            db.steps_of(|db| db.report_decisions(&filter).unwrap()).1,
+            db.steps_of(|db| db.counters_in_session(synthetic::HERO, &hand).unwrap()).1,
+            db.steps_of(|db| db.session_review(&span, ENGINE).unwrap()).1,
+        ]
+    };
+    let short = work(&stored(1_500));
+    let long = work(&stored(6_000));
+    for (what, (s, l)) in ["tournament hands", "tournament decisions", "HUD session counters", "session review"].iter().zip(short.iter().zip(&long)) {
+        assert!(*l as f64 <= *s as f64 * 1.5 + 5.0, "{what}: {s} thousand steps in the short history, {l} in the long one");
+    }
+}
+
+/// The overview over a mid-sized history, with a bound loose enough for a slow CI machine.
+#[test]
+fn the_overview_stays_quick() {
+    let state = stored(6_000);
+    let t = Instant::now();
+    crate::dashboard_view(&state, &Filter::default()).unwrap();
+    crate::group_view(state.db.lock().unwrap().hero_groups(&Filter::default(), false).unwrap());
+    crate::totals(&state.db.lock().unwrap().tournaments(&Filter::default()).unwrap());
+    let ms = t.elapsed().as_millis();
+    assert!(ms < 3_000, "overview of 6000 hands took {ms} ms");
+}

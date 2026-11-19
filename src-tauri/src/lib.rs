@@ -451,8 +451,14 @@ async fn leaks(filter: Filter, state: State<'_, AppState>) -> CmdResult<ringside
 
 fn leak_report(state: &AppState, filter: &Filter) -> CmdResult<ringside_core::leaks::LeakReport> {
     unlocked(state)?;
-    let cells = state.db.lock().unwrap().hero_cells(filter).map_err(err)?;
-    Ok(ringside_core::leaks::find(&cells))
+    Ok(ringside_core::leaks::find(&hero_cells(&state.db.lock().unwrap(), filter)?))
+}
+
+static CELLS: memo::Memo<((u64, u64), String), Vec<ringside_core::leaks::Cell>> = memo::Memo::new();
+
+/// The leak finder's cells, which the leaks page and „Was als Nächstes?“ read alike.
+fn hero_cells(db: &Db, filter: &Filter) -> CmdResult<Vec<ringside_core::leaks::Cell>> {
+    CELLS.get_or((db.version(), format!("{filter:?}")), || db.hero_cells(filter).map_err(err))
 }
 
 #[tauri::command]
