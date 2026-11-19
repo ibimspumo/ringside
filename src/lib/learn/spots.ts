@@ -63,6 +63,7 @@ interface PackSpot {
   grid: SpotGrid | null;
   stack_bb: number;
   position: string;
+  payouts?: number[];
 }
 
 interface Pack {
@@ -122,11 +123,12 @@ export async function demoKeySpot(id: string): Promise<KeySpotView> {
   const s = spots[i];
   const topic = topics.find((t) => t.id === s.topic) ?? topics[0];
   const stack = String(s.stack_bb).replace(".", ",");
+  const paid = (s.payouts ?? []).filter((p) => p > 0).length;
   return {
     spot: {
       key: s.id,
       title: topic.title,
-      detail: `${s.hand.seats.length} Spieler · ${stack} BB`,
+      detail: `${s.hand.seats.length} Spieler · ${stack} BB${paid ? ` · ${paid} kommen ins Geld` : ""}`,
       hand_id: s.hand.id,
       action_index: s.action_index,
       seed: null,

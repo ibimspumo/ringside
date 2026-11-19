@@ -97,7 +97,7 @@ pub(crate) fn key_spot(state: &AppState, id: &str) -> CmdResult<KeySpotView> {
     let spot = DrillSpot {
         key: s.id.clone(),
         title: t.title.clone(),
-        detail: format!("{} Spieler · {} BB", players(s), fmt_bb(s.stack_bb)),
+        detail: s.detail(),
         hand_id: s.hand.id,
         action_index: s.action_index,
         seed: None,
@@ -111,10 +111,6 @@ pub(crate) fn key_spot(state: &AppState, id: &str) -> CmdResult<KeySpotView> {
         pot_bb: d.pot_bb,
     };
     Ok(KeySpotView { spot, topic: t, number: number + 1, total: pack.spots.len(), grid: s.grid.clone() })
-}
-
-fn fmt_bb(x: f64) -> String {
-    if x.fract().abs() < 1e-9 { format!("{x:.0}") } else { format!("{x:.1}").replace('.', ",") }
 }
 
 pub(crate) fn key_spot_check(state: &AppState, id: &str, choice: usize) -> CmdResult<DrillResult> {

@@ -89,6 +89,6 @@
   .foot {
     margin: 0;
     font-size: var(--fs-sm);
-    color: var(--text-3);
+    color: var(--text-2);
   }
 </style>

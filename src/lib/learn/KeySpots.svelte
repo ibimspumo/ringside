@@ -190,7 +190,6 @@
           <li class:now={i === index} class:ok={results[i] === true} class:miss={results[i] === false}></li>
         {/each}
       </ol>
-      {#if topicOfRound}<span class="bar-topic">{topicTitle(topicOfRound)}</span>{/if}
       <Button variant="quiet" onclick={finish}>Runde beenden</Button>
     </div>
     {#if error}
@@ -477,10 +476,6 @@
   }
   .steps li.miss {
     background: var(--neg);
-  }
-  .bar-topic {
-    font-size: var(--fs-sm);
-    color: var(--text-3);
   }
   .bar :global(.ui-btn) {
     margin-left: auto;

@@ -97,6 +97,21 @@ pub struct LernSpot {
     /// Hero's stack in BB at the start of the hand, players and table size, for the list.
     pub stack_bb: f64,
     pub position: String,
+    /// Bubble spots: prizes in percent of the pool, first place first.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub payouts: Vec<f64>,
+}
+
+impl LernSpot {
+    /// "9 Spieler · 12 BB", on the bubble with who gets paid.
+    pub fn detail(&self) -> String {
+        let stack = crate::fmt::num(self.stack_bb);
+        let players = self.hand.seats.len();
+        match self.payouts.iter().filter(|p| **p > 0.0).count() {
+            0 => format!("{players} Spieler · {stack} BB"),
+            paid => format!("{players} Spieler · {stack} BB · {paid} kommen ins Geld"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -247,7 +262,8 @@ pub fn history(spec: &Spec, id: u64) -> Result<String, String> {
             }
         })
         .collect();
-    let max = if n <= 6 { 6 } else { 9 };
+    // A bubble table shows only the players left, no empty seats.
+    let max = if n > 6 { 9 } else if n == 6 { 6 } else { n };
     let mut out = String::new();
     let tid = 3_900_000_000u64 + id;
     writeln!(out, "PokerStars Hand #{id}: Tournament #{tid}, $1+$0.10 USD Hold'em No Limit - Level X (200/400) - 2026/11/19 20:00:00 ET").unwrap();
@@ -678,7 +694,7 @@ pub fn build(spec: &Spec, threads: usize, memory: u64, cache: &mut SolveCache) -
         return Err(format!("{}: eine Karte doppelt", spec.id));
     }
     let stack_bb = spec.stacks.get(&spec.hero).copied().unwrap_or(spec.stack);
-    Ok(LernSpot { id: spec.id.clone(), topic: spec.topic.clone(), hand, action_index: index, decision, grid: Some(grid), stack_bb, position: spec.hero.clone() })
+    Ok(LernSpot { id: spec.id.clone(), topic: spec.topic.clone(), hand, action_index: index, decision, grid: Some(grid), stack_bb, position: spec.hero.clone(), payouts: spec.payouts.clone() })
 }
 
 /// The bundled pack.
