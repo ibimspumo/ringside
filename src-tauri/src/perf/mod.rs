@@ -61,6 +61,7 @@ impl Timings {
     /// The first call, then the best of three more: what a page costs when opened and when
     /// it is opened again; wall clock and, in brackets, CPU time of the first call.
     fn time<T>(&mut self, label: &str, mut f: impl FnMut() -> T) -> T {
+        let rss = rss_mb();
         let (t, cpu) = (Instant::now(), cpu_ms());
         let out = f();
         let first = t.elapsed().as_secs_f64() * 1000.0;
@@ -71,7 +72,7 @@ impl Timings {
             std::hint::black_box(f());
             best = best.min(t.elapsed().as_secs_f64() * 1000.0);
         }
-        println!("  {label:<46} {first:>9.1} ms ({cpu:>6.1}) {best:>9.1} ms");
+        println!("  {label:<46} {first:>9.1} ms ({cpu:>6.1}) {best:>9.1} ms {:>+7.0} MB", rss_mb() - rss);
         self.rows.push((label.to_string(), first, best));
         out
     }
@@ -123,7 +124,7 @@ fn pages(state: &AppState, t: &mut Timings) {
     let spans = state.db.lock().unwrap().session_spans(ringside_core::session::LISTED_SESSIONS).unwrap();
     let since = Filter { since: spans.last().map(|s| s.start.clone()), ..Default::default() };
 
-    println!("  {:<46} {:>21} {:>12}", "", "erster Aufruf (CPU)", "wiederholt");
+    println!("  {:<46} {:>21} {:>12} {:>10}", "", "erster Aufruf (CPU)", "wiederholt", "RSS +");
     // The top bar and every page on each refresh (a new hand, a finished analysis).
     t.time("Kopfleiste: Turnierliste", || crate::totals(&state.db.lock().unwrap().tournaments(&tour).unwrap()));
     t.time("Kopfleiste: Spieler (300)", || state.db.lock().unwrap().players(&all, "", 300).unwrap());
@@ -275,7 +276,9 @@ fn pages_of(db: &Path) {
     std::fs::copy(db, &path).unwrap();
     let state = state_on(&path);
     println!("\n== {} Hände aus {} ==", state.db.lock().unwrap().hand_count().unwrap(), db.display());
+    println!("  RSS vor den Seiten {:.0} MB", rss_mb());
     pages(&state, &mut Timings { rows: Vec::new() });
+    println!("  RSS danach {:.0} MB", rss_mb());
 }
 
 #[test]

@@ -20,6 +20,13 @@ impl Db {
 
     /// The hero's rated decisions of every hand, in hand order.
     pub fn skill_moves(&self) -> Result<Vec<Move>, Error> {
+        let mut out = Vec::new();
+        self.each_skill_move(|m| out.push(m))?;
+        Ok(out)
+    }
+
+    /// [`Db::skill_moves`] one by one, for a caller that keeps only a few of them.
+    pub fn each_skill_move(&self, mut f: impl FnMut(Move)) -> Result<(), Error> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT d.hand_id, d.action_index, h.tournament_id, h.played_at, d.spot, d.status, d.rating, d.source,
                     d.reliability, d.ev_loss_bb, d.pot_bb, h.hero_chips_bb, h.hero_stack_bb, h.hero_position,
@@ -50,7 +57,10 @@ impl Db {
                 best: r.get(17)?,
             })
         })?;
-        rows.collect()
+        for m in rows {
+            f(m?);
+        }
+        Ok(())
     }
 }
 

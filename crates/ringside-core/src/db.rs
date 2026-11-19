@@ -843,13 +843,15 @@ impl Db {
                     .map(|r| (r.hand_id, r.action_index, r.ev_loss_bb.unwrap_or(-1.0)))
                     .collect(),
             ),
-            (None, Some(area)) => Some(
-                self.skill_moves()?
-                    .into_iter()
-                    .filter(|m| crate::skill::Area::of(m) == area)
-                    .map(|m| (m.hand_id, m.action_index, m.ev_loss_bb.unwrap_or(-1.0)))
-                    .collect(),
-            ),
+            (None, Some(area)) => {
+                let mut picked = Vec::new();
+                self.each_skill_move(|m| {
+                    if crate::skill::Area::of(&m) == area {
+                        picked.push((m.hand_id, m.action_index, m.ev_loss_bb.unwrap_or(-1.0)));
+                    }
+                })?;
+                Some(picked)
+            }
             (None, None) => None,
         };
         let profile_sql = match &picked {
