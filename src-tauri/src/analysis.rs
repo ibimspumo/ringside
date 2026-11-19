@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 
 use ringside_analysis::postflop::{JobError, TARGET_PCT, rate, settings, solve_spot};
 use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets, estimate_rest};
-use ringside_core::db::{AnalysisCounts, AnalysisSummary, Decision, Filter, SolutionSource, Status};
+use ringside_core::db::{AnalysisCounts, AnalysisSummary, Db, Decision, Filter, SolutionSource, Status};
 use ringside_core::model::Street;
 use ringside_solver::gate::Priority;
 use ringside_solver::saved::NOT_STORED;
@@ -941,7 +941,14 @@ pub async fn analysis_chart_target(hand_id: u64, action_index: usize, app: AppHa
 
 #[tauri::command]
 pub async fn analysis_summary(filter: Filter, app: AppHandle) -> CmdResult<AnalysisSummary> {
-    blocking(app, move |state| state.db.lock().unwrap().analysis_summary(&filter, ENGINE, 5).map_err(err)).await
+    blocking(app, move |state| summary(&state.db.lock().unwrap(), &filter)).await
+}
+
+static SUMMARY: crate::memo::Memo<((u64, u64), String), AnalysisSummary> = crate::memo::Memo::new();
+
+/// The top bar and the analysis page ask for the same summary.
+pub(crate) fn summary(db: &Db, filter: &Filter) -> CmdResult<AnalysisSummary> {
+    SUMMARY.get_or((db.version(), format!("{filter:?}")), || db.analysis_summary(filter, ENGINE, 5).map_err(err))
 }
 
 #[cfg(test)]

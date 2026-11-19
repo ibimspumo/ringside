@@ -23,7 +23,11 @@ pub struct TournamentReport {
 
 #[tauri::command]
 pub async fn tournament_report(tournament_id: u64, app: AppHandle) -> CmdResult<TournamentReport> {
-    blocking(app, move |state| {
+    blocking(app, move |state| report_page(state, tournament_id)).await
+}
+
+pub(crate) fn report_page(state: &AppState, tournament_id: u64) -> CmdResult<TournamentReport> {
+    {
         let (tournament, mut report, coach_review) = {
             let db = state.db.lock().unwrap();
             let tournament = db
@@ -38,8 +42,7 @@ pub async fn tournament_report(tournament_id: u64, app: AppHandle) -> CmdResult<
         };
         crate::next::fill_report(state, &mut report)?;
         Ok(TournamentReport { tournament, report, coach_review })
-    })
-    .await
+    }
 }
 
 #[derive(Serialize)]
@@ -55,7 +58,7 @@ pub struct SessionPage {
 }
 
 /// The session starting at `start`, or the latest one; reduced to its results while `locked`.
-fn session_page(db: &Db, start: Option<&str>, locked: bool) -> Result<SessionPage, String> {
+pub(crate) fn session_page(db: &Db, start: Option<&str>, locked: bool) -> Result<SessionPage, String> {
     let sessions = db.session_spans(LISTED_SESSIONS).map_err(err)?;
     let span = match start {
         Some(s) => sessions.iter().find(|x| x.start == s).or(sessions.first()),

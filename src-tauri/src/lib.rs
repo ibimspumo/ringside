@@ -10,9 +10,12 @@ mod drill;
 mod importer;
 mod jobs;
 mod library;
+mod memo;
 mod memory;
 mod next;
 mod overlay;
+#[cfg(test)]
+mod perf;
 mod play;
 mod ranges;
 mod report;
@@ -420,20 +423,24 @@ struct Dashboard {
 
 #[tauri::command]
 async fn dashboard(filter: Filter, state: State<'_, AppState>) -> CmdResult<Dashboard> {
+    dashboard_view(&state, &filter)
+}
+
+fn dashboard_view(state: &AppState, filter: &Filter) -> CmdResult<Dashboard> {
     let db = state.db.lock().unwrap();
     let heroes = db.heroes().map_err(err)?;
     let hero = match heroes.first() {
         Some(name) => db
-            .players(&filter, name, 50)
+            .players(filter, name, 50)
             .map_err(err)?
             .into_iter()
             .find(|p| &p.name == name)
-            .map(|r| PlayerView::new(r, !locked(&state))),
+            .map(|r| PlayerView::new(r, !locked(state))),
         None => None,
     };
     Ok(Dashboard {
         hand_count: db.hand_count().map_err(err)?,
-        results: db.hero_results(&filter, 1500).map_err(err)?,
+        results: db.hero_results(filter, 1500).map_err(err)?,
         heroes,
         hero,
     })
@@ -462,22 +469,37 @@ async fn leaks(filter: Filter, state: State<'_, AppState>) -> CmdResult<ringside
 
 fn leak_report(state: &AppState, filter: &Filter) -> CmdResult<ringside_core::leaks::LeakReport> {
     unlocked(state)?;
-    let cells = state.db.lock().unwrap().hero_cells(filter).map_err(err)?;
-    Ok(ringside_core::leaks::find(&cells))
+    Ok(ringside_core::leaks::find(&hero_cells(&state.db.lock().unwrap(), filter)?))
+}
+
+static CELLS: memo::Memo<((u64, u64), String), Vec<ringside_core::leaks::Cell>> = memo::Memo::new();
+
+/// The leak finder's cells, which the leaks page and „Was als Nächstes?“ read alike.
+fn hero_cells(db: &Db, filter: &Filter) -> CmdResult<Vec<ringside_core::leaks::Cell>> {
+    CELLS.get_or((db.version(), format!("{filter:?}")), || db.hero_cells(filter).map_err(err))
 }
 
 #[tauri::command]
 async fn reports(filter: Filter, state: State<'_, AppState>) -> CmdResult<Reports> {
-    let db = state.db.lock().unwrap();
-    let view = |rows: Vec<GroupRow>| -> Vec<GroupView> {
-        rows.into_iter()
-            .map(|r| GroupView { stats: stat_values(&r.counters), key: r.key, net: r.net, net_bb: r.net_bb })
-            .collect()
-    };
+    reports_view(&state.db.lock().unwrap(), &filter)
+}
+
+/// The hero's results by position alone, for the overview.
+#[tauri::command]
+async fn positions(filter: Filter, state: State<'_, AppState>) -> CmdResult<Vec<GroupView>> {
+    Ok(group_view(state.db.lock().unwrap().hero_groups(&filter, false).map_err(err)?))
+}
+
+fn group_view(rows: Vec<GroupRow>) -> Vec<GroupView> {
+    rows.into_iter().map(|r| GroupView { stats: stat_values(&r.counters), key: r.key, net: r.net, net_bb: r.net_bb }).collect()
+}
+
+fn reports_view(db: &Db, filter: &Filter) -> CmdResult<Reports> {
+    let view = group_view;
     Ok(Reports {
-        positions: view(db.hero_groups(&filter, false).map_err(err)?),
-        starting_hands: view(db.hero_groups(&filter, true).map_err(err)?),
-        sessions: db.sessions(&filter).map_err(err)?,
+        positions: view(db.hero_groups(filter, false).map_err(err)?),
+        starting_hands: view(db.hero_groups(filter, true).map_err(err)?),
+        sessions: db.sessions(filter).map_err(err)?,
     })
 }
 
@@ -758,6 +780,7 @@ pub fn run() {
             import_hand_files,
             detected_dirs,
             dashboard,
+            positions,
             reports,
             leaks,
             ranges::range_groups,

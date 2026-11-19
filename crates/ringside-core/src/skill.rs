@@ -389,6 +389,18 @@ pub fn change(moves: &[Move], before: impl Fn(&Move) -> bool) -> Option<Change> 
     Some(Change { rating, sigma: now.sigma, tier: tier(rating), delta })
 }
 
+/// [`change`] over the moves from `start` to `end` (times as in `played_at`), read from the
+/// history `p` of all moves instead of rating them twice. The same as long as no tournament
+/// or cash day has moves on both sides of `start` or of `end`.
+pub fn change_between(p: &SkillProfile, start: &str, end: &str) -> Option<Change> {
+    let counted = |e: &&Entry| e.performance.is_some();
+    let upto = || p.entries.iter().take_while(|e| e.started_at.as_str() <= end);
+    let rating = upto().filter(counted).last()?.rating;
+    let sigma = upto().last()?.sigma;
+    let before = p.entries.iter().take_while(|e| e.started_at.as_str() < start).filter(counted).last();
+    Some(Change { rating, sigma, tier: tier(rating), delta: before.map(|b| rating - b.rating) })
+}
+
 struct Unit<'a> {
     key: String,
     tournament_id: Option<u64>,
@@ -687,6 +699,27 @@ mod tests {
             }
         }
         out
+    }
+
+    #[test]
+    fn the_change_over_whole_tournaments_reads_from_the_history() {
+        cases(20, |rng| {
+            let mut moves = history(rng, 12);
+            // One tournament a day, so none reaches over another's start or end.
+            for m in &mut moves {
+                let day = (m.tournament_id.unwrap() - 1000) as u32 * 2;
+                m.played_at = format!("2026/{:02}/{:02} 20:{:02}:00", 1 + day / 28, 1 + day % 28, m.hand_id % 60);
+            }
+            let p = profile(&moves);
+            for (i, first) in p.entries.iter().enumerate() {
+                for last in &p.entries[i..] {
+                    let end = moves.iter().filter(|m| m.tournament_id == last.tournament_id).map(|m| m.played_at.clone()).max().unwrap();
+                    let upto: Vec<Move> = moves.iter().filter(|m| m.played_at <= end).cloned().collect();
+                    let start = &first.started_at;
+                    assert_eq!(change_between(&p, start, &end), change(&upto, |m| &m.played_at < start), "{start} – {end}");
+                }
+            }
+        });
     }
 
     fn final_rating(moves: &[Move]) -> f64 {

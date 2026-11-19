@@ -3470,6 +3470,7 @@ name = "ringside"
 version = "0.17.0"
 dependencies = [
  "keyring",
+ "libc",
  "rayon",
  "ringside-analysis",
  "ringside-cloud",
@@ -3490,6 +3491,7 @@ dependencies = [
  "tauri-plugin-process",
  "tauri-plugin-single-instance",
  "tauri-plugin-updater",
+ "tempfile",
  "windows 0.61.3",
 ]
 
