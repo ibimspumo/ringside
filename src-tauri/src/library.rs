@@ -722,7 +722,7 @@ pub(crate) fn offer(app: &AppHandle, id: SpotId, solution: &mut ringside_solver:
 }
 
 /// [`share`] on its own thread, so the next solve need not wait for the network. One
-/// upload at a time: a slow one holds up the next spot as before.
+/// upload at a time: a slow one holds up the next spot.
 fn share_aside(app: &AppHandle, root: &Path, id: SpotId, stored: Stored, size: usize) {
     let state = app.state::<LibraryState>();
     let mut sharing = state.sharing.lock().unwrap();

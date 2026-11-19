@@ -39,7 +39,7 @@
 //! the hands of [`limp_shape`] (a typical limping range of recreational players), and
 //! the rest of the strategy is solved around it. Limping first in is taken exactly that
 //! often (it stands for the other players, the model itself does not limp in), except
-//! from the small blind, which limps by choice as before. The best responses that measure
+//! from the small blind, which limps by choice. The best responses that measure
 //! exploitability keep the same minimum, so the solve converges to an equilibrium of
 //! this constrained game.
 //!
