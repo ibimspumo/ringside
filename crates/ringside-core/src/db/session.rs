@@ -4,7 +4,7 @@
 use rusqlite::params;
 
 use super::ranges::PREFLOP_FILTER_SQL;
-use super::{Db, Error, FILTER_SQL, Filter, MINUTES_SQL};
+use super::{Db, Error, FILTER_SQL, Filter, MINUTES_SQL, hand_range};
 use crate::allin::hero_all_in;
 use crate::parser::parse_hand;
 use crate::ranges::History;
@@ -46,7 +46,8 @@ impl Db {
     fn preflop_facts(&self, filter: &Filter) -> Result<Vec<PreflopFact>, Error> {
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT p.hand_id, p.action_index, p.class, p.position, p.vs_position, p.history
-             FROM hero_preflop p WHERE {PREFLOP_FILTER_SQL} ORDER BY p.hand_id, p.action_index"
+             FROM hero_preflop p WHERE {PREFLOP_FILTER_SQL} AND {range} ORDER BY p.hand_id, p.action_index",
+            range = hand_range("p.hand_id")
         ))?;
         let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             Ok((
@@ -75,7 +76,8 @@ impl Db {
     fn swing_hands(&self, filter: &Filter) -> Result<Vec<SwingHand>, Error> {
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT h.id, h.tournament_id, h.hero_cards, h.hero_position, h.hero_net, h.hero_ev, h.big_blind, h.hero_showdown
-             FROM hands h WHERE {FILTER_SQL} AND h.hero_net IS NOT NULL ORDER BY h.played_at, h.id"
+             FROM hands h WHERE {FILTER_SQL} AND {range} AND h.hero_net IS NOT NULL ORDER BY h.played_at, h.id",
+            range = hand_range("h.id")
         ))?;
         let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             Ok(SwingHand {

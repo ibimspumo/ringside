@@ -36,7 +36,11 @@ const SCHEMA_VERSION: i32 = 8;
 
 pub struct Db {
     conn: Connection,
+    /// Tells handles apart in [`Db::version`].
+    id: u64,
 }
+
+static HANDLES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// Restricts reports to a kind of game, a start ("YYYY/MM/DD", or with the time), one
 /// tournament and an end ("YYYY/MM/DD HH:MM:SS", inclusive; a session ends there).
@@ -243,14 +247,21 @@ const FILTER_SQL: &str = "(?1 IS NULL OR h.game = ?1) AND (?2 IS NULL OR h.playe
 pub(crate) const MINUTES_SQL: &str =
     "julianday(replace(substr(h.played_at, 1, 10), '/', '-') || ' ' || substr(h.played_at, 12)) * 1440.0";
 
-/// Lets a date or tournament filter range-scan `player_hands` by hand id instead of reading
-/// every row. The bounds only narrow the scan, however ids relate to time; `FILTER_SQL` still
-/// decides which hands count. Written without `OR`, which would stop SQLite from using the key.
-const HAND_RANGE_SQL: &str = "ph.hand_id BETWEEN
+/// Lets a date, session or tournament filter range-scan by hand id (`col`: `h.id`,
+/// `ph.hand_id`, `d.hand_id`, ...) instead of reading every row. The bounds only narrow the
+/// scan, however ids relate to time; `FILTER_SQL` still decides which hands count. Written
+/// without `OR`, which would stop SQLite from using the key.
+pub(crate) fn hand_range(col: &str) -> String {
+    format!(
+        "{col} BETWEEN
     MAX(CASE WHEN ?2 IS NULL THEN 0 ELSE COALESCE((SELECT MIN(id) FROM hands WHERE played_at >= ?2), 0) END,
         CASE WHEN ?3 IS NULL THEN 0 ELSE COALESCE((SELECT MIN(id) FROM hands WHERE tournament_id = ?3), 0) END)
-    AND CASE WHEN ?3 IS NULL THEN 9223372036854775807
-             ELSE COALESCE((SELECT MAX(id) FROM hands WHERE tournament_id = ?3), -1) END";
+    AND MIN(CASE WHEN ?3 IS NULL THEN 9223372036854775807
+                 ELSE COALESCE((SELECT MAX(id) FROM hands WHERE tournament_id = ?3), -1) END,
+            CASE WHEN ?4 IS NULL THEN 9223372036854775807
+                 ELSE COALESCE((SELECT MAX(id) FROM hands WHERE played_at <= ?4), -1) END)"
+    )
+}
 
 impl Db {
     pub fn open(path: &Path) -> Result<Self, Error> {
@@ -284,7 +295,6 @@ impl Db {
              );
              CREATE INDEX IF NOT EXISTS hands_table ON hands(table_key, id);
              CREATE INDEX IF NOT EXISTS hands_time ON hands(played_at, id);
-             CREATE INDEX IF NOT EXISTS hands_tournament ON hands(tournament_id);
              CREATE TABLE IF NOT EXISTS player_hands (
                  hand_id INTEGER NOT NULL,
                  player TEXT NOT NULL,
@@ -384,12 +394,24 @@ impl Db {
                 }
             }
         }
-        let db = Db { conn };
+        // After the added columns: the tournament list and the hero lookup read only these.
+        conn.execute_batch(
+            "DROP INDEX IF EXISTS hands_tournament;
+             CREATE INDEX IF NOT EXISTS hands_tournament_hero ON hands(tournament_id, played_at, hero_net, hero_bounty);
+             CREATE INDEX IF NOT EXISTS hands_hero ON hands(hero, id);",
+        )?;
+        let db = Db { conn, id: HANDLES.fetch_add(1, std::sync::atomic::Ordering::Relaxed) };
         let empty = db.hand_count()? == 0;
         if empty && db.needs_rebuild()? {
             db.conn.execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))?;
         }
         Ok(db)
+    }
+
+    /// Differs from every earlier value as soon as anything is written through this handle,
+    /// and between handles: a key for results computed from the database.
+    pub fn version(&self) -> (u64, u64) {
+        (self.id, self.conn.total_changes())
     }
 
     /// True after an upgrade until [`Db::rebuild_step`] has gone through all stored hands.
@@ -513,18 +535,17 @@ impl Db {
     /// A player's counters in the session `hand` belongs to: the same tournament, or for cash
     /// games the same table on the same day.
     pub fn counters_in_session(&self, player: &str, hand: &Hand) -> Result<Counters, Error> {
+        // Led by the session's hands (tournament or table index), not by all of the player's.
         let sql = format!(
-            "SELECT {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE ph.player = ?1
-               AND ((?2 IS NOT NULL AND h.tournament_id = ?2)
-                 OR (?2 IS NULL AND h.table_key = ?3 AND substr(h.played_at, 1, 10) = ?4))",
-            sums()
+            "SELECT {} FROM hands h JOIN player_hands ph ON ph.hand_id = h.id AND ph.player = ?1 WHERE {}",
+            sums(),
+            if hand.tournament_id.is_some() { "h.tournament_id = ?2" } else { "h.table_key = ?2 AND substr(h.played_at, 1, 10) = ?3" }
         );
-        self.conn.query_row(
-            &sql,
-            params![player, hand.tournament_id.map(|t| t as i64), hand.table_key(), hand.played_at.get(..10).unwrap_or("")],
-            |row| counters_at(row, 0),
-        )
+        let mut stmt = self.conn.prepare_cached(&sql)?;
+        match hand.tournament_id {
+            Some(t) => stmt.query_row(params![player, t as i64], |row| counters_at(row, 0)),
+            None => stmt.query_row(params![player, hand.table_key(), hand.played_at.get(..10).unwrap_or("")], |row| counters_at(row, 0)),
+        }
     }
 
     /// Players ordered by hands played, optionally filtered by a name substring. Without a date
@@ -555,10 +576,11 @@ impl Db {
     ) -> Result<Vec<PlayerRow>, Error> {
         let sql = format!(
             "SELECT ph.player, SUM(ph.net), {} FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE {FILTER_SQL} AND {HAND_RANGE_SQL}
+             WHERE {FILTER_SQL} AND {range}
                AND (?5 IS NULL OR ph.player = ?5) AND ph.player LIKE ?6 ESCAPE '\\'
              GROUP BY ph.player ORDER BY SUM(ph.hands) DESC, ph.player LIMIT ?7",
-            sums()
+            sums(),
+            range = hand_range("ph.hand_id"),
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = stmt.query_map(
@@ -574,9 +596,10 @@ impl Db {
         let sql = format!(
             "SELECT {key}, SUM(ph.net), SUM(CAST(ph.net AS REAL) / ph.big_blind), {}
              FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE ph.player = h.hero AND {key} IS NOT NULL AND {FILTER_SQL} AND {HAND_RANGE_SQL}
+             WHERE ph.player = h.hero AND {key} IS NOT NULL AND {FILTER_SQL} AND {range}
              GROUP BY {key}",
-            sums()
+            sums(),
+            range = hand_range("ph.hand_id"),
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
         let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |row| {
@@ -591,9 +614,10 @@ impl Db {
             "SELECT h.game, ph.position, {band}, SUM(CAST(ph.net AS REAL) / ph.big_blind),
                     SUM((CAST(ph.net AS REAL) / ph.big_blind) * (CAST(ph.net AS REAL) / ph.big_blind)), {}
              FROM player_hands ph JOIN hands h ON h.id = ph.hand_id
-             WHERE ph.player = h.hero AND ph.big_blind > 0 AND {FILTER_SQL} AND {HAND_RANGE_SQL}
+             WHERE ph.player = h.hero AND ph.big_blind > 0 AND {FILTER_SQL} AND {range}
              GROUP BY 1, 2, 3",
             sums(),
+            range = hand_range("ph.hand_id"),
             band = leaks::band_sql("h.hero_stack_bb"),
         );
         let mut stmt = self.conn.prepare_cached(&sql)?;
@@ -1042,8 +1066,10 @@ impl Db {
         rows.collect()
     }
 
+    /// The names the hand histories were written for, the one of the first stored hand first.
     pub fn heroes(&self) -> Result<Vec<String>, Error> {
-        let mut stmt = self.conn.prepare_cached("SELECT DISTINCT hero FROM hands WHERE hero IS NOT NULL")?;
+        let mut stmt =
+            self.conn.prepare_cached("SELECT hero FROM hands WHERE hero IS NOT NULL GROUP BY hero ORDER BY MIN(id)")?;
         let rows = stmt.query_map([], |r| r.get(0))?;
         rows.collect()
     }
