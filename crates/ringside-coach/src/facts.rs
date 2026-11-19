@@ -321,6 +321,7 @@ Total pot 2450 | Rake 0
         let r = report(&hands, &[], 0, "2026/11/16", &[]);
         let t = TournamentRow {
             id: 4046789300,
+            site: Default::default(),
             game: "NL Hold'em".into(),
             currency: Some("USD".into()),
             buy_in: None,

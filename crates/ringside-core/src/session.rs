@@ -86,6 +86,8 @@ pub struct SessionSpan {
     /// In order of their first hand.
     pub tournaments: Vec<u64>,
     pub cash_hands: usize,
+    /// The clients played in this session, PokerStars first.
+    pub sites: Vec<crate::model::Site>,
 }
 
 /// What the range charts store about one preflop decision (see [`crate::ranges`]).
