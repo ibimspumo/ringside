@@ -42,6 +42,7 @@ import type {
   ClientWindow,
   Dashboard,
   Filter,
+  GroupView,
   Hand,
   HandQuery,
   HandSummary,
@@ -73,7 +74,8 @@ export function call<T>(cmd: string, args: Record<string, unknown>, fallback: ()
 
 /**
  * Browser preview: `?data=empty` shows the analysis pages without hands, `?data=error` a failed load,
- * `?data=big` long names, huge numbers and long lists.
+ * `?data=big` long names, huge numbers and long lists, `?data=scale` the lists of 200 000 hands
+ * where a page has them.
  */
 const previewData = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
 
@@ -171,7 +173,7 @@ export const api = {
   pokerClientName: () =>
     call<string | null>("poker_client_name", {}, () => (lockedParam === "gg" ? "GGPoker" : demoLocked ? "PokerStars" : null)),
   tournaments: (filter: Filter) =>
-    sample<Tournaments>("tournaments", { filter }, demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
+    sample<Tournaments>("tournaments", { filter }, previewData === "scale" ? demo.scaleTournaments : demo.demoTournaments, () => ({ rows: [], totals: [] }), demo.bigTournaments),
   /** The report of one tournament from Ringside's own numbers; locked while PokerStars runs. */
   tournamentReport: (tournamentId: number) => {
     const made = advice(() => reportDemo.demoReport(tournamentId));
@@ -202,6 +204,9 @@ export const api = {
       () => ({ positions: [], starting_hands: [], sessions: [] }),
       () => demo.demoReports(filter),
     ),
+  /** The overview's results by position, without the rest of `reports`. */
+  positions: (filter: Filter) =>
+    sample<GroupView[]>("positions", { filter }, () => demo.demoReports(filter).positions, () => [], () => demo.demoReports(filter).positions),
   leaks: (filter: Filter) =>
     sample<LeakReport>("leaks", { filter }, advice(() => demo.demoLeaks(filter)), () => ({
       ...demo.demoLeaks({ game: "cash", since: null, tournament_id: null }),

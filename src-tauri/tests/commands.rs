@@ -361,6 +361,7 @@ const OPEN_WHILE_PLAYING: &[&str] = &[
     "poker_client_name",
     // Own results, stats and hand history.
     "reports",
+    "positions",
     "tournaments",
     "shown_hands",
     "player_note",

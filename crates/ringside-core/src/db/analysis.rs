@@ -3,12 +3,14 @@
 //! still need a solve. The evaluation itself lives in `ringside-analysis`; this module
 //! only stores, filters and sums it.
 
+use std::collections::BTreeMap;
+
 use rusqlite::{OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
-use super::{Db, Error, FILTER_SQL, Filter};
+use super::{Db, Error, FILTER_SQL, Filter, hand_range};
 use crate::model::Street;
-use crate::profile::{ProfileRow, facing_bet};
+use crate::profile::ProfileRow;
 
 pub(super) const SCHEMA: &str = "
     CREATE TABLE IF NOT EXISTS hero_decisions (
@@ -452,6 +454,10 @@ fn brief_at(r: &rusqlite::Row, first: usize) -> rusqlite::Result<DecisionBrief> 
 const WORST_ORDER: &str = "CASE d.status WHEN 'rated' THEN 0 WHEN 'pending' THEN 1 WHEN 'unrated' THEN 2 ELSE 3 END, d.ev_loss_bb DESC,
      d.rating DESC, d.action_index";
 
+/// [`facing_bet`] on the stored strategy, without parsing it: [`write_decision`] stores it as
+/// serde writes it, so a call is always `"kind":"call"`.
+const FACING_BET_SQL: &str = r#"instr(d.strategy, '"kind":"call"') > 0"#;
+
 fn write_decision(tx: &Transaction, d: &Decision) -> Result<(), Error> {
     let strategy = serde_json::to_string(&d.strategy).unwrap_or_else(|_| "[]".into());
     tx.prepare_cached(
@@ -660,56 +666,73 @@ impl Db {
         let mut out = AnalysisSummary { ratings: vec![0; Rating::ALL.len()], ..Default::default() };
         (out.hands, out.analyzed) = self.conn.prepare_cached(&format!(
             "SELECT COUNT(*), COALESCE(SUM(a.engine = ?5), 0) FROM hands h LEFT JOIN hand_analysis a ON a.hand_id = h.id
-             WHERE h.hero IS NOT NULL AND {FILTER_SQL}"
+             WHERE h.hero IS NOT NULL AND {FILTER_SQL} AND {range}",
+            range = hand_range("h.id")
         ))?
         .query_row(args, |r| Ok((r.get(0)?, r.get(1)?)))?;
 
-        let from = format!(
-            "FROM hero_decisions d JOIN hands h ON h.id = d.hand_id WHERE {FILTER_SQL} AND ?5 IS NOT NULL AND d.status <> 'forced'"
-        );
+        // One pass over the decisions; spot, rating and source are summed from its groups.
         let mut stmt = self.conn.prepare_cached(&format!(
-            "SELECT d.spot, COUNT(*), COALESCE(SUM(d.status = 'rated'), 0), COALESCE(SUM(d.rating >= {FLAWED}), 0),
-                    COALESCE(SUM(d.ev_loss_bb), 0)
-             {from} GROUP BY d.spot"
+            "SELECT d.spot, d.status = 'rated', d.rating, d.source, COUNT(*), COALESCE(SUM(d.ev_loss_bb), 0)
+             FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
+             WHERE {FILTER_SQL} AND {range} AND d.status <> 'forced'
+             GROUP BY 1, 2, 3, 4",
+            range = hand_range("d.hand_id")
         ))?;
-        let rows = stmt.query_map(args, |r| {
-            Ok(SpotLoss {
-                spot: SpotType::parse(&r.get::<_, String>(0)?),
-                decisions: r.get(1)?,
-                rated: r.get(2)?,
-                flawed: r.get(3)?,
-                loss_bb: r.get(4)?,
-            })
-        })?;
-        for row in rows {
-            let row = row?;
+        let mut spots: BTreeMap<String, SpotLoss> = BTreeMap::new();
+        let mut sources: BTreeMap<String, i64> = BTreeMap::new();
+        let mut rows = stmt.query(params![filter.game(), filter.since, filter.tournament(), filter.until])?;
+        while let Some(r) = rows.next()? {
+            let spot: String = r.get(0)?;
+            let rated: bool = r.get(1)?;
+            let rating: Option<i64> = r.get(2)?;
+            let n: i64 = r.get(4)?;
+            let loss: f64 = r.get(5)?;
+            let s = spots.entry(spot).or_insert_with_key(|k| SpotLoss {
+                spot: SpotType::parse(k),
+                decisions: 0,
+                rated: 0,
+                flawed: 0,
+                loss_bb: 0.0,
+            });
+            s.decisions += n;
+            s.loss_bb += loss;
+            if rated {
+                s.rated += n;
+                if let Some(source) = r.get::<_, Option<String>>(3)? {
+                    *sources.entry(source).or_default() += n;
+                }
+            }
+            if let Some(level) = rating {
+                if level >= FLAWED {
+                    s.flawed += n;
+                }
+                if let Some(slot) = out.ratings.get_mut(level as usize) {
+                    *slot += n;
+                }
+            }
+        }
+        for row in spots.into_values() {
             out.decisions += row.decisions;
             out.rated += row.rated;
             out.loss_bb += row.loss_bb;
             out.by_spot.push(row);
         }
         out.by_spot.sort_by(|a, b| b.loss_bb.total_cmp(&a.loss_bb));
+        out.by_source = sources.into_iter().filter_map(|(s, n)| Some((Source::parse(&s)?, n))).collect();
+        out.costliest = self.costliest(filter, top)?;
+        Ok(out)
+    }
 
-        let mut stmt = self.conn.prepare_cached(&format!("SELECT d.rating, COUNT(*) {from} AND d.rating IS NOT NULL GROUP BY d.rating"))?;
-        for row in stmt.query_map(args, |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))? {
-            let (level, n) = row?;
-            if let Some(slot) = out.ratings.get_mut(level as usize) {
-                *slot = n;
-            }
-        }
-        let mut stmt = self.conn.prepare_cached(&format!("SELECT d.source, COUNT(*) {from} AND d.source IS NOT NULL AND d.status = 'rated' GROUP BY d.source"))?;
-        for row in stmt.query_map(args, |r| r.get::<_, String>(0).map(|s| (s, r.get::<_, i64>(1))))? {
-            let (s, n) = row?;
-            if let Some(s) = Source::parse(&s) {
-                out.by_source.push((s, n?));
-            }
-        }
-
+    /// The `top` costliest flawed decisions in the hands of `filter`, read along the loss index.
+    pub fn costliest(&self, filter: &Filter, top: usize) -> Result<Vec<CostlyDecision>, Error> {
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT h.id, h.played_at, h.hero_cards, h.hero_position, {BRIEF_COLS}
-             {from} AND d.rating >= {FLAWED} ORDER BY d.ev_loss_bb DESC LIMIT {top}"
+             FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
+             WHERE {FILTER_SQL} AND d.status <> 'forced' AND d.rating >= {FLAWED}
+             ORDER BY d.ev_loss_bb DESC LIMIT ?5"
         ))?;
-        let rows = stmt.query_map(args, |r| {
+        let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until, top as i64], |r| {
             Ok(CostlyDecision {
                 hand_id: r.get::<_, i64>(0)? as u64,
                 played_at: r.get(1)?,
@@ -718,22 +741,21 @@ impl Db {
                 decision: brief_at(r, 4)?,
             })
         })?;
-        out.costliest = rows.collect::<Result<_, _>>()?;
-        Ok(out)
+        rows.collect()
     }
     /// Every unforced decision of the hero in the hands of `filter`, with what the playing
     /// profile needs of its hand.
     pub fn profile_rows(&self, filter: &Filter) -> Result<Vec<ProfileRow>, Error> {
         let mut stmt = self.conn.prepare_cached(&format!(
             "SELECT d.hand_id, d.action_index, h.played_at, d.spot, d.status, d.rating, d.ev_loss_bb, d.source, d.reliability,
-                    d.strategy, h.hero_position, h.hero_stack_bb,
+                    {FACING_BET_SQL}, h.hero_position, h.hero_stack_bb,
                     (SELECT COUNT(*) FROM player_hands p WHERE p.hand_id = h.id)
              FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
-             WHERE {FILTER_SQL} AND d.status <> 'forced'
-             ORDER BY d.hand_id, d.action_index"
+             WHERE {FILTER_SQL} AND {range} AND d.status <> 'forced'
+             ORDER BY d.hand_id, d.action_index",
+            range = hand_range("d.hand_id")
         ))?;
         let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
-            let strategy: Vec<Choice> = serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default();
             Ok(ProfileRow {
                 hand_id: r.get::<_, i64>(0)? as u64,
                 action_index: r.get::<_, i64>(1)? as usize,
@@ -744,7 +766,7 @@ impl Db {
                 ev_loss_bb: r.get(6)?,
                 source: r.get::<_, Option<String>>(7)?.as_deref().and_then(Source::parse),
                 reliability: r.get(8)?,
-                facing_bet: facing_bet(&strategy),
+                facing_bet: r.get(9)?,
                 position: r.get(10)?,
                 stack_bb: r.get(11)?,
                 players: r.get::<_, i64>(12)? as usize,
@@ -777,5 +799,29 @@ impl Db {
             .prepare_cached(&format!("SELECT {BRIEF_COLS} FROM hero_decisions d WHERE d.hand_id = ?1 AND d.action_index = ?2"))?
             .query_row(params![hand_id as i64, action_index as i64], |r| brief_at(r, 0))
             .optional()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::profile::facing_bet;
+
+    #[test]
+    fn the_stored_strategy_tells_a_bet_faced_like_the_parsed_one() {
+        let db = Db::open_in_memory().unwrap();
+        let choice = |label: &str, kind: &str| Choice { label: label.into(), freq: 0.5, ev_bb: Some(1.0), played: false, kind: kind.into() };
+        let strategies = [
+            vec![choice("Fold", "fold"), choice("Call", "call"), choice("Raise auf 6 BB", "raise")],
+            vec![choice("Check", "check"), choice("Bet 3 BB", "bet")],
+            vec![choice("Fold", "fold"), choice("All-in", "all_in")],
+            vec![choice("call", "fold")],
+            vec![],
+        ];
+        for s in strategies {
+            let json = serde_json::to_string(&s).unwrap();
+            let sql: bool = db.conn.query_row(&format!("SELECT {FACING_BET_SQL} FROM (SELECT ?1 AS strategy) d"), [&json], |r| r.get(0)).unwrap();
+            assert_eq!(sql, facing_bet(&s), "{json}");
+        }
     }
 }

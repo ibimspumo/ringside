@@ -75,8 +75,8 @@
         failed = false;
       })
       .catch(() => live && (failed = true));
-    api.reports(f).then(
-      (rep) => live && (positions = rep.positions),
+    api.positions(f).then(
+      (rows) => live && (positions = rows),
       () => live && (positions = []),
     );
     return () => (live = false);
