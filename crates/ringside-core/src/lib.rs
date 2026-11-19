@@ -15,6 +15,7 @@ pub mod profile;
 pub mod ranges;
 pub mod report;
 pub mod session;
+pub mod skill;
 pub mod stats;
 pub mod table;
 pub mod tournament;
