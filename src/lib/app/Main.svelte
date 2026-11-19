@@ -64,7 +64,7 @@
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
     leaks: "Was dich am meisten kostet, das Wichtigste zuerst. Darunter deine Werte gegen veröffentlichte Richtwerte.",
-    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
+    ranges: "Welche Hände du vor dem Flop wirklich spielst – je Position, Tiefe und Vorgeschichte, neben dem Modell.",
     coach: "Optional: Ein Sprachmodell erklärt deine Zahlen und bespricht Turniere ausführlich. Jede Zahl rechnet Ringside selbst.",
     training: "Kurze Runden, deine eigenen Hände und Wissen zum Nachlesen.",
     play: "Postflop-Spots rechnet Ringside im Hintergrund vor.",
@@ -74,7 +74,7 @@
   /** While the client runs: the lines of pages whose usual line promises a rating. */
   const LOCKED_NOTES: Partial<Record<Tab, string>> = {
     tournaments: "Ergebnisse deiner Turniere. Den Bericht gibt es, sobald du PokerStars schließt.",
-    ranges: "Welche Hände du preflop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
+    ranges: "Welche Hände du vor dem Flop wirklich spielst – je Position, Tiefe und Vorgeschichte.",
     leaks: "Deine Werte gegen Richtwerte – sobald du PokerStars schließt.",
   };
   watchPokerClient();

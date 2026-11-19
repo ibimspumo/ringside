@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { go } from "../nav/go";
   import { GRADE_OF } from "../analysis/labels";
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
@@ -240,7 +241,9 @@
   {:else if !page}
     <EmptyState page tone="loading" title="Rückblick wird geladen …" />
   {:else if !review || !span || !pre || !rep}
-    <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst." />
+    <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst.">
+      {#snippet action()}<Button onclick={() => go("play")}>Solange: Hände gegen Bots spielen</Button>{/snippet}
+    </EmptyState>
   {:else if detail && !review.locked}
     <Luck {review} onBack={() => (detail = false)} onHand={(id, at) => scope && onHand(scope, id, at)} />
   {:else}

@@ -29,7 +29,7 @@
   } = $props();
 </script>
 
-<div class="ui-state {tone}" class:compact class:inline class:page role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined} aria-busy={tone === "loading" || undefined}>
+<div class="ui-state {tone}" class:compact class:inline class:framed={page} role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined} aria-busy={tone === "loading" || undefined}>
   <span class="mark" aria-hidden="true">
     {#if tone === "loading"}
       <span class="spin"></span>
@@ -67,7 +67,7 @@
   .compact {
     padding: var(--sp-5) var(--sp-4);
   }
-  .page {
+  .framed {
     border: 1px solid var(--line);
     border-radius: var(--r-md);
     background: var(--surface);

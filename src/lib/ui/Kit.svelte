@@ -815,10 +815,11 @@
           </div>
         </div>
         <div class="three">
-          <Card pad="sm"><EmptyState title="Noch keine Hände" text="Spiel ein paar Hände bei PokerStars – sie erscheinen hier automatisch.">{#snippet action()}<Button variant="primary" size="sm">Ordner prüfen</Button>{/snippet}</EmptyState></Card>
-          <Card pad="sm"><EmptyState title="Kein Tisch offen" text="Mit eigenem Symbol für das, was fehlt.">{#snippet icon()}<path d="M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5z" />{/snippet}</EmptyState></Card>
-          <Card pad="sm"><EmptyState tone="loading" title="Hände werden gelesen …" text="Das dauert beim ersten Start etwa eine Minute." /></Card>
-          <Card pad="sm"><EmptyState tone="error" title="Ordner nicht gefunden" text="Prüf den Pfad zu deinen Hand-Historien in den Einstellungen.">{#snippet action()}<Button size="sm">Einstellungen öffnen</Button>{/snippet}</EmptyState></Card>
+          <EmptyState page title="Noch keine Hände" text="Spiel ein paar Hände bei PokerStars – sie erscheinen hier automatisch.">{#snippet action()}<Button variant="primary" size="sm">Ordner prüfen</Button>{/snippet}</EmptyState>
+          <EmptyState page title="Kein Tisch offen" text="Mit eigenem Symbol für das, was fehlt.">{#snippet icon()}<path d="M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5z" />{/snippet}</EmptyState>
+          <EmptyState page tone="loading" title="Hände werden gelesen …" text="Das dauert beim ersten Start etwa eine Minute." />
+          <EmptyState page tone="error" title="Ordner nicht gefunden" text="Prüf den Pfad zu deinen Hand-Historien in den Einstellungen.">{#snippet action()}<Button variant="primary" size="sm">Einstellungen öffnen</Button>{/snippet}</EmptyState>
+          <EmptyState page title="Wieder da, sobald du PokerStars schließt" text="Gesperrt, solange PokerStars läuft. Ergebnisse, Statistiken und HUD laufen weiter.">{#snippet icon()}<rect x="5" y="10.5" width="14" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />{/snippet}{#snippet action()}<Button variant="primary" size="sm">Live-Tische</Button>{/snippet}</EmptyState>
         </div>
       </section>
     {/if}
