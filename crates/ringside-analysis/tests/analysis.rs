@@ -77,6 +77,7 @@ fn model_comparison_names_the_nearest_configuration() {
     assert_eq!(d.best.as_deref(), Some("Fold"));
     assert!(d.rating >= Some(Rating::Inaccuracy), "{d:?}");
     assert!(d.note.contains("nächste vorgerechnete Tiefe: 40 BB statt 37 BB"), "{}", d.note);
+    assert!(d.why.starts_with("Als UTG+1 mit 37 BB (gerechnet mit 40 BB):"), "the hero's own stack first: {}", d.why);
     assert!(d.played_freq.unwrap() < 0.05);
 }
 

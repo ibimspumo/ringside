@@ -308,7 +308,16 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
                     });
                 }
                 let pot = pot_before(hand, index);
-                let facts = ranked(&own, class, &t.class().to_string(), format!("Als {pos} mit {}", bb(stack)));
+                // The hero's own stack, as in the hand; the model's depth only beside it.
+                let mut place = if (t.stack_bb(t.hero) - effective).abs() >= 0.5 {
+                    format!("Als {pos} mit {} effektiv", bb(effective))
+                } else {
+                    format!("Als {pos} mit {}", bb(effective))
+                };
+                if (stack - effective).abs() >= 0.5 {
+                    place.push_str(&format!(" (gerechnet mit {})", bb(stack)));
+                }
+                let facts = ranked(&own, class, &t.class().to_string(), place);
                 decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |d| {
                     why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0))
                 }));
