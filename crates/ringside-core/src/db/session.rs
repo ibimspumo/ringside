@@ -7,6 +7,7 @@ use super::ranges::PREFLOP_FILTER_SQL;
 use super::{Db, Error, FILTER_SQL, Filter, MINUTES_SQL};
 use crate::allin::hero_all_in;
 use crate::parser::parse_hand;
+use crate::model::Site;
 use crate::ranges::History;
 use crate::report::report;
 use crate::session::{PreflopFact, SessionReview, SessionSpan, Swing, SwingHand, preflop_review, split, swings};
@@ -15,12 +16,17 @@ impl Db {
     /// The hero's sessions, newest first, at most `limit`.
     pub fn session_spans(&self, limit: usize) -> Result<Vec<SessionSpan>, Error> {
         let mut stmt = self.conn.prepare_cached(&format!(
-            "SELECT h.played_at, {MINUTES_SQL}, h.tournament_id FROM hands h
+            "SELECT h.played_at, {MINUTES_SQL}, h.tournament_id, h.site FROM hands h
              WHERE h.hero_net IS NOT NULL ORDER BY h.played_at, h.id"
         ))?;
-        let rows: Vec<(String, f64, Option<u64>)> = stmt
+        let rows: Vec<(String, f64, Option<u64>, String)> = stmt
             .query_map([], |r| {
-                Ok((r.get(0)?, r.get::<_, Option<f64>>(1)?.unwrap_or(0.0), r.get::<_, Option<i64>>(2)?.map(|t| t as u64)))
+                Ok((
+                    r.get(0)?,
+                    r.get::<_, Option<f64>>(1)?.unwrap_or(0.0),
+                    r.get::<_, Option<i64>>(2)?.map(|t| t as u64),
+                    r.get(3)?,
+                ))
             })?
             .collect::<Result<_, _>>()?;
         let index = split(&rows.iter().map(|r| (r.1, r.2)).collect::<Vec<_>>());
@@ -32,6 +38,12 @@ impl Db {
             let s = &mut spans[i];
             s.end = r.0;
             s.hands += 1;
+            if let Some(site) = Site::parse(&r.3)
+                && !s.sites.contains(&site)
+            {
+                s.sites.push(site);
+                s.sites.sort_by_key(|s| *s != Site::PokerStars);
+            }
             match r.2 {
                 Some(t) if !s.tournaments.contains(&t) => s.tournaments.push(t),
                 Some(_) => {}

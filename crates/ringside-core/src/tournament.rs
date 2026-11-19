@@ -7,7 +7,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::clock::local_time;
-use crate::model::Amount;
+use crate::model::{Amount, Site, gg_tournament_id};
 use crate::parser::{currency_code, parse_amount};
 
 /// Currency of play-chip tournaments, which have neither a symbol nor a code.
@@ -98,10 +98,16 @@ pub struct Summary {
     pub currency: Option<String>,
     /// Prize per place from first, when the summary lists every paid place; else empty.
     pub payouts: Vec<Amount>,
+    /// Tournament name, when the summary names it (GGPoker).
+    pub name: Option<String>,
 }
 
 static HEADER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^PokerStars Tournament #(\d+),\s*(.*)$").unwrap());
-static PLAYERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([\d,]+) players$").unwrap());
+/// "Tournament #26892539, GGMasters Daily $25, $50K GTD, Hold'em No Limit"
+static GG_HEADER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Tournament #(\d+),\s*(.*)$").unwrap());
+/// "1322th : Hero, $0"
+static GG_RANK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^(\d+)(?:st|nd|rd|th) : (.+), ([^,]+)$").unwrap());
+static PLAYERS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^([\d,]+) (?i:players)$").unwrap());
 /// "  7: Name [2] (Country), $6,514.80 (2.063%)": the text after the last "),".
 static RANK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s*(\d+): .*\),\s*(.*)$").unwrap());
 static FINISHED: LazyLock<Regex> =
@@ -138,6 +144,11 @@ fn payouts(ranks: &[(i64, String)], entrants: Option<i64>) -> Vec<Amount> {
     if entrants == Some(out.len() as i64) { out } else { Vec::new() }
 }
 
+/// Whether `text` is a tournament summary file rather than hand histories.
+pub fn is_summary(text: &str) -> bool {
+    text.lines().take(3).map(|l| l.trim_start_matches('\u{feff}').trim_end()).any(|l| HEADER.is_match(l) || GG_HEADER.is_match(l))
+}
+
 /// Parses every tournament in a summary file (normally one; e-mailed histories hold several).
 pub fn parse_summaries(text: &str) -> Vec<Summary> {
     let mut out: Vec<Summary> = Vec::new();
@@ -155,11 +166,45 @@ pub fn parse_summaries(text: &str) -> Vec<Summary> {
         s.payouts = payouts(ranks, s.entrants);
         ranks.clear();
     };
+    let mut gg = false;
+    // GGPoker lists only the hero's own place: "2nd : Hero, $20".
+    let mut hero_rank: Option<String> = None;
+    let mut received = false;
     for line in text.lines().map(|l| l.trim_start_matches('\u{feff}').trim_end()) {
+        if let Some(c) = GG_HEADER.captures(line) {
+            if let Some(prev) = out.last_mut() {
+                finish(prev, &mut ranks);
+                finish_gg(prev, gg, received, hero_rank.take());
+            }
+            let Some(id) = c[1].parse().ok().and_then(gg_tournament_id) else { continue };
+            // The game is the last part; names may hold commas themselves.
+            let (name, game) = c[2].rsplit_once(", ").unwrap_or(("", &c[2]));
+            gg = true;
+            received = false;
+            out.push(Summary {
+                id,
+                game: game_label(game),
+                buy_in: None,
+                entrants: None,
+                prize_pool: None,
+                started_at: None,
+                finished_at: None,
+                place: None,
+                prize: 0,
+                bounties: None,
+                extra_cost: 0,
+                currency: None,
+                payouts: Vec::new(),
+                name: (!name.is_empty()).then(|| name.to_string()),
+            });
+            continue;
+        }
         if let Some(c) = HEADER.captures(line) {
             if let Some(prev) = out.last_mut() {
                 finish(prev, &mut ranks);
+                finish_gg(prev, gg, received, hero_rank.take());
             }
+            gg = false;
             let Ok(id) = c[1].parse() else { continue };
             out.push(Summary {
                 id,
@@ -175,10 +220,38 @@ pub fn parse_summaries(text: &str) -> Vec<Summary> {
                 extra_cost: 0,
                 currency: None,
                 payouts: Vec::new(),
+                name: None,
             });
             continue;
         }
         let Some(s) = out.last_mut() else { continue };
+        if gg {
+            if let Some(rest) = line.strip_prefix("Buy-in: ") {
+                // GGPoker writes prize, fee and bounty in that order: "$5+$0.8+$4.2".
+                s.buy_in = parse_buy_in(rest).map(|b| match rest.matches('+').count() {
+                    2 => BuyIn { bounty: b.fee, fee: b.bounty, ..b },
+                    _ => b,
+                });
+                s.currency = s.buy_in.as_ref().and_then(|b| b.currency.clone());
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("Tournament started ") {
+                // Older summaries are in UTC, the hands in local time: the first hand dates it then.
+                s.started_at = if rest.trim().ends_with("UTC") { None } else { local_time(rest) };
+                continue;
+            }
+            if let Some(c) = GG_RANK.captures(line) {
+                if &c[2] == "Hero" {
+                    hero_rank = Some(c[3].to_string());
+                }
+                continue;
+            }
+            if let Some(rest) = line.strip_prefix("You received a total of ") {
+                s.prize = money(rest.trim_end_matches('.')).unwrap_or(0);
+                received = true;
+                continue;
+            }
+        }
         if let Some(rest) = line.strip_prefix("Buy-In: ") {
             s.buy_in = parse_buy_in(rest);
             s.currency = s.buy_in.as_ref().and_then(|b| b.currency.clone());
@@ -210,14 +283,23 @@ pub fn parse_summaries(text: &str) -> Vec<Summary> {
     }
     if let Some(last) = out.last_mut() {
         finish(last, &mut ranks);
+        finish_gg(last, gg, received, hero_rank);
     }
     out
+}
+
+/// A GGPoker summary without "You received" (Spin & Gold) names the prize in the hero's place line.
+fn finish_gg(s: &mut Summary, gg: bool, received: bool, hero_rank: Option<String>) {
+    if gg && !received && let Some(prize) = hero_rank.as_deref().and_then(money) {
+        s.prize = prize;
+    }
 }
 
 /// A tournament as listed on the tournaments page, merged from its summary and its hands.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TournamentRow {
     pub id: u64,
+    pub site: Site,
     pub game: String,
     pub currency: Option<String>,
     pub buy_in: Option<BuyIn>,
@@ -326,6 +408,7 @@ mod tests {
     fn row(currency: Option<&str>, cost: Option<Amount>, prize: Option<Amount>, bounties: Amount) -> TournamentRow {
         TournamentRow {
             id: 1,
+            site: Default::default(),
             game: String::new(),
             currency: currency.map(String::from),
             buy_in: None,

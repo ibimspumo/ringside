@@ -461,6 +461,7 @@ Total pot 100 | Rake 0
     fn row(entrants: i64, payouts: Vec<i64>) -> ringside_core::tournament::TournamentRow {
         ringside_core::tournament::TournamentRow {
             id: 77,
+            site: Default::default(),
             game: String::new(),
             currency: Some("USD".into()),
             buy_in: None,

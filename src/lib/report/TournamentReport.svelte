@@ -4,7 +4,7 @@
   import { analysis, watchAnalysis } from "../analysis/store.svelte";
   import { api } from "../api";
   import type { LearnTarget } from "../app/Leaks.svelte";
-  import { dateTime, dayShort } from "../app/format";
+  import { dateTime, dayShort, tournamentLabel } from "../app/format";
   import { errorText } from "../coach/api";
   import { notAnalyzable } from "../coach/meaning";
   import { classLabel } from "../solver/range";
@@ -208,7 +208,7 @@
       Alle Turniere
     </Button>
     {#if t}
-      <span class="name" title="#{t.id}">{name}</span>
+      <span class="name" title="#{tournamentLabel(t.id)}">{name}</span>
       <span class="date">{dayShort(t.started_at)} · {int(report?.hands ?? 0)} Hände</span>
       <span class="spacer"></span>
       <Button size="sm" onclick={onHands}>Alle Hände ansehen</Button>
@@ -407,7 +407,7 @@
             </li>
             {#each report.history as h (h.tournament_id)}
               <li>
-                <span class="h-name" title={h.name ?? undefined}>{dayShort(h.started_at)} · {h.name ?? `#${h.tournament_id}`}</span>
+                <span class="h-name" title={h.name ?? undefined}>{dayShort(h.started_at)} · {h.name ?? `#${tournamentLabel(h.tournament_id)}`}</span>
                 <span class="g-bar quiet" aria-hidden="true"><i style:width="{((h.per100 ?? 0) / maxPer100) * 100}%"></i></span>
                 <span class="num">{h.per100 === null ? "–" : bb(h.per100)}</span>
               </li>

@@ -6,7 +6,7 @@ import { RATINGS } from "./labels";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision, DecisionBrief, JobProgress } from "./types";
 
 const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("analysis") === "0";
-const pokerStars = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("locked") === "1";
+const pokerStars = typeof window !== "undefined" && ["1", "gg"].includes(new URLSearchParams(window.location.search).get("locked") ?? "");
 let enabled = !fresh;
 let analyzed = fresh ? 0 : 6431;
 const done = new Set<number>();
@@ -16,7 +16,36 @@ const handListeners = new Set<(id: number) => void>();
 
 const MAIN = 250000000002;
 
+/** The demo's GGPoker hand: a 12-BB shove with A♥Q♥ on the button (see `demoGgHand`). */
+function ggShove(id: number): Decision {
+  return {
+    action_index: 13,
+    best: "All-in",
+    engine: "demo",
+    ev_loss_bb: 0,
+    hand_id: id,
+    note: "Push/Fold-Gleichgewicht (Chip-EV): 7 Spieler, 12 BB, Ante 0,13 BB. Bounties stehen in GGPoker-Händen nicht – sie zählen hier nicht mit.",
+    played: "All-in",
+    played_freq: 1,
+    pot_bb: 1.43,
+    rating: "best",
+    reason: null,
+    reliability: null,
+    solver: null,
+    source: "equilibrium",
+    spot: "shove",
+    status: "rated",
+    strategy: [
+      { ev_bb: 0, freq: 0, kind: "fold", label: "Fold", played: false },
+      { ev_bb: 1.9, freq: 1, kind: "all_in", label: "All-in", played: true },
+    ],
+    street: "preflop",
+    why: "Am Button mit 12 BB gehört AQs klar zu den Händen, die all-in gehen: Fold bringt nichts, All-in im Schnitt 1,9 BB.",
+  };
+}
+
 function demoHandDecisions(id: number): Decision[] {
+  if (id >= 2 ** 52) return [ggShove(id)];
   return (DEMO_DECISIONS[id] ?? DEMO_DECISIONS[MAIN]).map((d) => ({ ...d, hand_id: id }));
 }
 
@@ -47,7 +76,7 @@ function progress(s: Omit<AnalysisStatus, "progress">): JobProgress {
   const detail = `${c.analyzed.toLocaleString("de-DE")} von ${c.hands.toLocaleString("de-DE")} Händen, ${c.rated.toLocaleString("de-DE")} Entscheidungen bewertet${c.queued ? `, ${c.queued} Flop-Spots warten` : ""}`;
   const base = { id: "analysis", detail, eta_secs: null, share: null };
   if (s.cancelled) return { ...base, title: "Hand-Analyse abgebrochen", state: "cancelled" };
-  if (s.state === "locked") return { ...base, title: "Pausiert, solange PokerStars läuft", state: "paused_pokerstars" };
+  if (s.state === "locked") return { ...base, title: "Pausiert, solange ein Poker-Client läuft", state: "paused_pokerstars" };
   if (s.state === "preflop") return { ...base, title: "Analysiere deine Hände", state: "running", share: c.analyzed / c.hands, eta_secs: s.eta_secs };
   if (s.state === "postflop") {
     const mine = s.solving && s.solving.hand_id !== 250000000004;
@@ -155,7 +184,12 @@ const WORST: (DecisionBrief | null)[] = [
 
 /** The demo hand list with the worst decision per row, narrowed and sorted like the real query. */
 export function withWorst(list: HandSummary[], q: HandQuery): HandSummary[] {
-  let rows = list.map((h, i) => ({ ...h, worst: isAnalyzed(h.id) ? WORST[i % WORST.length] : null }));
+  // Every GGPoker row opens the demo's one GGPoker hand; the PokerStars rows keep their verdicts.
+  let i = 0;
+  let rows = list.map((h) => {
+    const worst = h.site === "ggpoker" ? worstOf([ggShove(h.id)]) : WORST[i++ % WORST.length];
+    return { ...h, worst: isAnalyzed(h.id) ? worst : null };
+  });
   const f = q.decisions;
   if (f) {
     rows = rows.filter((h) => {

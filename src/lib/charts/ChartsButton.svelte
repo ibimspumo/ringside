@@ -43,13 +43,13 @@
     {variant}
     disabled={locked}
     title={locked
-      ? "Die Ranges sind gesperrt, solange PokerStars läuft – so verlangen es die PokerStars-Regeln."
+      ? "Die Ranges sind gesperrt, solange ein Poker-Client läuft – so verlangen es die Regeln von PokerStars und GGPoker."
       : "Öffnet „Ranges nach Stack“ mit genau diesem Spot und zeigt, wo deine Hand liegt."}
     onclick={() => target && openInCharts(target, d.hand_id, { played: d.played, best: d.best, loss: d.ev_loss_bb })}
   >
     Range ansehen
   </Button>
-  {#if locked}<span class="locked">gesperrt, solange PokerStars läuft</span>{/if}
+  {#if locked}<span class="locked">gesperrt, solange ein Poker-Client läuft</span>{/if}
 {/if}
 
 <style>

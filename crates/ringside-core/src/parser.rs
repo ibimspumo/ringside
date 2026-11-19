@@ -1,4 +1,5 @@
-//! Parser for PokerStars hand history text (Hold'em and Omaha, cash and tournaments).
+//! Parser for PokerStars and GGPoker hand history text (Hold'em and Omaha, cash and
+//! tournaments). The clients differ in the header and a few lines; the body is shared.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -7,7 +8,8 @@ use std::sync::LazyLock;
 use regex::Regex;
 
 use crate::clock::local_time;
-use crate::model::{Action, ActionKind, Amount, Finish, GameKind, Hand, Seat, Street};
+use crate::model::{Action, ActionKind, Amount, Finish, GameKind, Hand, Seat, Site, Street, gg_hand_id, gg_tournament_id};
+use crate::tournament::BuyIn;
 use crate::tournament::parse_buy_in;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -42,6 +44,17 @@ static SEAT: LazyLock<Regex> =
 static CARDS: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\[([^\]]*)\]").unwrap());
 static UNCALLED: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Uncalled bet \(([^)]+)\) returned to (.+)$").unwrap());
+static GG_HAND_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Poker Hand #([A-Z]{2}\d+):").unwrap());
+static GG_VARIANT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?:(?:5 Card |6 Card )?Omaha(?: Hi/Lo)?|Hold'em) (?:No Limit|Pot Limit|Limit)|PLO-[56]|PLO").unwrap()
+});
+/// Cash stakes may name a straddle as third blind: "($200/$400/$800)".
+static GG_STAKES: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"\(([^\d()/]*)([\d.,]+)/[^\d()/]*([\d.,]+)(?:/[^\d()/]*[\d.,]+)?\)").unwrap()
+});
+static GG_CASHOUT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"^(Receives Cashout|Pays Cashout Risk|pay premium of all-in insurance) \(([^)]+)\)").unwrap()
+});
 static TOTAL_POT: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Total pot ([^ |]+).*?\| Rake ([^ |]+)").unwrap());
 
@@ -93,7 +106,7 @@ fn hand_starts(text: &str) -> Vec<usize> {
     let mut offset = 0;
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start_matches('\u{feff}');
-        if trimmed.starts_with("PokerStars ") && trimmed.contains("Hand #") {
+        if (trimmed.starts_with("PokerStars ") && trimmed.contains("Hand #")) || trimmed.starts_with("Poker Hand #") {
             starts.push(offset + (line.len() - trimmed.len()));
         }
         offset += line.len();
@@ -134,10 +147,27 @@ fn malformed(msg: &str) -> ParseError {
     ParseError::Malformed(msg.to_string())
 }
 
-pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
-    let mut lines = text.lines().map(|l| l.trim_start_matches('\u{feff}').trim_end());
-    let header = lines.next().ok_or_else(|| malformed("empty"))?;
+/// What the first line of a hand says.
+struct Head {
+    id: u64,
+    site: Site,
+    game: GameKind,
+    tournament_id: Option<u64>,
+    tournament_name: Option<String>,
+    variant: String,
+    buy_in: Option<BuyIn>,
+    small_blind: Amount,
+    big_blind: Amount,
+    currency: Option<String>,
+    played_at: String,
+}
 
+/// "5:00:45" becomes "05:00:45", so timestamps sort and slice as text.
+fn played_at(header: &str) -> String {
+    local_time(header).unwrap_or_default()
+}
+
+fn pokerstars_head(header: &str) -> Result<Head, ParseError> {
     let id: u64 = HAND_ID
         .captures(header)
         .and_then(|c| c[1].parse().ok())
@@ -159,7 +189,81 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         GameKind::Cash => currency_code(&stakes[1], stakes.get(4).map(|m| m.as_str())),
         GameKind::Tournament => None,
     };
-    let played_at = local_time(header).unwrap_or_default();
+    Ok(Head {
+        id,
+        site: Site::PokerStars,
+        game,
+        tournament_id,
+        tournament_name: None,
+        variant,
+        buy_in,
+        small_blind,
+        big_blind,
+        currency,
+        played_at: played_at(header),
+    })
+}
+
+/// A GGPoker header, for tournaments `Poker Hand #TM599808286: Tournament #25313424, L-03: $52.50
+/// Bounty Hunters Hold'em No Limit - Level1(100/200) - 2021/04/04 16:06:27`, for cash games
+/// `Poker Hand #HD2777175730: Hold'em No Limit ($0.01/$0.02) - 2026/03/15 18:12:42`. Tournament
+/// names may themselves name a game, so the game is the last one written.
+fn ggpoker_head(header: &str) -> Result<Head, ParseError> {
+    let number = GG_HAND_ID.captures(header).ok_or_else(|| malformed("missing hand id"))?;
+    let number = number.get(1).map(|m| m.as_str()).unwrap_or_default();
+    // Short Deck and All-in or Fold play by other rules than any model Ringside has.
+    if number.starts_with("SD") || number.starts_with("AF") {
+        return Err(ParseError::Unsupported(header.to_string()));
+    }
+    let id = gg_hand_id(number).ok_or_else(|| malformed("hand id"))?;
+    let variant_match = GG_VARIANT.find_iter(header).last().ok_or_else(|| ParseError::Unsupported(header.to_string()))?;
+    let variant = match variant_match.as_str() {
+        "PLO" => "Omaha Pot Limit".to_string(),
+        "PLO-5" => "5 Card Omaha Pot Limit".to_string(),
+        "PLO-6" => "6 Card Omaha Pot Limit".to_string(),
+        other => other.to_string(),
+    };
+    let tournament = TOURNAMENT_ID.captures(header);
+    let tournament_id = match &tournament {
+        Some(c) => Some(c[1].parse().ok().and_then(gg_tournament_id).ok_or_else(|| malformed("tournament id"))?),
+        None => None,
+    };
+    let tournament_name = tournament.and_then(|c| {
+        let name = header.get(c.get(0)?.end()..variant_match.start())?.trim_start_matches(',').trim();
+        (!name.is_empty()).then(|| name.to_string())
+    });
+    let game = if tournament_id.is_some() { GameKind::Tournament } else { GameKind::Cash };
+    let stakes = GG_STAKES
+        .captures(&header[variant_match.end()..])
+        .ok_or_else(|| malformed("missing stakes"))?;
+    let small_blind = parse_amount(&stakes[2]).ok_or_else(|| malformed("small blind"))?;
+    let big_blind = parse_amount(&stakes[3]).ok_or_else(|| malformed("big blind"))?;
+    let currency = match game {
+        GameKind::Cash => currency_code(&stakes[1], None),
+        GameKind::Tournament => None,
+    };
+    Ok(Head {
+        id,
+        site: Site::GgPoker,
+        game,
+        tournament_id,
+        tournament_name,
+        variant,
+        buy_in: None,
+        small_blind,
+        big_blind,
+        currency,
+        played_at: played_at(header),
+    })
+}
+
+pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
+    let mut lines = text.lines().map(|l| l.trim_start_matches('\u{feff}').trim_end());
+    let header = lines.next().ok_or_else(|| malformed("empty"))?;
+    let head = if header.starts_with("Poker Hand #") { ggpoker_head(header)? } else { pokerstars_head(header)? };
+    let Head { id, site, game, tournament_id, tournament_name, variant, buy_in, small_blind, big_blind, currency, played_at } =
+        head;
+    let gg = site == Site::GgPoker;
 
     let table_line = lines.next().ok_or_else(|| malformed("missing table line"))?;
     let table = TABLE.captures(table_line).ok_or_else(|| malformed("table line"))?;
@@ -207,8 +311,10 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
 
     let mut hand = Hand {
         id,
+        site,
         game,
         tournament_id,
+        tournament_name,
         variant,
         table_name,
         max_seats,
@@ -228,6 +334,7 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         showdown: false,
         total_pot: 0,
         rake: 0,
+        cashouts: Vec::new(),
         bounties_won: Vec::new(),
         bounty_currency,
         buy_in,
@@ -247,7 +354,7 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             let new_street = if marker.starts_with("SUMMARY") {
                 in_summary = true;
                 None
-            } else if marker.starts_with("SHOW DOWN") || marker.starts_with("FIRST SHOW DOWN") {
+            } else if !gg && (marker.starts_with("SHOW DOWN") || marker.starts_with("FIRST SHOW DOWN")) {
                 hand.showdown = true;
                 None
             } else if marker.starts_with("SECOND ") {
@@ -280,7 +387,13 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         }
 
         if in_summary {
-            if let Some(c) = TOTAL_POT.captures(line) {
+            // "Total pot $4.64 | Rake $0.22 | Jackpot $0.15 | Bingo $0 | Fortune $0 | Tax $0": every
+            // fee leaves the pot, so all of them count as rake.
+            if gg && let Some(rest) = line.strip_prefix("Total pot ") {
+                let mut parts = rest.split('|');
+                hand.total_pot = parts.next().and_then(parse_amount).unwrap_or(0);
+                hand.rake = parts.filter_map(|p| p.split_whitespace().last().and_then(parse_amount)).sum();
+            } else if let Some(c) = TOTAL_POT.captures(line) {
                 hand.total_pot = parse_amount(&c[1]).unwrap_or(0);
                 hand.rake = parse_amount(&c[2]).unwrap_or(0);
             } else if let Some(cards) = line.strip_prefix("Board ") {
@@ -356,7 +469,17 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             continue;
         };
         if let Some(cards) = rest.strip_prefix("shows [") {
-            add_shown(&mut hand, &player, cards.split(']').next().unwrap_or(""));
+            let cards = cards.split(']').next().unwrap_or("");
+            // GGPoker lets a player who folded show a single card; that is no hand.
+            let whole = !gg || hand.hero_cards.is_empty() || cards.split_whitespace().count() == hand.hero_cards.len();
+            if whole {
+                add_shown(&mut hand, &player, cards);
+            }
+            continue;
+        }
+        if gg && let Some(c) = GG_CASHOUT.captures(&rest) {
+            let amount = parse_amount(&c[2]).ok_or_else(|| malformed("cashout"))?;
+            hand.cashouts.push((player, if &c[1] == "Receives Cashout" { amount } else { -amount }));
             continue;
         }
         if let Some(action) = parse_action(&player, &rest, street, &mut street_put, big_blind) {
@@ -364,6 +487,11 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         }
     }
 
+    if gg {
+        // GGPoker writes a showdown marker into every hand: a showdown is two players left.
+        let folded = |name: &str| hand.actions.iter().any(|a| a.player == name && a.kind == ActionKind::Fold);
+        hand.showdown = hand.active_players().filter(|s| !folded(&s.name)).count() >= 2;
+    }
     Ok(hand)
 }
 
@@ -433,6 +561,11 @@ fn parse_action(
     } else if let Some(r) = rest.strip_prefix("posts big blind ") {
         let a = first_amount(r)?;
         (ActionKind::PostBigBlind, a, None, a)
+    } else if let Some(r) = rest.strip_prefix("straddle ").or_else(|| rest.strip_prefix("posts third blind ")) {
+        let a = first_amount(r)?;
+        (ActionKind::PostStraddle, a, None, a)
+    } else if let Some(r) = rest.strip_prefix("posts missed blind ") {
+        (ActionKind::PostDead, first_amount(r)?, None, 0)
     } else if let Some(r) = rest.strip_prefix("posts the ante ") {
         (ActionKind::PostAnte, first_amount(r)?, None, 0)
     } else if rest.starts_with("folds") {

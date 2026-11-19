@@ -34,7 +34,7 @@ export function statusText(j: Job, locked: boolean): string {
     case "running":
       return j.cancelling ? "wird abgebrochen …" : j.progress === null ? "läuft" : `${Math.floor(j.progress * 100)} %`;
     case "paused":
-      return locked ? "pausiert, PokerStars läuft" : "pausiert";
+      return locked ? "pausiert, Poker-Client läuft" : "pausiert";
     case "done":
       return "fertig";
     case "cancelled":

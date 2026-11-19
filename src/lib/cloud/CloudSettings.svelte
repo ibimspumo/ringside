@@ -109,7 +109,7 @@
       Missbrauch zu begrenzen.
     </p>
     <p>
-      Solange PokerStars läuft, spricht Ringside nicht mit der Cloud. Hände, die Ringside nicht lesen kann, sendest du nur
+      Solange ein Poker-Client läuft, spricht Ringside nicht mit der Cloud. Hände, die Ringside nicht lesen kann, sendest du nur
       einzeln und nach Bestätigung.
     </p>
   {/snippet}

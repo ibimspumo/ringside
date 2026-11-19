@@ -5,7 +5,8 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime};
 
 use ringside_core::db::RebuildProgress;
-use ringside_core::import::{Scanner, default_dirs, import_file, import_summary, summary_dirs};
+use ringside_core::import::{ImportReport, import_paths};
+use ringside_core::import::{Scanner, default_dirs, import_file, import_summary, import_watched, summary_dirs};
 use ringside_core::notes::{load_all, notes_files};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
@@ -42,6 +43,10 @@ fn refresh_notes(state: &AppState, last: &mut Option<NotesStamp>) -> bool {
 #[derive(Debug, Clone, Default, Serialize)]
 pub struct ImportStatus {
     pub dirs: Vec<String>,
+    /// Watched folders for GGPoker downloads.
+    pub gg_dirs: Vec<String>,
+    /// Stored hands per client ("pokerstars", "ggpoker"), so the client filter only shows with both.
+    pub sites: std::collections::BTreeMap<String, i64>,
     pub files_read: usize,
     /// Hands added since the app started.
     pub hands_imported: usize,
@@ -51,6 +56,33 @@ pub struct ImportStatus {
     pub last_error: Option<String>,
     /// Hands recomputed so far while the database is upgraded after an update.
     pub upgrade: Option<RebuildProgress>,
+}
+
+fn refresh_counts(state: &AppState, status: &mut ImportStatus) {
+    let db = state.db.lock().unwrap();
+    if let Ok(total) = db.hand_count() {
+        status.total_hands = total;
+    }
+    if let Ok(sites) = db.hands_per_site() {
+        status.sites = sites.into_iter().map(|(s, n)| (s.as_str().to_string(), n)).collect();
+    }
+}
+
+/// Imports files picked or dropped by the user and tells the app about it like a folder scan.
+pub fn import_files(app: &AppHandle, paths: &[PathBuf]) -> Result<ImportReport, String> {
+    let state = app.state::<AppState>();
+    let report = {
+        let mut db = state.db.lock().unwrap();
+        import_paths(&mut db, paths).map_err(|e| e.to_string())?
+    };
+    let mut status = state.import.lock().unwrap().clone();
+    status.files_read += report.files;
+    status.hands_imported += report.new_hands;
+    status.malformed += report.malformed;
+    refresh_counts(&state, &mut status);
+    *state.import.lock().unwrap() = status.clone();
+    let _ = app.emit("import-status", &status);
+    Ok(report)
 }
 
 pub fn effective_dirs(configured: &[String]) -> Vec<PathBuf> {
@@ -64,7 +96,9 @@ pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
         let mut scanner = Scanner::default();
         let mut summaries = Scanner::default();
+        let mut gg = Scanner::default();
         let mut last_dirs = Vec::new();
+        let mut last_gg: Vec<PathBuf> = Vec::new();
         let mut first = true;
         let mut notes_stamp = None;
         let mut notes_checked: Option<Instant> = None;
@@ -118,17 +152,25 @@ pub fn spawn(app: AppHandle) {
                 std::thread::sleep(Duration::from_millis(pause));
                 continue;
             }
-            let dirs = effective_dirs(&state.settings.lock().unwrap().hand_history_dirs);
+            let (dirs, gg_dirs) = {
+                let settings = state.settings.lock().unwrap();
+                (effective_dirs(&settings.hand_history_dirs), settings.gg_dirs.iter().map(PathBuf::from).collect::<Vec<_>>())
+            };
             if dirs != last_dirs {
                 scanner = Scanner::default();
                 summaries = Scanner::default();
                 last_dirs = dirs.clone();
+            }
+            if gg_dirs != last_gg {
+                gg = Scanner::default();
+                last_gg = gg_dirs.clone();
             }
 
             let changed = scanner.changed(&dirs);
             let mut tables = BTreeSet::new();
             let mut status = state.import.lock().unwrap().clone();
             status.dirs = dirs.iter().map(|d| d.to_string_lossy().to_string()).collect();
+            status.gg_dirs = gg_dirs.iter().map(|d| d.to_string_lossy().to_string()).collect();
             status.upgrade = None;
             status.files_read += changed.len();
             for path in &changed {
@@ -157,9 +199,26 @@ pub fn spawn(app: AppHandle) {
                     Err(e) => status.last_error = Some(format!("{}: {e}", path.display())),
                 }
             }
-            let refresh = first || !changed.is_empty() || tournaments > 0;
-            if refresh && let Ok(total) = state.db.lock().unwrap().hand_count() {
-                status.total_hands = total;
+            let gg_changed = gg.changed(&gg_dirs);
+            status.files_read += gg_changed.len();
+            for path in &gg_changed {
+                let result = {
+                    let mut db = state.db.lock().unwrap();
+                    import_watched(&mut db, path)
+                };
+                match result {
+                    Ok(r) => {
+                        status.hands_imported += r.new_hands;
+                        status.malformed += r.malformed;
+                        tournaments += r.tournaments;
+                        app.state::<crate::cloud::CloudState>().add_malformed(r.malformed_hands);
+                    }
+                    Err(e) => status.last_error = Some(format!("{}: {e}", path.display())),
+                }
+            }
+            let refresh = first || !changed.is_empty() || !gg_changed.is_empty() || tournaments > 0;
+            if refresh {
+                refresh_counts(&state, &mut status);
             }
             *state.import.lock().unwrap() = status.clone();
             if refresh {

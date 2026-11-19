@@ -2,6 +2,7 @@
 import { DEMO_HANDS } from "./analysis/demo-hands";
 import type {
   Dashboard,
+  Site,
   Filter,
   GroupView,
   Hand,
@@ -50,6 +51,7 @@ export function defaultLayout(n: number): SeatPos[] {
 
 export const demoSettings: Settings = {
   hand_history_dirs: [],
+  gg_dirs: [],
   preferred_seating: true,
   analysis: { auto: true },
   hud: {
@@ -325,6 +327,8 @@ export function demoReports(filter?: Filter): Reports {
     net_bb: [38.5, -61.2, 12.4, 88.0, -20.6, 5.1, -44.0, 71.3, -9.8][i],
     bounties: Object.fromEntries([["USD", [375, 0, 250, 845, 125, 0, 0, 500, 0][i]]].filter(([, a]) => a)) as Record<string, number>,
     tables: [3, 4, 2, 4, 3, 2, 1, 4, 2][i],
+    // One evening also had a GGPoker tournament open.
+    sites: i === 1 ? (["pokerstars", "ggpoker"] as Site[]) : (["pokerstars"] as Site[]),
   }));
   return { positions, starting_hands, sessions: one ? sessions.slice(0, 1) : sessions };
 }
@@ -394,10 +398,78 @@ export const demoHand: Hand = {
   bounty_currency: null,
 };
 
+/** GGPoker ids in Ringside's id space (`gg_hand_id` in ringside-core): "TM5100200301". */
+function ggHandId(prefix: string, n: number): number {
+  const code = (prefix.charCodeAt(0) - 65) * 26 + (prefix.charCodeAt(1) - 65);
+  return 2 ** 52 + code * 6e12 + n;
+}
+
+/** The demo's GGPoker tournament: "Bounty Hunters $10.80" (#241300777). */
+export const GG_TOURNAMENT = 2 ** 52 + 241300777;
+
+/** A GGPoker tournament hand: the hero is "Hero", the others anonymous ids. */
+export const demoGgHand: Hand = {
+  id: ggHandId("TM", 5100200301),
+  site: "ggpoker",
+  game: "tournament",
+  tournament_id: GG_TOURNAMENT,
+  variant: "Hold'em No Limit",
+  table_name: "12",
+  max_seats: 8,
+  button_seat: 3,
+  small_blind: 15000,
+  big_blind: 30000,
+  currency: null,
+  played_at: "2026/11/18 21:41:12",
+  seats: [
+    { seat: 1, name: "3a9f0c21", stack: 1420000, bounty: null, sitting_out: false },
+    { seat: 2, name: "b7e44d0", stack: 985000, bounty: null, sitting_out: false },
+    { seat: 3, name: "Hero", stack: 360000, bounty: null, sitting_out: false },
+    { seat: 4, name: "5c2d81fe", stack: 2241000, bounty: null, sitting_out: false },
+    { seat: 5, name: "e19a7b33", stack: 730000, bounty: null, sitting_out: false },
+    { seat: 6, name: "f4c6d9a", stack: 1100000, bounty: null, sitting_out: false },
+    { seat: 7, name: "82be15c7", stack: 625000, bounty: null, sitting_out: false },
+  ],
+  hero: "Hero",
+  hero_cards: ["Ah", "Qh"],
+  board: ["7s", "2h", "Qc", "9c", "4h"],
+  actions: [
+    ...["3a9f0c21", "b7e44d0", "Hero", "5c2d81fe", "e19a7b33", "f4c6d9a", "82be15c7"].map((player) => ({
+      street: "preflop" as const,
+      player,
+      kind: "post_ante" as const,
+      amount: 4000,
+      to: null,
+      all_in: false,
+    })),
+    { street: "preflop", player: "5c2d81fe", kind: "post_small_blind", amount: 15000, to: null, all_in: false },
+    { street: "preflop", player: "e19a7b33", kind: "post_big_blind", amount: 30000, to: null, all_in: false },
+    { street: "preflop", player: "f4c6d9a", kind: "fold", amount: 0, to: null, all_in: false },
+    { street: "preflop", player: "82be15c7", kind: "fold", amount: 0, to: null, all_in: false },
+    { street: "preflop", player: "3a9f0c21", kind: "fold", amount: 0, to: null, all_in: false },
+    { street: "preflop", player: "b7e44d0", kind: "fold", amount: 0, to: null, all_in: false },
+    { street: "preflop", player: "Hero", kind: "raise", amount: 356000, to: 356000, all_in: true },
+    { street: "preflop", player: "5c2d81fe", kind: "fold", amount: 0, to: null, all_in: false },
+    { street: "preflop", player: "e19a7b33", kind: "call", amount: 326000, to: null, all_in: false },
+  ],
+  returned: [],
+  shown: [
+    ["Hero", ["Ah", "Qh"]],
+    ["e19a7b33", ["Kc", "Kd"]],
+  ],
+  collected: [["e19a7b33", 755000]],
+  showdown: true,
+  total_pot: 755000,
+  rake: 0,
+  bounties_won: [],
+  bounty_currency: null,
+};
+
 /** Hands listed for a chosen tournament carry its id (see `demoHands`). */
 export function demoHandById(id: number): Hand {
   const own = DEMO_HANDS.find((h) => h.id === id);
   if (own) return own;
+  if (id >= 2 ** 52) return { ...demoGgHand, id };
   if (id < 1e12) return { ...demoHand, id };
   const tournament = Math.floor(id / 1000);
   return { ...demoHand, id, game: "tournament", tournament_id: tournament, table_name: `${tournament} 10`, currency: null };
@@ -405,9 +477,11 @@ export function demoHandById(id: number): Hand {
 
 export function demoHands(query?: HandQuery): HandSummary[] {
   const tournament = query?.tournament_id ?? null;
+  if (tournament === GG_TOURNAMENT || query?.site === "ggpoker") return demoGgHands(tournament === null ? 6 : 18);
   const cashAt = (i: number) => tournament === null && i % 3 === 2;
-  return Array.from({ length: tournament === null ? 40 : 18 }, (_, i) => ({
+  const list: HandSummary[] = Array.from({ length: tournament === null ? 40 : 18 }, (_, i) => ({
     id: tournament === null ? 250000000002 - i : tournament * 1000 + 999 - i,
+    site: "pokerstars",
     game: cashAt(i) ? "cash" : "tournament",
     played_at: `2026/11/16 ${String(22 - Math.floor(i / 6)).padStart(2, "0")}:${String(59 - ((i * 7) % 60)).padStart(2, "0")}:10`,
     table_name: cashAt(i) ? "Aquila II" : `${tournament ?? 4046789300} 10`,
@@ -420,6 +494,29 @@ export function demoHands(query?: HandQuery): HandSummary[] {
     hero_showdown: i % 4 === 0,
     pot: [2030, 1360, 211, 2225, 510, 60, 120][i % 7],
     board: ["9c 4h 2s Kd 3c", "", "Qs 7c 2d 5h Jc", "Kd 9s 4c 2h Jd", "Td 9d 2s 4c 8h", "Kh 3s 3d", "Qc Jc 5d 2h"][i % 7],
+  }));
+  if (tournament !== null || query?.site === "pokerstars") return list;
+  // The evening's GGPoker tournament ran next to the PokerStars tables.
+  const gg = demoGgHands(6);
+  return [...list.slice(0, 1), gg[0], ...list.slice(1, 4), gg[1], ...list.slice(4, 9), ...gg.slice(2), ...list.slice(9)];
+}
+
+function demoGgHands(n: number): HandSummary[] {
+  return Array.from({ length: n }, (_, i) => ({
+    id: ggHandId("TM", 5100200301 - i * 13),
+    site: "ggpoker",
+    game: "tournament",
+    played_at: `2026/11/18 21:${String(41 - i * 3).padStart(2, "0")}:12`,
+    table_name: "12",
+    small_blind: 15000,
+    big_blind: 30000,
+    currency: null,
+    hero_cards: ["Ah Qh", "Jc Jd", "Ks 9s", "7d 7c", "Ac 4c", "Qd Td"][i % 6],
+    hero_position: ["BTN", "BB", "CO", "HJ", "SB", "UTG"][i % 6],
+    hero_net: [-360000, 116500, -64000, 0, 31000, -4000][i % 6],
+    hero_showdown: i % 6 === 0,
+    pot: [755000, 213000, 96000, 28000, 75000, 28000][i % 6],
+    board: ["7s 2h Qc 9c 4h", "Js 8h 3c", "Kd 8c 2s", "", "Ac 9d 5h", ""][i % 6],
   }));
 }
 
@@ -495,6 +592,7 @@ export function demoTournaments(): Tournaments {
     const day = 16 - Math.floor(i / 2.4);
     return {
       id: 4046789300 - i * 731,
+      site: "pokerstars" as const,
       game: k.game,
       currency: k.cur,
       buy_in: { prize: prizePart, bounty: bountyPart, fee, currency: freeroll ? null : k.cur },
@@ -511,6 +609,24 @@ export function demoTournaments(): Tournaments {
       // Names come from table windows; tournaments played before Ringside ran have none.
       name: i % 4 === 3 ? null : k.name,
     };
+  });
+  rows.splice(1, 0, {
+    id: GG_TOURNAMENT,
+    site: "ggpoker",
+    game: "NL Hold'em",
+    currency: "USD",
+    buy_in: { prize: 500, bounty: 500, fee: 80, currency: "USD" },
+    cost: 1080,
+    entrants: 412,
+    place: 14,
+    prize: 1240,
+    bounties: 0,
+    profit: 1240 - 1080,
+    started_at: "2026/11/18 20:09:00",
+    hands: 64,
+    chips: -360000,
+    has_summary: true,
+    name: "Bounty Hunters $10.80, $5K GTD",
   });
   return { rows, totals: demoTotals(rows) };
 }
