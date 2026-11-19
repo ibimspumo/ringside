@@ -18,7 +18,7 @@ export function sampleNote(s: StatValue | undefined, short = false): string {
 
 /** What a clearly low or high value means for your play: one line each, shown only off the table. */
 export const HINT: Partial<Record<StatId, { low: string; high: string }>> = {
-  vpip: { low: "Geht er mit, hat er meist etwas Starkes.", high: "Mit guten Händen auf Wert setzen, wenig bluffen." },
+  vpip: { low: "Geht er mit, hat er meist etwas Starkes.", high: "Mit starken Händen setzen, er geht oft mit; bluffen lohnt kaum." },
   pfr: { low: "Erhöht er doch, ist die Hand meist stark.", high: "Seine Raises sind oft schwach: mit starken Händen 3-betten." },
   three_bet: { low: "Erhöht er doch noch einmal, ist seine Hand meist sehr stark: ohne Top-Hand folden.", high: "Gegen seine 3-Bets mit guten Händen weiterspielen." },
   fold_to_three_bet: { low: "Gegen ihn nur mit starken Händen 3-betten, selten bluffen: er geht oft mit.", high: "Gegen seine Raises nicht mitgehen: entweder folden oder noch einmal erhöhen, dann gibt er meist auf." },

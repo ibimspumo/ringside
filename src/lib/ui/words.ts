@@ -89,7 +89,7 @@ export const WORDS = {
   },
   vpip: {
     word: "VPIP",
-    short: "Wie oft freiwillig Geld in den Pot gelegt wird. Hoch = spielt viele Hände (loose).",
+    short: "Wie oft freiwillig Geld in den Pot gelegt wird. Hoch heißt: spielt viele Hände.",
     long: "Pflicht-Blinds zählen nicht mit, nur freiwilliges Mitgehen und Erhöhen vor dem Flop.",
   },
   pfr: {

@@ -138,7 +138,7 @@
       </th>
       {#each cols as id (id)}
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
-          <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="top">
+          <Tooltip text={`${PLAIN_NAME[id]} (${STAT_META[id].name}): ${STAT_META[id].help}`} side="bottom">
             {#if columns === "core"}
               {@render head(id, PLAIN_NAME[id], id === "af" ? "AF × · setzt je Call" : `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}`)}
             {:else}

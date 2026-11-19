@@ -148,6 +148,11 @@
             <span class="part {tone(c)}" class:mine={c.played} class:never={c.freq < 0.005} style:flex-grow={c.freq < 0.005 ? 0 : Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
           {/each}
         </div>
+        <span class="mix-key">
+          {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
+            <span class:mine={c.played}><i class="dot {tone(c)}"></i>{c.label} <b class="num">{c.freq < 0.005 ? "nie" : pct(c.freq)}</b>{#if c.played}&nbsp;· du{/if}</span>
+          {/each}
+        </span>
       </div>
     {/if}
     <details class="compare">
@@ -248,6 +253,21 @@
   .mix-head {
     color: var(--text-2);
     font-size: var(--fs-sm);
+  }
+  .mix-key {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px var(--sp-4);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
+  .mix-key span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .mix-key .mine {
+    color: var(--text);
   }
   .mix {
     display: flex;
