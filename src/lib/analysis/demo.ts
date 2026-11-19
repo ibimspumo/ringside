@@ -209,6 +209,8 @@ export function withWorst(list: HandSummary[], q: HandQuery): HandSummary[] {
 }
 
 export function demoSummary(): AnalysisSummary {
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("data") === "empty")
+    return { hands: 0, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: RATINGS.map(() => 0), by_source: [], by_spot: [], costliest: [] };
   if (!analyzed) return { hands: 6431, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: RATINGS.map(() => 0), by_source: [], by_spot: [], costliest: [] };
   const full = fullSummary();
   if (analyzed >= 6431) return full;

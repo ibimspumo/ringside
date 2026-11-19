@@ -731,6 +731,25 @@ export function bigDashboard(filter?: Filter): Dashboard {
   };
 }
 
+/** About 4000 tournaments, the history of 200 000 hands, for timing long lists. */
+export function scaleTournaments(): Tournaments {
+  const t = demoTournaments();
+  const rows = Array.from({ length: 120 }, (_, copy) =>
+    t.rows.map((r) => ({ ...r, id: r.id + copy * 1_000_000, started_at: r.started_at.replace(/^\d{4}/, String(2026 - Math.floor(copy / 12))) })),
+  ).flat();
+  const totals = t.totals.map((x) => ({
+    ...x,
+    tournaments: x.tournaments * 120,
+    finished: x.finished * 120,
+    cashes: x.cashes * 120,
+    cost: x.cost * 120,
+    prizes: x.prizes * 120,
+    bounties: x.bounties * 120,
+    profit: x.profit * 120,
+  }));
+  return { rows, totals };
+}
+
 export function bigTournaments(): Tournaments {
   const t = demoTournaments();
   const rows = Array.from({ length: 5 }, (_, copy) =>

@@ -108,13 +108,14 @@
   {#if skill.state === "locked"}
     <AtTable {hands} />
   {:else if skill.state === "error"}
-    <EmptyState tone="error" title="Die Wertung konnte nicht geladen werden." text="Deine Hände und Bewertungen sind sicher gespeichert. Versuch es noch einmal.">
+    <EmptyState page tone="error" title="Die Wertung konnte nicht geladen werden" text="Deine Hände und Bewertungen sind sicher gespeichert. Versuch es noch einmal.">
       {#snippet action()}<Button variant="primary" onclick={() => loadSkill()}>Erneut laden</Button>{/snippet}
     </EmptyState>
   {:else if !p}
-    <EmptyState tone="loading" title="Wertung wird berechnet" />
+    <EmptyState page tone="loading" title="Wertung wird berechnet …" />
   {:else if rating === null}
     <EmptyState
+      page
       title="Noch keine Wertung"
       text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. Ringside analysiert neue Turniere von selbst, sobald du den Poker-Client schließt – oder du lässt deine Hände gleich jetzt bewerten."
     >
@@ -199,16 +200,14 @@
                 {/if}
               </div>
               <span class="sk-area-num num" class:up={a.verdict === "strong"} class:down={a.verdict === "weak"}>
-                {#if a.verdict === "few"}–{:else}{delta(a.rating - rating)}<small>Pkt.</small>{/if}
+                {#if a.verdict === "few"}–{:else}{delta(a.rating - rating)}<small>Punkte</small>{/if}
               </span>
               <span class="sk-area-tag">
                 <Badge size="sm" tone={v.tone} dashed={a.verdict === "few" || (p.provisional && a.verdict !== "even")}>{p.provisional && (a.verdict === "strong" || a.verdict === "weak") ? `eher ${v.label}` : v.label}</Badge>
               </span>
               <span class="sk-area-do">
-                <Button size="sm" variant="quiet" onclick={() => onHands(a.area, a.name)}>Hände</Button>
-              </span>
-              <span class="sk-area-do">
                 {#if practice}<Button size="sm" variant="quiet" onclick={() => onLearn(practice)}>Üben</Button>{/if}
+                <Button size="sm" variant="quiet" onclick={() => onHands(a.area, a.name)}>Hände ansehen</Button>
               </span>
             </li>
           {/each}
@@ -241,7 +240,7 @@
                       <span class="sk-moment-tags">
                         {#if m.bad_luck}<Badge size="sm" tone="info">Gut entschieden, Pech gehabt</Badge>{:else}<GradeBadge grade={GRADE_OF[m.rating]} size="sm" />{/if}
                       </span>
-                      <span class="sk-points num" class:up={m.points > 0} class:down={m.points < 0}>{delta(m.points)}<small>Pkt.</small></span>
+                      <span class="sk-points num" class:up={m.points > 0} class:down={m.points < 0}>{delta(m.points)}<small>Punkte</small></span>
                     </span>
                   </Card>
                 {/each}
@@ -480,7 +479,7 @@
 
   .sk-areas {
     display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(70px, 1fr) 64px max-content 64px 60px;
+    grid-template-columns: minmax(0, 1.7fr) minmax(64px, 1fr) max-content max-content max-content;
     gap: 0 var(--sp-3);
     margin: 0;
     padding: 0;
@@ -510,10 +509,6 @@
     font-weight: var(--fw-semibold);
   }
   .sk-area-name small {
-    overflow: hidden;
-    max-width: 100%;
-    text-overflow: ellipsis;
-    white-space: nowrap;
     color: var(--text-2);
     font-size: var(--fs-sm);
   }

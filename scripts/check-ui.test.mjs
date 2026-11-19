@@ -82,12 +82,20 @@ test("toFixed is display text in markup and before a unit, not in paths and styl
   assert.deepEqual(lines.sort(), ["app/A.svelte:3", "app/A.svelte:5", "app/A.svelte:6", "app/b.ts:1"]);
 });
 
-test("capitals are for table column heads only", () => {
+test("no capitals, not even in table column heads", () => {
   const out = findings({
     "app/A.svelte": style("text-transform: uppercase;"),
     "ui/B.svelte": style("text-transform: uppercase;"),
     "ui/SortHeader.svelte": style("text-transform: uppercase;"),
     "app/C.svelte": style("text-transform: none;"),
   });
-  assert.deepEqual(out.filter((l) => l.includes("[caps-label]")).map((l) => l.split("  ")[0]).sort(), ["app/A.svelte:3", "ui/B.svelte:3"]);
+  assert.deepEqual(out.filter((l) => l.includes("[caps-label]")).map((l) => l.split("  ")[0]).sort(), ["app/A.svelte:3", "ui/B.svelte:3", "ui/SortHeader.svelte:3"]);
+});
+
+test("state titles: no full stop, loading ends on an ellipsis", () => {
+  const out = findings({
+    "app/A.svelte": '<EmptyState title="Noch keine Hände" />\n<EmptyState tone="loading" title="Spieler werden geladen …" />\n<EmptyState title={x} />\n',
+    "app/B.svelte": '<EmptyState\n  tone="error"\n  title="Das ging schief."\n/>\n<EmptyState tone="loading" title="Lädt" />\n',
+  });
+  assert.deepEqual(out.filter((l) => l.includes("[state-title]")).map((l) => l.split("  ")[0]), ["app/B.svelte:1", "app/B.svelte:5"]);
 });

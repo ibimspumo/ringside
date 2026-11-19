@@ -133,6 +133,11 @@
     });
   });
 
+  /** Rows on screen; a long history shows in steps, the chosen tournament always among them. */
+  const STEP = 200;
+  let more = $state(0);
+  const shown = $derived(Math.max(STEP + more, rows.findIndex((r) => r.id === selected) + 1));
+
   function sortOn(col: Col) {
     if (sortBy === col) asc = !asc;
     else {
@@ -168,25 +173,21 @@
 
 <div class="page tours">
   {#if failed}
-    <Panel>
-      <EmptyState
-        tone="error"
-        title="Die Turniere konnten nicht geladen werden."
-        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
-      >
-        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
-      </EmptyState>
-    </Panel>
+    <EmptyState page
+      tone="error"
+      title="Die Turniere konnten nicht geladen werden"
+      text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+    >
+      {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+    </EmptyState>
   {:else if data && data.rows.length === 0}
-    <Panel>
-      <EmptyState
+    <EmptyState page
         title="Noch keine Turniere in diesem Zeitraum"
         text="Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem Ordner „TournSummary“ neben „HandHistory“. Hast du schon gespielt{filter.since !==
         null
           ? ', wähle oben „Alles“'
           : ', prüfe in den Einstellungen den Ordner der Hand-Historys'}."
       />
-    </Panel>
   {:else if data}
     {#if totals}
       {@const back = totals.prizes + totals.bounties}
@@ -310,7 +311,7 @@
             </tr>
           </thead>
           <tbody>
-            {#each rows as r (r.id)}
+            {#each rows.slice(0, shown) as r (r.id)}
               {@const d = depth(r)}
               <tr
                 class:on={r.id === selected}
@@ -357,11 +358,21 @@
             {/each}
           </tbody>
       </table>
+      {#if rows.length > shown}
+        <div class="more">
+          <Button size="sm" full onclick={() => (more = shown)}
+            >Weitere {int(Math.min(STEP, rows.length - shown))} Turniere zeigen · {int(rows.length - shown)} noch nicht gezeigt</Button
+          >
+        </div>
+      {/if}
     </Panel>
   {/if}
 </div>
 
 <style>
+  .more {
+    padding: var(--sp-2) var(--sp-1);
+  }
   .tours {
     display: flex;
     flex-direction: column;

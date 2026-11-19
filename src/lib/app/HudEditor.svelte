@@ -8,7 +8,7 @@
   import SeatAnatomy, { type Slot } from "../hud/SeatAnatomy.svelte";
   import ThresholdScale from "../hud/ThresholdScale.svelte";
   import { REFERENCE_ASPECT } from "../hud/geometry";
-  import { CLASSIC_PRESETS, PALETTES, RATED_STATS, STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
+  import { CLASSIC_PRESETS, PALETTES, PLAIN_NAME, RATED_STATS, STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
   import type { ClassicPreset, HudConfig, Palette, Preset, SeatView, Settings, StatId, TableView } from "../types";
 
   const SIZES = [2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -40,7 +40,6 @@
   };
   const QUARTER = ["oben links", "oben rechts", "unten rechts", "unten links"];
   /** Picker names where the stat's own name is only the abbreviation. */
-  const PICK_NAME: Partial<Record<StatId, string>> = { vpip: "Freiwillig gespielt" };
 
   const params = new URLSearchParams(window.location.search);
   const askedPane = inTauri ? null : PANES.find((p) => p.id === params.get("pane"))?.id;
@@ -469,8 +468,8 @@
               <div class="picker">
                 {#each RATED_STATS as id (id)}
                   <button class="stat" class:on={slotStat === id} title={STAT_META[id].help} onclick={() => assign(id)}>
-                    <b>{PICK_NAME[id] ?? STAT_META[id].name}</b>
-                    {#if STAT_META[id].short !== (PICK_NAME[id] ?? STAT_META[id].name)}<i class="num">{STAT_META[id].short}</i>{/if}
+                    <b>{PLAIN_NAME[id]}</b>
+                    <i class="num">{STAT_META[id].short}</i>
                   </button>
                 {/each}
               </div>
@@ -612,7 +611,7 @@
               {#each RATED_STATS as id (id)}
                 {@const t = settings.hud.thresholds[id]}
                 {#if t}
-                  <ThresholdScale {id} bind:t={settings.hud.thresholds[id]} name={PICK_NAME[id]} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
+                  <ThresholdScale {id} bind:t={settings.hud.thresholds[id]} name={PLAIN_NAME[id]} colors={pal} marks={marks(id)} {exact} meaning={MEANING[id]} onchange={changed} />
                 {/if}
               {/each}
             </div>

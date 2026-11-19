@@ -216,13 +216,11 @@
   </div>
 
   {#if failed}
-    <Panel>
-      <EmptyState tone="error" title="Der Bericht ließ sich nicht berechnen." text={failed}>
-        {#snippet action()}<Button onclick={load}>Erneut versuchen</Button>{/snippet}
-      </EmptyState>
-    </Panel>
+    <EmptyState page tone="error" title="Der Bericht konnte nicht berechnet werden" text={failed}>
+      {#snippet action()}<Button variant="primary" onclick={load}>Erneut berechnen</Button>{/snippet}
+    </EmptyState>
   {:else if !report || !t || !s}
-    <Panel><EmptyState tone="loading" title="Rechnet den Bericht …" /></Panel>
+    <EmptyState page tone="loading" title="Bericht wird berechnet …" />
   {:else}
     {#if preliminary}
       <p class="note" role="status">
@@ -320,14 +318,14 @@
           {#if report.worst.length}
             <div class="moments">{#each report.worst as m, i (m.hand_id + ":" + m.action_index)}{@render moment(m, i, true)}{/each}</div>
           {:else}
-            <EmptyState compact title="Kein Fehler, der etwas gekostet hat." text="Alle bewerteten Entscheidungen waren gut." />
+            <EmptyState compact title="Kein Fehler, der etwas gekostet hat" text="Alle bewerteten Entscheidungen waren gut." />
           {/if}
         </Panel>
         <Panel title="Deine besten Entscheidungen" sub="Wo die beste Wahl am meisten ausgemacht hat.">
           {#if report.best.length}
             <div class="moments">{#each report.best as m, i (m.hand_id + ":" + m.action_index)}{@render moment(m, i, false)}{/each}</div>
           {:else}
-            <EmptyState compact title="Noch keine herausragende Entscheidung." />
+            <EmptyState compact title="Noch keine herausragende Entscheidung" />
           {/if}
         </Panel>
       </div>
@@ -378,7 +376,7 @@
             </dl>
           </div>
         {:else}
-          <EmptyState compact title="Keine Karten bekannt." />
+          <EmptyState compact title="Keine Karten bekannt" />
         {/if}
       </Panel>
 
@@ -414,7 +412,7 @@
             {/each}
           </ul>
         {:else}
-          <EmptyState compact title="Noch kein früheres Turnier zum Vergleichen." text="Nach dem nächsten bewerteten Turnier steht hier, ob du besser wirst." />
+          <EmptyState compact title="Noch kein früheres Turnier zum Vergleichen" text="Nach dem nächsten bewerteten Turnier steht hier, ob du besser wirst." />
         {/if}
       </Panel>
 
@@ -422,7 +420,7 @@
         {#if report.next.length}
           <NextSteps steps={report.next} mode="first" {onLearn} onHands={onStepHands} note={here} />
         {:else}
-          <EmptyState compact title="Nichts Dringendes." text="Keine Spot-Art hat in diesem Turnier etwas gekostet." />
+          <EmptyState compact title="Nichts Dringendes" text="Keine Spot-Art hat in diesem Turnier etwas gekostet." />
         {/if}
       </Panel>
     </div>

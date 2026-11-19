@@ -155,17 +155,17 @@
             onMore={(m) => (more[t.table_key] = m)}
           />
       {:else}
-        <div class="wait"><EmptyState inline tone="loading" title="Warte auf die erste Hand" text="Die Werte erscheinen, sobald Ringside die erste Hand von diesem Tisch gelesen hat." /></div>
+        <div class="wait"><EmptyState inline tone="loading" title="Warte auf die erste Hand …" text="Die Werte erscheinen, sobald Ringside die erste Hand von diesem Tisch gelesen hat." /></div>
       {/if}
     </section>
   {:else}
     {#if loaded}
-      <EmptyState title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.">
+      <EmptyState page title="Kein Tisch offen" text="Sobald du in PokerStars einen Tisch öffnest, stehen hier deine Gegner mit ihren Werten aus dem HUD.">
         {#snippet icon()}<path d="M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5z" /><path d="M9 12h6" />{/snippet}
         {#snippet action()}<Button size="sm" onclick={onPlayers}>Alle Gegner ansehen</Button>{/snippet}
       </EmptyState>
     {:else}
-      <EmptyState tone="loading" title="Suche offene Tische" />
+      <EmptyState page tone="loading" title="Offene Tische werden gesucht …" />
     {/if}
   {/each}
   </div>

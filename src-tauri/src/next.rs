@@ -3,7 +3,6 @@
 
 use std::collections::HashSet;
 
-use ringside_analysis::ENGINE;
 use ringside_coach::session::concept_counts;
 use ringside_core::db::Filter;
 use ringside_core::leaks;
@@ -14,19 +13,29 @@ use ringside_learn::Kind;
 use ringside_learn::mastery::{days_since, is_due, next_level};
 use tauri::AppHandle;
 
+use crate::memo::Memo;
 use crate::{AppState, CmdResult, blocking, err, now_secs};
 
 /// Single decisions the list looks at.
 const COSTLIEST: usize = 5;
 
+type StepsKey = ((u64, u64), String, i64);
+static STEPS: Memo<StepsKey, Vec<NextStep>> = Memo::new();
+
+/// The list for `filter`. Due reviews follow the clock, so a stored list counts for a minute.
 pub fn steps(state: &AppState, filter: &Filter) -> CmdResult<Vec<NextStep>> {
-    let (rows, practiced, cells, summary, attempts) = {
+    let version = state.db.lock().unwrap().version();
+    STEPS.get_or((version, format!("{filter:?}"), now_secs() / 60), || compute(state, filter))
+}
+
+fn compute(state: &AppState, filter: &Filter) -> CmdResult<Vec<NextStep>> {
+    let (rows, practiced, cells, costliest, attempts) = {
         let db = state.db.lock().unwrap();
         (
             db.profile_rows(filter).map_err(err)?,
             db.spot_practice().map_err(err)?,
-            db.hero_cells(filter).map_err(err)?,
-            db.analysis_summary(filter, ENGINE, COSTLIEST).map_err(err)?,
+            crate::hero_cells(&db, filter)?,
+            db.costliest(filter, COSTLIEST).map_err(err)?,
             db.attempts().map_err(err)?,
         )
     };
@@ -64,7 +73,7 @@ pub fn steps(state: &AppState, filter: &Filter) -> CmdResult<Vec<NextStep>> {
     Ok(rank(&Inputs {
         profile: &profile(&rows, &practiced),
         leaks: &leaks::find(&cells),
-        costliest: &summary.costliest,
+        costliest: &costliest,
         concepts: &concepts,
         reviews: &reviews,
     }))

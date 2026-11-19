@@ -109,11 +109,11 @@
 
 <div class="page">
   {#if failed && !data}
-    <EmptyState tone="error" title="Statistik konnte nicht geladen werden" text="Deine Hände sind sicher gespeichert. Versuch es gleich noch einmal.">
-      {#snippet action()}<Button onclick={() => retry++}>Erneut laden</Button>{/snippet}
+    <EmptyState page tone="error" title="Die Statistik konnte nicht geladen werden" text="Deine Hände sind sicher gespeichert. Versuch es gleich noch einmal.">
+      {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
     </EmptyState>
   {:else if !data}
-    <EmptyState tone="loading" title="Statistik wird geladen …" />
+    <EmptyState page tone="loading" title="Statistik wird geladen …" />
   {:else}
     <div class="grid">
       <section class="panel matrix-panel">
@@ -174,7 +174,7 @@
           </div>
           </div>
         {:else}
-          <div class="empty-state">Noch keine eigenen Hände mit bekannten Karten in diesem Zeitraum.</div>
+          <EmptyState compact title="Noch keine eigenen Hände mit bekannten Karten" text="Wähle oben einen längeren Zeitraum." />
         {/if}
       </section>
 
@@ -225,13 +225,13 @@
             </div>
             <p class="pos-note">Small und Big Blind liegen fast immer im Minus, weil du dort Pflichteinsätze zahlst. Wichtig ist nur, dort nicht mehr als nötig zu verlieren.</p>
           {:else}
-            <div class="empty-state">Noch keine eigenen Hände in diesem Zeitraum.</div>
+            <EmptyState compact title="Noch keine eigenen Hände in diesem Zeitraum" text="Wähle oben einen längeren Zeitraum." />
           {/if}
         </section>
       <section class="panel">
         <div class="panel-head">
-          <h2 class="panel-title">Sitzungen</h2>
-          <span class="faint count">Eine Sitzung endet nach 30 Minuten Pause</span>
+          <h2 class="panel-title">Sessions</h2>
+          <span class="faint count">Eine Session endet nach 30 Minuten Pause</span>
         </div>
         {#if data.sessions.length}
           <div class="scroll">
@@ -268,7 +268,7 @@
             </table>
           </div>
         {:else}
-          <div class="empty-state">Keine Sitzungen in diesem Zeitraum. Wähle oben einen längeren Zeitraum.</div>
+          <EmptyState compact title="Keine Sessions in diesem Zeitraum" text="Wähle oben einen längeren Zeitraum." />
         {/if}
       </section>
       </div>

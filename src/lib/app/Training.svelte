@@ -14,6 +14,6 @@
   }: { hud?: HudConfig | null; filter: Filter; open?: LearnTarget | null; onOpened?: () => void; onStepHands?: (hands: StepHands) => void } = $props();
 </script>
 
-<ClientLock feature="Der Lernbereich">
+<ClientLock>
   <Learn {hud} {filter} {open} {onOpened} onHands={onStepHands} />
 </ClientLock>

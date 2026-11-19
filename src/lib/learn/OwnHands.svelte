@@ -2,6 +2,7 @@
   import { untrack } from "svelte";
   import { api } from "../api";
   import Replayer from "../app/Replayer.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
   import PlayingCard from "../ui/PlayingCard.svelte";
   import type { Feedback, Hand, LearnAnswer, LearnKind, OwnSpot } from "../types";
   import { errorText, fmtBB, fmtPct } from "./catalog";
@@ -128,15 +129,13 @@
   {#if error}
     <p class="error" role="alert">{error}</p>
   {:else if spots === null}
-    <p class="faint loading">Spots werden gesucht …</p>
+    <EmptyState page tone="loading" title="Spots werden gesucht …" />
   {:else if !spots.length}
-    <div class="empty-state panel">
-      <p>Noch keine passenden Spots gefunden.</p>
-      <p class="faint">
-        Sobald du in Turnieren all-in gehst oder mit höchstens 20 bb effektiv vor einer Push/Fold-Entscheidung stehst, als
-        Erster nach lauter Folds oder gegen einen Shove, tauchen die Hände hier auf.
-      </p>
-    </div>
+    <EmptyState
+      page
+      title="Noch keine passenden Spots"
+      text="Sobald du in Turnieren all-in gehst oder mit höchstens 20 BB vor der Wahl „alles oder nichts“ stehst – als Erster nach lauter Folds oder gegen ein All-in –, tauchen die Hände hier auf."
+    />
   {:else}
     <div class="split">
       <ol class="list panel" aria-label="Spots">
@@ -446,12 +445,6 @@
   .loading {
     margin: 30px 0;
     text-align: center;
-  }
-  .empty-state {
-    padding: 28px 24px;
-  }
-  .empty-state p {
-    margin: 0 0 6px;
   }
   .error {
     margin: 0;

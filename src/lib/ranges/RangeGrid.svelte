@@ -190,11 +190,11 @@
   }
   .range-tip header b {
     font-family: var(--font-num);
-    font-size: 16px;
+    font-size: var(--fs-lg);
   }
   .range-tip header span {
     color: var(--text-3);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
   .row {
     display: grid;
@@ -226,7 +226,7 @@
   .n {
     grid-area: n;
     color: var(--text-2);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
   .why {
     margin: 9px 0 0;
@@ -235,6 +235,6 @@
   .few-note {
     margin: 4px 0 0;
     color: var(--amber);
-    font-size: 11.5px;
+    font-size: var(--fs-xs);
   }
 </style>

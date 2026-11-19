@@ -9,16 +9,16 @@
 
 <p class="legend" class:meters>
   <span class="item"
-    ><svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5M13.5 8A5.5 5.5 0 0 1 8 13.5M8 13.5A5.5 5.5 0 0 1 2.5 8M2.5 8A5.5 5.5 0 0 1 8 2.5" /></svg>{ring.length ? `Ring wie im HUD, im Uhrzeigersinn ab oben: ${ring.slice(0, 4).map((id) => PLAIN_NAME[id]).join(" · ")}` : "Ring: vier Werte wie im HUD-Ring"}</span
+    ><svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5M13.5 8A5.5 5.5 0 0 1 8 13.5M8 13.5A5.5 5.5 0 0 1 2.5 8M2.5 8A5.5 5.5 0 0 1 8 2.5" /></svg>{ring.length ? `Ring wie im HUD, ab oben: ${ring.slice(0, 4).map((id) => PLAIN_NAME[id]).join(" · ")}` : "Ring: vier Werte wie im HUD-Ring"}</span
   >
   {#if meters}
-    <span class="item scale"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>
+    <span class="item scale"><i class="band" aria-hidden="true"></i>üblicher Bereich</span>
   {:else}
     <span class="item">Alle Werte in %, Aggression (AF) als Faktor ×. Fahr über einen Spaltenkopf für die Erklärung.</span>
   {/if}
-  <span class="item"><i class="dot" aria-hidden="true"></i>Farbe: niedrig, mittel oder hoch wie im HUD – keine Note</span>
-  <span class="item"><i class="dot hollow" aria-hidden="true"></i>hohl: unter {SMALL_SAMPLE} Gelegenheiten, noch unsicher</span>
-  {#if types}<span class="item"><i class="dashed" aria-hidden="true"></i>gestrichelter Typ: noch zu wenig Hände für ein sicheres Urteil</span>{/if}
+  <span class="item"><i class="dot" aria-hidden="true"></i>Farbe: niedrig, mittel, hoch – keine Note</span>
+  <span class="item"><i class="dot hollow" aria-hidden="true"></i><span title="Unter {SMALL_SAMPLE} Gelegenheiten">hohl: noch unsicher</span></span>
+  {#if types}<span class="item"><i class="dashed" aria-hidden="true"></i>gestrichelter Typ: noch zu wenig Hände</span>{/if}
 </p>
 
 <style>

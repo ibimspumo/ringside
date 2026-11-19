@@ -65,7 +65,7 @@
 {#if locked}
   <SourceNote kind="locked" variant="block">Die Analyse pausiert, bis du den Poker-Client schließt. Nachspielen geht weiter.</SourceNote>
 {:else if decisions === null}
-  <EmptyState compact tone="loading" title="Lädt die Bewertung …" />
+  <EmptyState compact tone="loading" title="Bewertung wird geladen …" />
 {:else if decisions.length === 0 && analyzed}
   <div class="cta">
     <p>In dieser Hand gibt es nichts zu bewerten: Du hast nicht selbst gehandelt, oder es ist kein No-Limit Hold'em.</p>

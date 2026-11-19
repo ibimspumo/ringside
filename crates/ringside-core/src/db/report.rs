@@ -4,7 +4,7 @@
 
 use rusqlite::params;
 
-use super::{Db, Error, FILTER_SQL, Filter};
+use super::{Db, Error, FILTER_SQL, Filter, hand_range};
 use crate::db::{Choice, Rating, Source, SpotType, Status};
 use crate::parser::parse_hand;
 use crate::profile::{ProfileRow, facing_bet};
@@ -20,7 +20,8 @@ impl Db {
             "SELECT h.id, h.played_at, h.hero_cards, h.hero_class, h.hero_position, h.hero_net, h.big_blind, h.hero_ev,
                     h.raw, h.hero, COALESCE(a.engine = ?5, 0)
              FROM hands h LEFT JOIN hand_analysis a ON a.hand_id = h.id
-             WHERE {FILTER_SQL} AND h.hero_net IS NOT NULL ORDER BY h.played_at, h.id"
+             WHERE {FILTER_SQL} AND {range} AND h.hero_net IS NOT NULL ORDER BY h.played_at, h.id",
+            range = hand_range("h.id")
         ))?;
         let mut unanalyzed = 0;
         let mut hands = Vec::new();
@@ -57,8 +58,9 @@ impl Db {
                     (SELECT COUNT(*) FROM player_hands p WHERE p.hand_id = h.id),
                     d.street, d.played, d.best, d.why, d.pot_bb
              FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
-             WHERE {FILTER_SQL} AND d.status <> 'forced'
-             ORDER BY h.played_at, d.hand_id, d.action_index"
+             WHERE {FILTER_SQL} AND {range} AND d.status <> 'forced'
+             ORDER BY h.played_at, d.hand_id, d.action_index",
+            range = hand_range("d.hand_id")
         ))?;
         let rows = stmt.query_map(params![filter.game(), filter.since, filter.tournament(), filter.until], |r| {
             let strategy: Vec<Choice> = serde_json::from_str(&r.get::<_, String>(9)?).unwrap_or_default();

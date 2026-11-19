@@ -3,7 +3,7 @@ import type { Verdict } from "./types";
 
 /** The coach's four verdicts on the app's grade scale, worst first, with what each means here. */
 export const VERDICTS: { id: Verdict; grade: Grade; name: string; meaning: string }[] = [
-  { id: "fehler", grade: "mistake", name: GRADE.mistake.label, meaning: "hat dich Chips gekostet" },
+  { id: "fehler", grade: "mistake", name: GRADE.mistake.label, meaning: "kostet dich im Schnitt Chips" },
   { id: "fraglich", grade: "inaccurate", name: GRADE.inaccurate.label, meaning: "knapp, meist geht es besser" },
   { id: "ok", grade: "good", name: GRADE.good.label, meaning: "vertretbar gespielt" },
   { id: "stark", grade: "best", name: GRADE.best.label, meaning: "genau richtig gespielt" },
