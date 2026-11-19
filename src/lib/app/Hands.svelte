@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { SkillArea } from "../skill/types";
   import { tick, untrack } from "svelte";
   import AnalyzeStatus from "../analysis/AnalyzeStatus.svelte";
   import HandPanel from "../analysis/HandPanel.svelte";
@@ -50,7 +51,7 @@
     /** Decision of `openId` to stop at (action index), e.g. coming back from the ranges page. */
     openAt?: number | null;
     /** Hands of a leak-finder spot, a range-chart cell or a kind of spot of the playing profile, with a label for the chip. */
-    spot?: { filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; label: string } | null;
+    spot?: { filter?: SpotFilter | null; range?: RangeFilter | null; profile?: string | null; area?: SkillArea | null; label: string } | null;
     onClearPlayer: () => void;
     onClearTournament: () => void;
     onClearSpot?: () => void;
@@ -165,6 +166,7 @@
     spot: spot?.filter ?? null,
     range: spot?.range ?? null,
     profile: spot?.profile ?? null,
+    area: spot?.area ?? null,
     decisions: decisionFilter,
     sort_by_loss: view === "mistakes",
     limit: PAGE,

@@ -13,6 +13,8 @@ import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
 import * as reportDemo from "./report/demo";
 import * as sessionDemo from "./session/demo";
+import * as skillDemo from "./skill/demo";
+import type { SkillProfile } from "./skill/types";
 import type { SessionPage } from "./session/types";
 import type { TournamentReport } from "./report/types";
 import type { RangeChart, RangeFilter, RangeGroup } from "./ranges/types";
@@ -161,6 +163,11 @@ export const api = {
   /** The latest session (or the one starting at `start`); advice is left out while PokerStars runs. */
   sessionReview: (start: string | null) =>
     sample<SessionPage>("session_review", { start }, () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start)),
+  /** The Spielwertung over every analysed tournament; locked while PokerStars runs. `?data=few` shows three tournaments. */
+  skillProfile: () => {
+    const made = advice(() => (previewData === "few" ? skillDemo.fewSkill() : skillDemo.demoSkill()));
+    return sample<SkillProfile>("skill_profile", {}, made, advice(skillDemo.emptySkill), made);
+  },
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),
   notesSources: () => call<NotesSource[]>("notes_sources", {}, demo.demoNotesSources),
   detectedDirs: () =>

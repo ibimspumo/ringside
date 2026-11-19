@@ -8,6 +8,8 @@ import { libraryApi } from "../library/api";
 import type { Filter, HudConfig, TournamentRow } from "../types";
 import { int } from "../ui/format";
 import { LOCKED_PAGES, PAGES, type Area, type Page } from "./pages";
+import { points } from "../skill/labels";
+import { skill } from "../skill/store.svelte";
 
 export type Tone = "neutral" | "good" | "warn" | "bad";
 /**
@@ -108,6 +110,10 @@ class NavLive {
       const short = job.status === "paused" ? `${what} pausiert` : `${what} läuft`;
       const text = job.status === "paused" ? short : eta ? `${short} · ${eta}` : `${short}${pct ? ` · ${pct.trim()}` : ""}`;
       return { ...live(short, text), busy: true };
+    }
+    if (page === "skill" && skill.profile?.rating != null) {
+      const r = points(skill.profile.rating);
+      return live(r, `${r} · ${skill.profile.tier}`);
     }
     return this.values[page];
   }

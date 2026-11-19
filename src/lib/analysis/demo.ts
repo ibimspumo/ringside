@@ -1,4 +1,5 @@
 /** Browser stand-ins for the hand analysis, shaped like the real commands. `?analysis=0` starts unanalysed. */
+import { demoChange } from "../skill/demo";
 import type { HandQuery, HandSummary } from "../types";
 import { DEMO_DECISIONS } from "./demo-hands";
 import { RATINGS } from "./labels";
@@ -222,6 +223,6 @@ function fullSummary(): AnalysisSummary {
 
 export function onAutoDone(handler: (d: AutoDone) => void) {
   const shown = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("autodone") === "1";
-  const timer = shown ? setTimeout(() => handler({ hands: 42, mistakes: 3, job: null }), 600) : undefined;
+  const timer = shown ? setTimeout(() => handler({ hands: 42, mistakes: 3, job: null, skill: demoChange() }), 600) : undefined;
   return () => clearTimeout(timer);
 }
