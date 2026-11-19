@@ -9,6 +9,7 @@
   import { bb as fmtBb } from "../ui/format";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
+  import Term from "../ui/Term.svelte";
   import Verdict from "../ui/Verdict.svelte";
   import { EV_EXPLAIN, EV_FROM, EV_LEGEND, EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
@@ -153,12 +154,12 @@
       </div>
     {/if}
     <ul class="options">
-      <li class="cols" aria-hidden="true">
+      <li class="cols">
         <span></span>
         <span>{SOURCE[d.source].label}</span>
-        <span title="Wie oft die Quelle diese Aktion mit genau deiner Hand wählt">{d.source === "estimate" ? "" : "so oft"}</span>
-        <abbr title={EV_EXPLAIN}>bringt</abbr>
-        <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
+        <span>{#if d.source !== "estimate"}<Term tip="Wie oft {d.source === 'solver' ? 'der' : 'das'} {SOURCE[d.source].label} diese Aktion mit genau deiner Hand wählt.">so oft</Term>{/if}</span>
+        <span><Term tip={EV_LEGEND[EV_FROM[d.source]]}>bringt</Term></span>
+        <span><Term tip={EV_LOSS_EXPLAIN}>kostet</Term></span>
       </li>
       {#each d.strategy as c (c.label)}
         <li class:mine={c.played}>
@@ -170,10 +171,6 @@
         </li>
       {/each}
     </ul>
-    <p class="legend">
-      {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if}
-      {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
-    </p>
 
     {#if kit && !quiet}
       <SourceNote kind={kit} variant="block">
@@ -317,17 +314,6 @@
   }
   .options li.cols > :nth-child(n + 3) {
     text-align: right;
-  }
-  abbr {
-    text-decoration: underline dotted;
-    text-underline-offset: 3px;
-    cursor: help;
-  }
-  .legend {
-    margin: 0;
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-base);
   }
   .book path {
     fill: none;

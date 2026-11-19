@@ -94,10 +94,10 @@ export const EV_LOSS_EXPLAIN = explain("ev_loss");
  */
 export const EV_FROM: Record<Source, "now" | "stack"> = { solver: "now", estimate: "now", forced: "now", model: "stack", equilibrium: "stack" };
 
-/** The "bringt" column's legend, one sentence per way of counting. */
+/** What the "bringt" column counts, one sentence per way of counting. */
 export const EV_LEGEND: Record<"now" | "stack", string> = {
-  now: "„bringt“: was die Aktion ab hier im Schnitt einbringt, Folden ist 0.",
-  stack: "„bringt“: was die Aktion im Schnitt einbringt, gerechnet ab deinem Stack vor der Hand – darum zählt beim Folden ein schon gesetzter Blind als Verlust.",
+  now: "Was die Aktion ab hier im Schnitt einbringt, in Big Blinds. Folden ist 0.",
+  stack: "Was die Aktion im Schnitt einbringt, in Big Blinds, gerechnet ab deinem Stack vor der Hand – darum zählt beim Folden ein schon gesetzter Blind als Verlust.",
 };
 
 export const EV_EXPLAIN =
