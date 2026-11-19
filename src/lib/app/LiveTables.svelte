@@ -29,9 +29,12 @@
   const docked = $derived(width >= 1500);
   let selected = $state<{ key: string; player: PlayerView; table: TableView; hero: boolean } | null>(null);
 
-  function load() {
+  /** `again` refreshes the open player too, for the player type that comes and goes with PokerStars. */
+  function load(again = false) {
     api.liveTables().then((t) => {
       tables = t;
+      const open = again && selected ? t.find((x) => x.table_key === selected?.table.table_key)?.table : null;
+      if (open && selected) pick(open, selected.key);
       const want = loaded ? null : preview("player");
       const first = t.find((x) => x.table)?.table;
       const seat = first?.seats.find((x) => x.name === want);
@@ -42,14 +45,19 @@
 
   onMount(() => {
     watchPokerClient();
-    load();
-    const subs = [on("table-updated", load), on("tables-tracked", load), on("settings-changed", load), on("notes-changed", load)];
+    const subs = [on("table-updated", () => load()), on("tables-tracked", () => load()), on("settings-changed", () => load()), on("notes-changed", () => load())];
     // Titles change when a tournament moves you to another table; the tracker reports no event for that.
-    const poll = setInterval(load, 5000);
+    const poll = setInterval(() => load(), 5000);
     return () => {
       clearInterval(poll);
       subs.forEach((s) => s.then((f) => f()));
     };
+  });
+
+  // The backend leaves out player types while PokerStars runs.
+  $effect(() => {
+    void pokerClient.running;
+    load(true);
   });
 
   const seatsOf = (t: TableView) => [...t.seats].sort((a, b) => a.visual - b.visual);
@@ -60,6 +68,7 @@
       key: rowKey(t, s),
       name: s.name,
       stats: s.stats,
+      read: s.read,
       label: s.note?.label ?? null,
       note: s.note ? [s.note.label?.name, s.note.text].filter(Boolean).join(" – ") : "",
       hero: s.is_hero,
@@ -89,7 +98,7 @@
 
   function pick(t: TableView, key: string) {
     const s = t.seats.find((x) => rowKey(t, x) === key);
-    if (s) selected = { key, player: { name: s.name, net: 0, stats: s.stats }, table: t, hero: s.is_hero };
+    if (s) selected = { key, player: { name: s.name, net: 0, stats: s.stats, read: s.read }, table: t, hero: s.is_hero };
   }
 </script>
 

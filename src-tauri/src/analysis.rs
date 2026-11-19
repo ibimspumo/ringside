@@ -259,6 +259,10 @@ pub struct AnalysisState {
     /// The entry in the task center while the analysis runs.
     job: Mutex<Option<jobs::Job>>,
     auto: Mutex<Auto>,
+    /// Hands the import had read in at the last look, to tell when new ones came.
+    imported: Mutex<usize>,
+    /// Without a mark: hands and mistakes rated before the run, so its report counts only its own.
+    unmarked_base: Mutex<(i64, i64)>,
 }
 
 impl AnalysisState {
@@ -331,7 +335,8 @@ fn publish(app: &AppHandle, force: bool, f: impl FnOnce(&mut AnalysisStatus)) {
 pub fn spawn(app: AppHandle) {
     std::thread::spawn(move || {
         let cancelled = setting(&app, CANCELLED_KEY).is_some_and(|v| v == "1");
-        *app.state::<AnalysisState>().auto.lock().unwrap() = Auto::new(cancelled);
+        let marked = setting(&app, AFTER_KEY).is_some();
+        *app.state::<AnalysisState>().auto.lock().unwrap() = Auto::new(cancelled, marked);
         loop {
             let state = app.state::<AnalysisState>();
             let (was, was_on) = {
@@ -392,10 +397,18 @@ fn store(app: &AppHandle, key: &str, value: &str) {
 fn auto_step(app: &AppHandle, client: bool) -> Option<u64> {
     let on = app.state::<AppState>().settings.lock().unwrap().analysis.auto;
     let analysis = app.state::<AnalysisState>();
-    let (edges, may) = {
+    let came_in = {
+        let now = app.state::<AppState>().import.lock().unwrap().hands_imported;
+        let mut seen = analysis.imported.lock().unwrap();
+        std::mem::replace(&mut *seen, now) < now
+    };
+    let (edges, unmarked) = {
         let mut auto = analysis.auto.lock().unwrap();
-        let edges = auto.observe(client, on);
-        (edges, auto.may_compute())
+        let mut edges = auto.observe(client, on);
+        if came_in {
+            edges.extend(auto.imported(on));
+        }
+        (edges, auto.unmarked())
     };
     for edge in edges {
         match edge {
@@ -404,11 +417,16 @@ fn auto_step(app: &AppHandle, client: bool) -> Option<u64> {
                 store(app, AFTER_KEY, &last.unwrap_or(0).to_string());
             }
             Edge::CancelLifted => store(app, CANCELLED_KEY, "0"),
+            Edge::Started if unmarked => {
+                let before = app.state::<AppState>().db.lock().unwrap().analysis_since(ENGINE, 0);
+                *analysis.unmarked_base.lock().unwrap() = before.map(|b| (b.hands, b.mistakes)).unwrap_or_default();
+            }
             Edge::Started => {}
         }
     }
-    // Without a mark nothing is new yet: it is set the first time PokerStars is seen.
-    let after = may.then(|| setting(app, AFTER_KEY).and_then(|v| v.parse().ok())).flatten();
+    let may = analysis.auto.lock().unwrap().may_compute();
+    let mark = may.then(|| setting(app, AFTER_KEY).and_then(|v| v.parse().ok())).flatten();
+    let after = analysis.auto.lock().unwrap().after(mark);
     if may && after.is_none() {
         analysis.auto.lock().unwrap().finish();
     }
@@ -425,17 +443,27 @@ fn auto_step(app: &AppHandle, client: bool) -> Option<u64> {
 /// and if there were any the page hears how many.
 fn auto_finish(app: &AppHandle, after: u64) {
     let analysis = app.state::<AnalysisState>();
-    if !analysis.auto.lock().unwrap().finish() {
-        return;
-    }
+    let unmarked = {
+        let mut auto = analysis.auto.lock().unwrap();
+        if !auto.finish() {
+            return;
+        }
+        auto.unmarked()
+    };
     let main = app.state::<AppState>();
     let since = {
         let db = main.db.lock().unwrap();
         db.analysis_since(ENGINE, after)
     };
     match since {
-        Ok(since) => {
-            if let Some(last) = since.last_hand {
+        Ok(mut since) => {
+            // Without a mark the next run rates every hand still unrated again; the mark
+            // comes from seeing PokerStars open.
+            if unmarked {
+                let (hands, mistakes) = *analysis.unmarked_base.lock().unwrap();
+                since.hands -= hands;
+                since.mistakes -= mistakes;
+            } else if let Some(last) = since.last_hand {
                 store(app, AFTER_KEY, &last.to_string());
             }
             if since.hands > 0 {

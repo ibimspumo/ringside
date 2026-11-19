@@ -2,9 +2,12 @@
 //! that works against it, and whether the sample is large enough to say.
 //!
 //! Types follow common rules of thumb (see [`classify`]). How far a VPIP can be trusted
-//! comes from the Wilson 95 % interval of a share measured over `hands` hands.
+//! comes from the Wilson 95 % interval of a share measured over `hands` hands. The drill
+//! "Gegner lesen" and the player pages ([`read`]) judge with the same rules and texts.
 
 use rand::Rng;
+use ringside_core::stats::{StatId, StatValue};
+use serde::Serialize;
 
 use crate::deal::{self, Rng8};
 use crate::fmt;
@@ -30,6 +33,15 @@ impl Type {
         }
     }
 
+    fn name(self) -> &'static str {
+        match self {
+            Type::Nit => "Nit",
+            Type::Tag => "TAG",
+            Type::Lag => "LAG",
+            Type::Station => "Calling Station",
+        }
+    }
+
     fn label(self) -> &'static str {
         match self {
             Type::Nit => "Nit (sehr eng)",
@@ -52,15 +64,15 @@ impl Type {
         match self {
             Type::Nit => ("steal", "Öfter seine Blinds stehlen, gegen seine Raises folden"),
             Type::Tag => ("standard", "Solide spielen, ohne große Anpassung"),
-            Type::Lag => ("trap", "Weiter callen und mit starken Händen zurückschlagen"),
-            Type::Station => ("value", "Viele Value-Bets, kaum bluffen"),
+            Type::Lag => ("trap", "Öfter mitgehen und mit starken Händen selbst erhöhen"),
+            Type::Station => ("value", "Mit guten Händen oft und groß setzen, kaum bluffen"),
         }
     }
 
     fn why(self) -> &'static str {
         match self {
             Type::Nit => "Er foldet fast alles. Wenn er doch erhöht, hat er eine starke Hand.",
-            Type::Tag => "Er macht wenig falsch. Große Anpassungen kosten hier eher.",
+            Type::Tag => "Er spielt eng und meist mit Raise. Große Anpassungen gegen ihn lohnen selten.",
             Type::Lag => "Er erhöht auch mit schwachen Händen. Starke Hände bekommen von ihm viel Geld.",
             Type::Station => "Er foldet selten. Bluffs gehen nicht durch, gute Hände werden bezahlt.",
         }
@@ -110,6 +122,68 @@ fn trusted(t: Type, vpip: f64, hands: u32) -> Option<bool> {
         return None;
     }
     Some(lo >= a && hi <= b)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Sureness {
+    Sure,
+    /// Close to the border of another type.
+    Maybe,
+    Unsure,
+}
+
+/// A type with the words the player pages show for it.
+#[derive(Debug, PartialEq, Serialize)]
+pub struct TypeRead {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub long: &'static str,
+    pub sketch: &'static str,
+    pub counter: String,
+    pub why: &'static str,
+}
+
+/// What the numbers say about an opponent: type (`None` between the types) and how sure.
+#[derive(Debug, PartialEq, Serialize)]
+pub struct Read {
+    #[serde(rename = "type")]
+    pub kind: Option<TypeRead>,
+    pub hands: u32,
+    pub sure: Sureness,
+    /// "nach 412 Händen klares Muster", "nach 27 Händen noch unsicher".
+    pub note: String,
+}
+
+/// The read of a player's stats, `None` without VPIP, PFR or hands.
+pub fn read(stats: &[StatValue]) -> Option<Read> {
+    let value = |id| stats.iter().find(|s| s.id == id).and_then(|s| s.value);
+    let (vpip, pfr) = (value(StatId::Vpip)?, value(StatId::Pfr)?);
+    let hands = value(StatId::Hands)? as u32;
+    if hands == 0 {
+        return None;
+    }
+    let t = classify(vpip, pfr);
+    let sure = match t.map(|t| trusted(t, vpip, hands)) {
+        Some(Some(true)) => Sureness::Sure,
+        Some(None) => Sureness::Maybe,
+        _ => Sureness::Unsure,
+    };
+    let word = match sure {
+        Sureness::Sure => "klares Muster",
+        Sureness::Maybe => "knapp",
+        Sureness::Unsure => "noch unsicher",
+    };
+    let note = format!("nach {} {} {word}", fmt::chips(hands as f64), if hands == 1 { "Hand" } else { "Händen" });
+    let kind = t.map(|t| TypeRead {
+        id: t.id(),
+        name: t.name(),
+        long: t.label(),
+        sketch: t.sketch(),
+        counter: format!("{}.", t.counter().1),
+        why: t.why(),
+    });
+    Some(Read { kind, hands, sure, note })
 }
 
 fn stats(t: Type, rng: &mut Rng8) -> (f64, f64, f64) {
@@ -258,6 +332,53 @@ mod tests {
         assert_eq!(classify(35.0, 27.0), Some(Type::Lag));
         assert_eq!(classify(45.0, 7.0), Some(Type::Station));
         assert_eq!(classify(24.0, 8.0), None);
+    }
+
+    /// Each border belongs to the side the rule names: below 15 a nit, a TAG below 27 from 0.7
+    /// aggression, a LAG from 28 and 0.6, a station from 30 and at most 0.35.
+    #[test]
+    fn rules_at_the_borders() {
+        assert_eq!(classify(14.9, 2.0), Some(Type::Nit));
+        assert_eq!(classify(15.0, 12.0), Some(Type::Tag));
+        assert_eq!(classify(20.0, 14.0), Some(Type::Tag));
+        assert_eq!(classify(20.0, 13.9), None);
+        assert_eq!(classify(27.0, 26.0), None);
+        assert_eq!(classify(28.0, 20.0), Some(Type::Lag));
+        assert_eq!(classify(30.0, 18.0), Some(Type::Lag));
+        assert_eq!(classify(30.0, 17.9), None);
+        assert_eq!(classify(29.9, 5.0), None);
+        assert_eq!(classify(30.0, 5.0), Some(Type::Station));
+        assert_eq!(classify(40.0, 14.0), Some(Type::Station));
+        assert_eq!(classify(40.0, 14.1), None);
+    }
+
+    fn player(vpip: Option<f64>, pfr: Option<f64>, hands: u32) -> Vec<StatValue> {
+        let v = |id, value| StatValue { id, value, made: 0, opp: hands.into() };
+        vec![v(StatId::Hands, Some(hands as f64)), v(StatId::Vpip, vpip), v(StatId::Pfr, pfr)]
+    }
+
+    /// Far inside the type's range sure, near another type's border close, on few hands unsure.
+    #[test]
+    fn read_says_how_sure() {
+        let r = read(&player(Some(45.0), Some(7.0), 1000)).unwrap();
+        assert_eq!((r.kind.as_ref().map(|t| t.id), r.sure), (Some("station"), Sureness::Sure));
+        assert_eq!(r.note, "nach 1.000 Händen klares Muster");
+        let r = read(&player(Some(28.0), Some(22.0), 2500)).unwrap();
+        assert_eq!((r.kind.as_ref().map(|t| t.id), r.sure, r.note.as_str()), (Some("lag"), Sureness::Maybe, "nach 2.500 Händen knapp"));
+        let r = read(&player(Some(32.0), Some(3.0), 96)).unwrap();
+        assert_eq!((r.kind.as_ref().map(|t| t.name), r.sure), (Some("Calling Station"), Sureness::Unsure));
+        assert_eq!(r.kind.unwrap().counter, "Mit guten Händen oft und groß setzen, kaum bluffen.");
+        assert_eq!(read(&player(Some(100.0), Some(0.0), 1)).unwrap().note, "nach 1 Hand noch unsicher");
+    }
+
+    /// Between the types no type and never sure; without numbers no read at all.
+    #[test]
+    fn read_without_type_or_numbers() {
+        let r = read(&player(Some(24.0), Some(8.0), 5000)).unwrap();
+        assert_eq!((r.kind, r.sure), (None, Sureness::Unsure));
+        assert_eq!(read(&player(None, Some(8.0), 50)), None);
+        assert_eq!(read(&player(Some(24.0), None, 50)), None);
+        assert_eq!(read(&player(Some(24.0), Some(8.0), 0)), None);
     }
 
     /// Known Wilson intervals; more hands make them narrower.
