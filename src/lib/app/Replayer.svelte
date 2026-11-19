@@ -548,7 +548,7 @@
           {/each}
         </div>
         <i class="break" aria-hidden="true"></i>
-        <span class="steps" title="Schritt {step} von {events.length}: {lastSaid}">{#if step > 0}<span class="was">Zuletzt:</span> {/if}{lastSaid}</span>
+        <span class="steps" title="Schritt {step} von {events.length}: {lastSaid}">{#if step > 0}<span class="was">Zuletzt:&nbsp;</span>{/if}{lastSaid}</span>
         <div class="extras">
         <SegmentedControl
           size="sm"

@@ -79,8 +79,8 @@
 {#if mode === "first" && shown[0]}
   {@const s = shown[0]}
   <div class="first" data-step={s.id}>
-    {#if label || s.estimate}<span class="label">{label}{#if s.estimate}<Badge tone="warn" size="sm" dashed title="Die Zahl stützt sich auf eine Schätzung, nicht auf eine Lösung.">geschätzt</Badge>{/if}</span>{/if}
-    <b class="step-title">{@render title(s)}</b>
+    {#if label}<span class="label">{label}{#if s.estimate}<Badge tone="warn" size="sm" dashed title="Die Zahl stützt sich auf eine Schätzung, nicht auf eine Lösung.">geschätzt</Badge>{/if}</span>{/if}
+    <b class="step-title">{@render title(s)}{#if !label && s.estimate}&nbsp;<Badge tone="warn" size="sm" dashed title="Die Zahl stützt sich auf eine Schätzung, nicht auf eine Lösung.">geschätzt</Badge>{/if}</b>
     <p class="number">{cap(s.number)}.</p>
     <p class="why">{s.why}</p>
     {#if note}{@render note(s)}{/if}
