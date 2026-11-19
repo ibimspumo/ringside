@@ -136,7 +136,7 @@
           <span class="facts">
             <Badge size="sm">{stakes(t.table)}</Badge>
             <span><span class="num">{t.table.seats.length}</span> Spieler</span>
-            <span class="faint" title="Die Werte stehen auf dem Stand nach dieser Hand">zuletzt gelesen: Hand <span class="num">#{t.table.hand_id}</span></span>
+            <span class="faint" title="Die Werte stehen auf dem Stand nach dieser Hand">Werte nach Hand <span class="num">#{t.table.hand_id}</span></span>
           </span>
           {#if more[t.table_key]}<span class="more"><MoreColumns /></span>{/if}
         {/if}

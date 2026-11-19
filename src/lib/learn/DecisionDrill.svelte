@@ -39,7 +39,7 @@
     onGraded?: (r: DrillResult) => void;
     onNext?: () => void;
     nextLabel?: string;
-    /** Why this kind of spot is practised: "38-mal gespielt, kostet dich etwa 0,4 BB pro Mal". */
+    /** Why this kind of spot is practised: "38-mal gespielt, kostet dich etwa 0,4 BB je Entscheidung". */
     why?: string | null;
     /** Replaces the line naming where the hand comes from, e.g. for the learning spots. */
     origin?: Snippet;

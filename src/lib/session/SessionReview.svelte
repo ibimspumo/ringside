@@ -67,6 +67,7 @@
   let failed = $state(false);
   let retry = $state(0);
   /** The page of all luck examples ("Alle ansehen"). */
+  let showGrid = $state(false);
   let detail = $state(query.get("sub") === "luck");
 
   $effect(() => {
@@ -203,7 +204,7 @@
           {#if rep!.pending > 0}
             <span class="sr-state" title="Flop-Spots rechnet Ringside im Hintergrund nach. Bis dahin sind die Zahlen nach dem Flop vorläufig.">
               <ProgressRing size={18} stroke={3} value={null} tone="info" label="Flop-Spots" />
-              {rep!.pending === 1 ? "1 Flop-Spot wird noch gerechnet" : `${int(rep!.pending)} Flop-Spots werden noch gerechnet`}
+              {rep!.pending === 1 ? "1 Entscheidung nach dem Flop wird noch gerechnet" : `${int(rep!.pending)} Entscheidungen nach dem Flop werden noch gerechnet`}
             </span>
           {/if}
         {/if}
@@ -252,9 +253,12 @@
       <EmptyState
         page
         title="Zuerst: PokerStars deine Hände speichern lassen"
-        text="Schalte in PokerStars unter Einstellungen → Spielhistorie „Handverläufe speichern“ ein – die Anleitung steht oben. Danach steht hier nach jeder Session, wie sie lief und was du als Nächstes üben kannst."
+        text="Schalte in PokerStars unter Einstellungen → Spielhistorie „Handverläufe speichern“ ein. Danach steht hier nach jeder Session, wie sie lief und was du als Nächstes üben kannst."
       >
-        {#snippet action()}<Button onclick={() => go("play")}>Solange: Hände gegen Bots spielen</Button>{/snippet}
+        {#snippet action()}
+          <Button variant="primary" onclick={() => go("settings")}>Hände einrichten</Button>
+          <Button variant="quiet" onclick={() => go("play")}>Solange: gegen Bots spielen</Button>
+        {/snippet}
       </EmptyState>
     {:else}
       <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars oder importier deine GGPoker-Hände in den Einstellungen. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst.">
@@ -354,16 +358,19 @@
                   {/each}
                 </ul>
               {/if}
-              <div class="sr-hands">
-                <div class="sr-mini">
-                  <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
-                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
-                </div>
+              <div class="sr-hands" class:open={showGrid}>
                 <div class="sr-keycol">
                   {@render classRow(pre.tight, "Laut Modell öfter spielen", "--range-tight")}
                   {@render classRow(pre.wide, "Laut Modell eher folden", "--range-wide")}
                   {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
+                  <span><Button size="sm" variant="quiet" aria-expanded={showGrid} onclick={() => (showGrid = !showGrid)}>{showGrid ? "Raster ausblenden" : "Alle Starthände dieser Session"}</Button></span>
                 </div>
+                {#if showGrid}
+                  <div class="sr-mini">
+                    <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
+                    <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
+                  </div>
+                {/if}
               </div>
 
             {/if}
@@ -389,7 +396,7 @@
               <strong class="sr-big" class:sr-up={rep.luck.net_bb > 0} class:sr-down={rep.luck.net_bb < 0}>{bb(rep.luck.net_bb, { sign: true })}</strong>
             {/each}
             <span class="sr-result-sub">
-              {#if money.sums.length}{bb(rep.luck.net_bb, { sign: true })} in Chips{/if}{#if money.open}{money.sums.length ? " · " : ""}{money.open === 1 ? "1 Turnier läuft noch" : `${money.open} Turniere laufen noch`}{/if}
+              {#if money.sums.length}in Geld · in Chips {bb(rep.luck.net_bb, { sign: true })}{/if}{#if money.open}{money.sums.length ? " · " : ""}{money.open === 1 ? "1 Turnier läuft noch" : `${money.open} Turniere laufen noch`}{/if}
             </span>
           </div>
           <p class="sr-say">{luckLine(rep.luck)}</p>
@@ -686,11 +693,14 @@
 
   .sr-hands {
     display: grid;
-    grid-template-columns: minmax(220px, 460px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-5);
     align-items: center;
     padding-top: var(--sp-3);
     border-top: 1px solid var(--line);
+  }
+  .sr-hands.open {
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 460px);
   }
   .sr-keycol {
     display: flex;
@@ -807,8 +817,9 @@
     font-weight: var(--fw-semibold);
     color: var(--text-2);
   }
+  /* Always a line of its own, so both cards put the hand's result in the same place. */
   .sr-swing-net {
-    margin-left: auto;
+    flex-basis: 100%;
     font-family: var(--font-num);
     font-size: var(--fs-sm);
     white-space: nowrap;

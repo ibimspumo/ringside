@@ -170,7 +170,7 @@
     const g = settings.hud.graphic;
     return slot.kind === "ring" ? (g.segments[slot.i] ?? null) : (g.plate_pages[platePage]?.[slot.i] ?? null);
   });
-  const slotName = $derived(slot.kind === "ring" ? `Ring, Segment ${QUARTER[slot.i]}` : `Zahlenfeld, Seite ${platePage + 1}, Wert ${slot.i + 1}`);
+  const slotName = $derived(slot.kind === "ring" ? `Ring ${QUARTER[slot.i]}` : `Zahlenfeld, Seite ${platePage + 1}, Wert ${slot.i + 1}`);
 
   function assign(id: StatId) {
     const g = settings!.hud.graphic;
@@ -286,7 +286,7 @@
           </div>
           <label class="check toggle" title="Zeigt hier die Karten der letzten Hand und das Board, damit du sie verschieben kannst. Wie lange der Rückblick am Tisch steht, stellst du unter „Aussehen“ ein.">
             <input type="checkbox" bind:checked={showRecap} />
-            <span>Rückblick in der Vorschau</span>
+            <span>Letzte Hand in der Vorschau</span>
           </label>
         </div>
 
@@ -328,7 +328,7 @@
               {#each [["low", "niedrig"], ["mid", "üblich"], ["high", "hoch"]] as [k, word] (k)}
                 <span class="tone"><i style:background={pal[k as "low" | "mid" | "high"]}></i>{word}</span>
               {/each}
-              <span>– was das je Wert heißt, steht unter „Farben“</span>
+              <span>– keine Note; was das je Wert heißt, steht unter „Farben“</span>
             </li>
             {#if view.seats.some((s) => s.note?.label)}
               <li><b class="gesture frame">Farbiger Rahmen</b>deine eigene Spieler-Markierung aus PokerStars</li>
@@ -450,20 +450,20 @@
                 {@const t = hud.thresholds[slotStat]}
                 {@const k = tone(hud, v)}
                 <div class="explain">
-                  <p><b>{m.name}:</b> {m.help}</p>
+                  <p><b>{slotStat ? PLAIN_NAME[slotStat] : m.name}</b>{#if slotStat && m.short !== PLAIN_NAME[slotStat]}{" "}<span class="faint">({m.short})</span>{/if}<b>:</b> {m.help}</p>
                   <p class="example">
                     Beispiel {sample.name}: {m.plain}
                     <b class="num" style="color:{toneColor(hud, v, 'var(--text-2)')}">{fmtUnit(v)}</b>{m.after ? ` ${m.after}` : ""}
                     {#if k === "none"}
                       – noch keine Daten.
                     {:else}
-                      → <b>{k === "mid" ? "normal" : MEANING[slotStat]?.[k === "low" ? 0 : 1]}</b>{#if t}{" "}<span class="faint">(normal bei dir: {t.low.toLocaleString("de-DE")}–{t.high.toLocaleString("de-DE")}{m.ratio ? "×" : " %"})</span>{/if}
+                      → <b>{k === "mid" ? "normal" : MEANING[slotStat]?.[k === "low" ? 0 : 1]}</b>{#if t}{" "}<span class="faint">(dein eingestellter Normalbereich: {t.low.toLocaleString("de-DE")}–{t.high.toLocaleString("de-DE")}{m.ratio ? "×" : " %"})</span>{/if}
                     {/if}
                   </p>
                 </div>
               {/if}
               <div class="picker-head">
-                <span>Anderer Wert für: {slotName}</span>
+                <span>{slotName}{#if slotStat}: <b>{PLAIN_NAME[slotStat]}</b>{/if} – wähle einen anderen Wert</span>
               </div>
               <div class="picker">
                 {#each RATED_STATS as id (id)}

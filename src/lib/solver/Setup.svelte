@@ -68,7 +68,7 @@
     } catch (e) {
       d = template(next);
       origin = "Vorlage";
-      deriveNote = "Preflop-Modell nicht verfügbar – die Ranges sind einfache Vorlagen. Die Lösung gilt für diese angenommenen Ranges.";
+      deriveNote = "Kein Modell vor dem Flop für diesen Spot – die Starthände sind einfache Vorlagen. Die Lösung gilt für diese angenommenen Starthände.";
       deriveDetail = e instanceof Error ? e.message : String(e);
     }
     if (mine !== token) return;
@@ -286,7 +286,7 @@
           Deine Hand <span class="cards">{#each solver.hero.cards as c (c)}<MiniCard card={c} />{/each}</span>
           {#if !solver.source}<Button variant="quiet" size="sm" onclick={() => setHand([])}>Entfernen</Button>{/if}
         {:else}
-          <span>Klick aufs Board, um Karten zu ändern. Deine Hand (optional): Klick auf die Karten an deinem Platz.</span>
+          <span>Karten ändern: Klick aufs Board oder auf deinen Platz (deine Hand ist optional).</span>
         {/if}
       </span>
       <span class="spacer"></span>
@@ -323,7 +323,7 @@
           {:else}
             <span class="faint">Schätze …</span>
           {/if}
-          {#if deriveNote && !solver.custom.oop && !solver.custom.ip}<span class="warn-inline">Ranges: einfache Vorlagen</span>{/if}
+          {#if deriveNote && !solver.custom.oop && !solver.custom.ip}<span class="warn-inline">Starthände: einfache Vorlagen</span>{/if}
       {#if solver.error}<span class="neg">{solver.error}</span>{/if}
           {#if solver.status === "cancelled" && !solver.error}<span class="dim">Abgebrochen.</span>{/if}
         </div>
@@ -334,11 +334,11 @@
 
   <aside class="panel scen">
     <section>
-      <h3>An welchem Tisch?</h3>
+      <h3>An welchem Tisch, und wer zahlt Ante?</h3>
       <div class="pair">
         <div class="seg" role="group" aria-label="Spieler am Tisch">
           {#each TABLES as n (n)}
-            <button class:on={solver.scenario.players === n} onclick={() => setTable(n)}>{n}-max</button>
+            <button class:on={solver.scenario.players === n} onclick={() => setTable(n)}>{n} Spieler</button>
           {/each}
         </div>
         <div class="seg" role="group" aria-label="Ante">
@@ -392,7 +392,7 @@
       </p>
       {#if deriveNote}<p class="warn small" title={deriveDetail || undefined}>{deriveNote}</p>{/if}
       <Button variant="quiet" full aria-expanded={editing} onclick={() => (editing = !editing)}>
-        {editing ? "Ranges schließen" : "Ranges anpassen"}
+        {editing ? "Starthände schließen" : "Starthände anpassen"}
       </Button>
     </section>
   </aside>

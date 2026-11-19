@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { go } from "../nav/go";
   import { onMount } from "svelte";
   import { api } from "../api";
   import { stat } from "../stats";
@@ -155,7 +156,7 @@
               : "Spiel ein paar Hände bei PokerStars – deine Gegner erscheinen hier mit ihren Werten."}
         >
           {#snippet icon()}<path d="M10.5 17a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13zM15.5 15.5 20 20" />{/snippet}
-          {#snippet action()}{#if search}<Button size="sm" onclick={() => (search = "")}>Suche löschen</Button>{/if}{/snippet}
+          {#snippet action()}{#if search}<Button size="sm" onclick={() => (search = "")}>Suche löschen</Button>{:else if filter.since === null && filter.game === null}<Button size="sm" onclick={() => go("settings")}>Hand-Ordner prüfen</Button>{/if}{/snippet}
         </EmptyState>
       {:else}
         <EmptyState tone="loading" title="Spieler werden geladen …" />

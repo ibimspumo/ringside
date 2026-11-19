@@ -89,7 +89,7 @@
 {:else if mode === "list" && shown.length}
   <ol class="rows" class:compact>
     {#if !compact}
-      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head">Was Üben bringt <span class="key">· gestreift: geschätzt</span></span></li>
+      <li class="head" aria-hidden="true"><span></span><span>Woran du arbeiten kannst</span><span class="bar-head" title="Gestreift: grob geschätzt">Was es dir bringt</span></li>
     {/if}
     {#each shown as s, i (s.id)}
       <li class="row" data-step={s.id}>
@@ -102,7 +102,7 @@
         </div>
         {#if !compact}<span class="gain" role="img" aria-label="Was Üben bringt: {Math.round((s.score / top) * 100)} % von Platz 1" title="Was Üben hier bringt, verglichen mit Platz 1{s.estimate ? ' (geschätzt)' : ''}"
             ><span class="bar"><span class="fill" class:estimate={s.estimate} style:width="{Math.max(4, (s.score / top) * 100)}%"></span></span
-            ><small class="num">{i === 0 ? "am meisten" : `${Math.round((s.score / top) * 100)} % davon`}</small></span
+            ><small class="num">{i === 0 ? "am meisten" : `${Math.round((s.score / top) * 100)} % des höchsten`}</small></span
           >{/if}
         <div class="go">{@render actions(s, primary && i === 0)}</div>
       </li>
@@ -224,11 +224,6 @@
     color: var(--text-3);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
-  }
-  .head .key {
-    font-weight: var(--fw-regular);
-    letter-spacing: normal;
-    text-transform: none;
   }
   .rows:not(.compact) .go {
     display: contents;

@@ -53,7 +53,7 @@
     <span class="how short" title={HOW}>„Handverläufe speichern“ einschalten: Einstellungen → Spielhistorie.</span>
     <span class="acts">
       <Button size="sm" variant="quiet" onclick={onChooseFolder}>Ordner selbst wählen</Button>
-      <Button size="sm" variant="primary" onclick={(e) => (guide = guide ? null : rectOf(e.currentTarget as Element))}>Anleitung anzeigen</Button>
+      <Button size="sm" onclick={(e) => (guide = guide ? null : rectOf(e.currentTarget as Element))}>Anleitung anzeigen</Button>
     </span>
   </div>
   {#if guide}

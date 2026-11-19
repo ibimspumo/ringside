@@ -488,7 +488,7 @@ step("Turniere", async () => {
 
 step("Turnier-Bericht: Klick öffnet ihn, ein Fehler spielt die Hand ab", async () => {
   await click(TAURI ? "main tbody tr:has(.gname[title*='#3500000001'])" : "main tbody tr:has(.gname[title*='Sunday Million'])");
-  await waitText("Glück gegen All-in-EV");
+  await waitText("Glück: Ergebnis gegen Erwartung");
   await waitText("Deine Entscheidungen");
   // The report filters the same list: in the demo the overview's first step was played in this tournament.
   if (!TAURI) {
@@ -1054,7 +1054,7 @@ step("Solver: Durchspielen erklärt vor dem Lösen, was dort kommt", async () =>
 step("Solver: kleiner River-Spot mit deiner Hand", async () => {
   await click("main [role='tab']", "Aufbau");
   // A new table drops a hand handed over from the analysis, so you pick your own.
-  await click("main [aria-label='Spieler am Tisch'] button", "6-max");
+  await click("main [aria-label='Spieler am Tisch'] button", "6 Spieler");
   // Five board cards make it a river spot, which solves in a moment.
   await s.exec(`[...document.querySelectorAll("main button")].find((b) => b.textContent.trim() === "Board leeren")?.click()`);
   const slots = ["Flop", "Flop", "Flop", "Turn", "River"];
@@ -1064,7 +1064,7 @@ step("Solver: kleiner River-Spot mit deiner Hand", async () => {
   }
   // At once, not after the estimate: the hint follows the board, not the debounced estimate.
   if ((await mainText()).includes("Wähle mindestens drei Boardkarten")) throw new Error("five board cards, yet the page asks for three");
-  await click("main button", "Ranges anpassen");
+  await click("main button", "Starthände anpassen");
   await fill("main textarea[aria-label='Range von OOP als Text']", "AA,KK");
   await fill("main textarea[aria-label='Range von IP als Text']", "QQ,JJ");
   await click("main button", "zuerst dran", { exact: false });
