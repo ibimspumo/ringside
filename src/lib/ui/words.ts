@@ -325,3 +325,37 @@ export function explain(id: WordId): string {
   const w: Word = WORDS[id];
   return w.long ? `${w.short} ${w.long}` : w.short;
 }
+
+/** Glossary words inside running text (questions, notes, the reasons built in Rust), longest first. */
+const INLINE: [RegExp, WordId][] = [
+  [/Heads-up-Nash|Nash/, "nash"],
+  [/Gleichgewicht/, "equilibrium"],
+  [/Modell/, "model"],
+  [/Chip-EV/, "chip_ev"],
+  [/ICM/, "icm"],
+  [/Kopfgeld/, "knockout"],
+  [/M-Zahl/, "m_ratio"],
+  [/VPIP/, "vpip"],
+  [/totes Geld|Totes Geld/, "dead_money"],
+  [/Effektiver Stack|effektive[rn]? Stack|effektiv/, "effective"],
+  [/Equity/, "equity"],
+  [/Outs/, "outs"],
+];
+
+/** Splits text into plain parts and glossary words; each word is explained where it first stands. */
+export function inlineTerms(text: string): { text: string; id: WordId | null }[] {
+  const re = new RegExp(INLINE.map(([r]) => r.source).join("|"), "g");
+  const out: { text: string; id: WordId | null }[] = [];
+  const seen = new Set<WordId>();
+  let last = 0;
+  for (const m of text.matchAll(re)) {
+    const id = INLINE.find(([r]) => new RegExp(`^(?:${r.source})$`).test(m[0]))?.[1] ?? null;
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    if (m.index > last) out.push({ text: text.slice(last, m.index), id: null });
+    out.push({ text: m[0], id });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push({ text: text.slice(last), id: null });
+  return out;
+}
