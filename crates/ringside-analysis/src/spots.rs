@@ -103,7 +103,22 @@ pub struct LernSpot {
 pub struct Pack {
     /// The analysis that rated the pack.
     pub engine: String,
+    /// [`TOPICS`] as the pack was built with them, for the browser preview.
+    pub topics: Vec<PackTopic>,
     pub spots: Vec<LernSpot>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PackTopic {
+    pub id: String,
+    pub title: String,
+    pub lesson: String,
+}
+
+impl From<&Topic> for PackTopic {
+    fn from(t: &Topic) -> PackTopic {
+        PackTopic { id: t.id.into(), title: t.title.into(), lesson: t.lesson.into() }
+    }
 }
 
 /// A topic of the pack, in learning order.
@@ -789,6 +804,7 @@ mod tests {
         }
         let packed: Vec<&str> = pack().spots.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(packed, ids, "rebuild the pack: cargo run --release -p ringside-analysis --bin lern-spots");
+        assert_eq!(pack().topics, TOPICS.iter().map(PackTopic::from).collect::<Vec<_>>(), "rebuild the pack for the new topic texts");
     }
 
     /// Each spot asks one real decision: the hand stops at the hero, nothing later is in

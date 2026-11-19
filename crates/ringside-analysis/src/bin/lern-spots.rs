@@ -19,7 +19,7 @@ use std::time::Instant;
 
 use ringside_analysis::ENGINE;
 use ringside_analysis::drill::answer;
-use ringside_analysis::spots::{LernSpot, Pack, Specs, build, hand_id, hand_of, rate_preflop};
+use ringside_analysis::spots::{LernSpot, Pack, PackTopic, Specs, TOPICS, build, hand_id, hand_of, rate_preflop};
 use ringside_engine::HandClass;
 
 fn arg<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
@@ -99,7 +99,7 @@ fn main() {
         println!("Alle {} Spots von {} gerechnet (Paket nur aus der Spezifikation im Repo).", spots.len(), spec_file.display());
         return;
     }
-    let pack = Pack { engine: ENGINE.into(), spots };
+    let pack = Pack { engine: ENGINE.into(), topics: TOPICS.iter().map(PackTopic::from).collect(), spots };
     let out = root.join("data/lern-spots.json");
     let text = serde_json::to_string(&pack).unwrap();
     std::fs::write(&out, &text).expect("pack write");

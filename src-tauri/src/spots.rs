@@ -3,7 +3,7 @@
 //! while the client runs, like the rest of the learning area.
 
 use ringside_analysis::drill::answer;
-use ringside_analysis::spots::{self, LernSpot, Seen, SpotGrid, Stored, TOPICS};
+use ringside_analysis::spots::{self, LernSpot, PackTopic, Seen, SpotGrid, Stored};
 use ringside_core::db::{Attempt, Rating};
 use ringside_learn::Kind;
 use serde::Serialize;
@@ -12,12 +12,6 @@ use tauri::AppHandle;
 use crate::drill::{DrillChoice, DrillResult, DrillSpot};
 use crate::{AppState, CmdResult, blocking, err, now_secs, unlocked};
 
-#[derive(Clone, Debug, Serialize)]
-pub struct TopicView {
-    pub id: &'static str,
-    pub title: &'static str,
-    pub lesson: &'static str,
-}
 
 /// One spot in the overview.
 #[derive(Clone, Debug, Serialize)]
@@ -33,7 +27,7 @@ pub struct KeySpotRow {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct KeySpots {
-    pub topics: Vec<TopicView>,
+    pub topics: Vec<PackTopic>,
     pub spots: Vec<KeySpotRow>,
     /// Ids to practise, most urgent first.
     pub queue: Vec<String>,
@@ -43,16 +37,16 @@ pub struct KeySpots {
 #[derive(Clone, Debug, Serialize)]
 pub struct KeySpotView {
     pub spot: DrillSpot,
-    pub topic: TopicView,
+    pub topic: PackTopic,
     /// 1-based place in the pack.
     pub number: usize,
     pub total: usize,
     pub grid: Option<SpotGrid>,
 }
 
-fn topic(id: &str) -> TopicView {
-    let t = TOPICS.iter().find(|t| t.id == id).unwrap_or(&TOPICS[0]);
-    TopicView { id: t.id, title: t.title, lesson: t.lesson }
+fn topic(id: &str) -> PackTopic {
+    let topics = &spots::pack().topics;
+    topics.iter().find(|t| t.id == id).unwrap_or(&topics[0]).clone()
 }
 
 fn seen(state: &AppState) -> CmdResult<std::collections::BTreeMap<String, Seen>> {
@@ -75,7 +69,7 @@ pub(crate) fn key_spots(state: &AppState) -> CmdResult<KeySpots> {
     let seen = seen(state)?;
     let queue = spots::queue(&pack.spots, &seen, now_secs()).into_iter().map(String::from).collect();
     Ok(KeySpots {
-        topics: TOPICS.iter().map(|t| topic(t.id)).collect(),
+        topics: pack.topics.clone(),
         spots: pack
             .spots
             .iter()
@@ -102,7 +96,7 @@ pub(crate) fn key_spot(state: &AppState, id: &str) -> CmdResult<KeySpotView> {
     let d = &s.decision;
     let spot = DrillSpot {
         key: s.id.clone(),
-        title: t.title.into(),
+        title: t.title.clone(),
         detail: format!("{} Spieler · {} BB", players(s), fmt_bb(s.stack_bb)),
         hand_id: s.hand.id,
         action_index: s.action_index,
