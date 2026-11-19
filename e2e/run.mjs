@@ -541,7 +541,7 @@ step("Hände: nichts scrollt seitwärts, die Analyse hält Abstand zum Rand", as
     return r;
   };
   await check();
-  // The analysis only stands beside the table in wide windows: the bug lived there.
+  // Only wide windows put the analysis beside the table.
   try {
     await s.cmd("POST", "/window/rect", { width: 1920, height: 1080 });
   } catch (e) {
