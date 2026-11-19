@@ -236,6 +236,7 @@ input[type="range"] {
   position: sticky;
   top: 0;
   z-index: 1;
+  vertical-align: bottom;
   padding: 10px 10px;
   background: var(--surface);
   color: var(--text-3);
