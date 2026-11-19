@@ -55,7 +55,7 @@
 
 use std::collections::BTreeMap;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::db::{Rating, Source, SpotType, Status};
 use crate::next::day_number;
@@ -162,7 +162,7 @@ impl Grades {
 }
 
 /// The areas of strengths and weaknesses, as a casual player thinks of the game.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Area {
     /// First in below 20 BB: all-in or fold.

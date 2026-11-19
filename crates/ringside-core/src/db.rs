@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::allin::hero_all_in;
 use crate::model::{GameKind, Hand};
 use crate::parser::parse_hand;
-use crate::profile::{ProfileRow, kind_of};
+use crate::profile::kind_of;
 use crate::leaks::{self, Cell};
 use crate::stats::{Counters, StatId, analyze, hand_class, position_labels};
 use crate::tournament::{BuyIn, Summary, TournamentRow};
@@ -83,6 +83,9 @@ pub struct HandQuery {
     /// Hands with a decision of this kind of spot of the playing profile (`SpotKind::key`).
     #[serde(default)]
     pub profile: Option<String>,
+    /// Hands with a rated decision in this area of the Spielwertung.
+    #[serde(default)]
+    pub area: Option<crate::skill::Area>,
     pub limit: usize,
     pub offset: usize,
 }
@@ -768,20 +771,28 @@ impl Db {
         let decisions = q.decisions.clone().unwrap_or_default();
         let decision_sql = if decisions.is_empty() { String::new() } else { decisions.hands_sql() };
         let range_sql = q.range.as_ref().map(RangeFilter::hands_sql).unwrap_or_default();
-        // The kind of spot is computed, not stored: the matching decisions are looked up first.
-        let profile_rows: Option<Vec<ProfileRow>> = match &q.profile {
-            Some(key) => Some(
+        // Kind of spot and area are computed, not stored: the matching decisions are looked up first.
+        let picked: Option<Vec<(u64, usize, f64)>> = match (&q.profile, q.area) {
+            (Some(key), _) => Some(
                 self.profile_rows(&q.filter)?
                     .into_iter()
                     .filter(|r| kind_of(r).is_some_and(|k| k.key() == *key))
+                    .map(|r| (r.hand_id, r.action_index, r.ev_loss_bb.unwrap_or(-1.0)))
                     .collect(),
             ),
-            None => None,
+            (None, Some(area)) => Some(
+                self.skill_moves()?
+                    .into_iter()
+                    .filter(|m| crate::skill::Area::of(m) == area)
+                    .map(|m| (m.hand_id, m.action_index, m.ev_loss_bb.unwrap_or(-1.0)))
+                    .collect(),
+            ),
+            (None, None) => None,
         };
-        let profile_sql = match &profile_rows {
+        let profile_sql = match &picked {
             Some(rows) if rows.is_empty() => "AND 0".to_string(),
             Some(rows) => {
-                let ids: std::collections::BTreeSet<u64> = rows.iter().map(|r| r.hand_id).collect();
+                let ids: std::collections::BTreeSet<u64> = rows.iter().map(|r| r.0).collect();
                 format!("AND h.id IN ({})", ids.iter().map(u64::to_string).collect::<Vec<_>>().join(","))
             }
             None => String::new(),
@@ -846,14 +857,10 @@ impl Db {
         )?;
         let mut list: Vec<HandSummary> = rows.collect::<Result<_, _>>()?;
         for h in &mut list {
-            h.worst = match &profile_rows {
+            h.worst = match &picked {
                 // The costliest decision of that kind in the hand.
-                Some(rows) => match rows
-                    .iter()
-                    .filter(|r| r.hand_id == h.id)
-                    .max_by(|a, b| a.ev_loss_bb.unwrap_or(-1.0).total_cmp(&b.ev_loss_bb.unwrap_or(-1.0)))
-                {
-                    Some(r) => self.decision_brief(r.hand_id, r.action_index)?,
+                Some(rows) => match rows.iter().filter(|r| r.0 == h.id).max_by(|a, b| a.2.total_cmp(&b.2)) {
+                    Some(r) => self.decision_brief(r.0, r.1)?,
                     None => None,
                 },
                 None => self.worst_decision(h.id, &decisions)?,

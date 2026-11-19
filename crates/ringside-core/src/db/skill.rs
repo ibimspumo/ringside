@@ -96,5 +96,11 @@ mod tests {
         assert!(own.is_some() && m.chips_bb == own);
         assert_eq!(m.rating, Some(Rating::Blunder));
         assert!(crate::skill::profile(&moves).rating.is_some());
+
+        let query = |area| crate::db::HandQuery { area: Some(area), limit: 10, ..Default::default() };
+        let hands = db.hands(&query(crate::skill::Area::VsAllIn)).unwrap();
+        assert_eq!(hands.iter().map(|h| h.id).collect::<Vec<_>>(), [id]);
+        assert_eq!(hands[0].worst.as_ref().map(|w| w.action_index), Some(8));
+        assert!(db.hands(&query(crate::skill::Area::River)).unwrap().is_empty());
     }
 }
