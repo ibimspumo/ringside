@@ -196,14 +196,20 @@ async function waitFor(what, script, args = [], timeout = 20_000) {
 const find = (sel, text = null, { exact = true, timeout } = {}) =>
   waitFor(`${sel}${text === null ? "" : ` „${text}“`}`, FIND, [sel, text, exact], timeout);
 
-async function click(sel, text = null, opts) {
-  const el = await find(sel, text, opts);
-  // Like a user scrolling to it: sticky bars may cover elements at the window edge.
-  await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, el);
-  // The scroll event comes with the next frame, before its animation callbacks. Arriving after
-  // the click, it would hide the popover the click opened (ui/floating.ts).
-  await s.execAsync(`const done = arguments[0]; requestAnimationFrame(() => done());`);
-  await clickEl(el);
+async function click(sel, text = null, opts, retry = true) {
+  try {
+    const el = await find(sel, text, opts);
+    // Like a user scrolling to it: sticky bars may cover elements at the window edge.
+    await s.exec(`arguments[0].scrollIntoView({ block: "center" })`, el);
+    // The scroll event comes with the next frame, before its animation callbacks. Arriving after
+    // the click, it would hide the popover the click opened (ui/floating.ts).
+    await s.execAsync(`const done = arguments[0]; requestAnimationFrame(() => done());`);
+    await clickEl(el);
+  } catch (e) {
+    // A list that re-renders between finding and clicking replaces the element: look it up again.
+    if (!retry || !/stale element/.test(String(e))) throw e;
+    await click(sel, text, opts, false);
+  }
 }
 
 async function clickEl(el) {
@@ -438,7 +444,8 @@ step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
     `const el = document.querySelector("main .first[data-step]");
      return el && (!arguments[0] || !el.textContent.includes("vorläufig")) ? el.dataset.step : null`,
     [TAURI],
-    90_000,
+    // A fresh profile rates every imported hand, its flop spots too; a 4-core runner needs minutes.
+    300_000,
   );
   if (!TAURI && firstStep !== "spot:river_vs_bet|-|3|6") throw new Error(`the demo's first step is „${firstStep}“`);
   if (firstStep) await sameFirstStep("„Fang hier an“", "main .focus [data-step]");
@@ -564,7 +571,8 @@ step("Hände: GGPoker-Hand mit Marke, Replayer öffnet sie, Filter Client", asyn
   await clickEl(await find(`${rows}:has(.ui-site.ggpoker)`));
   await find(".replayer");
   await find("main .hand-head .ui-site.ggpoker");
-  await waitText(/#TM\d+/);
+  // Narrow windows keep the hand number in the title's tooltip only.
+  await waitFor("the GGPoker hand number", `return /#TM\\d+/.test(document.querySelector("main .hand-head h2")?.title ?? "")`);
   await waitText("Gegner 1");
   const ids = await s.exec(`return document.querySelector(".replayer").innerText.match(/\\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\\d)[0-9a-f]{7,8}\\b/g)`);
   if (ids) throw new Error(`GGPoker ids shown in the replayer: ${ids.join(", ")}`);
