@@ -604,3 +604,13 @@ fn an_unmatched_bet_goes_back_without_its_line() {
     assert_eq!(net, 0);
 }
 
+/// The client stopped in the middle of a hand and went on with the next one in the same
+/// line: the broken hand is left out, the next one is read whole.
+#[test]
+fn a_hand_cut_off_by_the_next_one() {
+    let first = CASH.split("*** FLOP ***").next().unwrap();
+    let text = format!("{first}*** FLOP *** [4d Kh J{TOURNAMENT}");
+    let parts = split_hands(&text);
+    assert_eq!(parts.len(), hands(TOURNAMENT).len(), "{parts:#?}");
+    assert_eq!(hands(&text)[0], hands(TOURNAMENT)[0]);
+}

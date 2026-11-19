@@ -66,9 +66,11 @@ pub fn split_hands(text: &str) -> Vec<&str> {
     starts
         .iter()
         .enumerate()
-        .map(|(i, &start)| {
+        .filter_map(|(i, &start)| {
             let end = starts.get(i + 1).copied().unwrap_or(text.len());
-            text[start..end].trim_end()
+            // A hand the next one cut off in the middle of a line stays incomplete.
+            let cut_off = end < text.len() && !text[..end].ends_with('\n');
+            (!cut_off).then(|| text[start..end].trim_end())
         })
         .collect()
 }
@@ -110,6 +112,10 @@ fn hand_starts(text: &str) -> Vec<usize> {
         let trimmed = line.trim_start_matches('\u{feff}');
         if (trimmed.starts_with("PokerStars ") && (trimmed.contains("Hand #") || trimmed.contains("Game #"))) || trimmed.starts_with("Poker Hand #") {
             starts.push(offset + (line.len() - trimmed.len()));
+        } else if let Some(at) = ["PokerStars Hand #", "PokerStars Game #", "PokerStars Zoom Hand #"].iter().filter_map(|h| line.find(h)).min() {
+            // The client stopped in the middle of a hand and went on with the next one in
+            // the same line.
+            starts.push(offset + at);
         }
         offset += line.len();
     }
