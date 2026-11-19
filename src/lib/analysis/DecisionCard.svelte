@@ -149,6 +149,8 @@
         </div>
       </div>
     {/if}
+    <details class="compare">
+      <summary>Alle Möglichkeiten im Vergleich</summary>
     <ul class="options">
       <li class="cols" aria-hidden="true">
         <span></span>
@@ -171,6 +173,7 @@
       {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if}
       {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
     </p>
+    </details>
 
     {#if kit && !quiet}
       <SourceNote kind={kit} variant="block">
@@ -370,6 +373,13 @@
   }
   summary:hover {
     color: var(--text-2);
+  }
+  .compare > summary {
+    color: var(--text-2);
+    font-weight: var(--fw-medium);
+  }
+  .compare[open] > summary {
+    margin-bottom: var(--sp-2);
   }
   details p {
     margin: var(--sp-2) 0 0;

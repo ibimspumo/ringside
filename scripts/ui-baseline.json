@@ -197,9 +197,8 @@
       "files": {}
     },
     "jargon": {
-      "total": 68,
+      "total": 66,
       "files": {
-        "app/Reports.svelte": 2,
         "charts/ChartsButton.svelte": 1,
         "charts/PreflopChart.svelte": 2,
         "charts/RangesPage.svelte": 9,
