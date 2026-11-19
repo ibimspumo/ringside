@@ -238,9 +238,16 @@ pub fn options(spot: &Spot, a: &Action, big: f64) -> (Vec<Opt>, usize) {
             .min_by(|x, y| x.1.total_cmp(&y.1))
             .map(|x| x.0),
     };
-    // Calling all in for less than the bet is the same as calling.
-    if call >= spot.hero_behind - 1e-9 {
-        opts.retain(|o| *o != Opt::AllIn);
+    // Calling all in for less than the bet is the same as calling, and so is raising when
+    // every opponent is all in already.
+    if call >= spot.hero_behind - 1e-9 || spot.nobody_can_bet() {
+        let played_opt = played.map(|k| opts[k]);
+        opts.retain(|o| matches!(o, Opt::Fold | Opt::Check | Opt::Call));
+        let played = match played_opt {
+            Some(o) if opts.contains(&o) => opts.iter().position(|x| *x == o),
+            _ => opts.iter().position(|o| matches!(o, Opt::Call | Opt::Check)),
+        };
+        return (opts, played.unwrap_or(0));
     }
     let played = played.unwrap_or(0).min(opts.len() - 1);
     (opts, played)

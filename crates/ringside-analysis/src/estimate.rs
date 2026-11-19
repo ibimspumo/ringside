@@ -524,6 +524,11 @@ pub struct Spot {
 }
 
 impl Spot {
+    /// Every opponent is all in: nobody can bet or call any more.
+    pub fn nobody_can_bet(&self) -> bool {
+        self.opponents.iter().all(|o| o.behind <= 1e-9)
+    }
+
     pub fn to_call(&self) -> f64 {
         let top = self.opponents.iter().map(|o| o.street_in).fold(self.hero_in, f64::max);
         (top - self.hero_in).min(self.hero_behind).max(0.0)
@@ -586,7 +591,7 @@ impl Default for Tuning {
 
 /// Equity realization on later streets.
 fn realization(s: &Spot, spr: f64, eq: f64, t: &Tuning) -> f64 {
-    if s.river {
+    if s.river || s.nobody_can_bet() {
         return 1.0;
     }
     let pos = if s.in_position { 1.0 } else { 0.86 };
@@ -757,8 +762,10 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
         continuing_ranges.push(continuing(&o.range, strength, board_dead, share));
     }
     if shares.is_empty() {
+        // Nobody can put in more: the bet is a call of what is there, the rest comes back.
+        let call = spot.to_call();
         let eq = equity(spot.hero, &spot.opponents.iter().map(|o| &o.range).collect::<Vec<_>>(), &spot.board, rng);
-        return (realization(spot, 0.0, eq, t) * eq * spot.pot, None);
+        return (realization(spot, 0.0, eq, t) * eq * (spot.pot + call) - call, None);
     }
     let all_fold: f64 = shares.iter().map(|s| 1.0 - s).product();
     let callers: f64 = shares.iter().sum::<f64>() / (1.0 - all_fold).max(1e-9);

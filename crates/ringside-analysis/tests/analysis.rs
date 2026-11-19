@@ -217,6 +217,30 @@ fn calling_the_last_chips_is_no_decision() {
     assert_eq!((d.status, d.source), (Status::Forced, Some(Source::Forced)), "{d:?}");
 }
 
+/// The hero's open meets two all-ins and nobody is left behind: going all in is only a
+/// call, the rest comes back. 76s against both shoves is a fold, and no raise is offered.
+#[test]
+fn against_players_all_in_a_raise_is_only_a_call() {
+    let seats: Vec<(&str, i64)> =
+        vec![("P1", 7370), ("P2", 4721), ("Hero", 5000), ("P4", 1454), ("P5", 3540), ("P6", 3652), ("P7", 10040), ("P8", 4539)];
+    let raw = hand(
+        8,
+        &seats,
+        4,
+        60,
+        8,
+        "6h 7h",
+        "P7: folds\nP8: folds\nP1: folds\nP2: folds\nHero: raises 132 to 192\nP4: raises 1254 to 1446 and is all-in\nP5: raises 2086 to 3532 and is all-in\nP6: folds\nHero: folds\nUncalled bet (2086) returned to P5\n*** FLOP *** [3c 4c 8d]\n*** TURN *** [3c 4c 8d] [4d]\n*** RIVER *** [3c 4c 8d 4d] [7s]\n*** SHOW DOWN ***\nP5 collected 3208 from pot\n*** SUMMARY ***\nTotal pot 3208 | Rake 0\n",
+    );
+    let hand = parsed(&raw);
+    let a = analyze_hand(&hand);
+    let d = a.decisions.iter().find(|d| hand.actions[d.action_index].kind == ringside_core::model::ActionKind::Fold).expect("the fold");
+    let kinds: Vec<&str> = d.strategy.iter().map(|c| c.kind.as_str()).collect();
+    assert_eq!(kinds, ["fold", "call"], "{d:?}");
+    assert_eq!(d.best.as_deref(), Some("Fold"), "{d:?}");
+    assert_eq!(d.ev_loss_bb, Some(0.0), "{d:?}");
+}
+
 /// Button opens, big blind calls, the button c-bets and the big blind folds.
 fn c_bet_hand(id: u64) -> String {
     // Short stacks keep the tree small: few bets fit behind.
