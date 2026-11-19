@@ -29,13 +29,13 @@
     pfr: ["erhöht selten", "erhöht sehr oft"],
     three_bet: ["re-raist kaum", "re-raist oft"],
     fold_to_three_bet: ["hält Re-Raises stand", "gibt auf Re-Raises auf"],
-    steal: ["klaut selten", "klaut oft die Blinds"],
+    steal: ["greift die Blinds selten an", "greift die Blinds oft an"],
     fold_to_steal: ["verteidigt die Blinds", "gibt die Blinds leicht her"],
     cbet: ["setzt selten nach", "setzt fast immer nach"],
     fold_to_cbet: ["bleibt am Flop dabei", "gibt am Flop schnell auf"],
     wtsd: ["steigt früh aus", "geht oft bis zum Showdown"],
     wsd: ["verliert am Showdown", "gewinnt am Showdown"],
-    af: ["callt lieber", "setzt und erhöht viel"],
+    af: ["geht lieber mit", "setzt und erhöht viel"],
     afq: ["passiv nach dem Flop", "aggressiv nach dem Flop"],
   };
   const QUARTER = ["oben links", "oben rechts", "unten rechts", "unten links"];
@@ -324,6 +324,13 @@
             {#if hud.mode === "graphic"}
               <li><b class="gesture num">233</b>im Ring: gemeinsame Hände – je mehr, desto verlässlicher die Farben</li>
             {/if}
+            <li class="tones">
+              <b class="gesture">Farbe der Zahl</b>
+              {#each [["low", "niedrig"], ["mid", "üblich"], ["high", "hoch"]] as [k, word] (k)}
+                <span class="tone"><i style:background={pal[k as "low" | "mid" | "high"]}></i>{word}</span>
+              {/each}
+              <span>– was das je Wert heißt, steht unter „Farben“</span>
+            </li>
             {#if view.seats.some((s) => s.note?.label)}
               <li><b class="gesture frame">Farbiger Rahmen</b>deine eigene Spieler-Markierung aus PokerStars</li>
             {/if}
@@ -752,6 +759,16 @@
   .gesture {
     font-weight: 600;
     color: var(--text);
+  }
+  .tone {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .tone i {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
   }
   .gesture.frame {
     padding: 0 5px;

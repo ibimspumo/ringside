@@ -617,6 +617,7 @@
         </section>
 
         <section class="panel chart-panel" aria-busy={loading}>
+          <div class="chart-in">
           <header class="answer" class:faded={loading && !!answer}>
             <div class="answer-top">
               <SourceNote kind={engine === "pushfold" ? "equilibrium" : "model"} />
@@ -696,6 +697,7 @@
             {#if !error && onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
               <div class="over quiet" role="status"><span class="spin" aria-hidden="true"></span><p>Wird geladen …</p></div>
             {/if}
+          </div>
           </div>
         </section>
 
@@ -837,10 +839,11 @@
   .body {
     display: grid;
     grid-template-columns: minmax(0, 1000px) minmax(360px, 1fr);
+    /* The answer first: the grid is what the page is for; the stack curve explains it below. */
     grid-template-areas:
-      "axis setup"
       "chart setup"
-      "chart side";
+      "chart side"
+      "axis side";
     grid-template-rows: auto auto 1fr;
     gap: 16px;
     align-items: start;
@@ -947,6 +950,24 @@
   .chart-panel {
     grid-area: chart;
     container-type: inline-size;
+  }
+  /* Wide: the answer beside the grid, so all 13 rows fit on a Full HD screen. */
+  @container (min-width: 900px) {
+    .chart-in {
+      display: grid;
+      grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+      align-items: start;
+    }
+    .answer {
+      padding: 20px 0 20px 20px;
+    }
+    .answer-top {
+      flex-wrap: wrap;
+    }
+    .share {
+      flex-basis: 100%;
+      margin: 6px 0 0;
+    }
   }
   .answer {
     padding: 16px 20px 0;

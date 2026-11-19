@@ -445,7 +445,7 @@
       <EmptyState
         tone="error"
         title="Die Bibliothek ließ sich nicht laden"
-        text="{error} Meist sperrt ein Virenscanner oder ein fehlendes Schreibrecht den Datenordner von Ringside. Gib ihn frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
+        text="{error} Meist sperrt ein Virenscanner oder ein fehlendes Schreibrecht den Datenordner von Ringside: %APPDATA%\app.ringside.hud (in die Adresszeile des Explorers einfügen). Gib ihn im Virenscanner frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
       >
         {#snippet action()}<Button variant="primary" onclick={load}>Noch einmal versuchen</Button>{/snippet}
       </EmptyState>

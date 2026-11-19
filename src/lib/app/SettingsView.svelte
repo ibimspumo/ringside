@@ -349,7 +349,9 @@
               inline
               tone="error"
               title="Kein Ordner gefunden"
-              text="Schalte in PokerStars unter Einstellungen → Spielhistorie das Speichern der Hände ein. Liegt der Ordner woanders, wähl ihn selbst."
+              text="Schalte in PokerStars unter Einstellungen → Spielhistorie das Speichern der Hände ein. Liegt der Ordner woanders, wähl ihn selbst.{status?.total_hands
+                ? ` Bis dahin zeigt das HUD die Werte aus deinen ${int(status.total_hands)} gespeicherten Händen; neue Hände kommen erst mit dem Ordner dazu.`
+                : ''}"
             >
               {#snippet action()}<Button variant="primary" size="sm" onclick={addDir}>Ordner wählen</Button>{/snippet}
             </EmptyState>

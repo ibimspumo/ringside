@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { preview } from "../learn/preview";
   import { positionsFor } from "../solver/scenario";
+  import Badge from "../ui/Badge.svelte";
   import Button from "../ui/Button.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import Tag from "../ui/Tag.svelte";
@@ -19,8 +20,8 @@
       id: "full",
       title: "Ganze Hände",
       figure: "40",
-      unit: "BB · 6-max",
-      text: "Von Preflop bis River. Jede deiner Entscheidungen wird sofort bewertet.",
+      unit: "Big Blinds · 6 Spieler",
+      text: "Vom Austeilen bis zur letzten Karte. Jede deiner Entscheidungen wird sofort bewertet.",
       seats: 6,
       streets: 4,
       config: { mode: "full", players: 6, ante: "big_blind", stack_bb: 40, mixed_stacks: false, hero_seat: null },
@@ -39,7 +40,7 @@
       id: "short",
       title: "Kurze Stacks",
       figure: "6–20",
-      unit: "BB",
+      unit: "Big Blinds",
       text: "Push oder Fold: alles rein oder weglegen, aus jeder Position, mit wechselnden Stacks.",
       seats: 6,
       streets: 1,
@@ -47,9 +48,9 @@
     },
     {
       id: "post",
-      title: "Nur Postflop",
+      title: "Ab dem Flop",
       figure: "3",
-      unit: "Straßen",
+      unit: "Setzrunden",
       text: "Die Hand beginnt am Flop eines vorbereiteten Spots, du gegen einen Gegner: Flop, Turn, River.",
       seats: 2,
       streets: 3,
@@ -125,9 +126,10 @@
           {#each Array.from({ length: t.streets }) as _, i (i)}<rect x={50 - t.streets * 4 + i * 8 + 1} y="26" width="6" height="8" rx="1" />{/each}
         </svg>
         <b>{t.title}</b>
+        {#if t.id === "full"}<span class="pick"><Badge tone="good">Empfohlen zum Start</Badge></span>{/if}
         <span class="figure num">{t.figure}<small>{t.unit}</small></span>
         <span class="text">{t.text}</span>
-        <span class="go">Losspielen <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
+        <span class="go" class:main={t.id === "full"}>Losspielen <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg></span>
       </button>
     {/each}
     <button class="tile own" class:open={custom} onclick={openCustom} aria-expanded={custom} aria-controls="play-custom">
@@ -288,6 +290,19 @@
     color: var(--text-2);
     font-size: var(--fs-md);
     line-height: 1.45;
+  }
+  .pick {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+  }
+  .go.main {
+    justify-self: start;
+    margin-top: 12px;
+    padding: 7px 14px;
+    border-radius: var(--r-sm);
+    background: var(--primary);
+    color: var(--primary-text);
   }
   .go {
     padding-top: 12px;

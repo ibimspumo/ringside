@@ -211,6 +211,9 @@
         </label>
       </div>
     {:else if spec.type === "choice"}
+      {#if prompt.type === "showdown" && !feedback}
+        <p class="hint faint">Tippe auf die Hand, die gewinnt – oder auf „Pot teilen“, wenn beide gleich stark sind.</p>
+      {/if}
       <div class="choices" class:decision role="group" aria-label="Antworten">
         {#each options as o, i (o.id)}
           {#if !(prompt.type === "showdown" && o.id !== "split")}

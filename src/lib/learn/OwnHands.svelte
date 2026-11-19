@@ -244,7 +244,7 @@
   }
   .split {
     display: grid;
-    grid-template-columns: 270px minmax(0, 1fr);
+    grid-template-columns: 240px minmax(0, 1fr);
     gap: 14px;
     align-items: start;
   }
@@ -319,7 +319,7 @@
   /* Wide windows: replay and question side by side, so both stay in view. */
   @container (min-width: 1800px) {
     .detail {
-      grid-template-columns: minmax(0, 1fr) minmax(560px, 1fr);
+      grid-template-columns: minmax(0, 6fr) minmax(460px, 5fr);
       align-items: start;
     }
     .detail .replay {

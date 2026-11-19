@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 139,
+      "total": 138,
       "files": {
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
@@ -23,7 +23,7 @@
         "learn/OwnHands.svelte": 1,
         "learn/Path.svelte": 1,
         "learn/SeatRing.svelte": 3,
-        "learn/Stage.svelte": 12,
+        "learn/Stage.svelte": 11,
         "learn/Task.svelte": 3,
         "learn/Trainer.svelte": 1,
         "learn/wissen/blocks/Cards.svelte": 5,
@@ -40,7 +40,7 @@
       }
     },
     "font-size": {
-      "total": 181,
+      "total": 179,
       "files": {
         "app/ClientLock.svelte": 1,
         "app/Reports.svelte": 3,
@@ -83,7 +83,7 @@
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 7,
         "solver/RangeEditor.svelte": 4,
-        "solver/Saved.svelte": 5,
+        "solver/Saved.svelte": 3,
         "solver/Setup.svelte": 5,
         "solver/SizeChooser.svelte": 5,
         "solver/Study.svelte": 14
@@ -166,7 +166,7 @@
       "files": {}
     },
     "motion": {
-      "total": 43,
+      "total": 42,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
@@ -180,7 +180,7 @@
         "learn/Ring.svelte": 2,
         "learn/SeatRing.svelte": 3,
         "learn/SkillBadge.svelte": 1,
-        "learn/Stage.svelte": 2,
+        "learn/Stage.svelte": 1,
         "learn/Task.svelte": 2,
         "learn/Today.svelte": 3,
         "learn/Trainer.svelte": 2,

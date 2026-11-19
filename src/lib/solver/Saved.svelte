@@ -368,10 +368,10 @@
   }
   .street {
     margin-left: auto;
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .card.pinned .street::before {
     content: "angeheftet · ";
@@ -386,8 +386,8 @@
     display: flex;
     gap: 14px;
     margin: 2px 0 0;
-    font-size: 12.5px;
-    color: var(--text-3);
+    font-size: var(--fs-md);
+    color: var(--text-2);
   }
   .seats :global(.term) {
     color: var(--text);

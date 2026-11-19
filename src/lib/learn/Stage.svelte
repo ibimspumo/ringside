@@ -168,7 +168,7 @@
             <li class="result" class:won>
               <div class="result-head">
                 <b>Spieler {i + 1}</b>
-                {#if won}<Badge tone="good">{split ? "Split – teilt den Pot" : "Gewinnt den Pot"}</Badge>{/if}
+                {#if won}<Badge tone="good">{split ? "Teilt den Pot" : "Gewinnt den Pot"}</Badge>{/if}
                 {#if mine}
                   <span class="mine" class:right>
                     <GradeIcon grade={right ? "best" : "mistake"} size={16} />Deine Wahl – {right ? "richtig" : "falsch"}
@@ -180,7 +180,7 @@
           {/each}
         </ol>
         {#if choice === "split" && !split}
-          <p class="split-miss"><GradeIcon grade="mistake" size={16} />Deine Wahl „Split“ ist falsch – eine Hand ist klar besser.</p>
+          <p class="split-miss"><GradeIcon grade="mistake" size={16} />Deine Wahl „Pot teilen“ ist falsch – eine Hand ist klar besser.</p>
         {/if}
       {/if}
     </div>
@@ -438,15 +438,16 @@
   .player {
     display: grid;
     justify-items: center;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 12px 18px 14px;
     border-radius: var(--r);
     border: 1.5px solid var(--line-2);
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-1);
     cursor: pointer;
     transition:
-      border-color 0.12s,
-      transform 0.12s;
+      border-color var(--dur-fast) var(--ease-standard),
+      transform var(--dur-fast) var(--ease-standard);
   }
   .player:disabled {
     cursor: default;

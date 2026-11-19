@@ -69,7 +69,7 @@
     font-size: var(--fs-md);
   }
   .what small {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
   }
   dl {
     margin: 0;
@@ -92,7 +92,7 @@
   }
   .note {
     margin: 0;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     line-height: 1.45;
   }
 </style>

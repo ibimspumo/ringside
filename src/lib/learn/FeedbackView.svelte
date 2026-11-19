@@ -28,7 +28,8 @@
   const verdict = $derived(feedback.correct ? "ok" : feedback.score >= 0.5 ? "close" : "miss");
   const TITLE = { ok: "Richtig", close: "Knapp daneben", miss: "Daneben" };
   const tone = $derived(verdict === "ok" ? "var(--pos)" : verdict === "close" ? "var(--amber)" : "var(--neg)");
-  const g = $derived(GRADING[feedback.grading]);
+  const near = $derived(feedback.grading === "exakt" && "number" in feedback.truth ? " Nahe Schätzungen bekommen Teilpunkte." : "");
+  const g = $derived({ ...GRADING[feedback.grading], text: GRADING[feedback.grading].text + near });
   /** "EV All-in", "EV Fold": spelled out as one sentence instead of separate tiles. */
   const evFacts = $derived(feedback.facts.filter((f) => /^EV [^-]/.test(f.label)));
   const bbValue = (v: string) => Number.parseFloat(v.replace("−", "-").replace(",", "."));

@@ -58,7 +58,7 @@ pub fn generate(level: u8, rng: &mut Rng8) -> Result<Task, String> {
         }
         let mut options: Vec<ChoiceOption> =
             (0..n).map(|i| ChoiceOption::new(&format!("p{i}"), &format!("Spieler {}", i + 1))).collect();
-        options.push(ChoiceOption::new("split", "Split"));
+        options.push(ChoiceOption::new("split", "Pot teilen"));
         return Ok(Task {
             question: "Wer gewinnt den Pot?".into(),
             prompt: Prompt::Showdown { board, players },
@@ -75,7 +75,7 @@ pub fn grade(ex: &Exercise, answer: &Answer) -> Result<Feedback, String> {
     let won = winners(board, players);
     let (truth, text) = if won.len() > 1 {
         let names: Vec<String> = won.iter().map(|i| format!("Spieler {}", i + 1)).collect();
-        ("split".to_string(), format!("Split zwischen {}", names.join(" und ")))
+        ("split".to_string(), format!("Pot geteilt zwischen {}", names.join(" und ")))
     } else {
         (format!("p{}", won[0]), format!("Spieler {}", won[0] + 1))
     };
