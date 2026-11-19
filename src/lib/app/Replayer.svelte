@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { readableNames } from "./handNames";
   import { untrack, type Snippet } from "svelte";
   import { preview } from "../learn/preview";
   import { CATEGORY, categoryOf } from "../learn/wissen/poker";
@@ -30,7 +31,7 @@
    * tell the hand their own way.
    */
   let {
-    hand: full,
+    hand: stored,
     upTo = null,
     marks = null,
     onMark,
@@ -70,6 +71,7 @@
   const STREETS: Street[] = ["preflop", "flop", "turn", "river"];
   const BOARD_AT: Record<Street, number> = { preflop: 0, flop: 3, turn: 4, river: 5 };
 
+  const full = $derived(readableNames(stored));
   const hand = $derived.by((): Hand => {
     if (upTo === null) return full;
     const street = full.actions[upTo]?.street ?? full.actions.at(-1)?.street ?? "preflop";

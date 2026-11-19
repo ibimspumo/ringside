@@ -565,6 +565,9 @@ step("Hände: GGPoker-Hand mit Marke, Replayer öffnet sie, Filter Client", asyn
   await find(".replayer");
   await find("main .hand-head .ui-site.ggpoker");
   await waitText(/#TM\d+/);
+  await waitText("Gegner 1");
+  const ids = await s.exec(`return document.querySelector(".replayer").innerText.match(/\\b(?=[0-9a-f]*[a-f])(?=[0-9a-f]*\\d)[0-9a-f]{7,8}\\b/g)`);
+  if (ids) throw new Error(`GGPoker ids shown in the replayer: ${ids.join(", ")}`);
   await click("main button[aria-expanded]", "Filter", { exact: false });
   const seg = "main [role='radiogroup'][aria-label='Client'] [role='radio']";
   await click(seg, "GGPoker");
