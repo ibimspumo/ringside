@@ -101,7 +101,7 @@
     font-family: var(--font-num);
     white-space: nowrap;
   }
-  /* The how-to in one line: in full where it fits, else in short; the tooltip has it in full. */
+  /* The how-to in one line: in full where it fits, else in short, and in narrow windows only behind "Anleitung anzeigen". */
   .how {
     overflow: hidden;
     white-space: nowrap;
@@ -113,6 +113,11 @@
     .long {
       display: block;
     }
+    .short {
+      display: none;
+    }
+  }
+  @container (max-width: 1099px) {
     .short {
       display: none;
     }
