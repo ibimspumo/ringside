@@ -20,6 +20,11 @@
   let tab = $state<"info" | "hands">("info");
 
   const colors = $derived(lesson ? choiceColors(lesson.choices) : []);
+  /** Action names, with the size where two choices share a name (two bet sizes). */
+  const names = $derived.by(() => {
+    const ls = lesson ? lesson.choices.map((c) => choiceLabel(c)) : [];
+    return ls.map((l) => (ls.filter((x) => x.label === l.label).length > 1 && l.size ? `${l.label} ${l.size}` : l.label));
+  });
   const cells = $derived.by(() => {
     if (!lesson) return null;
     if (lesson.grid) return { strategy: lesson.grid.strategy, reach: lesson.grid.reach };
@@ -94,10 +99,10 @@
         {@const own = lesson.strategy}
         <div class="mine">
           <p>Deine Hand {#each view.hero_cards as c (c)}<MiniCard card={c} />{/each} spielt die Lösung so:</p>
-          <MixBar label="So oft spielt die Lösung deine Hand" parts={lesson.choices.map((c, k) => ({ label: choiceLabel(c).label, share: Math.round((own[k] ?? 0) * 100), color: colors[k] }))} />
+          <MixBar label="So oft spielt die Lösung deine Hand" parts={lesson.choices.map((c, k) => ({ label: names[k], share: Math.round((own[k] ?? 0) * 100), color: colors[k] }))} />
           <p class="key">
             {#each lesson.choices as c, k (k)}
-              {#if (own[k] ?? 0) >= 0.005}<span><i style:background={colors[k]}></i>{choiceLabel(c).label} {Math.round((own[k] ?? 0) * 100)} %</span>{/if}
+              {#if (own[k] ?? 0) >= 0.005}<span><i style:background={colors[k]}></i>{names[k]} {Math.round((own[k] ?? 0) * 100)} %</span>{/if}
             {/each}
           </p>
           <span class="note" class:why={!!mixedWhy}>{mixedWhy ?? "Prozent: wie oft die Lösung jeden Zug wählt. Bewertet wird, was dein Zug gegenüber dem besten kostet."}</span>
