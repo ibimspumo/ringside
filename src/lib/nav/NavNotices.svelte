@@ -22,7 +22,7 @@
 
   const upgrade = $derived(status?.upgrade ?? null);
   const share = $derived(upgrade?.total ? upgrade.done / upgrade.total : 0);
-  const HOW = "In PokerStars unter Einstellungen → Spielhistorie das Speichern der Hand-Historys einschalten. Ringside findet den Ordner dann von selbst.";
+  const HOW = "In PokerStars unter Einstellungen → Spielhistorie „Handverläufe speichern“ einschalten. Ringside findet den Ordner dann von selbst.";
 </script>
 
 {#if upgrade}
@@ -39,7 +39,7 @@
       ></b
     >
     <span class="how long">{HOW}</span>
-    <span class="how short" title={HOW}>In PokerStars: Einstellungen → Spielhistorie → Hände speichern.</span>
+    <span class="how short" title={HOW}>„Handverläufe speichern“ einschalten: Einstellungen → Spielhistorie.</span>
     <Button size="sm" onclick={onChooseFolder}>Ordner selbst wählen</Button>
   </div>
 {/if}

@@ -30,7 +30,7 @@
     display: flex;
     align-items: center;
     gap: var(--sp-4);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
     white-space: nowrap;
   }

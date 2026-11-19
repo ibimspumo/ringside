@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 141,
+      "total": 140,
       "files": {
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
@@ -91,7 +91,7 @@
       }
     },
     "button-style": {
-      "total": 129,
+      "total": 125,
       "files": {
         "analysis/HandPanel.svelte": 2,
         "analysis/Summary.svelte": 2,

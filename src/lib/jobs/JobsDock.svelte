@@ -10,7 +10,7 @@
     onView,
     placement = "side",
     compact = false,
-  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** The ring and the state in one short line, without the word "Aufgaben". */ compact?: boolean } = $props();
+  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** The ring alone; its tooltip names the state. */ compact?: boolean } = $props();
 
   onMount(startJobs);
 
@@ -30,8 +30,6 @@
     const pct = share === null ? "" : ` · ${Math.floor(share * 100)} %`;
     return `${active.length === 1 ? "1 läuft" : `${active.length} laufen`}${pct}`;
   });
-  /** Beside the ring in a narrow bar: one line under the same name as in wide ones. */
-  const brief = $derived(`Aufgaben: ${jobs.locked || share === null ? summary : `${Math.floor(share * 100)} %`}`);
 
   let panel = $state<HTMLElement | null>(null);
   let button = $state<HTMLElement | null>(null);
@@ -78,8 +76,6 @@
       <b>Aufgaben</b>
       <small>{summary}</small>
     </span>
-  {:else if active.length}
-    <span class="txt"><small>{brief}</small></span>
   {/if}
 </button>
 
@@ -201,22 +197,19 @@
     line-height: 1.25;
   }
   .txt b {
-    font-size: 13px;
-    font-weight: 600;
+    font-size: var(--fs-md);
+    font-weight: var(--fw-semibold);
     color: var(--text-2);
   }
   .busy .txt b {
     color: var(--text);
   }
   .txt small {
-    font-size: 12px;
-    color: var(--text-3);
+    font-size: var(--fs-md);
+    color: var(--text-2);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-  }
-  .busy .txt small {
-    color: var(--text-2);
   }
 
   .sheet {

@@ -137,10 +137,10 @@
    * Folding of the bar when room runs short, one step at a time. What also shows elsewhere goes
    * first; marks and tables keep words as long as they can, the lock note longest:
    *   1 status without "im Blick" / "gespeichert"   2 hand count off
-   *   3 lock note short ("PokerStars läuft")         4 name "Ringside" off
-   *   5 tasks as ring and share only                 6 tab icons off
-   *   7 marks shorter ("4 gefunden")                 8 marks as a number ("4")
-   *   9 open tables as dot and number               10 lock note as its icon (tabs and page keep theirs)
+   *   3 name "Ringside" off                          4 tasks as the ring alone
+   *   5 tab icons off                                6 marks shorter ("4 gefunden")
+   *   7 marks as a number ("4")                      8 open tables as dot and number
+   *   9 lock note short ("Teile gesperrt")          10 lock note as its icon (tabs and page keep theirs)
    *  11 marks off (the menus keep them)
    */
   let step = $state(0);
@@ -193,7 +193,7 @@
     <div class="row" bind:this={row} data-fold={step}>
       <div class="brand" data-bar-item>
         <Logo size={24} />
-        {#if step < 4}<strong>Ringside</strong>{/if}
+        {#if step < 3}<strong>Ringside</strong>{/if}
       </div>
       <nav aria-label="Hauptmenü" class="intents" data-bar-item>
         {#each AREAS as area (area.id)}
@@ -204,11 +204,11 @@
           <NavItem
             size="top"
             label={area.label}
-            icon={step < 6 ? area.icon : undefined}
+            icon={step < 5 ? area.icon : undefined}
             active={single && tab === area.pages[0]}
             current={!single && current?.id === area.id}
             chevron={single ? undefined : "down"}
-            status={mark && step < 11 ? (step < 7 ? (mark.line ?? mark.long) : step < 8 ? mark.long : mark.text) : undefined}
+            status={mark && step < 11 ? (step < 6 ? (mark.line ?? mark.long) : step < 7 ? mark.long : mark.text) : undefined}
             tone={mark?.tone}
             locked={shut}
             title={shut ? "Gesperrt, solange PokerStars läuft" : undefined}
@@ -225,11 +225,11 @@
       <div class="right">
         {#if locked}
           <span class="item" data-bar-item>
-            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 3 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "PokerStars läuft" : ""} />
+            <SourceNote kind="locked" hint={LOCK_HINT} label={step < 9 ? "PokerStars läuft: Teile gesperrt" : step < 10 ? "Teile gesperrt" : ""} />
           </span>
         {/if}
-        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 9} /></span>
-        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 5} /></span>
+        <span class="item" data-bar-item><NavMeta {tables} hands={status?.total_hands ?? 0} words={step < 1} showHands={step < 2} short={step >= 8} /></span>
+        <span class="item dock" data-bar-item><JobsDock {onView} placement="top" compact={step >= 4} /></span>
         <span class="item gear" class:on={tab === "settings"} data-bar-item>
           <IconButton label="Einstellungen" aria-current={tab === "settings" ? "page" : undefined} onclick={() => go("settings")}>
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d={PAGES.settings.icon} /></svg>
@@ -264,17 +264,18 @@
 
   {#if menu}
     {@const line = areaLine(menu, locked)}
+    {@const shutHere = locked && menu.pages.some(lockedNow)}
     <div class="menu" id="nav-menu" role="region" aria-label={menu.label} bind:this={panel} use:arrowNav>
       <div class="menu-inner">
         <div class="intro">
           <span class="plate"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d={menu.icon} /></svg></span>
           <b>{menu.label}</b>
           <p>{menu.text}</p>
-          {#if locked && menu.pages.some(lockedNow)}
-            <SourceNote kind="locked" variant="block">Öffnet wieder, sobald du PokerStars schließt.</SourceNote>
-          {:else if line.tone !== "neutral" || line.text !== menu.short}<span class="line {line.tone}">{line.text}</span>{/if}
+          {#if !shutHere && (line.tone !== "neutral" || line.text !== menu.short)}<span class="line {line.tone}">{line.text}</span>{/if}
         </div>
         <div class="tiles">
+          <!-- Above the tiles it names, across their width, so the menu stays as low as its tiles. -->
+          {#if shutHere}<div class="shut"><SourceNote kind="locked" variant="block">Öffnet wieder, sobald du PokerStars schließt.</SourceNote></div>{/if}
           {#each menu.pages as p (p)}
             {@const live = navLive.of(p, locked)}
             <NavItem
@@ -431,7 +432,7 @@
   }
   .line {
     font-family: var(--font-num);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .line.warn {
@@ -448,6 +449,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--sp-1) var(--sp-3);
     align-content: start;
+  }
+  .shut {
+    grid-column: 1 / -1;
+    margin-bottom: var(--sp-2);
   }
   .scrim {
     position: fixed;
@@ -482,7 +487,11 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .menu,
-    .scrim {
+    .shut {
+    grid-column: 1 / -1;
+    margin-bottom: var(--sp-2);
+  }
+  .scrim {
       animation: none;
     }
   }

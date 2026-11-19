@@ -142,7 +142,7 @@
     align-items: center;
     gap: var(--sp-1);
     font-family: var(--font-num);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     white-space: nowrap;
   }
   .value {
@@ -239,7 +239,7 @@
   }
   .tile .text {
     margin-top: 3px;
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     line-height: var(--lh-base);
     color: var(--text-2);
     display: -webkit-box;
