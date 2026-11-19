@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 139,
+      "total": 138,
       "files": {
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
@@ -23,7 +23,7 @@
         "learn/OwnHands.svelte": 1,
         "learn/Path.svelte": 1,
         "learn/SeatRing.svelte": 3,
-        "learn/Stage.svelte": 12,
+        "learn/Stage.svelte": 11,
         "learn/Task.svelte": 3,
         "learn/Trainer.svelte": 1,
         "learn/wissen/blocks/Cards.svelte": 5,
@@ -40,7 +40,7 @@
       }
     },
     "font-size": {
-      "total": 163,
+      "total": 161,
       "files": {
         "app/Reports.svelte": 3,
         "app/TournamentPicker.svelte": 1,
@@ -81,7 +81,7 @@
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 6,
         "solver/RangeEditor.svelte": 4,
-        "solver/Saved.svelte": 3,
+        "solver/Saved.svelte": 1,
         "solver/Setup.svelte": 5,
         "solver/SizeChooser.svelte": 5,
         "solver/Study.svelte": 13
@@ -164,21 +164,21 @@
       "files": {}
     },
     "motion": {
-      "total": 43,
+      "total": 41,
       "files": {
         "hud/Recap.svelte": 1,
         "hud/SeatAnatomy.svelte": 3,
         "jobs/ChipRing.svelte": 2,
         "jobs/JobsDock.svelte": 3,
         "jobs/JobToasts.svelte": 1,
-        "learn/CardPicker.svelte": 2,
+        "learn/CardPicker.svelte": 1,
         "learn/FeedbackView.svelte": 4,
         "learn/OwnHands.svelte": 1,
         "learn/Path.svelte": 1,
         "learn/Ring.svelte": 2,
         "learn/SeatRing.svelte": 3,
         "learn/SkillBadge.svelte": 1,
-        "learn/Stage.svelte": 2,
+        "learn/Stage.svelte": 1,
         "learn/Task.svelte": 2,
         "learn/Today.svelte": 3,
         "learn/Trainer.svelte": 2,
@@ -197,7 +197,7 @@
       "files": {}
     },
     "jargon": {
-      "total": 66,
+      "total": 64,
       "files": {
         "charts/ChartsButton.svelte": 1,
         "charts/PreflopChart.svelte": 2,
@@ -215,10 +215,8 @@
         "learn/wissen/widgets/PotOdds.svelte": 1,
         "library/Library.svelte": 1,
         "play/InfoPanel.svelte": 3,
-        "play/Play.svelte": 1,
         "ranges/RangeGrid.svelte": 1,
         "ranges/Ranges.svelte": 2,
-        "solver/ActionBar.svelte": 1,
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 1,
         "solver/Saved.svelte": 1,

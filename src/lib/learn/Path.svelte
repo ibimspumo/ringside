@@ -4,6 +4,7 @@
     import Ring from "./Ring.svelte";
   import SkillBadge from "./SkillBadge.svelte";
   import Weaknesses from "./Weaknesses.svelte";
+  import Button from "../ui/Button.svelte";
   import { ARTICLE_BY_ID } from "./wissen/articles";
   import { loadRead } from "./wissen/read";
   import type { LearnTarget } from "../app/Leaks.svelte";
@@ -42,6 +43,8 @@
   const nextKind = $derived(UNITS.find((u) => u.id === here)?.skills.find((k) => (byKind.get(k)?.level ?? 0) < 2) ?? null);
   /** With weak spots from the own game or the coach, the first of them is the one main action on this page. */
   const weakFirst = $derived(!!steps[0]?.practice);
+  /** The three costliest first, so the path itself stays in view. */
+  let allWeak = $state(false);
   const total = $derived(progress?.skills.filter((s) => s.id !== "all_in" && s.id !== "own_decision" && s.id !== "key_spot") ?? []);
   const solid = $derived(total.filter((s) => s.level >= 3).length);
 </script>
@@ -71,7 +74,10 @@
     <span class="dim small">Zeig auf eine Stufe, um zu sehen, was sie verlangt.</span>
   </div>
 
-  <Weaknesses {steps} limit={6} primary={weakFirst} {onLearn} {onHands} />
+  <Weaknesses {steps} limit={allWeak ? 6 : 3} primary={weakFirst} {onLearn} {onHands} />
+  {#if steps.length > 3 && !allWeak}
+    <div class="more-weak"><Button variant="quiet" size="sm" onclick={() => (allWeak = true)}>Alle {Math.min(steps.length, 6)} Schwachstellen zeigen</Button></div>
+  {/if}
 
 <ol class="units">
     {#each units as u (u.id)}
@@ -389,5 +395,8 @@
       grid-column: 3;
       grid-row: 1 / span 2;
     }
+  }
+  .more-weak {
+    margin-top: -6px;
   }
 </style>

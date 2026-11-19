@@ -967,7 +967,7 @@
     border-top: 0;
   }
   /* Narrow logs below the table keep two streets side by side. */
-  @container log (max-width: 560px) {
+  @container log (max-width: 680px) {
     .log {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }

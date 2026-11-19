@@ -92,18 +92,18 @@ impl Lage {
         match self {
             Lage::FirstIn => "Eröffnen",
             Lage::PushFold => "All-in oder Fold als Erster",
-            Lage::VsLimp => "Gegen Limper",
+            Lage::VsLimp => "Wenn einer nur mitgeht (Limp)",
             Lage::VsOpen => "Gegen eine Erhöhung",
             Lage::VsThreeBet => "Gegen 3-Bet",
             Lage::VsAllIn => "Gegen All-in",
-            Lage::CBet => "C-Bet am Flop",
-            Lage::VsCBet => "Gegen C-Bet am Flop",
+            Lage::CBet => "Am Flop nachsetzen (C-Bet)",
+            Lage::VsCBet => "Gegen Nachsetzen am Flop (C-Bet)",
             Lage::FlopBet => "Flop: setzen oder checken",
-            Lage::FlopVsBet => "Flop: Gegner setzt",
+            Lage::FlopVsBet => "Flop: auf einen Einsatz reagieren",
             Lage::TurnBet => "Turn: setzen oder checken",
-            Lage::TurnVsBet => "Turn: Gegner setzt",
+            Lage::TurnVsBet => "Turn: auf einen Einsatz reagieren",
             Lage::RiverBet => "River: setzen oder checken",
-            Lage::RiverVsBet => "River: Gegner setzt",
+            Lage::RiverVsBet => "River: auf einen Einsatz reagieren",
         }
     }
 

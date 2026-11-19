@@ -406,10 +406,10 @@
               <span class="lead">
                 {#if sit.board}<CardText text={sit.board} />.&nbsp;{/if}{sit.lead}{#if sit.raise}&nbsp;(<Term id="three_bet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
               </span>
-              <span><CardText text={sit.you} /></span>
+              <span class="you"><CardText text={sit.you} /></span>
               {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
-                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
+                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Gewinnchance (<Term id="equity">Equity</Term>).</span>
               {/if}
             </p>
             <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>
@@ -565,7 +565,7 @@
 <style>
   .play {
     min-width: 0;
-    padding: 18px 24px 40px;
+    padding: 18px var(--page-gutter) 40px;
   }
   .foot {
     max-width: 1360px;
@@ -772,10 +772,14 @@
     color: var(--text);
     font-weight: 600;
   }
+  .situation .you {
+    font-size: var(--fs-lg);
+    color: var(--text);
+  }
   .last {
     padding-left: 8px;
     border-left: 2px solid var(--g);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   .lesson {
     margin: 0;
@@ -787,7 +791,7 @@
     color: var(--text);
   }
   .odds {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   .actions {
     display: flex;

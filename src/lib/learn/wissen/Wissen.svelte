@@ -198,7 +198,7 @@
   .progress {
     display: grid;
     grid-template-columns: max-content max-content;
-    justify-content: end;
+    justify-content: start;
     align-items: baseline;
     gap: 2px 8px;
     min-width: 150px;

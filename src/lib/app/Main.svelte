@@ -57,7 +57,7 @@
     reports: "Starthände, Positionen und Sessions über den gewählten Zeitraum.",
     players: "Ein Klick auf einen Gegner zeigt Typ, Gegenzug und Bedeutung.",
     live: "Deine Gegner an den offenen Tischen. Ein Klick zeigt alle Werte mit Bedeutung.",
-    hud: "Panels direkt auf dem Tisch ziehen. Änderungen gelten sofort an allen offenen Tischen.",
+    hud: "Das HUD zeigt dir am PokerStars-Tisch über jedem Gegner, wie er spielt. Hier legst du fest, was es zeigt und wo es sitzt – Änderungen gelten sofort.",
     settings:
       "Ringside arbeitet lokal. Ins Internet geht es nur für Updates, den KI-Coach und die Cloud.",
     leaks: "Was dich am meisten kostet, das Wichtigste zuerst. Darunter deine Werte gegen veröffentlichte Richtwerte.",

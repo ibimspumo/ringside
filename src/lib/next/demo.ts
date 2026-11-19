@@ -47,8 +47,8 @@ function spot(key: string, spots: SpotType[], title: string, detail: string, dec
 }
 
 const STEPS: NextStep[] = [
-  spot("river_vs_bet|-|3|6", ["river"], "River: Gegner setzt", "ab 40 BB · 6 Spieler", 23, 9, 14.6, 0.817, "value-bluff"),
-  spot("vs_limp|SB|3|6", ["vs_limp"], "Gegen Limper im Small Blind", "ab 40 BB · 6 Spieler", 31, 9, 11.2, 1, "range"),
+  spot("river_vs_bet|-|3|6", ["river"], "River: auf einen Einsatz reagieren", "ab 40 BB · 6 Spieler", 23, 9, 14.6, 0.817, "value-bluff"),
+  spot("vs_limp|SB|3|6", ["vs_limp"], "Wenn einer nur mitgeht (Limp) im Small Blind", "ab 40 BB · 6 Spieler", 31, 9, 11.2, 1, "range"),
   {
     ...base,
     id: "leak:fold_to_steal|tournament|SB,BB|1",
