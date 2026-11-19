@@ -246,7 +246,8 @@
           <PotOdds pot={view.potBB} call={view.toCallBB} />
         {:else}
           <p class="free">
-            {#if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes.
+            {#if view.first}Du bist als Erster dran: Im Pot liegen nur Blinds und Antes.
+            {:else if view.unopened}Noch hat niemand eröffnet: Vor dir haben alle gefoldet, im Pot liegen nur Blinds und Antes.
             {:else}Noch hat niemand gesetzt: Du zahlst nichts, um weiterzuspielen.{/if}
             Du entscheidest zwischen {offered}.
           </p>
