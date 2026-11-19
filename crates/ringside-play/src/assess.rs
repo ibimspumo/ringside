@@ -32,8 +32,9 @@ pub struct Situation<'a> {
     pub ranges: Vec<Option<Vec<f64>>>,
     /// Every move after the flop so far, in order.
     pub moves: Vec<Move>,
-    /// The seat that bet or raised last.
+    /// The seat that bet or raised last, and last before the flop.
     pub aggressor: Option<usize>,
+    pub preflop_aggressor: Option<usize>,
     pub choices: &'a [Choice],
     /// Why no solution covers the decision.
     pub why: Unrated,
@@ -45,6 +46,13 @@ pub struct Move {
     pub seat: usize,
     /// As [`Choice::kind`].
     pub kind: &'static str,
+    /// Everything in the middle before the move, bets in front included, and the highest
+    /// bet in front then, BB.
+    pub pot: f64,
+    pub facing: f64,
+    /// The mover's chips in front on the street before and after the move, BB.
+    pub own: f64,
+    pub to: f64,
 }
 
 /// A grade source's answer: the frequency of each choice and, if known, its EV in BB.

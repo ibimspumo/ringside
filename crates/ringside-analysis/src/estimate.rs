@@ -6,12 +6,15 @@
 //!   was in the model, otherwise with all hands; each action narrows it by how strong a
 //!   hand is: before the flop by all-in equity against a random hand (limps by the
 //!   model's typical limping range), after the flop by equity against a random hand on
-//!   the board. Bets and raises keep the strong part and some of the weakest (bluffs),
-//!   calls the middle, checks most of it; on the river bets and raises are polarized and
-//!   calls are bluff catchers.
+//!   the board. After the flop each hand keeps the share the solver takes the move with
+//!   at its strength within the range (drawing hands one share of their own), per
+//!   street, kind of move and size class: a bet of the last aggressor (c-bet, barrel) or
+//!   of anyone else (lead, probe), a raise, a call, a check with others still to act or
+//!   one behind.
 //! - **Equity** of the hero's two cards against all opponents at once, sampled with card
 //!   removal.
-//! - **EV of each option**, in BB from now on: fold 0; check `R × equity × pot`; call
+//! - **EV of each option**, in BB from now on: fold 0; check `R × equity × pot`, heads-up
+//!   out of position with what the opponent's bet after it brings; call
 //!   `R × equity × (pot + call) − call`; a bet or raise wins the pot when everyone folds
 //!   and otherwise plays against what continues. Opponents continue with the strongest
 //!   part of their range, as much as the pot odds of the bet ask them to defend (the
@@ -68,9 +71,58 @@ impl Range {
     }
 }
 
-/// Showdown strength of every combo: all-in equity against a random hand, before the
-/// flop from the class table, after it sampled on `board` (0 for combos on the board).
-pub fn strength(board: &[Card], rng: &mut ChaCha8Rng) -> Vec<f32> {
+/// A combo is a draw when its equity against a random hand is this much above the share
+/// of random hands it is ahead of now.
+const DRAW_GAP: f32 = 0.12;
+
+/// How strong every combo is on a board.
+#[derive(Clone, Debug)]
+pub struct Strength {
+    /// All-in equity against a random hand, before the flop from the class table, after
+    /// it sampled (0 for combos on the board).
+    pub equity: Vec<f32>,
+    /// On the flop and the turn: combos that win far more often than they are ahead now.
+    pub draw: Vec<bool>,
+}
+
+/// The [`Strength`] of every combo on `board`.
+pub fn strength(board: &[Card], rng: &mut ChaCha8Rng) -> Strength {
+    let equity = equity_vs_random(board, rng);
+    let draw = match board.len() {
+        3 | 4 => {
+            let ahead = ahead_now(board);
+            (0..COMBOS).map(|i| equity[i] - ahead[i] >= DRAW_GAP).collect()
+        }
+        _ => vec![false; COMBOS],
+    };
+    Strength { equity, draw }
+}
+
+/// Per combo: the share of the other live combos it beats with the board as it is.
+fn ahead_now(board: &[Card]) -> Vec<f32> {
+    let dead = CardSet::from_cards(board);
+    let cards = Cards::from_cards(board.iter().copied());
+    let ranks: Vec<Option<ringside_engine::eval::HandRank>> = Combo::all()
+        .map(|c| {
+            let (a, b) = c.cards();
+            (c.mask().0 & dead.0 == 0).then(|| cards.with(a).with(b).rank())
+        })
+        .collect();
+    let mut sorted: Vec<_> = ranks.iter().flatten().copied().collect();
+    sorted.sort();
+    let n = sorted.len().max(1) as f32;
+    ranks
+        .iter()
+        .map(|r| {
+            r.map_or(0.0, |r| {
+                let (below, upto) = (sorted.partition_point(|x| *x < r), sorted.partition_point(|x| *x <= r));
+                (below as f32 + (upto - below) as f32 / 2.0) / n
+            })
+        })
+        .collect()
+}
+
+fn equity_vs_random(board: &[Card], rng: &mut ChaCha8Rng) -> Vec<f32> {
     let m = PreflopMatrix::embedded();
     if board.is_empty() {
         let by_class: Vec<f32> = HandClass::all().map(|c| m.equity_vs_random(c) as f32).collect();
@@ -126,11 +178,102 @@ pub enum Signal {
     CallShove { bb: u16 },
     /// The big blind's check.
     Check,
-    /// After the flop.
+    /// After the flop, with the size in percent of the pot ([`size_pct`]). A bet says
+    /// whether the bettor made the last bet or raise before the street (a c-bet or a
+    /// barrel) or not (a lead into the aggressor, a probe).
+    Bet { size: u16, aggressor: bool },
+    Raise(u16),
+    Call(u16),
+    /// A check after the flop; `behind` when nobody is left to act after it.
+    PostCheck { behind: bool },
+}
+
+/// The size of a move after the flop as its [`Signal`] carries it: a bet or raise by what
+/// it adds over a call against the pot after that call, a call by its price against the
+/// pot before the bet. `pot` is everything in the middle before the move, bets in front
+/// included; `facing` the highest bet in front, `own` the mover's, `to` its total after.
+pub fn size_pct(pot: f64, facing: f64, own: f64, to: f64) -> u16 {
+    let call = (facing - own).max(0.0);
+    let size = if to > facing + 1e-9 { (to - facing) / (pot + call) } else { call / (pot - call).max(1e-9) };
+    (size * 100.0).round().clamp(0.0, u16::MAX as f64) as u16
+}
+
+/// The kinds of moves after the flop whose ranges the estimate tells apart.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum MoveKind {
+    /// A bet of the last aggressor.
     Bet,
+    /// A bet of anyone else.
+    Lead,
     Raise,
     Call,
-    PostCheck,
+    /// A check with others still to act after it, and one that ends the betting.
+    Check,
+    CheckBehind,
+}
+
+/// Lower ends of the size classes after the first, percent of the pot.
+pub const SIZE_CLASSES: [u16; 3] = [45, 90, 160];
+pub const SIZES: usize = SIZE_CLASSES.len() + 1;
+/// Edges of the strength bins of a [`Curve`], by the share of the range at least as strong.
+pub const BIN_EDGES: [f32; 13] = [0.0, 0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 1.0];
+pub const BINS: usize = BIN_EDGES.len() - 1;
+
+pub fn size_class(pct: u16) -> usize {
+    SIZE_CLASSES.iter().take_while(|&&c| pct >= c).count()
+}
+
+impl Signal {
+    /// Kind and size class of a move after the flop.
+    pub fn postflop(self) -> Option<(MoveKind, usize)> {
+        Some(match self {
+            Signal::Bet { size, aggressor: true } => (MoveKind::Bet, size_class(size)),
+            Signal::Bet { size, aggressor: false } => (MoveKind::Lead, size_class(size)),
+            Signal::Raise(s) => (MoveKind::Raise, size_class(s)),
+            Signal::Call(s) => (MoveKind::Call, size_class(s)),
+            Signal::PostCheck { behind: false } => (MoveKind::Check, 0),
+            Signal::PostCheck { behind: true } => (MoveKind::CheckBehind, 0),
+            _ => return None,
+        })
+    }
+}
+
+/// How often the hands of a range take a move after the flop, by their strength: what the
+/// solver plays on the fitting half of `analysis-calibrate`, per street, kind of move and
+/// size class.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Curve {
+    /// Board cards: 3, 4 or 5.
+    pub cards: usize,
+    pub kind: MoveKind,
+    pub size: usize,
+    /// Share of the hands in each strength bin that take the move; drawing hands
+    /// ([`Strength::draw`]) take it `draw` of the time, whatever their bin.
+    pub keep: Vec<f32>,
+    pub draw: f32,
+    /// Solver hands the curve rests on; 0 where it is borrowed from the nearest class.
+    pub samples: usize,
+}
+
+impl Curve {
+    /// For a combo at `top` (share of the range at least as strong).
+    pub fn of(&self, top: f32, draw: bool) -> f32 {
+        if draw { self.draw } else { self.at(top) }
+    }
+
+    /// At `top`, linear between the bin centres.
+    pub fn at(&self, top: f32) -> f32 {
+        let centre = |i: usize| (BIN_EDGES[i] + BIN_EDGES[i + 1]) / 2.0;
+        let i = (0..BINS).take_while(|&i| centre(i) <= top).count();
+        if i == 0 {
+            return self.keep[0];
+        }
+        if i == BINS {
+            return self.keep[BINS - 1];
+        }
+        let t = (top - centre(i - 1)) / (centre(i) - centre(i - 1));
+        self.keep[i - 1] + t * (self.keep[i] - self.keep[i - 1])
+    }
 }
 
 fn keep(signal: Signal, p: f32) -> f32 {
@@ -180,45 +323,18 @@ fn keep(signal: Signal, p: f32) -> f32 {
             let share = (1.8 / (bb.max(1) as f32)).clamp(0.02, 0.4);
             if top <= share { 1.0 } else if top <= share * 1.3 { 0.3 } else { 0.0 }
         }
-        Signal::Bet => {
-            if top <= 0.40 {
-                1.0
-            } else if p <= 0.25 {
-                0.35
-            } else {
-                0.25
-            }
-        }
-        Signal::Raise => {
-            if top <= 0.20 {
-                1.0
-            } else if p <= 0.20 {
-                0.15
-            } else {
-                0.1
-            }
-        }
-        Signal::Call => {
-            if top <= 0.10 {
-                0.6
-            } else if p >= 0.30 {
-                1.0
-            } else {
-                0.1
-            }
-        }
-        Signal::PostCheck => {
-            if top <= 0.12 {
-                0.5
-            } else {
-                1.0
-            }
-        }
+        Signal::Bet { .. } | Signal::Raise(_) | Signal::Call(_) | Signal::PostCheck { .. } => unreachable!("handled by curve"),
     }
 }
 
 /// Narrows `range` after `signal`; `strength` is per combo, `dead` the visible cards.
-pub fn narrow(range: &mut Range, signal: Signal, strength: &[f32], dead: CardSet) {
+/// After the flop by the stored [`Curve`]s.
+pub fn narrow(range: &mut Range, signal: Signal, strength: &Strength, dead: CardSet) {
+    narrow_by(range, signal, strength, dead, &crate::calibration::stored().moves);
+}
+
+/// [`narrow`] with the curves after the flop given.
+pub fn narrow_by(range: &mut Range, signal: Signal, strength: &Strength, dead: CardSet, curves: &[Curve]) {
     match signal {
         Signal::Limp => {
             let shape = limp_shape();
@@ -228,7 +344,7 @@ pub fn narrow(range: &mut Range, signal: Signal, strength: &[f32], dead: CardSet
             return;
         }
         Signal::Check => {
-            let top = top_share(range, strength, dead);
+            let top = top_share(range, &strength.equity, dead);
             for c in Combo::all() {
                 if top[c.index()] <= 0.05 {
                     range.0[c.index()] *= 0.3;
@@ -238,55 +354,25 @@ pub fn narrow(range: &mut Range, signal: Signal, strength: &[f32], dead: CardSet
         }
         _ => {}
     }
-    let top = top_share(range, strength, dead);
-    let river = dead.0.count_ones() == 5;
+    let top = top_share(range, &strength.equity, dead);
+    if let Some((kind, size)) = signal.postflop() {
+        let cards = dead.0.count_ones() as usize;
+        let Some(curve) = curves.iter().find(|c| c.cards == cards && c.kind == kind && c.size == size) else { return };
+        for i in 0..COMBOS {
+            range.0[i] *= curve.of(top[i], strength.draw[i]);
+        }
+        return;
+    }
     for c in Combo::all() {
         let i = c.index();
-        let p = 1.0 - top[i];
-        range.0[i] *= if river { keep_river(signal, p) } else { keep(signal, p) };
+        range.0[i] *= keep(signal, 1.0 - top[i]);
     }
 }
 
-/// [`keep`] on the river, where nothing is left to draw: bets and raises are polarized,
-/// the strong hands and about as many of the weakest as the pot odds of a usual bet
-/// make indifferent to call (a bluff for every two value bets); calls are the hands
-/// that beat bluffs; checks give up most of the strongest.
-fn keep_river(signal: Signal, p: f32) -> f32 {
-    let top = 1.0 - p;
-    match signal {
-        Signal::Bet => {
-            if top <= 0.20 || p <= 0.06 {
-                1.0
-            } else {
-                0.05
-            }
-        }
-        Signal::Raise => {
-            if top <= 0.10 || p <= 0.05 {
-                1.0
-            } else {
-                0.02
-            }
-        }
-        Signal::Call => {
-            if top <= 0.08 {
-                0.5
-            } else if p >= 0.35 {
-                1.0
-            } else {
-                0.05
-            }
-        }
-        Signal::PostCheck => {
-            if top <= 0.15 { 0.25 } else { 1.0 }
-        }
-        _ => keep(signal, p),
-    }
-}
-
-/// Per combo: the share of the range (by weight) at least as strong.
-fn top_share(range: &Range, strength: &[f32], dead: CardSet) -> Vec<f32> {
-    let mut order: Vec<usize> = (0..COMBOS).filter(|&i| range.0[i] > 0.0 && Combo::from_index(i).mask().0 & dead.0 == 0).collect();
+/// Per live combo, also those the range holds no weight of: the share of the range (by
+/// weight) at least as strong.
+pub fn top_share(range: &Range, strength: &[f32], dead: CardSet) -> Vec<f32> {
+    let mut order: Vec<usize> = (0..COMBOS).filter(|&i| Combo::from_index(i).mask().0 & dead.0 == 0).collect();
     order.sort_by(|&a, &b| strength[b].total_cmp(&strength[a]));
     let total: f32 = order.iter().map(|&i| range.0[i]).sum();
     let mut out = vec![1.0; COMBOS];
@@ -511,19 +597,14 @@ fn realization(s: &Spot, spr: f64, eq: f64, t: &Tuning) -> f64 {
     (pos * crowd * depth * lead * strength).clamp(0.4, 1.6)
 }
 
-/// EVs of `options` at `spot`.
-pub fn estimate(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning) -> Estimate {
+/// EVs of `options` at `spot`; `curves` say how the opponents' ranges play after the flop.
+pub fn estimate(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, curves: &[Curve]) -> Estimate {
     let strength = strength(&spot.board, &mut ChaCha8Rng::seed_from_u64(seed ^ 0x5eed));
-    estimate_with(spot, options, seed, t, &strength)
+    settle(&prepare(spot, options, seed, t, &strength, curves), t)
 }
 
-/// [`estimate`] with the [`strength`] of the board's combos given.
-pub fn estimate_with(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &[f32]) -> Estimate {
-    settle(&prepare(spot, options, seed, t, strength), t)
-}
-
-/// What an estimate needs before [`settle`].
-pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &[f32]) -> Prepared {
+/// What an estimate needs before [`settle`], with the [`strength`] of the board's combos.
+pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &Strength, curves: &[Curve]) -> Prepared {
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
     let dead = CardSet(spot.hero.mask().0 | CardSet::from_cards(&spot.board).0);
     let board_dead = CardSet::from_cards(&spot.board);
@@ -537,13 +618,13 @@ pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &[
     let ev_of = |opt: Opt, rng: &mut ChaCha8Rng| -> (f64, Option<f64>) {
         match opt {
             Opt::Fold => (0.0, None),
-            Opt::Check => (r * eq * spot.pot, None),
+            Opt::Check => (r * checked(spot, eq, strength, board_dead, dead, curves, rng), None),
             Opt::Call => {
                 let rr = if call >= spot.hero_behind - 1e-9 { 1.0 } else { r };
                 (rr * eq * (spot.pot + call) - call, None)
             }
-            Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), strength, board_dead, dead, rng, t),
-            Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, strength, board_dead, dead, rng, t),
+            Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), &strength.equity, board_dead, dead, rng, t),
+            Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, &strength.equity, board_dead, dead, rng, t),
         }
     };
     let (evs, folds): (Vec<f64>, Vec<Option<f64>>) = options.iter().map(|&o| ev_of(o, &mut rng)).unzip();
@@ -612,6 +693,38 @@ pub fn strategy(est: &Estimate, pot: f64, t: &Tuning) -> Vec<f64> {
 pub fn grades(est: &Estimate, options: &[Opt], pot: f64, t: &Tuning) -> Vec<Grade> {
     let freq = strategy(est, pot, t);
     (0..options.len()).map(|k| judge(&freq, Some(&est.evs), k, pot).grade).collect()
+}
+
+/// Typical bets of each size class, share of the pot.
+const CLASS_BETS: [f64; SIZES] = [0.33, 0.7, 1.2, 2.0];
+
+/// What checking wins at showdown, before realization: the pot by the equity, and where
+/// the only opponent acts after, what their bet brings. They bet the part of their range
+/// the curve of the street's most common size gives; the hero calls when the equity
+/// against it pays, and the bet adds to the pot then.
+fn checked(spot: &Spot, eq: f64, strength: &Strength, board_dead: CardSet, dead: CardSet, curves: &[Curve], rng: &mut ChaCha8Rng) -> f64 {
+    let plain = eq * spot.pot;
+    let [o] = spot.opponents.as_slice() else { return plain };
+    if spot.preflop || spot.in_position {
+        return plain;
+    }
+    let cards = spot.board.len();
+    let kind = if spot.aggressor { MoveKind::Lead } else { MoveKind::Bet };
+    let Some(curve) = curves.iter().filter(|c| c.cards == cards && c.kind == kind).max_by_key(|c| c.samples) else { return plain };
+    let bet = (CLASS_BETS[curve.size] * spot.pot).min(o.behind).min(spot.hero_behind);
+    if bet <= 0.0 {
+        return plain;
+    }
+    let top = top_share(&o.range, &strength.equity, board_dead);
+    let bets = Range((0..COMBOS).map(|i| o.range.0[i] * curve.of(top[i], strength.draw[i]).clamp(0.0, 1.0)).collect());
+    let checks = Range((0..COMBOS).map(|i| o.range.0[i] - bets.0[i]).collect());
+    let q = bets.live(dead) / o.range.live(dead).max(1e-9);
+    if q <= 0.0 || q >= 1.0 {
+        return plain;
+    }
+    let eq_checks = equity(spot.hero, &[&checks], &spot.board, rng);
+    let eq_bets = equity(spot.hero, &[&bets], &spot.board, rng);
+    (1.0 - q) * eq_checks * spot.pot + q * (eq_bets * (spot.pot + 2.0 * bet) - bet).max(0.0)
 }
 
 /// EV of betting or raising to `to` on the street, and how often everyone folds to it.
