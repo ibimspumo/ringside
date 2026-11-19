@@ -400,11 +400,6 @@
     gap: 4px;
   }
   .t-lesson {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
     font-size: var(--fs-sm);
     color: var(--text-2);
     line-height: var(--lh-base);
