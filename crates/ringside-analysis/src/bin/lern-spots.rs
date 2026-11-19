@@ -1,4 +1,5 @@
-//! Builds the learning spots pack `data/lern-spots.json` from `data/lern-spots-spec.json`:
+//! Builds the learning spots pack `data/lern-spots.json` from `data/lern-spots-spec.json`,
+//! and the browser preview's sample `src/lib/learn/demo-spots.json`:
 //!
 //! ```text
 //! cargo run --release -p ringside-analysis --bin lern-spots -- [--spec FILE] [--threads T] [--memory-gb G] [--only ID,ID] [--cache DIR] [--minutes M]
@@ -19,7 +20,7 @@ use std::time::Instant;
 
 use ringside_analysis::ENGINE;
 use ringside_analysis::drill::answer;
-use ringside_analysis::spots::{LernSpot, Pack, PackTopic, Specs, TOPICS, build, hand_id, hand_of, rate_preflop};
+use ringside_analysis::spots::{LernSpot, Pack, PackFile, PackTopic, PackedSpot, Specs, TOPICS, demo_sample, build, hand_id, hand_of, rate_preflop};
 use ringside_engine::HandClass;
 
 fn arg<'a>(args: &'a [String], name: &str) -> Option<&'a str> {
@@ -87,23 +88,31 @@ fn main() {
         std::process::exit(1);
     }
     let mut spots = Vec::new();
+    let mut packed = Vec::new();
     for spec in &specs.spots {
         let Ok(text) = std::fs::read_to_string(cache.join(format!("{}.json", spec.id))) else {
             println!("Noch nicht gerechnet: {} – Paket bleibt, wie es ist.", spec.id);
             return;
         };
         let (_, _, spot): (String, ringside_analysis::spots::Spec, LernSpot) = serde_json::from_str(&text).expect("cache entry");
+        packed.push(PackedSpot::new(spec, &spot).expect("the spec builds its hand history"));
         spots.push(spot);
     }
     if spec_file != root.join("data/lern-spots-spec.json") {
         println!("Alle {} Spots von {} gerechnet (Paket nur aus der Spezifikation im Repo).", spots.len(), spec_file.display());
         return;
     }
-    let pack = Pack { engine: ENGINE.into(), topics: TOPICS.iter().map(PackTopic::from).collect(), spots };
+    let topics: Vec<PackTopic> = TOPICS.iter().map(PackTopic::from).collect();
+    let file = PackFile { engine: ENGINE.into(), topics: topics.clone(), spots: packed };
     let out = root.join("data/lern-spots.json");
-    let text = serde_json::to_string(&pack).unwrap();
+    let text = serde_json::to_string(&file).unwrap();
     std::fs::write(&out, &text).expect("pack write");
-    println!("Paket geschrieben: {} Spots, {} KB → {}", pack.spots.len(), text.len() / 1024, out.display());
+    println!("Paket geschrieben: {} Spots, {} KB → {}", file.spots.len(), text.len() / 1024, out.display());
+    let demo = demo_sample(&Pack { engine: ENGINE.into(), topics, spots });
+    let out = root.join("../../src/lib/learn/demo-spots.json");
+    let text = serde_json::to_string(&demo).unwrap();
+    std::fs::write(&out, &text).expect("demo write");
+    println!("Vorschau-Auswahl geschrieben: {} Spots, {} KB → {}", demo.spots.len(), text.len() / 1024, out.display());
 }
 
 fn scan(specs: &Specs) {

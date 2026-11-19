@@ -52,7 +52,7 @@ export interface KeySpotView {
   grid: SpotGrid | null;
 }
 
-/* Browser demo: the bundled pack itself, answers kept in memory. ------------------------- */
+/* Browser demo: the pack's sample written by the `lern-spots` tool, answers kept in memory. */
 
 interface PackSpot {
   id: string;
@@ -73,7 +73,7 @@ interface Pack {
 
 let packCache: Promise<Pack> | null = null;
 function demoPack(): Promise<Pack> {
-  packCache ??= import("../../../crates/ringside-analysis/data/lern-spots.json?raw").then((m) => JSON.parse(m.default) as Pack);
+  packCache ??= import("./demo-spots.json?raw").then((m) => JSON.parse(m.default) as Pack);
   return packCache;
 }
 

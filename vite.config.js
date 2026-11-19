@@ -28,7 +28,5 @@ export default defineConfig(() => ({
       // 3. tell Vite to ignore watching `src-tauri`
       ignored: ["**/src-tauri/**"],
     },
-    // The browser preview reads the bundled learning spots from the Rust crate.
-    fs: { allow: ["crates/ringside-analysis/data"] },
   },
 }));

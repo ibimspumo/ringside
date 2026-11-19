@@ -123,6 +123,76 @@ pub struct Pack {
     pub spots: Vec<LernSpot>,
 }
 
+/// A spot as `data/lern-spots.json` stores it: the hand as its hand history, a fraction of
+/// the hand's JSON.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PackedSpot {
+    pub id: String,
+    pub topic: String,
+    pub history: String,
+    pub decision: Decision,
+    pub grid: Option<SpotGrid>,
+    pub stack_bb: f64,
+    pub position: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub payouts: Vec<f64>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct PackFile {
+    pub engine: String,
+    pub topics: Vec<PackTopic>,
+    pub spots: Vec<PackedSpot>,
+}
+
+impl PackedSpot {
+    pub fn new(spec: &Spec, s: &LernSpot) -> Result<PackedSpot, String> {
+        Ok(PackedSpot {
+            id: s.id.clone(),
+            topic: s.topic.clone(),
+            history: history(spec, s.hand.id)?,
+            decision: s.decision.clone(),
+            grid: s.grid.clone(),
+            stack_bb: s.stack_bb,
+            position: s.position.clone(),
+            payouts: s.payouts.clone(),
+        })
+    }
+
+    fn unpack(self) -> Result<LernSpot, String> {
+        let mut hand = parse_hand(&self.history).map_err(|e| format!("{}: {e:?}", self.id))?;
+        let action_index = hand.actions.iter().rposition(|a| a.player == "Hero").ok_or_else(|| format!("{}: keine Entscheidung", self.id))?;
+        hand.actions.truncate(action_index + 1);
+        Ok(LernSpot {
+            id: self.id,
+            topic: self.topic,
+            hand,
+            action_index,
+            decision: self.decision,
+            grid: self.grid,
+            stack_bb: self.stack_bb,
+            position: self.position,
+            payouts: self.payouts,
+        })
+    }
+}
+
+impl PackFile {
+    pub fn unpack(self) -> Result<Pack, String> {
+        let spots = self.spots.into_iter().map(PackedSpot::unpack).collect::<Result<_, _>>()?;
+        Ok(Pack { engine: self.engine, topics: self.topics, spots })
+    }
+}
+
+/// The browser preview's sample of the pack (`src/lib/learn/demo-spots.json`): the first
+/// spots of every topic, with their hands as JSON.
+pub fn demo_sample(pack: &Pack) -> Pack {
+    let spots = TOPICS.iter().flat_map(|t| pack.spots.iter().filter(|s| s.topic == t.id).take(DEMO_PER_TOPIC).cloned()).collect();
+    Pack { engine: pack.engine.clone(), topics: pack.topics.clone(), spots }
+}
+
+const DEMO_PER_TOPIC: usize = 2;
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct PackTopic {
     pub id: String,
@@ -700,7 +770,10 @@ pub fn build(spec: &Spec, threads: usize, memory: u64, cache: &mut SolveCache) -
 /// The bundled pack.
 pub fn pack() -> &'static Pack {
     static PACK: OnceLock<Pack> = OnceLock::new();
-    PACK.get_or_init(|| serde_json::from_str(include_str!("../data/lern-spots.json")).expect("the bundled learning spots parse"))
+    PACK.get_or_init(|| {
+        let file: PackFile = serde_json::from_str(include_str!("../data/lern-spots.json")).expect("the bundled learning spots parse");
+        file.unpack().expect("the bundled hand histories parse")
+    })
 }
 
 pub fn spot(id: &str) -> Option<&'static LernSpot> {
@@ -821,6 +894,8 @@ mod tests {
         let packed: Vec<&str> = pack().spots.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(packed, ids, "rebuild the pack: cargo run --release -p ringside-analysis --bin lern-spots");
         assert_eq!(pack().topics, TOPICS.iter().map(PackTopic::from).collect::<Vec<_>>(), "rebuild the pack for the new topic texts");
+        let demo: Pack = serde_json::from_str(include_str!("../../../src/lib/learn/demo-spots.json")).unwrap();
+        assert_eq!(demo, demo_sample(pack()), "rebuild the pack: the browser preview's sample is stale");
     }
 
     /// Each spot asks one real decision: the hand stops at the hero, nothing later is in

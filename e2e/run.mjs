@@ -830,7 +830,9 @@ step("Wichtige Spots: einen Spot beantworten, Erklärung und Range sehen, Stand 
     `const k = [...document.querySelectorAll("main .stand .key li b")].map((b) => Number(b.textContent));
      return k.length === 3 && k[0] + k[1] === 1 ? k : null;`,
   );
-  if (counted[0] + counted[1] + counted[2] !== 100) throw new Error(`the overview counts ${counted.join("/")}, not 100 spots`);
+  // The browser demo carries two spots per topic, the app all of them.
+  const all = TAURI ? 100 : 20;
+  if (counted[0] + counted[1] + counted[2] !== all) throw new Error(`the overview counts ${counted.join("/")}, not ${all} spots`);
 });
 
 step("Deine Hände: die Antes stehen in einer Zeile, nicht je Spieler", async () => {
