@@ -229,3 +229,38 @@ fn a_watched_folder_reads_a_file_again_only_when_it_changed() {
     let r = import_watched(&mut db, &path).unwrap();
     assert_eq!((r.new_hands, r.duplicates), (1, 2));
 }
+
+/// The big blind who straddles names the straddle's whole amount: "straddle $100" after
+/// posting $50 puts in $50 more.
+#[test]
+fn a_straddle_of_the_big_blind_counts_what_it_adds() {
+    let text = "Poker Hand #OM1171256: PLO-5 ($25/$50) - 2021/04/11 03:57:00\n\
+                Table 'VO5 Ante1' 6-max Seat #4 is the button\n\
+                Seat 3: aa11 ($2,000 in chips)\n\
+                Seat 4: bb22 ($3,270.7 in chips)\n\
+                Seat 5: Hero ($552.57 in chips)\n\
+                bb22: posts the ante $10\n\
+                aa11: posts the ante $10\n\
+                Hero: posts the ante $10\n\
+                Hero: posts small blind $25\n\
+                aa11: posts big blind $50\n\
+                aa11: straddle $100\n\
+                *** HOLE CARDS ***\n\
+                Dealt to aa11\n\
+                Dealt to bb22\n\
+                Dealt to Hero [Kd 2h 3h Qc Tc]\n\
+                bb22: raises $225 to $325\n\
+                Hero: folds\n\
+                aa11: folds\n\
+                Uncalled bet ($225) returned to bb22\n\
+                *** SHOWDOWN ***\n\
+                bb22 collected $242.25 from pot\n\
+                *** SUMMARY ***\n\
+                Total pot $255 | Rake $12.75 | Jackpot $0 | Bingo $0\n\
+                Seat 3: aa11 (big blind) folded before Flop\n\
+                Seat 4: bb22 (button) collected ($242.25)\n\
+                Seat 5: Hero (small blind) folded before Flop\n";
+    let h = parse_hand(text).unwrap();
+    assert_eq!(h.net("aa11"), -11000);
+    assert_eq!(h.net("bb22"), 24225 - 11000);
+}

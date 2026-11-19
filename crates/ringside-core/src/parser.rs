@@ -609,7 +609,8 @@ fn parse_action(
         let a = first_amount(r)?;
         (ActionKind::PostBigBlind, a, None, a)
     } else if let Some(r) = rest.strip_prefix("straddle ").or_else(|| rest.strip_prefix("posts third blind ")) {
-        let a = first_amount(r)?;
+        // The amount is the whole straddle: a big blind who straddles adds the difference.
+        let a = (first_amount(r)? - put_before).max(0);
         (ActionKind::PostStraddle, a, None, a)
     } else if let Some(r) = rest.strip_prefix("posts missed blind ") {
         (ActionKind::PostDead, first_amount(r)?, None, 0)
