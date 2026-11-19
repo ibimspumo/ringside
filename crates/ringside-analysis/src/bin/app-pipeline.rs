@@ -53,6 +53,7 @@ fn main() {
         }
     }
     let mut db = Db::open(&db_path.expect("--db FILE")).expect("open db");
+    db.rebuild_all().expect("rebuild");
     imports.sort();
     let (mut new, mut malformed) = (0, 0);
     for p in &imports {
