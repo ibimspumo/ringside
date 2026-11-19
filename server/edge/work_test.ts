@@ -1,7 +1,7 @@
 import { assert, assertAlmostEquals, assertEquals } from "jsr:@std/assert@1";
 import { storedSpot } from "./stored_testutil.ts";
 import { memorySql } from "../lib/sqlite_memory.ts";
-import { createHandler, LEASE_S, MAX_LEASES } from "./api.ts";
+import { createHandler, FAIL_COOLDOWN_S, LEASE_S, MAX_FAILURES, MAX_LEASES } from "./api.ts";
 import { canonicalize, solutionKey } from "./canonical.ts";
 import { RULES } from "./ratelimit.ts";
 
@@ -108,6 +108,61 @@ Deno.test("a client gives back only its own lease, and the spot goes out again a
   const max = RULES.release[0].max;
   for (let i = 0; i < max - 2; i++) assertEquals((await release("198.51.100.1")).status, 200);
   assertEquals((await release("198.51.100.1")).status, 429);
+});
+
+Deno.test("a spot no computer can solve is not handed out forever", async () => {
+  const { sql, handle, advance } = setup();
+  const stuck = await seed(sql, "AsKhTd");
+  const other = await seed(sql, "AsKh5d", 1);
+  const take = async (ip: string) => (await (await handle(post("/v1/work/next", next(), ip))).json()).work?.key ?? null;
+  const fail = async (ip: string) =>
+    (await (await handle(post("/v1/work/fail", { key: stuck, note: "nicht konvergiert" }, ip))).json()).status;
+
+  // A worker that cannot solve its spot reports it and asks again, as often as it likes.
+  const handedOut: (string | null)[] = [];
+  for (let i = 0; i < 20; i++) {
+    const key = await take("198.51.100.1");
+    handedOut.push(key);
+    if (key === stuck) assertEquals(await fail("198.51.100.1"), "failed");
+    // It holds the other spot at the end, so the next computer gets the failing one.
+    if (key === other && i < 19) await handle(post("/v1/work/release", { key }, "198.51.100.1"));
+  }
+  assertEquals(handedOut.filter((k) => k === stuck).length, 1, "the failing computer does not get it again");
+  assertEquals(handedOut.filter((k) => k === other).length, 19, "it gets the other spot instead");
+  assertEquals(await fail("198.51.100.1"), "not_leased", "only a held spot can fail, and only once");
+
+  // Other computers still try it; the last allowed failure parks it.
+  for (let i = 2; i <= MAX_FAILURES; i++) {
+    assertEquals(await take(`198.51.100.${i}`), stuck);
+    assertEquals(await fail(`198.51.100.${i}`), i === MAX_FAILURES ? "parked" : "failed");
+  }
+  const row = sql.db.prepare("SELECT failures, fail_note, parked_at, leased_to FROM work WHERE key = ?").get(stuck)!;
+  assertEquals([row.failures, row.fail_note, row.parked_at, row.leased_to], [MAX_FAILURES, "nicht konvergiert", 1_000_000, null]);
+  assertEquals(await take("198.51.100.99"), null, "a parked spot goes to nobody");
+  advance(FAIL_COOLDOWN_S + 1);
+  assertEquals(await take("198.51.100.1"), other, "not even after the cooldown");
+  assertEquals(await take("198.51.100.99"), null);
+
+  for (const bad of [{ key: stuck }, { key: "nope", note: "x" }, { key: stuck, note: "" }, { key: stuck, note: 1 }]) {
+    assertEquals((await handle(post("/v1/work/fail", bad))).status, 400, JSON.stringify(bad));
+  }
+});
+
+Deno.test("a computer gets a spot it failed again after the cooldown, and that failure counts", async () => {
+  const { sql, handle, advance } = setup();
+  const key = await seed(sql, "AsKhTd");
+  const take = async () => (await (await handle(post("/v1/work/next", next()))).json()).work?.key ?? null;
+  const fail = async () => (await (await handle(post("/v1/work/fail", { key, note: "zu groß" }))).json()).status;
+  for (let i = 1; i <= MAX_FAILURES; i++) {
+    assertEquals(await take(), key, `day ${i}`);
+    assertEquals(await fail(), i === MAX_FAILURES ? "parked" : "failed");
+    assertEquals(await take(), null, "not again the same day");
+    advance(FAIL_COOLDOWN_S + 1);
+  }
+  assertEquals(await take(), null);
+  const max = RULES.fail[0].max;
+  for (let i = 0; i < max; i++) assertEquals((await handle(post("/v1/work/fail", { key, note: "x" }))).status, 200);
+  assertEquals((await handle(post("/v1/work/fail", { key, note: "x" }))).status, 429);
 });
 
 Deno.test("requested spots are queued once and rise with every request", async () => {

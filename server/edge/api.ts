@@ -7,7 +7,7 @@ import { CanonicalError, canonicalize, solutionKey } from "./canonical.ts";
 import { InvalidError, KINDS, kindSpec } from "./kinds.ts";
 import { decide, hitStatements, MemoryCounter, pruneStatement, RULES, type Rule } from "./ratelimit.ts";
 
-export const API_VERSION = "1.5.3";
+export const API_VERSION = "1.6.0";
 // A flop spot at 40–75 BB stores a deeper tree than at 20 BB; 256 KiB turned some away.
 const MAX_BODY = 1024 * 1024;
 const MAX_INPUT = 4 * 1024;
@@ -32,6 +32,13 @@ export const LEASE_S: Readonly<Record<string, number>> = {
 };
 /** Spots one client (one IP, so several computers behind a router) holds at once; a further request frees its oldest. */
 export const MAX_LEASES = 3;
+/**
+ * Failures after which a spot is parked: no longer handed out until the operator looks at it.
+ * A client only reports a spot it holds and does not get it again for FAIL_COOLDOWN_S, so
+ * these come from different computers or days apart.
+ */
+export const MAX_FAILURES = 3;
+export const FAIL_COOLDOWN_S = 86_400;
 /** Kinds a client may ask the community to solve; the others are seeded by the operator. */
 const REQUESTABLE = ["spot"];
 /** Kinds whose served flops of one line can be listed, with the input field naming the flop. */
@@ -326,7 +333,8 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
   /**
    * Hands out the open spot first in line (most requested, least handed out, oldest)
    * among the kinds the client can solve, leased for the kind's time. A spot whose lease
-   * ran out is open again; one with a solution that is served or waits for a check is not.
+   * ran out is open again; one with a solution that is served or waits for a check is not,
+   * nor a parked one or one this client failed lately.
    */
   async function nextWork(req: Request, client: string): Promise<Response> {
     await limitWrites(RULES.work, client);
@@ -362,10 +370,12 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
           "WHERE key = (SELECT w.key FROM work w WHERE (" + filter + ") " +
           "AND (w.lease_until IS NULL OR w.lease_until <= ?) " +
           "AND NOT EXISTS (SELECT 1 FROM solutions s WHERE s.key = w.key AND s.status != 'rejected') " +
+          "AND w.parked_at IS NULL " +
+          "AND NOT EXISTS (SELECT 1 FROM work_failures f WHERE f.key = w.key AND f.submitter = ? AND f.failed_at > ?) " +
           "ORDER BY w.priority DESC, w.leases, w.created_at LIMIT 1) " +
           "AND (lease_until IS NULL OR lease_until <= ?) " +
           "RETURNING key, kind, engine_version, input, lease_until",
-        args: [t, ...leaseArgs, client, ...filterArgs, t, t],
+        args: [t, ...leaseArgs, client, ...filterArgs, t, client, t - FAIL_COOLDOWN_S, t],
       },
     ]);
     const row = picked.rows[0];
@@ -389,6 +399,35 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       args: [key, client, now()],
     }]);
     return json(200, { key, status: r.affected > 0 ? "released" : "not_leased" });
+  }
+
+  /**
+   * A client could not solve the spot it holds (the engine did not converge, the tree did
+   * not fit): the lease ends, the client does not get the spot again for FAIL_COOLDOWN_S,
+   * and the MAX_FAILURES-th failure parks it. Given back with release, it would be first
+   * in line again at once.
+   */
+  async function failWork(req: Request, client: string): Promise<Response> {
+    await limitWrites(RULES.fail, client);
+    const { key, note } = exactFields(await readBody(req), ["key", "note"]);
+    if (typeof key !== "string" || !/^[0-9a-f]{64}$/.test(key)) throw new InvalidError("key must be a solution key");
+    if (typeof note !== "string" || note.length < 1) throw new InvalidError("note must say why");
+    const t = now();
+    const holds = "key = ? AND leased_to = ? AND NOT EXISTS (SELECT 1 FROM banned_clients WHERE submitter = ?)";
+    const [, r] = await deps.sql.batch([
+      {
+        sql: `INSERT INTO work_failures (key, submitter, failed_at) SELECT key, ?, ? FROM work WHERE ${holds} ` +
+          "ON CONFLICT (key, submitter) DO UPDATE SET failed_at = excluded.failed_at",
+        args: [client, t, key, client, client],
+      },
+      {
+        sql: "UPDATE work SET lease_until = NULL, leased_to = NULL, failures = failures + 1, fail_note = ?, " +
+          `parked_at = CASE WHEN failures + 1 >= ? THEN ? ELSE parked_at END WHERE ${holds} RETURNING parked_at`,
+        args: [note.slice(0, MAX_NOTE), MAX_FAILURES, t, key, client, client],
+      },
+    ]);
+    const row = r.rows[0];
+    return json(200, { key, status: !row ? "not_leased" : row.parked_at === null ? "failed" : "parked" });
   }
 
   /** A client looked a spot up in vain: queue it for the community, or count one more request. */
@@ -471,6 +510,10 @@ export function createHandler(deps: Deps): (req: Request) => Promise<Response> {
       if (path === "/v1/work/release") {
         if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
         return await releaseWork(req, client);
+      }
+      if (path === "/v1/work/fail") {
+        if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
+        return await failWork(req, client);
       }
       if (path === "/v1/work/request") {
         if (method !== "POST") throw new HttpError(405, "method_not_allowed", "use POST");
