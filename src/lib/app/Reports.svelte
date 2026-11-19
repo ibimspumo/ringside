@@ -219,6 +219,7 @@
                 </tfoot>
               </table>
             </div>
+            <p class="pos-note">Small und Big Blind liegen fast immer im Minus, weil du dort Pflichteinsätze zahlst. Wichtig ist nur, dort nicht mehr als nötig zu verlieren.</p>
           {:else}
             <div class="empty-state">Noch keine eigenen Hände in diesem Zeitraum.</div>
           {/if}
@@ -308,6 +309,13 @@
   }
   .pos-name {
     font-weight: 600;
+  }
+  .pos-note {
+    margin: 0;
+    padding: var(--sp-3) var(--sp-5) var(--sp-4);
+    border-top: 1px solid var(--line);
+    color: var(--text-3);
+    font-size: var(--fs-sm);
   }
   .pos-name small {
     display: block;

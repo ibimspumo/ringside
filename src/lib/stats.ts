@@ -7,6 +7,23 @@ export { cash, compact, money, moneyShort } from "./ui/format";
 /** Name and explanation of a stat from the glossary. */
 const said = (id: StatId & WordId) => ({ name: WORDS[id].word, help: explain(id) });
 
+/** Each value's name in words a casual player reads at once; the abbreviation stays beside it. */
+export const PLAIN_NAME: Record<StatId, string> = {
+  hands: "Hände",
+  vpip: "Spielt mit",
+  pfr: "Erhöht",
+  three_bet: "Erhöht nochmal",
+  fold_to_three_bet: "Gibt nach Re-Raise auf",
+  steal: "Greift Blinds an",
+  fold_to_steal: "Gibt Blinds her",
+  cbet: "Setzt am Flop nach",
+  fold_to_cbet: "Gibt am Flop auf",
+  wtsd: "Geht bis zum Showdown",
+  wsd: "Gewinnt am Showdown",
+  af: "Aggression",
+  afq: "Aggressiv nach dem Flop",
+};
+
 /** `plain` + value + `after` reads as a sentence in the "Klartext" preset. */
 export const STAT_META: Record<StatId, { short: string; name: string; plain: string; after?: string; help: string; ratio?: boolean }> = {
   hands: { short: "H", ...said("hands"), plain: "Hände" },

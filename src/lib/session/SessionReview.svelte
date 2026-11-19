@@ -307,8 +307,8 @@
                   <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen</span>
                 </div>
                 <div class="sr-keycol">
-                  {@render classRow(pre.tight, "Hättest du auch spielen sollen", "--range-tight")}
-                  {@render classRow(pre.wide, "Hättest du folden sollen", "--range-wide")}
+                  {@render classRow(pre.tight, "Laut Modell öfter spielen", "--range-tight")}
+                  {@render classRow(pre.wide, "Laut Modell eher folden", "--range-wide")}
                   {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
                 </div>
               </div>

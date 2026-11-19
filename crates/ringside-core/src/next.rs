@@ -91,7 +91,7 @@ pub struct NextStep {
     /// Stable over loads: "spot:vs_open|BB|1|9", "leak:steal|tournament|BTN|1", …
     pub id: String,
     pub kind: StepKind,
-    /// Plain German: „Gegen Open im Big Blind“.
+    /// Plain German: „Gegen eine Erhöhung im Big Blind“.
     pub title: String,
     /// One sentence why.
     pub why: String,
@@ -787,7 +787,7 @@ mod tests {
             assert!(s.practice.is_some() || s.hands.is_some() || s.read.is_some(), "{s:?}");
         }
         let first = &sample().rank()[0];
-        assert_eq!(first.title, "Gegen Open im Big Blind");
+        assert_eq!(first.title, "Gegen eine Erhöhung im Big Blind");
         assert_eq!(first.number, "kostet dich im Schnitt etwa 0,4 BB pro Mal, 31-mal gespielt");
         assert_eq!(first.practice, Some(Target::Spot { spot: "vs_open|BB|1|9".into() }));
         let steal = sample().rank().into_iter().find(|s| s.id == "leak:steal|tournament|BTN|1").unwrap();

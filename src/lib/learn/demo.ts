@@ -912,7 +912,7 @@ const g = (x: DemoGroup): SpotGroup => {
 
 const DEMO_GROUPS: SpotGroup[] = [
   g({
-    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler",
+    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River: Gegner setzt", detail: "ab 40 BB · 6 Spieler",
     decisions: 23, flawed: 9, loss_bb: 14.6, open: 2, sources: [["estimate", 15], ["solver", 8]], computed: 8, estimate_loss: 9.9,
     estimate_reliability: 0.73, rank: 1, last_played_at: "2026/11/17 22:41:05", change: null,
   }),
@@ -923,7 +923,7 @@ const DEMO_GROUPS: SpotGroup[] = [
     change: { before: 21, before_error_pct: 38, after: 10, after_error_pct: 20 },
   }),
   g({
-    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler",
+    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "All-in oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler",
     decisions: 44, flawed: 6, loss_bb: 8.4, open: 0, sources: [["equilibrium", 44]], computed: 44, estimate_loss: 0,
     estimate_reliability: null, rank: 3, last_played_at: "2026/11/16 23:02:10", change: null,
   }),

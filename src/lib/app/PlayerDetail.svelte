@@ -1,7 +1,7 @@
 <script lang="ts">
   import { api } from "../api";
   import PlayingCard from "../ui/PlayingCard.svelte";
-  import { STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
+  import { PLAIN_NAME, STAT_META, fmtUnit, stat, tone, toneColor } from "../stats";
   import type { HudConfig, PlayerNote, PlayerView, ShownHand, StatId } from "../types";
   import Button from "../ui/Button.svelte";
   import EmptyState from "../ui/EmptyState.svelte";
@@ -153,7 +153,7 @@
             {@const hint = advice && !hero && !thin && (t === "low" || t === "high") ? HINT[id]?.[t] : undefined}
             <div class="stat" class:thin>
               <dt>
-                <Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="left">{STAT_META[id].name}</Term>
+                <span class="stat-name"><Term tip={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="left">{PLAIN_NAME[id]}</Term><span class="abbr">{STAT_META[id].short}</span></span>
                 <small>{s?.value == null ? "noch kein Wert" : `${word(id)} · ${sampleNote(s, true)}`}</small>
               </dt>
               <dd>
@@ -447,6 +447,15 @@
   dt {
     min-width: 0;
     font-size: var(--fs-base);
+  }
+  .stat-name {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--sp-2);
+  }
+  .abbr {
+    color: var(--text-3);
+    font-size: var(--fs-xs);
   }
   dt small {
     display: block;

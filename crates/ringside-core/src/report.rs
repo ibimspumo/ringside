@@ -148,7 +148,7 @@ pub struct Moment {
     pub position: Option<String>,
     pub street: Street,
     pub spot: SpotType,
-    /// The situation in words, e.g. "Gegen Open".
+    /// The situation in words, e.g. "Gegen eine Erhöhung".
     pub situation: String,
     pub stack_bb: Option<f64>,
     pub played: String,

@@ -64,15 +64,15 @@
 {#snippet actions(s: NextStep, main: boolean)}
   {#if s.practice}
     {@const target = s.practice}
-    <Button variant={main ? "primary" : "secondary"} size={main ? "md" : "sm"} icon={arrow} onclick={() => onLearn(target)}>Üben</Button>
+    <span class="slot learn"><Button variant={main ? "primary" : "secondary"} size={main ? "md" : "sm"} icon={arrow} onclick={() => onLearn(target)}>Üben</Button></span>
   {/if}
   {#if s.hands && onHands}
     {@const hands = s.hands}
-    <Button variant={s.practice ? "quiet" : main ? "primary" : "secondary"} size={main ? "md" : "sm"} onclick={() => onHands(hands)}>Hände ansehen</Button>
+    <span class="slot hands"><Button variant={s.practice ? "quiet" : main ? "primary" : "secondary"} size={main ? "md" : "sm"} onclick={() => onHands(hands)}>Hände ansehen</Button></span>
   {/if}
   {#if s.read}
     {@const article = s.read}
-    <Button variant="quiet" size={main ? "md" : "sm"} onclick={() => onLearn({ article })}>Nachlesen</Button>
+    <span class="slot read"><Button variant="quiet" size={main ? "md" : "sm"} onclick={() => onLearn({ article })}>Nachlesen</Button></span>
   {/if}
 {/snippet}
 
@@ -81,7 +81,7 @@
   <div class="first" data-step={s.id}>
     {#if label || s.estimate}<span class="label">{label}{#if s.estimate}<Badge tone="warn" size="sm" dashed title="Die Zahl stützt sich auf eine Schätzung, nicht auf eine Lösung.">geschätzt</Badge>{/if}</span>{/if}
     <b class="step-title">{@render title(s)}</b>
-    <p class="number num">{cap(s.number)}.</p>
+    <p class="number">{cap(s.number)}.</p>
     <p class="why">{s.why}</p>
     {#if note}{@render note(s)}{/if}
     <div class="go">{@render actions(s, primary)}</div>
@@ -93,7 +93,7 @@
         <span class="rank num" aria-hidden="true">{i + 1}</span>
         <div class="what">
           <b class="step-title">{@render title(s)}</b>
-          <span class="number num">{cap(s.number)}{#if s.estimate}&nbsp;<Badge tone="warn" size="sm" dashed>geschätzt</Badge>{/if}</span>
+          <span class="number">{cap(s.number)}{#if s.estimate}&nbsp;<Badge tone="warn" size="sm" dashed>geschätzt</Badge>{/if}</span>
           <span class="why">{s.why}</span>
           {#if note}{@render note(s)}{/if}
         </div>
@@ -147,16 +147,20 @@
   }
   .rows {
     display: grid;
-    gap: 6px;
+    /* One set of columns for all rows: bars and each action keep their place, a missing action leaves its slot free. */
+    grid-template-columns: 34px minmax(0, 1fr) minmax(90px, 160px) auto auto auto;
+    column-gap: 16px;
+    row-gap: 6px;
     margin: 0;
     padding: 0;
     list-style: none;
   }
   .row {
     display: grid;
-    grid-template-columns: 34px minmax(0, 1fr) minmax(90px, 160px) auto;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
     align-items: center;
-    gap: 8px 16px;
+    row-gap: 8px;
     padding: 12px 14px;
     border-radius: var(--r);
     border: 1px solid var(--line);
@@ -199,8 +203,23 @@
   .compact {
     gap: 14px;
   }
-  .compact .row {
+  .rows:not(.compact) .go {
+    display: contents;
+  }
+  .rows:not(.compact) .slot.learn {
+    grid-column: 4;
+  }
+  .rows:not(.compact) .slot.hands {
+    grid-column: 5;
+  }
+  .rows:not(.compact) .slot.read {
+    grid-column: 6;
+  }
+  .compact {
     grid-template-columns: 22px minmax(0, 1fr);
+  }
+  .compact .row {
+    grid-template-columns: subgrid;
     gap: 6px 10px;
     padding: 0;
     border: 0;
@@ -215,12 +234,16 @@
     grid-column: 2;
   }
   @container (max-width: 760px) {
-    .row {
+    .rows {
       grid-template-columns: 34px minmax(0, 1fr);
     }
     .bar,
-    .row .go {
+    .rows:not(.compact) .go {
+      display: flex;
       grid-column: 2;
+    }
+    .rows:not(.compact) .slot {
+      grid-column: auto;
     }
   }
 </style>

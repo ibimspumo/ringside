@@ -31,7 +31,7 @@
 </script>
 
 <script lang="ts">
-  import { STAT_META, stat } from "../stats";
+  import { PLAIN_NAME, STAT_META, stat } from "../stats";
   import type { HudConfig } from "../types";
   import Badge from "../ui/Badge.svelte";
   import CellButton from "../ui/CellButton.svelte";
@@ -73,8 +73,6 @@
   } = $props();
 
   const SHORT: Partial<Record<StatId, string>> = { pfr: "PFR", three_bet: "3-Bet", af: "AF" };
-  /** The four core columns in words a casual player reads at once; the abbreviation sits below. */
-  const PLAIN: Partial<Record<StatId, string>> = { vpip: "Spielt mit", pfr: "Erhöht", three_bet: "Erhöht nochmal", af: "Aggression" };
   /** All twelve side by side: German words, two lines where needed. */
   const NARROW: Record<StatId, string> = {
     hands: "Hände",
@@ -141,7 +139,7 @@
         <th class:core={columns === "core"} class:ringed={columns === "all"} aria-sort={ariaSort(id)}>
           <Tooltip text={`${STAT_META[id].name}: ${STAT_META[id].help}`} side="top">
             {#if columns === "core"}
-              {@render head(id, PLAIN[id] ?? STAT_META[id].name, `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}`)}
+              {@render head(id, PLAIN_NAME[id], `${SHORT[id] ?? STAT_META[id].name} ${STAT_META[id].ratio ? "×" : "%"}`)}
             {:else}
               {@render head(id, NARROW[id])}
             {/if}
