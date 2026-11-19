@@ -24,7 +24,7 @@
   ];
   /** For the settings page; the library's own dialog has the power choice right above. */
   export const COST =
-    "Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel Kraft Ringside nimmt, stellst du auf der Seite Bibliothek ein. Solange PokerStars läuft, wird nie gerechnet.";
+    "Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel Kraft Ringside nimmt, stellst du auf der Seite Bibliothek ein. Solange ein Poker-Client läuft, wird nie gerechnet.";
 </script>
 
 <script lang="ts">
@@ -37,7 +37,7 @@
 <div class="mode">
   <SegmentedControl label="Automatik" value={mode} options={MODES} onchange={onChange} />
   <p>{current.text}</p>
-  <p>Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel, wählst du oben unter Kraft. Solange PokerStars läuft, wird nie gerechnet.</p>
+  <p>Mitrechnen kostet etwas Strom, und der Lüfter kann lauter werden; wie viel, wählst du oben unter Kraft. Solange ein Poker-Client läuft, wird nie gerechnet.</p>
 </div>
 
 <style>

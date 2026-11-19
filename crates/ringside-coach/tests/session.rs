@@ -165,6 +165,7 @@ fn streamed_answer(calls: &[(&str, &str, &str)], prompt: u64, completion: u64, c
 fn row() -> TournamentRow {
     TournamentRow {
         id: 77,
+        site: Default::default(),
         game: "Hold'em No Limit".into(),
         currency: Some("USD".into()),
         buy_in: Some(BuyIn { prize: 490, bounty: 0, fee: 60, currency: Some("USD".into()) }),

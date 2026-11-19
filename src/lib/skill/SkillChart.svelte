@@ -87,7 +87,10 @@
     <svg
       {width}
       {height}
-      role="img"
+      role="slider"
+      aria-valuemin={1}
+      aria-valuemax={data.length - 1}
+      aria-valuenow={hover ?? data.length - 1}
       tabindex="0"
       aria-label="Verlauf deiner Wertung über {data.length - 1} Turniere"
       onpointermove={move}

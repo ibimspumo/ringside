@@ -48,5 +48,5 @@ export const SOURCE: Record<Source, { label: string; text: string }> = {
   computed: { label: "Berechnet", text: "Von Ringsides Rechenkern exakt nachgerechnet, nicht geschätzt." },
   estimate: { label: "Einschätzung", text: "Aus deinen Händen geschätzt – mit mehr Händen wird es genauer." },
   opinion: { label: "Einschätzung", text: "Meinung des Sprachmodells, etwa über die Ranges der Gegner – Ringside hat sie nicht nachgerechnet." },
-  locked: { label: "Gesperrt, solange PokerStars läuft", text: "Hilfen während des Spiels sind bei PokerStars nicht erlaubt. Schließ den Client, dann geht es weiter." },
+  locked: { label: "Gesperrt, solange ein Poker-Client läuft", text: "PokerStars und GGPoker erlauben keine Hilfen während des Spiels. Schließ den Client, dann geht es weiter." },
 };

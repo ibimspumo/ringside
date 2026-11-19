@@ -129,7 +129,7 @@
       </div>
       {#if pokerClient.running}
         <div class="lock">
-          <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du PokerStars schließt. Die Werte bleiben sichtbar.</SourceNote>
+          <SourceNote kind="locked" variant="block">Spielertyp und Gegenzug siehst du wieder, sobald du den Poker-Client schließt. Die Werte bleiben sichtbar.</SourceNote>
         </div>
       {/if}
 

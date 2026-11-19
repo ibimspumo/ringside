@@ -186,7 +186,7 @@ fn push_fold(hand: &Hand) -> Option<OwnSpot> {
     let hero_cards = cards(&hand.hero_cards)?;
     let pre: Vec<(usize, &Action)> =
         hand.actions.iter().enumerate().filter(|(_, a)| a.street == Street::Preflop).collect();
-    if pre.iter().any(|(_, a)| a.kind == ActionKind::PostBoth) {
+    if pre.iter().any(|(_, a)| matches!(a.kind, ActionKind::PostBoth | ActionKind::PostDead | ActionKind::PostStraddle)) {
         return None;
     }
     let poster = |kind: ActionKind| -> Option<(&str, i64)> {

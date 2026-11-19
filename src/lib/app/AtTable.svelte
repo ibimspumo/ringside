@@ -8,7 +8,7 @@
 
 <EmptyState
   {compact}
-  title="Am Tisch – Auswertung, sobald du PokerStars schließt"
+  title="Am Tisch – Auswertung, sobald du den Poker-Client schließt"
   text={hands
     ? `${int(hands)} ${hands === 1 ? "Hand" : "Hände"} gespeichert. Ergebnisse, Statistiken und HUD laufen weiter.`
     : "Ergebnisse, Statistiken und HUD laufen weiter."}

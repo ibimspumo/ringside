@@ -358,6 +358,7 @@ const OPEN_WHILE_PLAYING: &[&str] = &[
     "reset_layout",
     "client_windows",
     "poker_client_running",
+    "poker_client_name",
     // Own results, stats and hand history.
     "reports",
     "positions",
@@ -374,6 +375,7 @@ const OPEN_WHILE_PLAYING: &[&str] = &[
     "import_profile",
     "reset_profile",
     "import_status",
+    "import_hand_files",
     "detected_dirs",
     "analysis_set_auto",
     "library_set_mode",

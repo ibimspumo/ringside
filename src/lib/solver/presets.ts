@@ -1,5 +1,6 @@
 import type { Action, Hand, Street } from "../types";
 import type { SolverPlayer, SolverPrefill, SolverSpot, StreetSizes } from "./types";
+import { handLabel } from "../app/format";
 
 /** Simple 100-BB cash ranges; a starting point, not a solution. */
 export const PRESETS: { id: string; label: string; range: string }[] = [
@@ -165,7 +166,7 @@ export function spotFromHand(
       ip: side(ip),
       hero: heroIn ? { player: heroSide, cards: hand.hero_cards } : null,
       players: hand.seats.filter((s) => !s.sitting_out).length,
-      source: `Hand #${hand.id}, ${street === "flop" ? "Flop" : street === "turn" ? "Turn" : "River"}`,
+      source: `Hand #${handLabel(hand.id)}, ${street === "flop" ? "Flop" : street === "turn" ? "Turn" : "River"}`,
     },
   };
 }
