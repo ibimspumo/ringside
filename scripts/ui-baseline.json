@@ -124,7 +124,7 @@
       }
     },
     "global-class-override": {
-      "total": 59,
+      "total": 58,
       "files": {
         "app/Main.svelte": 2,
         "app/Reports.svelte": 3,
@@ -154,8 +154,7 @@
         "solver/Setup.svelte": 5,
         "solver/SizeChooser.svelte": 4,
         "solver/Study.svelte": 1,
-        "ui/ChoiceMenu.svelte": 1,
-        "ui/EmptyState.svelte": 1
+        "ui/ChoiceMenu.svelte": 1
       }
     },
     "kbd-style": {
