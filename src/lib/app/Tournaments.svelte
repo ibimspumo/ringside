@@ -165,25 +165,21 @@
 
 <div class="page tours">
   {#if failed}
-    <Panel>
-      <EmptyState
-        tone="error"
-        title="Die Turniere konnten nicht geladen werden."
-        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
-      >
-        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
-      </EmptyState>
-    </Panel>
+    <EmptyState page
+      tone="error"
+      title="Die Turniere konnten nicht geladen werden"
+      text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+    >
+      {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+    </EmptyState>
   {:else if data && data.rows.length === 0}
-    <Panel>
-      <EmptyState
+    <EmptyState page
         title="Noch keine Turniere in diesem Zeitraum"
         text="Ringside liest dafür deine Turnier-Hände und die Zusammenfassungen aus dem Ordner „TournSummary“ neben „HandHistory“. Hast du schon gespielt{filter.since !==
         null
           ? ', wähle oben „Alles“'
           : ', prüfe in den Einstellungen den Ordner der Hand-Historys'}."
       />
-    </Panel>
   {:else if data}
     {#if totals}
       {@const back = totals.prizes + totals.bounties}

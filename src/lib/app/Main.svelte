@@ -47,6 +47,7 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { followPage, pageFrame, pageHead } from "../ui/page.svelte";
   import TopBar from "../nav/TopBar.svelte";
+  import { handleGo } from "../nav/go";
   import { historyMissing } from "../nav/NavNotices.svelte";
   import { ALL_PAGES, LOCKED_PAGES, PAGES, type Page } from "../nav/pages";
 
@@ -219,6 +220,7 @@
     if (id === "tournaments") reportTournament = null;
     tab = id;
   }
+  handleGo(go);
 
   function showHands(player: string | null, handId: number | null = null) {
     handsPlayer = player;
@@ -426,7 +428,7 @@
       {:else if tab === "reports"}
         <Reports {filter} {refresh} />
       {:else if tab === "leaks" && adviceLocked()}
-        <AtTable hands={status?.total_hands} />
+        <div class="page"><AtTable hands={status?.total_hands} /></div>
       {:else if tab === "leaks"}
         <Leaks
           {filter}
@@ -454,7 +456,7 @@
         />
       {:else if tab === "tournaments" && reportTournament !== null}
         {@const id = reportTournament}
-        <ClientLock feature="Der Turnier-Bericht">
+        <ClientLock>
           <TournamentReport
             tournamentId={id}
             {refresh}

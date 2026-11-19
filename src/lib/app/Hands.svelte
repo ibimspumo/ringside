@@ -685,7 +685,7 @@
             <EmptyState compact title="Keine Hände für diese Filter" text="Lockere die Filter oder wähle oben einen längeren Zeitraum." />
           {/if}
         {:else}
-          <EmptyState compact tone="loading" title="Lädt deine Hände …" />
+          <EmptyState compact tone="loading" title="Deine Hände werden geladen …" />
         {/if}
       {/each}
       {#if more}

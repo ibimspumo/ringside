@@ -156,7 +156,7 @@
           {#snippet action()}{#if search}<Button size="sm" onclick={() => (search = "")}>Suche löschen</Button>{/if}{/snippet}
         </EmptyState>
       {:else}
-        <EmptyState tone="loading" title="Spieler werden geladen" />
+        <EmptyState tone="loading" title="Spieler werden geladen …" />
       {/if}
     </section>
 

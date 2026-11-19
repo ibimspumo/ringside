@@ -164,7 +164,7 @@
       <NextSteps
         {steps}
         mode="first"
-        label={running ? "Dein nächster Schritt · vorläufig, die Analyse läuft noch" : "Dein nächster Schritt"}
+        label={running ? "Als Nächstes üben · vorläufig, die Analyse läuft noch" : "Als Nächstes üben"}
         {onLearn}
         onHands={onStepHands}
       />
@@ -174,24 +174,20 @@
 
 <div class="page dash">
   {#if failed}
-    <Panel>
-      <EmptyState
-        tone="error"
-        title="Die Übersicht konnte nicht geladen werden."
-        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
-      >
-        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
-      </EmptyState>
-    </Panel>
+    <EmptyState page
+      tone="error"
+      title="Die Übersicht konnte nicht geladen werden"
+      text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+    >
+      {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+    </EmptyState>
   {:else if data && r && r.hands === 0}
-    <Panel>
-      <EmptyState
+    <EmptyState page
         title="Noch keine Hände in dieser Auswahl"
         text="Spiel ein paar Hände bei PokerStars – Ringside liest sie von selbst ein.{filter.since !== null || filter.game !== null
           ? ' Hast du schon gespielt, wähle oben „Alles“ und „Alle“.'
           : ''}"
       />
-    </Panel>
   {:else if data && r}
     <section class="panel hero">
       <div class="answer">

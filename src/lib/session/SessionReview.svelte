@@ -234,13 +234,13 @@
 
 <div class="page sr">
   {#if failed}
-    <EmptyState tone="error" title="Der Rückblick konnte nicht geladen werden." text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu.">
+    <EmptyState page tone="error" title="Der Rückblick konnte nicht geladen werden" text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu.">
       {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
     </EmptyState>
   {:else if !page}
-    <EmptyState tone="loading" title="Rückblick wird geladen" />
+    <EmptyState page tone="loading" title="Rückblick wird geladen …" />
   {:else if !review || !span || !pre || !rep}
-    <EmptyState title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst." />
+    <EmptyState page title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst." />
   {:else if detail && !review.locked}
     <Luck {review} onBack={() => (detail = false)} onHand={(id, at) => scope && onHand(scope, id, at)} />
   {:else}

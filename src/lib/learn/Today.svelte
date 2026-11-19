@@ -1,5 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
   import { api } from "../api";
   import type { ConceptCount } from "../coach/types";
   import type { Exercise, LearnKind, LearnProgress, SkillProgress } from "../types";
@@ -474,8 +476,9 @@
     </div>
     <div class="panel body">
       {#if error}
-        <p class="error" role="alert">{error}</p>
-        <button class="btn" onclick={() => load(index)}>Nochmal versuchen</button>
+        <EmptyState tone="error" title="Die Aufgabe konnte nicht geladen werden" text={error}>
+          {#snippet action()}<Button variant="primary" onclick={() => load(index)}>Erneut laden</Button>{/snippet}
+        </EmptyState>
       {:else if current?.type === "skill"}
         {@const exercise = current.exercise}
         {#key `${index}:${exercise.seed}`}
@@ -506,7 +509,7 @@
           />
         {/key}
       {:else}
-        <p class="faint loading">{items[index]?.type === "drill" ? "Spot aus deinem Spiel wird vorbereitet …" : "Aufgabe wird gemischt …"}</p>
+        <EmptyState tone="loading" title={items[index]?.type === "drill" ? "Spot aus deinem Spiel wird vorbereitet …" : "Aufgabe wird gemischt …"} />
       {/if}
     </div>
   </div>
@@ -860,14 +863,6 @@
   }
   .body {
     padding: 20px 22px;
-  }
-  .loading {
-    margin: 30px 0;
-    text-align: center;
-  }
-  .error {
-    margin: 0 0 10px;
-    color: var(--danger-text);
   }
 
   .done {

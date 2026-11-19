@@ -2,6 +2,7 @@
   import { tick } from "svelte";
   import { STAT_META } from "../../stats";
   import type { HudConfig } from "../../types";
+  import EmptyState from "../../ui/EmptyState.svelte";
   import ArticleView from "./Article.svelte";
   import { ARTICLE_BY_ID, ARTICLES, LEVELS, UNITS, fold, searchText, type Article } from "./articles";
   import { loadRead, storeRead } from "./read";
@@ -124,7 +125,7 @@
     </div>
 
     {#if !groups.length}
-      <div class="empty-state">Nichts gefunden zu „{query}“.</div>
+      <EmptyState compact title="Nichts gefunden zu „{query}“" text="Versuch ein anderes Wort, z. B. „Position“ oder „Pot Odds“." />
     {/if}
 
     {#each groups as g (g.id)}

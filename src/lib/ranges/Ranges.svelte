@@ -11,6 +11,7 @@
   import { int } from "../app/format";
   import RangeGrid, { type GridMode } from "./RangeGrid.svelte";
   import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
   import {
     FEW,
     HISTORY,
@@ -213,16 +214,16 @@
 </script>
 
 {#if error}
-  <div class="state"><p>Die Ranges ließen sich nicht laden: {error}</p></div>
+  <div class="page"><EmptyState page tone="error" title="Deine Starthände konnten nicht geladen werden" text={error} /></div>
 {:else if !groups}
-  <div class="state"><p class="faint">Lade deine Preflop-Entscheidungen …</p></div>
+  <div class="page"><EmptyState page tone="loading" title="Deine Entscheidungen vor dem Flop werden geladen …" /></div>
 {:else if groups.length === 0 || !sel || !counts}
-  <div class="state empty">
-    <h2>Noch keine Preflop-Entscheidungen hier</h2>
-    <p>
-      Sobald Hände mit deinen Karten importiert sind, zeigt diese Seite, welche Hände du von jeder Position spielst – und was das Modell dort spielen würde.
-      Prüfe den Zeitraum oder das gewählte Turnier oben.
-    </p>
+  <div class="page">
+    <EmptyState
+      page
+      title="Noch keine Entscheidungen vor dem Flop hier"
+      text="Sobald Hände mit deinen Karten eingelesen sind, zeigt diese Seite, welche Hände du von jeder Position spielst – und was das Modell dort spielen würde. Prüf den Zeitraum oder das gewählte Turnier oben."
+    />
   </div>
 {:else}
   <div class="page ranges-page">
@@ -431,20 +432,6 @@
     display: flex;
     flex-direction: column;
     gap: 18px;
-  }
-  .state {
-    padding: 48px 24px;
-    max-width: 640px;
-  }
-  .state h2 {
-    margin: 0 0 8px;
-    font-family: var(--font-num);
-    font-size: 20px;
-    font-weight: 600;
-  }
-  .state p {
-    margin: 0;
-    color: var(--text-2);
   }
 
   /* The answer first: one sentence, then the few hands that matter. */

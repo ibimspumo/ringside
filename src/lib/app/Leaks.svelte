@@ -375,15 +375,13 @@
 
 <div class="page leaks">
   {#if failed}
-    <Panel>
-      <EmptyState
-        tone="error"
-        title="Deine Schwachstellen konnten nicht geladen werden."
-        text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
-      >
-        {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
-      </EmptyState>
-    </Panel>
+    <EmptyState page
+      tone="error"
+      title="Deine Schwachstellen konnten nicht geladen werden"
+      text="Deine Hände sind sicher gespeichert. Versuch es noch einmal; bleibt der Fehler, starte Ringside neu."
+    >
+      {#snippet action()}<Button variant="primary" onclick={() => retry++}>Erneut laden</Button>{/snippet}
+    </EmptyState>
   {:else if data}
     {#if steps.length}
       <Panel title="Was dich am meisten kostet" sub="Aus deinen bewerteten Händen, deinen Werten und deinen Coach-Berichten, das Wichtigste zuerst.">

@@ -1,7 +1,7 @@
 {
   "rules": {
     "color-literal": {
-      "total": 138,
+      "total": 137,
       "files": {
         "app/Reports.svelte": 1,
         "app/TournamentPicker.svelte": 1,
@@ -25,7 +25,6 @@
         "learn/SeatRing.svelte": 3,
         "learn/Stage.svelte": 11,
         "learn/Task.svelte": 3,
-        "learn/Trainer.svelte": 1,
         "learn/wissen/blocks/Cards.svelte": 5,
         "learn/wissen/blocks/Matchup.svelte": 4,
         "learn/wissen/blocks/TableDiagram.svelte": 8,
@@ -40,7 +39,7 @@
       }
     },
     "font-size": {
-      "total": 161,
+      "total": 160,
       "files": {
         "app/Reports.svelte": 3,
         "app/TournamentPicker.svelte": 1,
@@ -76,7 +75,7 @@
         "play/InfoPanel.svelte": 5,
         "play/VerdictCard.svelte": 3,
         "ranges/RangeGrid.svelte": 3,
-        "ranges/Ranges.svelte": 9,
+        "ranges/Ranges.svelte": 8,
         "solver/DeckPopover.svelte": 1,
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 6,
@@ -125,9 +124,8 @@
       }
     },
     "global-class-override": {
-      "total": 61,
+      "total": 59,
       "files": {
-        "app/ClientLock.svelte": 1,
         "app/Main.svelte": 2,
         "app/Reports.svelte": 3,
         "app/ResultsChart.svelte": 1,
@@ -137,7 +135,7 @@
         "jobs/JobsDock.svelte": 1,
         "jobs/JobToasts.svelte": 1,
         "learn/FeedbackView.svelte": 1,
-        "learn/OwnHands.svelte": 4,
+        "learn/OwnHands.svelte": 2,
         "learn/Path.svelte": 3,
         "learn/Stage.svelte": 5,
         "learn/Task.svelte": 1,
@@ -156,7 +154,8 @@
         "solver/Setup.svelte": 5,
         "solver/SizeChooser.svelte": 4,
         "solver/Study.svelte": 1,
-        "ui/ChoiceMenu.svelte": 1
+        "ui/ChoiceMenu.svelte": 1,
+        "ui/EmptyState.svelte": 1
       }
     },
     "kbd-style": {
@@ -197,7 +196,7 @@
       "files": {}
     },
     "jargon": {
-      "total": 64,
+      "total": 63,
       "files": {
         "charts/ChartsButton.svelte": 1,
         "charts/PreflopChart.svelte": 2,
@@ -216,7 +215,7 @@
         "library/Library.svelte": 1,
         "play/InfoPanel.svelte": 3,
         "ranges/RangeGrid.svelte": 1,
-        "ranges/Ranges.svelte": 2,
+        "ranges/Ranges.svelte": 1,
         "solver/HandDetail.svelte": 4,
         "solver/Practice.svelte": 1,
         "solver/Saved.svelte": 1,
@@ -234,6 +233,10 @@
       "files": {}
     },
     "time-format": {
+      "total": 0,
+      "files": {}
+    },
+    "state-title": {
       "total": 0,
       "files": {}
     },

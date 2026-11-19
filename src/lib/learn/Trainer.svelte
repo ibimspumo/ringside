@@ -1,5 +1,7 @@
 <script lang="ts">
   import { untrack } from "svelte";
+  import Button from "../ui/Button.svelte";
+  import EmptyState from "../ui/EmptyState.svelte";
   import { api } from "../api";
   import type { Exercise, LearnKind, LearnProgress } from "../types";
   import { LEVEL_TEXT, SKILLS, TRAINABLE, UNITS, errorText, fmtPct, nextLevel } from "./catalog";
@@ -104,7 +106,7 @@
           <h2 class="lead-title">{meta.short}</h2>
           <span class="session">
             {#if count}
-              Diese Sitzung: <b class="num">{count}</b> {count === 1 ? "Aufgabe" : "Aufgaben"} · <b class="num">{right}</b> richtig · <b class="num"
+              Diese Runde: <b class="num">{count}</b> {count === 1 ? "Aufgabe" : "Aufgaben"} · <b class="num">{right}</b> richtig · <b class="num"
                 >{fmtPct((sum / count) * 100)}</b
               > im Schnitt
             {:else}
@@ -134,8 +136,9 @@
 
     <div class="panel body">
       {#if error}
-        <p class="error" role="alert">{error}</p>
-        <button class="btn" onclick={load}>Nochmal versuchen</button>
+        <EmptyState tone="error" title="Die Aufgabe konnte nicht geladen werden" text={error}>
+          {#snippet action()}<Button variant="primary" onclick={load}>Erneut laden</Button>{/snippet}
+        </EmptyState>
       {:else if exercise}
         {#key `${exercise.kind}:${exercise.level}:${exercise.seed}`}
           <Task
@@ -152,7 +155,7 @@
           />
         {/key}
       {:else}
-        <p class="faint loading">Aufgabe wird gemischt …</p>
+        <EmptyState tone="loading" title="Aufgabe wird gemischt …" />
       {/if}
     </div>
   </div>
@@ -322,14 +325,6 @@
   }
   .body {
     padding: 20px 22px;
-  }
-  .loading {
-    margin: 30px 0;
-    text-align: center;
-  }
-  .error {
-    margin: 0 0 10px;
-    color: #ff9d93;
   }
   @container (max-width: 820px) {
     .trainer {

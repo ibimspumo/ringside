@@ -87,9 +87,13 @@
     <svg
       {width}
       {height}
-      role="img"
+      role="slider"
       tabindex="0"
       aria-label="Verlauf deiner Wertung über {data.length - 1} Turniere"
+      aria-valuemin={1}
+      aria-valuemax={data.length - 1}
+      aria-valuenow={hover ?? data.length - 1}
+      aria-valuetext="Turnier {hover ?? data.length - 1}: Wertung {Math.round(data[hover ?? data.length - 1].rating)}"
       onpointermove={move}
       onpointerleave={() => (hover = null)}
       onblur={() => (hover = null)}

@@ -39,7 +39,8 @@ const RULES = {
   "old-word": "Altes Wort als Anzeigetext – „Leaks“ heißt „Schwachstellen“, „EV-Verlust“ heißt „kostet im Schnitt“ (src/lib/ui/words.ts).",
   "raw-number": "Zahl mit toFixed als Anzeigetext (Punkt statt Komma) – nimm num, bb, pct, compact aus src/lib/ui/format.ts.",
   "time-format": "Eigene Zeitangabe (Std., Min., h, min) – nimm duration, ago oder remaining aus src/lib/ui/format.ts.",
-  "caps-label": "Großbuchstaben (text-transform: uppercase) gibt es nur in Tabellen-Spaltenköpfen (.table, SortHeader). Kartentitel nehmen SectionHead level 3 oder Panel title, kleine Beschriftungen normale Schreibung.",
+  "state-title": "Titel eines Leer-, Lade- oder Fehlerzustands (EmptyState): ohne Schlusspunkt; Laden endet auf „…“ („Spieler werden geladen …“).",
+  "caps-label": "Großbuchstaben (text-transform: uppercase) gibt es nicht, auch nicht in Tabellenköpfen: Abkürzungen bleiben wie geschrieben („AFq“). Kartentitel nehmen SectionHead level 3 oder Panel title, kleine Beschriftungen normale Schreibung.",
 };
 
 /** Poker words a beginner does not know; in markup text they belong inside <Term>. */
@@ -269,6 +270,13 @@ function scan(file, text, globals) {
   }
 
   if (file.endsWith(".svelte")) {
+    for (const m of clean.matchAll(/<EmptyState\b/g)) {
+      const tag = openTags(clean.slice(m.index), "EmptyState")[0];
+      const title = /\stitle="([^"]*)"/.exec(tag)?.[1];
+      if (title === undefined) continue;
+      const loading = /\stone="loading"/.test(tag);
+      if (/[.!]$/.test(title) || (loading && !title.endsWith("…"))) add("state-title", m.index, title);
+    }
     const visible = visibleText(clean);
     for (const m of visible.matchAll(JARGON)) add("jargon", m.index, m[0]);
     // Old words count in attributes and inside <Term> too: a title or an explanation is display text.
@@ -312,9 +320,7 @@ function scan(file, text, globals) {
       if (!inKit) {
         for (const d of declarations(rule.body)) if (freeMotion(d.prop, d.value)) add("motion", at, `${d.prop}: ${d.value.replace(/\s+/g, " ")}`);
       }
-      if (rel !== "ui/SortHeader.svelte") {
-        for (const d of declarations(rule.body)) if (d.prop === "text-transform" && /uppercase/.test(d.value)) add("caps-label", at, rule.selector.replace(/\s+/g, " "));
-      }
+      for (const d of declarations(rule.body)) if (d.prop === "text-transform" && /uppercase/.test(d.value)) add("caps-label", at, rule.selector.replace(/\s+/g, " "));
       const hits = [...rule.selector.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]).filter((n) => globals.has(n));
       for (const name of new Set(hits)) add("global-class-override", at, `.${name} in „${rule.selector.replace(/\s+/g, " ")}“`);
     }

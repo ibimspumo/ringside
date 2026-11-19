@@ -499,7 +499,7 @@
   });
 </script>
 
-<ClientLock feature="Die Seite „Ranges nach Stack“">
+<ClientLock>
   <div class="page ranges-page">
     {#if fromHand !== null}
       <div class="back-bar">

@@ -242,8 +242,7 @@ input[type="range"] {
   color: var(--text-3);
   font-size: var(--fs-xs);
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  letter-spacing: 0.01em;
   text-align: right;
   border-bottom: 1px solid var(--line-2);
   white-space: nowrap;
@@ -405,12 +404,6 @@ input[type="range"] {
   font-size: 0.72em;
   font-weight: 500;
   color: var(--text-3);
-}
-
-/* Column heads keep the stat abbreviations as written ("AFq", "W$SD"); no all-caps. */
-.table th {
-  letter-spacing: 0.01em;
-  text-transform: none;
 }
 
 /* Hover cards placed by the `floating` action live on <body> in viewport coordinates. */

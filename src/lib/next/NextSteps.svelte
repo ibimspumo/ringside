@@ -17,7 +17,7 @@
     steps,
     mode = "list",
     limit = Infinity,
-    label = "Dein nächster Schritt",
+    label = "Als Nächstes üben",
     primary = true,
     compact = false,
     onLearn,

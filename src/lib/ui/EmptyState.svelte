@@ -4,7 +4,8 @@
   /**
    * Nothing to show yet. Says why in one sentence and offers the next step; `tone` "error" says
    * what went wrong and how to fix it, "loading" what is being prepared. `inline` lays it out
-   * as one left-aligned line with the action on the right, for a place inside a list or row.
+   * as one left-aligned line with the action on the right, for a place inside a list or row;
+   * `page` frames it like a panel, for a state that stands in for the whole page.
    */
   let {
     title,
@@ -12,6 +13,7 @@
     tone = "empty",
     compact = false,
     inline = false,
+    page = false,
     icon,
     action,
   }: {
@@ -20,13 +22,14 @@
     tone?: "empty" | "loading" | "error";
     compact?: boolean;
     inline?: boolean;
+    page?: boolean;
     /** A symbol for what is missing (24×24 strokes); the generic box otherwise. */
     icon?: Snippet;
     action?: Snippet;
   } = $props();
 </script>
 
-<div class="ui-state {tone}" class:compact class:inline role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined} aria-busy={tone === "loading" || undefined}>
+<div class="ui-state {tone}" class:compact class:inline class:page role={tone === "error" ? "alert" : tone === "loading" ? "status" : undefined} aria-busy={tone === "loading" || undefined}>
   <span class="mark" aria-hidden="true">
     {#if tone === "loading"}
       <span class="spin"></span>
@@ -63,6 +66,11 @@
   }
   .compact {
     padding: var(--sp-5) var(--sp-4);
+  }
+  .page {
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    background: var(--surface);
   }
   .inline {
     flex-direction: row;

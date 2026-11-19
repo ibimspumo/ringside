@@ -817,7 +817,7 @@
         <div class="three">
           <Card pad="sm"><EmptyState title="Noch keine Hände" text="Spiel ein paar Hände bei PokerStars – sie erscheinen hier automatisch.">{#snippet action()}<Button variant="primary" size="sm">Ordner prüfen</Button>{/snippet}</EmptyState></Card>
           <Card pad="sm"><EmptyState title="Kein Tisch offen" text="Mit eigenem Symbol für das, was fehlt.">{#snippet icon()}<path d="M12 6.5c4.7 0 8.5 2.5 8.5 5.5s-3.8 5.5-8.5 5.5S3.5 15 3.5 12 7.3 6.5 12 6.5z" />{/snippet}</EmptyState></Card>
-          <Card pad="sm"><EmptyState tone="loading" title="Hände werden gelesen" text="Das dauert beim ersten Start etwa eine Minute." /></Card>
+          <Card pad="sm"><EmptyState tone="loading" title="Hände werden gelesen …" text="Das dauert beim ersten Start etwa eine Minute." /></Card>
           <Card pad="sm"><EmptyState tone="error" title="Ordner nicht gefunden" text="Prüf den Pfad zu deinen Hand-Historien in den Einstellungen.">{#snippet action()}<Button size="sm">Einstellungen öffnen</Button>{/snippet}</EmptyState></Card>
         </div>
       </section>
