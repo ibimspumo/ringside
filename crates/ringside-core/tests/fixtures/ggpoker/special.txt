@@ -1,0 +1,147 @@
+Poker Hand #OM3100200700: Omaha Pot Limit ($0.5/$1) - 2026/11/13 23:00:00
+Table 'PLOBronze12' 6-max Seat #2 is the button
+Seat 1: b8f0e2a4 ($87.19 in chips)
+Seat 2: 6d5c4b3a ($90 in chips)
+Seat 3: Hero ($17 in chips)
+Seat 4: 1e2d3c4b ($25.18 in chips)
+Seat 5: 9a8b7c6d ($21 in chips)
+Seat 6: e0c1d2f3 ($115.97 in chips)
+Hero: posts small blind $0.5
+1e2d3c4b: posts big blind $1
+*** HOLE CARDS ***
+Dealt to b8f0e2a4 
+Dealt to 6d5c4b3a 
+Dealt to Hero [Kc Jd Ts 6s]
+Dealt to 1e2d3c4b 
+Dealt to 9a8b7c6d 
+Dealt to e0c1d2f3 
+9a8b7c6d: folds
+e0c1d2f3: folds
+b8f0e2a4: folds
+6d5c4b3a: raises $2.5 to $3.5
+Hero: calls $3
+1e2d3c4b: calls $2.5
+*** FLOP *** [6c Kd Qc]
+Hero: checks
+1e2d3c4b: checks
+6d5c4b3a: bets $10.5
+Hero: calls $10.5
+1e2d3c4b: folds
+*** TURN *** [6c Kd Qc] [3s]
+Hero: bets $3 and is all-in
+6d5c4b3a: calls $3
+Hero: shows [Kc Jd Ts 6s] (two pair, Kings and Sixes)
+6d5c4b3a: shows [Ac Kh Jh 5s] (a pair of Kings)
+Hero: get an all-in insurance (premium ($0/$4/$0) for ($0/$10.8/$0) - (Mandatory/Main/Sub))
+*** RIVER *** [6c Kd Qc 3s] [6h]
+Hero: pay premium of all-in insurance ($4)
+*** SHOWDOWN ***
+Hero collected $37.5 from pot
+*** SUMMARY ***
+Total pot $37.5
+Board [6c Kd Qc 3s 6h]
+Seat 1: b8f0e2a4 folded before Flop (didn't bet)
+Seat 2: 6d5c4b3a (button) showed [Ac Kh Jh 5s] and lost with two pair, Kings and Sixes
+Seat 3: Hero (small blind) showed [Kc Jd Ts 6s] and won ($37.5) with a full house, Sixes full of Kings, AII Premium ($4)
+Seat 4: 1e2d3c4b (big blind) folded on the Flop
+Seat 5: 9a8b7c6d folded before Flop (didn't bet)
+Seat 6: e0c1d2f3 folded before Flop (didn't bet)
+
+
+Poker Hand #RC3100200610: Hold'em No Limit ($0.05/$0.1) - 2026/11/13 22:30:12
+Table 'RushAndCash4100123' 6-max Seat #1 is the button
+Seat 1: 61d0e2f3 ($10 in chips)
+Seat 2: a9c8b7d6 ($10 in chips)
+Seat 3: Hero ($10 in chips)
+Seat 4: 3e5f7a9b ($11.2 in chips)
+Seat 5: cd12ef34 ($10 in chips)
+Seat 6: 8b9a0c1d ($10 in chips)
+a9c8b7d6: posts small blind $0.05
+Hero: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 61d0e2f3 
+Dealt to a9c8b7d6 
+Dealt to Hero [Ah Ad]
+Dealt to 3e5f7a9b 
+Dealt to cd12ef34 
+Dealt to 8b9a0c1d 
+3e5f7a9b: raises $0.2 to $0.3
+cd12ef34: folds
+8b9a0c1d: folds
+61d0e2f3: folds
+a9c8b7d6: folds
+Hero: raises $0.9 to $1.2
+3e5f7a9b: raises $8.8 to $10
+Hero: calls $8.8 and is all-in
+Hero: shows [Ah Ad] (a pair of Aces)
+3e5f7a9b: shows [Kh Ks] (a pair of Kings)
+Hero: Chooses to EV Cashout
+*** FLOP *** [Kc 7d 2s]
+*** TURN *** [Kc 7d 2s] [9h]
+*** RIVER *** [Kc 7d 2s 9h] [4c]
+Hero: Receives Cashout ($15.8)
+*** SHOWDOWN ***
+3e5f7a9b collected $19.4 from pot
+*** SUMMARY ***
+Total pot $20.05 | Rake $0.5 | Jackpot $0.15 | Bingo $0 | Fortune $0 | Tax $0
+Board [Kc 7d 2s 9h 4c]
+Seat 1: 61d0e2f3 (button) folded before Flop (didn't bet)
+Seat 2: a9c8b7d6 (small blind) folded before Flop
+Seat 3: Hero (big blind) showed [Ah Ad] and lost with a pair of Aces, EV Cashout ($15.8)
+Seat 4: 3e5f7a9b showed [Kh Ks] and won ($19.4) with three of a kind, Kings
+Seat 5: cd12ef34 folded before Flop (didn't bet)
+Seat 6: 8b9a0c1d folded before Flop (didn't bet)
+
+
+Poker Hand #HD3100200502: Hold'em No Limit ($0.05/$0.1) - 2026/11/13 22:01:30
+Table 'NLHBlue4' 6-max Seat #5 is the button
+Seat 1: 7aa01b2c ($10 in chips)
+Seat 2: Hero ($8.4 in chips)
+Seat 3: e0f1a2b3 ($12.75 in chips)
+Seat 4: 58c3d9e ($10 in chips)
+Seat 5: b4d2e6f8 ($9.6 in chips)
+Seat 6: 2f7e9a1c ($10 in chips)
+2f7e9a1c: posts small blind $0.05
+7aa01b2c: posts big blind $0.1
+*** HOLE CARDS ***
+Dealt to 7aa01b2c 
+Dealt to Hero [Tc Th]
+Dealt to e0f1a2b3 
+Dealt to 58c3d9e 
+Dealt to b4d2e6f8 
+Dealt to 2f7e9a1c 
+Hero: raises $0.2 to $0.3
+e0f1a2b3: folds
+58c3d9e: folds
+b4d2e6f8: calls $0.3
+2f7e9a1c: folds
+7aa01b2c: folds
+*** FIRST FLOP *** [Td 6s 2h]
+Hero: bets $0.4
+b4d2e6f8: raises $1.1 to $1.5
+Hero: calls $1.1
+*** FIRST TURN *** [Td 6s 2h] [Ks]
+Hero: bets $6.6 and is all-in
+b4d2e6f8: calls $6.6
+Hero: shows [Tc Th] (three of a kind, Tens)
+b4d2e6f8: shows [Kc Kd] (three of a kind, Kings)
+*** FIRST RIVER *** [Td 6s 2h Ks] [3c]
+*** SECOND RIVER *** [Td 6s 2h Ks] [Ts]
+*** FIRST SHOWDOWN ***
+b4d2e6f8 collected $8.15 from pot
+*** SECOND SHOWDOWN ***
+Hero collected $8.15 from pot
+*** SUMMARY ***
+Total pot $16.95 | Rake $0.5 | Jackpot $0.15 | Bingo $0 | Fortune $0 | Tax $0
+Hand was run two times
+FIRST Board [Td 6s 2h Ks 3c]
+SECOND Board [Ts]
+Seat 1: 7aa01b2c (big blind) folded before Flop
+Seat 2: Hero showed [Tc Th] and lost with three of a kind, Tens, and won ($8.15) with four of a kind, Tens
+Seat 3: e0f1a2b3 folded before Flop (didn't bet)
+Seat 4: 58c3d9e folded before Flop (didn't bet)
+Seat 5: b4d2e6f8 (button) showed [Kc Kd] and won ($8.15) with three of a kind, Kings, and lost with three of a kind, Kings
+Seat 6: 2f7e9a1c (small blind) folded before Flop
+
+
+

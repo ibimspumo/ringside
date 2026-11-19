@@ -113,6 +113,8 @@ pub fn render_hand(hand: &Hand, label: &str, names: &mut Names) -> Option<String
             ActionKind::PostSmallBlind => format!("{who} SB {}", bb(a.amount, big)),
             ActionKind::PostBigBlind => format!("{who} BB {}", bb(a.amount, big)),
             ActionKind::PostBoth => format!("{who} SB+BB {}", bb(a.amount, big)),
+            ActionKind::PostStraddle => format!("{who} Straddle {}{all_in}", bb(a.amount, big)),
+            ActionKind::PostDead => format!("{who} totes Blind {}", bb(a.amount, big)),
             ActionKind::PostAnte => continue,
             ActionKind::Fold => format!("{who} {}", verb("foldest", "foldet")),
             ActionKind::Check => format!("{who} {}", verb("checkst", "checkt")),

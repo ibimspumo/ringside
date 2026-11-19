@@ -3,7 +3,7 @@ import type { Rating, Source } from "../analysis/types";
 import type { History } from "../ranges/types";
 import type { Street, TournamentReport } from "../report/types";
 import type { SkillChange } from "../skill/types";
-import type { TournamentRow } from "../types";
+import type { Site, TournamentRow } from "../types";
 
 export interface SessionSpan {
   start: string;
@@ -11,6 +11,8 @@ export interface SessionSpan {
   hands: number;
   tournaments: number[];
   cash_hands: number;
+  /** The clients played in this session, PokerStars first. */
+  sites: Site[];
 }
 
 export type Sample = "few" | "rough" | "solid";

@@ -32,6 +32,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let finish = hands.iter().flat_map(|h| &h.finishes).find(|f| f.player == hero);
     let row = TournamentRow {
         id: first.tournament_id.unwrap_or(0),
+        site: Default::default(),
         game: first.variant.clone(),
         currency: first.buy_in.as_ref().and_then(|b| b.currency.clone()),
         buy_in: first.buy_in.clone(),

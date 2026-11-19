@@ -1,0 +1,108 @@
+Poker Hand #SD2720000105: ShortDeck No Limit ($0.02) - 2026/11/12 21:20:00
+Table 'SDWhite20' 5-max Seat #3 is the button
+Seat 1: 27a0c5d1 ($2 in chips)
+Seat 3: Hero ($2 in chips)
+27a0c5d1: posts the ante $0.02
+Hero: posts the ante $0.02
+Hero: posts button blind $0.02
+*** HOLE CARDS ***
+Dealt to 27a0c5d1 
+Dealt to Hero [Ah 9h]
+27a0c5d1: folds
+*** SHOWDOWN ***
+Hero collected $0.06 from pot
+*** SUMMARY ***
+Total pot $0.06 | Rake $0 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Seat 1: 27a0c5d1 folded before Flop
+Seat 3: Hero (button) collected ($0.06)
+
+
+Poker Hand #HD3100200455: Hold'em No Limit ($0.02/$0.05) - 2026/11/12 21:14:40
+Table 'NLHGreen17' 6-max Seat #2 is the button
+Seat 1: a1b2c3d4 ($4.6 in chips)
+Seat 2: 9e8d7c6 ($5 in chips)
+Seat 3: 4f00ab12 ($7.17 in chips)
+Seat 4: Hero ($6.1 in chips)
+Seat 5: c0ffee42 ($2.18 in chips)
+Seat 6: d15ea5e ($7.32 in chips)
+Cash Drop to Pot : total $0.5 
+4f00ab12: posts small blind $0.02
+Hero: posts big blind $0.05
+c0ffee42: straddle $0.1
+a1b2c3d4: posts missed blind $0.02
+*** HOLE CARDS ***
+Dealt to a1b2c3d4 
+Dealt to 9e8d7c6 
+Dealt to 4f00ab12 
+Dealt to Hero [7c 2d]
+Dealt to c0ffee42 
+Dealt to d15ea5e 
+d15ea5e: folds
+a1b2c3d4: folds
+9e8d7c6: folds
+4f00ab12: folds
+Hero: folds
+Uncalled bet ($0.05) returned to c0ffee42
+4f00ab12: shows [Kh] (high card, King)
+*** SHOWDOWN ***
+c0ffee42 collected $0.6 from pot
+*** SUMMARY ***
+Total pot $0.64 | Rake $0.04 | Jackpot $0 | Bingo $0 | Fortune $0 | Tax $0
+Seat 1: a1b2c3d4 folded before Flop
+Seat 2: 9e8d7c6 (button) folded before Flop (didn't bet)
+Seat 3: 4f00ab12 (small blind) folded before Flop
+Seat 4: Hero (big blind) folded before Flop
+Seat 5: c0ffee42 collected ($0.6)
+Seat 6: d15ea5e folded before Flop (didn't bet)
+
+
+Poker Hand #HD3100200401: Hold'em No Limit ($0.02/$0.05) - 2026/11/12 21:10:05
+Table 'NLHGreen17' 6-max Seat #1 is the button
+Seat 1: a1b2c3d4 ($4.6 in chips)
+Seat 2: 9e8d7c6 ($5 in chips)
+Seat 3: 4f00ab12 ($7.35 in chips)
+Seat 4: Hero ($5.12 in chips)
+Seat 5: c0ffee42 ($2.18 in chips)
+Seat 6: d15ea5e ($6.4 in chips)
+9e8d7c6: posts small blind $0.02
+4f00ab12: posts big blind $0.05
+*** HOLE CARDS ***
+Dealt to a1b2c3d4 
+Dealt to 9e8d7c6 
+Dealt to 4f00ab12 
+Dealt to Hero [As Kd]
+Dealt to c0ffee42 
+Dealt to d15ea5e 
+Hero: raises $0.1 to $0.15
+c0ffee42: folds
+d15ea5e: calls $0.15
+a1b2c3d4: folds
+9e8d7c6: folds
+4f00ab12: calls $0.1
+*** FLOP *** [Ah 7d 2c]
+4f00ab12: checks
+Hero: bets $0.22
+d15ea5e: calls $0.22
+4f00ab12: folds
+*** TURN *** [Ah 7d 2c] [9s]
+Hero: bets $0.55
+d15ea5e: calls $0.55
+*** RIVER *** [Ah 7d 2c 9s] [3h]
+Hero: checks
+d15ea5e: checks
+Hero: shows [As Kd] (a pair of Aces)
+d15ea5e: shows [Ad 8d] (a pair of Aces)
+*** SHOWDOWN ***
+Hero collected $1.9 from pot
+*** SUMMARY ***
+Total pot $2.01 | Rake $0.1 | Jackpot $0.01 | Bingo $0 | Fortune $0 | Tax $0
+Board [Ah 7d 2c 9s 3h]
+Seat 1: a1b2c3d4 (button) folded before Flop (didn't bet)
+Seat 2: 9e8d7c6 (small blind) folded before Flop
+Seat 3: 4f00ab12 (big blind) folded on the Flop
+Seat 4: Hero showed [As Kd] and won ($1.9) with a pair of Aces
+Seat 5: c0ffee42 folded before Flop (didn't bet)
+Seat 6: d15ea5e showed [Ad 8d] and lost with a pair of Aces
+
+
+

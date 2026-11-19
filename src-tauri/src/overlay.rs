@@ -53,6 +53,7 @@ mod win {
     use std::sync::atomic::Ordering;
     use std::time::Duration;
 
+    use ringside_core::model::Site;
     use ringside_core::table::{key_from_title, tournament_from_title};
     use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
     use windows::Win32::Foundation::{CloseHandle, HWND, POINT, RECT};
@@ -69,6 +70,7 @@ mod win {
 
     use super::{ClientWindow, OverlayInfo};
     use crate::AppState;
+    use crate::clients::client_of_exe;
 
     struct Table {
         hwnd: isize,
@@ -93,16 +95,17 @@ mod win {
     /// less often than the position updates.
     const SCAN_EVERY: u32 = 16;
 
-    fn is_poker_client(pid: u32) -> bool {
+    fn poker_client(pid: u32) -> Option<Site> {
         unsafe {
-            let Ok(process) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) else { return false };
+            let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
             let mut buf = [0u16; 1024];
             let mut len = buf.len() as u32;
             let ok = QueryFullProcessImageNameW(process, PROCESS_NAME_WIN32, PWSTR(buf.as_mut_ptr()), &mut len).is_ok();
             let _ = CloseHandle(process);
-            let path = String::from_utf16_lossy(&buf[..len as usize]);
-            let exe = path.rsplit('\\').next().unwrap_or_default().to_lowercase();
-            ok && exe.starts_with("pokerstars")
+            if !ok {
+                return None;
+            }
+            client_of_exe(&String::from_utf16_lossy(&buf[..len as usize]))
         }
     }
 
@@ -122,10 +125,11 @@ mod win {
         utf16(&buf, len)
     }
 
-    /// Visible windows of the poker client, the ones among them that are tables, and whether
-    /// the client runs at all (minimised to the tray it only has hidden windows).
-    fn scan() -> (Vec<isize>, Vec<ClientWindow>, bool) {
-        let mut clients: HashMap<u32, bool> = HashMap::new();
+    /// Visible windows of PokerStars, the ones among them that are tables, and which poker
+    /// client runs at all (minimised to the tray it only has hidden windows). Only PokerStars
+    /// tables get an overlay.
+    fn scan() -> (Vec<isize>, Vec<ClientWindow>, Option<Site>) {
+        let mut clients: HashMap<u32, Option<Site>> = HashMap::new();
         let mut tables = Vec::new();
         let mut seen = Vec::new();
         let mut after: Option<HWND> = None;
@@ -137,7 +141,7 @@ mod win {
             after = Some(h);
             let mut pid = 0u32;
             unsafe { GetWindowThreadProcessId(h, Some(&mut pid)) };
-            if !*clients.entry(pid).or_insert_with(|| is_poker_client(pid)) {
+            if *clients.entry(pid).or_insert_with(|| poker_client(pid)) != Some(Site::PokerStars) {
                 continue;
             }
             if !unsafe { IsWindowVisible(h) }.as_bool() {
@@ -151,7 +155,7 @@ mod win {
             }
             seen.push(ClientWindow { title, class, table_key });
         }
-        let running = clients.values().any(|&poker| poker);
+        let running = clients.values().flatten().min_by_key(|s| **s != Site::PokerStars).copied();
         (tables, seen, running)
     }
 
@@ -207,10 +211,12 @@ mod win {
             loop {
                 let state = app.state::<AppState>();
                 if tick.is_multiple_of(SCAN_EVERY) {
-                    let (found, seen, running) = scan();
+                    let (found, seen, client) = scan();
                     table_hwnds = found;
                     *state.overlays.client_windows.lock().unwrap() = seen;
-                    if state.client_running.swap(running, Ordering::Relaxed) != running {
+                    let running = client.is_some();
+                    let renamed = std::mem::replace(&mut *state.running_client.lock().unwrap(), client) != client;
+                    if state.client_running.swap(running, Ordering::Relaxed) != running || renamed {
                         let _ = app.emit("poker-client", running);
                     }
                 }

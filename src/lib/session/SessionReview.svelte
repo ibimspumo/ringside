@@ -23,6 +23,8 @@
   import SectionHead from "../ui/SectionHead.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import Term from "../ui/Term.svelte";
+  import SiteMark from "../ui/SiteMark.svelte";
+  import { severalSites } from "../app/sites.svelte";
   import Luck from "./Luck.svelte";
   import { delta, points } from "../skill/labels";
   import { WORDS } from "../ui/words";
@@ -92,12 +94,14 @@
     if (ts.startsWith(ymd(YESTERDAY))) return "Gestern";
     return dayShort(ts);
   }
+  const several = $derived(severalSites());
   const sessionLabel = (s: SessionSpan) => `${dayName(s.start)}, ${time(s.start)}`;
   function spanLine(s: SessionSpan): string {
     const parts = [`${dayName(s.start)} · ${time(s.start)}–${time(s.end)}`];
     if (s.tournaments.length) parts.push(s.tournaments.length === 1 ? "1 Turnier" : `${s.tournaments.length} Turniere`);
     if (s.cash_hands) parts.push(`${int(s.cash_hands)} Cash-Hände`);
     parts.push(`${int(s.hands)} Hände`);
+    if (s.sites?.length > 1) parts.push("PokerStars und GGPoker");
     return parts.join(" · ");
   }
   const scope = $derived<SessionScope | null>(span ? { since: span.start, until: span.end, label: `Session ${dayName(span.start)}, ${time(span.start)}–${time(span.end)}` } : null);
@@ -240,7 +244,7 @@
   {:else if !page}
     <EmptyState tone="loading" title="Rückblick wird geladen" />
   {:else if !review || !span || !pre || !rep}
-    <EmptyState title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst." />
+    <EmptyState title="Noch keine Session" text="Spiel ein paar Hände bei PokerStars oder importier deine GGPoker-Hände in den Einstellungen. Danach steht hier, wie deine letzte Session lief und was du als Nächstes üben kannst." />
   {:else if detail && !review.locked}
     <Luck {review} onBack={() => (detail = false)} onHand={(id, at) => scope && onHand(scope, id, at)} />
   {:else}
@@ -248,7 +252,7 @@
       {#each page.tournaments as t (t.id)}
         <Card pad="sm" onclick={() => onReport(t.id)} title="{tournamentName(t)} – Turnier-Bericht öffnen">
           <span class="sr-t">
-            <span class="sr-t-name">{tournamentName(t)}</span>
+            <span class="sr-t-name">{#if several}<SiteMark site={t.site} />{" "}{/if}{tournamentName(t)}</span>
             <span class="sr-t-meta">
               {#if t.profit === null}<Badge size="sm" dot tone="info">läuft</Badge>{:else if t.place !== null}Platz {int(t.place)}{t.entrants ? ` von ${int(t.entrants)}` : ""}{:else}beendet{/if}
               {#if t.profit !== null}<b class="sr-money" class:sr-up={t.profit > 0} class:sr-down={t.profit < 0}>{signedCash(t.profit, t.currency ?? "")}</b>{/if}
@@ -276,8 +280,8 @@
     {#if review.locked}
       <section class="sr-locked">
         <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><rect x="5" y="10.5" width="14" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5M12 14.5v2" /></svg>
-        <h2 class="sr-locked-title">Am Tisch – dein Rückblick kommt, sobald du PokerStars schließt.</h2>
-        <p class="sr-locked-text">Bewertungen, Vergleiche und Tipps sind gesperrt, solange PokerStars läuft. So verlangen es die PokerStars-Regeln.</p>
+        <h2 class="sr-locked-title">Am Tisch – dein Rückblick kommt, sobald du den Poker-Client schließt.</h2>
+        <p class="sr-locked-text">Bewertungen, Vergleiche und Tipps sind gesperrt, solange ein Poker-Client läuft. So verlangen es die Regeln von PokerStars und GGPoker.</p>
         <dl class="sr-facts">
           <div><dt>Hände</dt><dd>{int(rep.hands)}</dd></div>
           {#if pre.you_pct !== null}<div><dt>Gespielt</dt><dd>{num(pre.you_pct, 0)} %</dd></div>{/if}
