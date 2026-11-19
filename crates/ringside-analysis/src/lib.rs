@@ -39,7 +39,7 @@ use serde::Serialize;
 pub use postflop::{PostflopJob, solve_job};
 
 /// Stored with every decision; a hand analysed with another version is analysed again.
-pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.5");
+pub const ENGINE: &str = concat!(env!("CARGO_PKG_VERSION"), "+analysis.6");
 
 /// The analysis of one hand. Postflop decisions are pending until their job is solved;
 /// what neither the tables nor the solver cover is estimated ([`replay::rate`]), forced
@@ -75,7 +75,7 @@ pub fn analyze_hand(hand: &Hand) -> HandAnalysis {
 /// bet there is nothing to decide but to check; and calling the last few chips, when the
 /// pot asks for less than a tenth of equity, is right with any two cards.
 fn forced(hand: &Hand, hero: &str, d: &Decision) -> Option<Decision> {
-    let spot = replay::spot_at(hand, hero, d.action_index, None).ok()?;
+    let spot = replay::spot_at(hand, hero, d.action_index, None, &calibration::stored().moves).ok()?;
     let a = &hand.actions[d.action_index];
     let call = spot.to_call();
     let why = if call <= 1e-9 && spot.opponents.iter().all(|o| o.behind <= 1e-9) {

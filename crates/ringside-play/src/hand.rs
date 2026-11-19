@@ -1251,7 +1251,8 @@ impl Hand {
                     bets: &self.street_put,
                     ranges,
                     moves: self.postflop_moves(),
-                    aggressor: self.aggressor(),
+                    aggressor: self.aggressor(false),
+                    preflop_aggressor: self.aggressor(true),
                     choices: &choices,
                     why,
                 };
@@ -1290,15 +1291,29 @@ impl Hand {
         self.events
             .iter()
             .filter_map(|e| match e {
-                Event::Action { street, seat, choice, .. } if *street != Street::Preflop => Some(Move { street: *street, seat: *seat, kind: choice.kind }),
+                Event::Action { street, seat, choice, snapshot, .. } if *street != Street::Preflop => {
+                    // The snapshot is taken after the move.
+                    let after = &self.snapshots[*snapshot];
+                    let facing = after.bets.iter().enumerate().filter(|&(s, _)| s != *seat).map(|(_, &b)| b).fold(0.0, f64::max);
+                    Some(Move {
+                        street: *street,
+                        seat: *seat,
+                        kind: choice.kind,
+                        pot: after.pot - choice.add_bb,
+                        facing,
+                        own: choice.to_bb - choice.add_bb,
+                        to: choice.to_bb,
+                    })
+                }
                 _ => None,
             })
             .collect()
     }
 
-    fn aggressor(&self) -> Option<usize> {
+    /// The seat that bet or raised last, before the flop only with `preflop`.
+    fn aggressor(&self, preflop: bool) -> Option<usize> {
         self.events.iter().rev().find_map(|e| match e {
-            Event::Action { seat, choice, .. } if matches!(choice.kind, "bet" | "raise" | "all_in") => Some(*seat),
+            Event::Action { street, seat, choice, .. } if matches!(choice.kind, "bet" | "raise" | "all_in") && (!preflop || *street == Street::Preflop) => Some(*seat),
             _ => None,
         })
     }
