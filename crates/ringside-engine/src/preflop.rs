@@ -39,9 +39,12 @@
 //! the hands of [`limp_shape`] (a typical limping range of recreational players), and
 //! the rest of the strategy is solved around it. Limping first in is taken exactly that
 //! often (it stands for the other players, the model itself does not limp in), except
-//! from the small blind, which limps by choice. The best responses that measure
-//! exploitability keep the same minimum, so the solve converges to an equilibrium of
-//! this constrained game.
+//! from the small blind, which limps by choice ([`limps_by_choice`]). The best responses
+//! that measure exploitability keep the same minimum, so the solve converges to an
+//! equilibrium of this constrained game. The EVs of the other players' limps are what
+//! such a limp earns inside their typical range, which the other seats isolate widely:
+//! a strong hand gains by hiding in it, so these EVs say nothing about the model's own
+//! moves.
 //!
 //! A sized raise that would put in at least [`Sizes::commit`] of the stack is replaced
 //! by all-in, so short stacks degenerate to push/fold.
@@ -511,6 +514,12 @@ pub fn limp_shape() -> &'static [f64; C] {
     &SHAPE
 }
 
+/// Whether limping first in from `seat` is a move of the model: only the small blind's
+/// is. Every other seat's limp first in stands for the other players at the table.
+pub fn limps_by_choice(players: usize, seat: usize) -> bool {
+    seat + 2 == players
+}
+
 /// Whether a frequency survives the 1/255 steps charts and tables use. A class whose
 /// own earlier action is not taken is out of range from there on.
 pub fn taken(freq: f64) -> bool {
@@ -849,9 +858,7 @@ impl Builder<'_> {
         if sized.is_none() || self.live[s] <= sz.open_jam_max_bb {
             actions.push(act(Kind::AllIn, self.live[s]));
         }
-        // Limping first in is what the other players do, not a choice of the model: only
-        // the small blind limps by choice.
-        let floor = everyone.then_some((1, !sb));
+        let floor = everyone.then_some((1, !limps_by_choice(n, s)));
         let v = self.node(&h, s, actions, |b, next, a| match a.kind {
             Kind::Fold => b.open(next, s + 1),
             Kind::Limp if everyone => b.vs_limps(next, vec![s], s + 1),

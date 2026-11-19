@@ -97,6 +97,31 @@ fn an_isolation_raise_behind_a_limp_is_rated_by_the_model() {
     assert_eq!((d.status, d.source, d.spot), (Status::Rated, Some(Source::Model), SpotType::VsLimp), "{d:?}");
 }
 
+/// Nine players at 30 BB with antes; the hero under the gun with aces.
+fn aces_first_in(id: u64, body: &str) -> Hand {
+    let names = ["P1", "Hero", "P3", "P4", "P5", "P6", "P7", "P8", "P9"];
+    let seats: Vec<(&str, i64)> = names.iter().map(|&n| (n, 6000)).collect();
+    parsed(&hand(id, &seats, 8, 200, 25, "As Ah", body))
+}
+
+/// The other players' limps first in are no move of the model: an open raise is rated
+/// against fold and raise only, and a limp under the gun is left to the estimate.
+#[test]
+fn open_limps_of_the_other_players_are_no_model_move() {
+    let folds = "P3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: folds\nP8: folds\nP9: folds\n";
+    let raise = aces_first_in(8, &format!("Hero: raises 240 to 440\n{folds}P1: folds\nUncalled bet (240) returned to Hero\nHero collected 825 from pot\n*** SUMMARY ***\nTotal pot 825 | Rake 0\n"));
+    let a = analyze_hand(&raise);
+    let [open] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!((open.source, open.rating, open.best.as_deref()), (Some(Source::Model), Some(Rating::Best), Some("Raise auf 2,2 BB")), "{open:?}");
+    assert!(open.strategy.iter().all(|c| c.kind != "limp"), "{:?}", open.strategy);
+
+    let limp = aces_first_in(9, &format!("Hero: calls 200\n{folds}P1: raises 600 to 800\nHero: folds\nUncalled bet (600) returned to P1\nP1 collected 725 from pot\n*** SUMMARY ***\nTotal pot 725 | Rake 0\n"));
+    let a = analyze_hand(&limp);
+    let [limped, _] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!(limped.source, Some(Source::Estimate), "{limped:?}");
+    assert!(limped.note.contains("limpt von hier nicht selbst"), "{}", limped.note);
+}
+
 #[test]
 fn folds_between_the_three_bettor_and_the_opener_keep_the_model_line() {
     // 40 BB, six players: the hero opens from the cutoff, the button 3-bets, both
