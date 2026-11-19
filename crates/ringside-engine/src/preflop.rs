@@ -660,7 +660,6 @@ pub(crate) fn skeleton(params: &Params) -> Result<Vec<Shape>, Error> {
     Ok(t.nodes.into_iter().map(|n| (n.seat, n.line, n.actions)).collect())
 }
 
-// ---------------------------------------------------------------------------------
 // Tree.
 
 #[derive(Clone, Copy)]
@@ -1066,7 +1065,6 @@ impl Builder<'_> {
     }
 }
 
-// ---------------------------------------------------------------------------------
 // Pot shares.
 
 /// All-in pot share of each player of every sorted class triple (`NaN` where the three
@@ -1220,7 +1218,6 @@ fn dot32(a: &[f32], b: &[f32]) -> f64 {
     acc.iter().map(|&x| x as f64).sum::<f64>() + tail
 }
 
-// ---------------------------------------------------------------------------------
 // Solver.
 
 struct Profile {

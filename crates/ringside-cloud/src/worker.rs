@@ -192,7 +192,6 @@ pub fn solve(
     }))
 }
 
-// -----------------------------------------------------------------------------------
 // The worker's loop.
 
 /// Where the work comes from and goes to: the cloud, or a fake in tests.

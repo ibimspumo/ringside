@@ -94,7 +94,6 @@ pub(crate) fn origin_of(text: &str) -> Origin {
     }
 }
 
-// -----------------------------------------------------------------------------------
 // Library files.
 
 /// Where a library spot came from.
@@ -165,7 +164,6 @@ pub(crate) fn write_library(state: &AppState, data: &Path, root: &Path, source: 
     Ok(())
 }
 
-// -----------------------------------------------------------------------------------
 // Own solves.
 
 fn solutions_dir(data: &Path) -> PathBuf {
@@ -258,7 +256,6 @@ fn snapshot_row(keyed: &Keyed, row: &NewSolution, id: i64) -> StoreRow {
     }
 }
 
-// -----------------------------------------------------------------------------------
 // Downloads of model flops.
 
 fn download_path(data: &Path, key: &str) -> PathBuf {
@@ -297,7 +294,6 @@ pub(crate) fn save_download(data: &Path, state: &AppState, input: &SpotInput, st
     Ok(())
 }
 
-// -----------------------------------------------------------------------------------
 // Finding a spot.
 
 /// A stored solution of the spot asked for, ready to be read node by node.
@@ -541,7 +537,6 @@ pub(crate) fn keyed(spot: &Spot, model: Option<&ModelLine>) -> Option<Keyed> {
     key_of(spot, model).ok()
 }
 
-// -----------------------------------------------------------------------------------
 // Taking over the files from before the store.
 
 /// What [`migrate`] filed.

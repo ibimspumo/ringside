@@ -589,7 +589,7 @@ mod tests {
         }
     }
 
-    // ---- sessions -------------------------------------------------------------------
+    // Sessions.
 
     #[test]
     fn a_pause_of_more_than_half_an_hour_starts_a_new_session() {
@@ -629,7 +629,7 @@ mod tests {
         }
     }
 
-    // ---- preflop --------------------------------------------------------------------
+    // Preflop.
 
     fn class(name: &str) -> u8 {
         HandClass::all().find(|c| c.to_string() == name).unwrap().index() as u8
@@ -779,7 +779,7 @@ mod tests {
         assert_eq!(p.verdict.unwrap().title, "Stark gespielt");
     }
 
-    // ---- luck -----------------------------------------------------------------------
+    // Luck.
 
     fn hand(hand_id: u64, net: i64, ev: Option<i64>, showdown: bool) -> SwingHand {
         SwingHand {

@@ -151,7 +151,6 @@ pub async fn pushfold_chart(ante: Ante, players: usize, stack_bb: f64, app: AppH
     .await
 }
 
-// ---------------------------------------------------------------------------------
 // Preflop model (deeper stacks).
 
 /// On four threads of a fast desktop a live solve took 78 s at six players and 114–199 s

@@ -714,7 +714,6 @@ pub fn prune(db: &impl Sql) -> Result<Pruned, String> {
     Ok(Pruned { rate_limits: r[0].affected, reports: r[1].affected, submissions: r[2].affected, work: r[3].affected })
 }
 
-// -----------------------------------------------------------------------------------
 // The community queue ("Mitrechnen").
 
 /// A spot the operator puts into the queue.

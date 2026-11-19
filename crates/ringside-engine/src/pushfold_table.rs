@@ -127,7 +127,6 @@ pub fn chart(ante: Ante, players: usize, stack_bb: f64) -> Option<Solution> {
     lookup(&params(ante, players, stack_bb))
 }
 
-// ---------------------------------------------------------------------------------
 // Embedded tables.
 
 struct Table {
@@ -182,7 +181,6 @@ pub fn embedded_entries(ante: Ante) -> Vec<(Params, Solution)> {
     out
 }
 
-// ---------------------------------------------------------------------------------
 // Encoding.
 
 pub struct Entry {

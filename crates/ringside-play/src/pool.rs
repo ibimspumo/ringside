@@ -302,7 +302,6 @@ impl Pool {
         self
     }
 
-    // -----------------------------------------------------------------------------
     // Live spots.
 
     /// Asks for `need`. `Now` drops whatever else was asked for: the hand has moved on.
