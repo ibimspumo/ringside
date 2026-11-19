@@ -807,6 +807,7 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
 });
 
 step("Wichtige Spots: einen Spot beantworten, Erklärung und Range sehen, Stand zählt mit", async () => {
+  await nav("Lernen");
   await click("main [role='tab']", "Wichtige Spots");
   await waitText("Die wichtigsten Spots für kleine Turniere");
   await click("main button", "Runde starten", { exact: false });
