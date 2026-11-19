@@ -590,7 +590,7 @@
 
     {#if show("schilder")}
       <section id="schilder">
-        <SectionHead title="Schilder" sub="Aktionen in festen Farben, Status als Badge, Herkunft als gestrichelter Hinweis." />
+        <SectionHead title="Schilder" sub="Aktionen in festen Farben, Status als Badge, Herkunft als gestrichelter Hinweis, gesperrt mit Schloss auf eigener Fläche." />
         <h3 class="sub-head">Poker-Aktionen</h3>
         <div class="row">{#each KINDS as k, i (k)}<ActionLabel kind={k} amount={k === "fold" || k === "check" ? undefined : [0, 0, 6, 4.5, 12, 37.5][i]} step={k === "bet" ? 1 : k === "raise" ? 3 : undefined} />{/each}</div>
         <div class="row">{#each KINDS as k (k)}<ActionLabel kind={k} variant="text" />{/each}</div>
@@ -605,6 +605,11 @@
           <SourceNote kind="equilibrium" variant="block" />
           <SourceNote kind="locked" variant="block" />
         </div>
+        <h3 class="sub-head">Ein Zeichen, eine Bedeutung</h3>
+        <div class="two">
+          <div class="row"><Badge tone="warn" size="sm" dashed>geschätzt</Badge><Badge size="sm" dashed>bei 137 Händen noch grob</Badge><SourceNote kind="estimate" /><span class="muted">Gestrichelt: geschätzt oder noch unsicher.</span></div>
+          <div class="row"><SourceNote kind="locked" /><span class="muted">Schloss auf eigener Fläche, durchgezogen: gesperrt, solange PokerStars läuft.</span></div>
+        </div>
       </section>
     {/if}
 
@@ -614,6 +619,7 @@
         <div class="mixdemo">
           <p class="muted">Mischung einer Hand: Breite = wie oft, Farbe = Aktion (keine Bewertung).</p>
           <MixBar parts={[{ label: "Check", share: 46, color: "var(--act-check)" }, { label: "Bet 33 % Pot", share: 33, color: "var(--act-bet-1)" }, { label: "Bet 75 % Pot", share: 21, color: "var(--act-bet-3)" }]} />
+          <MixBar mine={1} mineColor="var(--grade-good)" parts={[{ label: "Check", share: 46, color: "var(--act-check)" }, { label: "Bet 33 % Pot", share: 33, color: "var(--act-bet-1)" }, { label: "Bet 75 % Pot", share: 21, color: "var(--act-bet-3)" }]} />
         </div>
         <div class="grades">
           {#each GRADES as g (g)}
@@ -643,7 +649,7 @@
             potShare={0.02}
             context="Turn · 6♣"
             source="solver"
-            reason="Deine Hand gehört zum schwächsten Drittel deiner Range und hat gegen die Range des Gegners 31 % Equity. Auf Raise auf 14 BB gibt der Gegner in 47 % der Fälle auf. Raise auf 14 BB bringt 0,18 BB mehr als Call."
+            reason="Deine Hand gehört zum schwächsten Drittel der Hände, die du hier haben kannst. Gegen die Hände, die der Gegner hier haben kann, gewinnt sie in 31 % der Fälle. Auf Raise auf 14 BB gibt der Gegner in 47 % der Fälle auf. Raise auf 14 BB bringt 0,18 BB mehr als Call."
           >
             <p>Mit deinem Flush-Draw kannst du selbst Druck machen.</p>
           </Verdict>
@@ -660,6 +666,8 @@
             <GradeBars counts={{ best: 9, mix: 3, good: 4, inaccurate: 2, mistake: 1, blunder: 0 }} />
             <p class="muted">Mit <code>grades</code> nur die Stufen einer Quelle, etwa die vier des Coaches:</p>
             <GradeBars grades={["best", "good", "inaccurate", "mistake"]} counts={{ best: 2, good: 1, inaccurate: 1, mistake: 1 }} />
+            <p class="muted">Mit <code>stacked</code> ein Balken für eine Zusammenfassung:</p>
+            <GradeBars stacked counts={{ best: 148, mix: 21, good: 34, inaccurate: 14, mistake: 9, blunder: 4 }} />
             <p class="muted">Eine Zahl über wenige Fälle, jeder Balken wählt seinen Fall (<code>ColumnBars</code>):</p>
             <ColumnBars
               label="Erster am Zug nach Tischgröße"

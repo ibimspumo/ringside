@@ -278,7 +278,7 @@
           <ResultsChart
             {points}
             {series}
-            height={260}
+            height={200}
             unit={cur ?? ""}
             xLabel="Turniere"
             pointLabel="Turnier"

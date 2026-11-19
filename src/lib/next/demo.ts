@@ -47,13 +47,13 @@ function spot(key: string, spots: SpotType[], title: string, detail: string, dec
 }
 
 const STEPS: NextStep[] = [
-  spot("river_vs_bet|-|3|6", ["river"], "River gegen Bet", "ab 40 BB · 6 Spieler", 23, 9, 14.6, 0.817, "value-bluff"),
-  spot("vs_limp|SB|3|6", ["vs_limp"], "Gegen Limper im Small Blind", "ab 40 BB · 6 Spieler", 31, 9, 11.2, 1, "range"),
+  spot("river_vs_bet|-|3|6", ["river"], "River: auf einen Einsatz reagieren", "ab 40 BB · 6 Spieler", 23, 9, 14.6, 0.817, "value-bluff"),
+  spot("vs_limp|SB|3|6", ["vs_limp"], "Wenn einer nur mitgeht (Limp) im Small Blind", "ab 40 BB · 6 Spieler", 31, 9, 11.2, 1, "range"),
   {
     ...base,
     id: "leak:fold_to_steal|tournament|SB,BB|1",
     kind: "leak",
-    title: "Fold auf Steal zu hoch im Small Blind und im Big Blind",
+    title: "Im Small Blind und im Big Blind: Du gibst deine Blinds zu oft her",
     why: "Du liegst bei 77 %, üblich sind 50–70 % (10–20 BB, Turnier).",
     number: "kostet dich im Schnitt etwa 0,1 BB pro Hand, 1240 Hände in dieser Lage",
     term: "fold_to_steal",
@@ -67,7 +67,7 @@ const STEPS: NextStep[] = [
     hands: { by: "stat", stat: "fold_to_steal", made: true, positions: ["SB", "BB"], band: 1, game: "tournament", label: "Fold auf Steal · SB, BB · 10–20 BB" },
     read: "fold-steal",
   },
-  spot("push_fold|BTN|1|6", ["open", "steal", "shove"], "Shove oder Fold als Erster am Button", "10–20 BB · 6 Spieler", 44, 6, 8.4, 1, "push-fold", 0.977),
+  spot("push_fold|BTN|1|6", ["open", "steal", "shove"], "All-in oder Fold als Erster am Button", "10–20 BB · 6 Spieler", 44, 6, 8.4, 1, "push-fold", 0.977),
   spot("turn_bet|-|3|6", ["turn"], "Turn: setzen oder checken", "ab 40 BB · 6 Spieler", 19, 5, 6.1, 0.881, "equity"),
   spot("first_in|BTN|3|6", ["open", "steal", "shove"], "Eröffnen am Button", "ab 40 BB · 6 Spieler", 52, 3, 2.3, 1, "steal"),
   {

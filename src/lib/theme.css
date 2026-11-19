@@ -13,7 +13,7 @@
 
   --text: #ecebe7;
   --text-2: #a4a7ad;
-  --text-3: #6d727b;
+  --text-3: #9297a0;
 
   --pos: #78c142;
   --neg: #e5483b;
@@ -45,7 +45,7 @@ body {
   margin: 0;
   height: 100%;
   font-family: var(--font-ui);
-  font-size: 14px;
+  font-size: var(--fs-base);
   line-height: 1.45;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
@@ -102,7 +102,7 @@ select {
   border-radius: var(--r-sm);
   border: 1px solid var(--line-2);
   background: var(--surface-2);
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
   white-space: nowrap;
   transition:
@@ -145,7 +145,7 @@ select {
   border: 1px solid var(--line-2);
   background: var(--bg);
   outline: none;
-  font-size: 13px;
+  font-size: var(--fs-md);
 }
 .field:focus {
   border-color: var(--focus);
@@ -169,7 +169,7 @@ select.field {
   padding: 0 11px;
   border-radius: 6px;
   color: var(--text-2);
-  font-size: 13px;
+  font-size: var(--fs-md);
   cursor: pointer;
 }
 .seg button:hover {
@@ -215,7 +215,7 @@ input[type="range"] {
 }
 .panel-title {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--fs-md);
   font-weight: 600;
   color: var(--text);
 }
@@ -230,16 +230,17 @@ input[type="range"] {
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13.5px;
+  font-size: var(--fs-md);
 }
 .table th {
   position: sticky;
   top: 0;
   z-index: 1;
+  vertical-align: bottom;
   padding: 10px 10px;
   background: var(--surface);
   color: var(--text-3);
-  font-size: 11px;
+  font-size: var(--fs-xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -253,7 +254,7 @@ input[type="range"] {
   border-bottom: 1px solid var(--line);
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
-  font-size: 14.5px;
+  font-size: var(--fs-base);
 }
 .table th:first-child,
 .table td:first-child {
@@ -303,7 +304,7 @@ input[type="range"] {
   border-radius: 99px;
   border: 1px solid var(--line-2);
   background: var(--surface-2);
-  font-size: 13px;
+  font-size: var(--fs-sm);
   white-space: nowrap;
 }
 .chip button {
@@ -358,7 +359,7 @@ input[type="range"] {
   background: var(--surface-3);
   border: 1px solid var(--line-2);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-  font-size: 12.5px;
+  font-size: var(--fs-sm);
   line-height: 1.5;
 }
 .tip header {
@@ -408,7 +409,6 @@ input[type="range"] {
 
 /* Column heads keep the stat abbreviations as written ("AFq", "W$SD"); no all-caps. */
 .table th {
-  font-size: 11.5px;
   letter-spacing: 0.01em;
   text-transform: none;
 }
@@ -447,10 +447,10 @@ input[type="range"] {
   --frame-auto: calc(max(0px, (100% - var(--page-max)) / 2) + var(--page-gutter));
 
   /* Type scale; check-ui.mjs knows the same steps. */
-  --fs-xs: 11px;
-  --fs-sm: 12px;
-  --fs-md: 13px;
-  --fs-base: 14px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+  --fs-base: 15px;
   --fs-lg: 16px;
   --fs-xl: 18px;
   --fs-2xl: 22px;

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { STAT_META, fmt, fmtUnit, stat, tone, toneColor } from "../stats";
+  import { STAT_META, fmt, fmtUnit, stat, tone, toneColor, usual } from "../stats";
   import type { HudConfig, StatId, StatValue } from "../types";
   import StatMeter from "../ui/StatMeter.svelte";
   import { SMALL_SAMPLE, sampleNote } from "./reads";
@@ -18,7 +18,7 @@
   const title = $derived(
     id === "hands" || !s
       ? undefined
-      : `${STAT_META[id].name} ${fmtUnit(s)}${word ? `, ${word}` : ""} – ${sampleNote(s)}${range ? `. Üblich: ${range.low}–${range.high}${STAT_META[id].ratio ? "×" : " %"}` : ""}`,
+      : `${STAT_META[id].name} ${fmtUnit(s)}${word ? `, ${word}` : ""} – ${sampleNote(s)}${range ? `. Üblich: ${usual(id, range)}` : ""}`,
   );
 </script>
 

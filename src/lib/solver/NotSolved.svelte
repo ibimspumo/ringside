@@ -7,7 +7,8 @@
   import Button from "../ui/Button.svelte";
   import Card from "../ui/Card.svelte";
   import MiniCard from "../ui/MiniCard.svelte";
-  import { duration, solveSeconds } from "./actions";
+  import { solveSeconds } from "./actions";
+  import { ago, duration } from "../ui/format";
   import { RANKS } from "./range";
   import { openSaved, solutionsApi, type SavedSolution } from "./solutions";
   import SolveProgress from "./SolveProgress.svelte";
@@ -95,13 +96,6 @@
     }
   }
 
-  function when(secs: number) {
-    const mins = Math.round((Date.now() / 1000 - secs) / 60);
-    if (mins < 60) return `vor ${Math.max(1, mins)} Min.`;
-    if (mins < 24 * 60) return `vor ${Math.round(mins / 60)} Std.`;
-    const days = Math.round(mins / 1440);
-    return days === 1 ? "gestern" : `vor ${days} Tagen`;
-  }
 
   const title = $derived(
     running ? "Der Spot wird gerade gelöst" : what === "result" ? "Durchspielen startet nach dem Lösen" : "Üben startet nach dem Lösen",
@@ -150,7 +144,7 @@
       {:else}
         <div class="go">
           <Button variant="primary" size="lg" disabled={!estimate} onclick={() => startSolve()}>
-            Spot lösen{estimate ? ` · ca. ${duration(seconds)}` : ""}
+            Spot lösen{estimate ? ` · ${duration(seconds, { about: true })}` : ""}
           </Button>
           <Button variant="quiet" onclick={onSetup}>Spot erst ändern</Button>
         </div>
@@ -168,7 +162,7 @@
               <span class="cards">{#each cardsOf(s.board) as c (c)}<MiniCard card={c} />{/each}</span>
               <span class="what">
                 <b>{exact ? "Genau dieser Spot" : s.title}</b>
-                <span class="faint">Meine Lösungen · {when(s.created_at)}</span>
+                <span class="faint">Meine Lösungen · {ago(Date.now() / 1000 - s.created_at)}</span>
               </span>
               <Button size="sm" disabled={opening !== null} onclick={() => open(`s${s.id}`, () => openSaved(s.id))}>
                 {opening === `s${s.id}` ? "Öffnet …" : "Öffnen"}

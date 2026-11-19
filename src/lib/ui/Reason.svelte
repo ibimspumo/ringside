@@ -1,14 +1,28 @@
 <script lang="ts">
   import CardText from "./CardText.svelte";
+  import Term from "./Term.svelte";
+  import { inlineTerms } from "./words";
 
-  /** "Warum?": why the best move is best, in the numbers its source measured. */
-  let { text, label = "Warum?" }: { text: string; label?: string } = $props();
+  /**
+   * "Warum?": why the best move is best, in the numbers its source measured. `collapsed` keeps it
+   * one click away where the verdict already says what to do and the table needs the room.
+   */
+  let { text, label = "Warum?", collapsed = false }: { text: string; label?: string; collapsed?: boolean } = $props();
 </script>
 
-<div class="ui-reason">
-  <span class="label">{label}</span>
-  <p><CardText {text} /></p>
-</div>
+{#snippet body()}{#each inlineTerms(text) as p, i (i)}{#if p.id}<Term id={p.id}>{p.text}</Term>{:else}<CardText text={p.text} />{/if}{/each}{/snippet}
+
+{#if collapsed}
+  <details class="ui-reason">
+    <summary class="label">{label}</summary>
+    <p>{@render body()}</p>
+  </details>
+{:else}
+  <div class="ui-reason">
+    <span class="label">{label}</span>
+    <p>{@render body()}</p>
+  </div>
+{/if}
 
 <style>
   .ui-reason {
@@ -23,6 +37,15 @@
     color: var(--text-2);
     font-size: var(--fs-sm);
     font-weight: var(--fw-semibold);
+  }
+  summary {
+    cursor: pointer;
+  }
+  summary:hover {
+    color: var(--text);
+  }
+  details[open] summary {
+    margin-bottom: 2px;
   }
   p {
     margin: 0;

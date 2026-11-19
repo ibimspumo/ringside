@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { Feedback } from "../types";
-  import { GRADING, explain, fmtBB, withTerms } from "./catalog";
+  import { GRADING, explain, fmtBB } from "./catalog";
   import { preview } from "./preview";
   import { input } from "./input";
   import Ring from "./Ring.svelte";
   import Button from "../ui/Button.svelte";
   import CardText from "../ui/CardText.svelte";
+  import Term from "../ui/Term.svelte";
+  import { inlineTerms } from "../ui/words";
   import { actionColor } from "../ui/poker";
   import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
   import type { LearnGrid } from "../types";
@@ -16,6 +18,7 @@
     nextLabel = "Weiter",
     estimate = null,
     unit = "",
+    shown = false,
   }: {
     feedback: Feedback;
     onNext?: () => void;
@@ -23,12 +26,15 @@
     /** The number the player entered, for a plain sentence instead of answer and gap tiles. */
     estimate?: number | null;
     unit?: string;
+    /** The stage already lays the facts out (a showdown names every best hand). */
+    shown?: boolean;
   } = $props();
 
   const verdict = $derived(feedback.correct ? "ok" : feedback.score >= 0.5 ? "close" : "miss");
   const TITLE = { ok: "Richtig", close: "Knapp daneben", miss: "Daneben" };
   const tone = $derived(verdict === "ok" ? "var(--pos)" : verdict === "close" ? "var(--amber)" : "var(--neg)");
-  const g = $derived(GRADING[feedback.grading]);
+  const near = $derived(feedback.grading === "exakt" && "number" in feedback.truth ? " Nahe Schätzungen bekommen Teilpunkte." : "");
+  const g = $derived({ ...GRADING[feedback.grading], text: GRADING[feedback.grading].text + near });
   /** "EV All-in", "EV Fold": spelled out as one sentence instead of separate tiles. */
   const evFacts = $derived(feedback.facts.filter((f) => /^EV [^-]/.test(f.label)));
   const bbValue = (v: string) => Number.parseFloat(v.replace("−", "-").replace(",", "."));
@@ -54,7 +60,8 @@
   const SAID = new Set(["Deine Antwort", "Abweichung"]);
   const facts = $derived(
     feedback.facts.filter(
-      (f) => !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
+      (f) =>
+        !shown && !(evSentence && evFacts.includes(f)) && !(gapSentence && (SAID.has(f.label) || f.value === feedback.truth_text)),
     ),
   );
   /** The action in its colour, the rest in the colour of the passive move (check after a bet, fold after an open). */
@@ -175,8 +182,7 @@
       {/if}</span
     >
     <span class="dim"
-      >{#each withTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.tip}<span class="term" title={p.tip}>{p.text}</span
-          >{:else}{p.text}{/if}{/each}</span
+      >{#each inlineTerms(feedback.model_note ?? g.text) as p, i (i)}{#if p.id}<Term id={p.id}>{p.text}</Term>{:else}{p.text}{/if}{/each}</span
     >
   </footer>
 </section>
@@ -374,12 +380,6 @@
     font-weight: 400;
     color: var(--text-2);
     overflow-wrap: anywhere;
-  }
-  .term {
-    text-decoration: underline dotted;
-    text-decoration-color: var(--text-3);
-    text-underline-offset: 3px;
-    cursor: help;
   }
   .plain-lead {
     color: var(--text);

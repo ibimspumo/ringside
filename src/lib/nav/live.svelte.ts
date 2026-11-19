@@ -1,5 +1,6 @@
 import { api } from "../api";
-import { etaText, isActive } from "../jobs/kinds";
+import { isActive } from "../jobs/kinds";
+import { remaining } from "../ui/format";
 import { jobs } from "../jobs/store.svelte";
 import { adviceLocked } from "../app/client.svelte";
 import { isDue } from "../learn/catalog";
@@ -52,8 +53,9 @@ class NavLive {
     if (tournaments.length) v.tournaments = live(int(tournaments.length), `${int(tournaments.length)} gespielt`);
     v.live = tables > 0 ? live(String(tables), tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`, "good", tables === 1 ? "1 Tisch offen" : `${tables} Tische offen`) : live("", "keiner offen");
 
+    // The leaks page lists these steps, numbered; the mark counts the same list.
     const [leaks, summary, progress, library, players] = await Promise.allSettled([
-      api.leaks(filter),
+      api.nextSteps(filter),
       api.analysisSummary(filter),
       api.learnProgress(),
       libraryApi.overview(),
@@ -63,8 +65,8 @@ class NavLive {
       const n = players.value.length >= 300 ? "300+" : int(players.value.length);
       v.players = live(n, `${n} Gegner`);
     }
-    if (leaks.status === "fulfilled" && leaks.value.leaks.length) {
-      const n = leaks.value.leaks.length;
+    if (leaks.status === "fulfilled" && leaks.value.length) {
+      const n = leaks.value.length;
       v.leaks = live(String(n), `${n} gefunden`, "warn", n === 1 ? "1 Schwachstelle" : `${n} Schwachstellen`);
     }
     if (summary.status === "fulfilled" && summary.value.costliest.length) {
@@ -101,9 +103,9 @@ class NavLive {
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;
-      // Names what runs ("Analyse"), and the time left like the page below ("noch etwa 3 Std.").
+      // Names what runs ("Analyse"), and the time left in the same words as the page below.
       const what = job.kind === "analysis" ? "Analyse" : "Rechnung";
-      const eta = etaText(job.eta_secs);
+      const eta = remaining(job.eta_secs);
       const short = job.status === "paused" ? `${what} pausiert` : `${what} läuft`;
       const text = job.status === "paused" ? short : eta ? `${short} · ${eta}` : `${short}${pct ? ` · ${pct.trim()}` : ""}`;
       return { ...live(short, text), busy: true };

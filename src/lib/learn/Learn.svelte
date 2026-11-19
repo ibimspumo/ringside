@@ -40,7 +40,7 @@
     {
       id: "spots",
       label: "Wichtige Spots",
-      sub: "Die hundert Entscheidungen, die in kleinen Turnieren am meisten kosten – vorgerechnet. Falsch beantwortete kommen in der nächsten Runde zuerst.",
+      sub: "Die Entscheidungen, die in kleinen Turnieren am meisten kosten – vorgerechnet. Falsch beantwortete kommen in der nächsten Runde zuerst.",
     },
     { id: "path", label: "Lernpfad", sub: "Elf Einheiten, aufeinander aufgebaut. Spring ruhig dorthin, wo du stehst – nichts ist gesperrt." },
     {

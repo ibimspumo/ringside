@@ -1,13 +1,15 @@
 <script lang="ts">
+  import { PLAIN_NAME } from "../stats";
+  import type { StatId } from "../types";
   import { SMALL_SAMPLE } from "./reads";
 
-  /** `meters`: the list shows scales; without, only numbers. */
-  let { meters = true, types = false }: { meters?: boolean; types?: boolean } = $props();
+  /** `meters`: the list shows scales; without, only numbers. `ring`: the HUD's four segments, clockwise from the top. */
+  let { meters = true, types = false, ring = [] }: { meters?: boolean; types?: boolean; ring?: StatId[] } = $props();
 </script>
 
 <p class="legend" class:meters>
   <span class="item"
-    ><svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5M13.5 8A5.5 5.5 0 0 1 8 13.5M8 13.5A5.5 5.5 0 0 1 2.5 8M2.5 8A5.5 5.5 0 0 1 8 2.5" /></svg>Ring: vier Werte wie im HUD-Ring</span
+    ><svg class="ring" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5M13.5 8A5.5 5.5 0 0 1 8 13.5M8 13.5A5.5 5.5 0 0 1 2.5 8M2.5 8A5.5 5.5 0 0 1 8 2.5" /></svg>{ring.length ? `Ring wie im HUD, im Uhrzeigersinn ab oben: ${ring.slice(0, 4).map((id) => PLAIN_NAME[id]).join(" · ")}` : "Ring: vier Werte wie im HUD-Ring"}</span
   >
   {#if meters}
     <span class="item scale"><i class="band" aria-hidden="true"></i>üblicher Bereich laut deinem HUD</span>

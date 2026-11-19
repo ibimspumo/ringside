@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -13,7 +13,10 @@ function findings(files) {
   const root = mkdtempSync(join(tmpdir(), "check-ui-"));
   mkdirSync(join(root, "app"));
   writeFileSync(join(root, "theme.css"), ".btn { color: red; }\n");
-  for (const [name, text] of Object.entries(files)) writeFileSync(join(root, name), text);
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(root, name)), { recursive: true });
+    writeFileSync(join(root, name), text);
+  }
   const baseline = join(root, "baseline.json");
   const run = spawnSync(process.execPath, [script, "--root", root, "--baseline", baseline, "--init", "--list"], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr);
@@ -57,4 +60,34 @@ test("old words count as display text, not as names of files or components", () 
   });
   const lines = out.filter((l) => l.includes("[old-word]")).map((l) => l.split("  ")[0]);
   assert.deepEqual(lines.sort(), ["app/A.svelte:3", "app/A.svelte:6", "app/A.svelte:7", "app/b.ts:1"]);
+});
+
+test("time spans are written by the one formatter", () => {
+  const out = findings({
+    "app/A.svelte": '<script>\n  const t = `${m} Min.`;\n</script>\n<p>{h} h</p>\n<p>noch {x} Std.</p>\n',
+    "app/b.ts": "export const eta = (s: number) => `${(s / 3600).toFixed(1)} h`;\n",
+    "ui/format.ts": "export const d = (m: number) => `${m} Min.`;\n",
+    "app/C.svelte": "<p>Minimum {x} Minuten, {name} hätte</p>\n",
+  });
+  const lines = out.filter((l) => l.includes("[time-format]")).map((l) => l.split("  ")[0]);
+  assert.deepEqual(lines.sort(), ["app/A.svelte:2", "app/A.svelte:4", "app/A.svelte:5", "app/b.ts:1", "app/b.ts:1"]);
+});
+
+test("toFixed is display text in markup and before a unit, not in paths and styles", () => {
+  const out = findings({
+    "app/A.svelte": '<script>\n  const d = `M${x.toFixed(1)},${y.toFixed(1)}`;\n  const k = `${(v / 1000).toFixed(1)}k`;\n</script>\n<p>{share.toFixed(1)} %</p>\n<i style="width:{w.toFixed(2)}%"></i>\n',
+    "app/b.ts": "export const s = (v: number) => `${v.toFixed(2)} BB`;\nexport const c = (p: number) => `${p.toFixed(1)}%`;\n",
+  });
+  const lines = out.filter((l) => l.includes("[raw-number]")).map((l) => l.split("  ")[0]);
+  assert.deepEqual(lines.sort(), ["app/A.svelte:3", "app/A.svelte:5", "app/A.svelte:6", "app/b.ts:1"]);
+});
+
+test("capitals are for table column heads only", () => {
+  const out = findings({
+    "app/A.svelte": style("text-transform: uppercase;"),
+    "ui/B.svelte": style("text-transform: uppercase;"),
+    "ui/SortHeader.svelte": style("text-transform: uppercase;"),
+    "app/C.svelte": style("text-transform: none;"),
+  });
+  assert.deepEqual(out.filter((l) => l.includes("[caps-label]")).map((l) => l.split("  ")[0]).sort(), ["app/A.svelte:3", "ui/B.svelte:3"]);
 });

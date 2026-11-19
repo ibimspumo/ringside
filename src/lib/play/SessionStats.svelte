@@ -53,7 +53,7 @@
     gap: 12px;
   }
   .big {
-    font-size: var(--fs-hero);
+    font-size: var(--fs-4xl);
     line-height: 1;
     font-weight: 600;
     letter-spacing: -0.02em;
@@ -69,7 +69,7 @@
     font-size: var(--fs-md);
   }
   .what small {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
   }
   dl {
     margin: 0;
@@ -92,7 +92,7 @@
   }
   .note {
     margin: 0;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     line-height: 1.45;
   }
 </style>

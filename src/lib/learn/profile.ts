@@ -33,7 +33,7 @@ export interface SpotGroup {
   seat: "EP" | "MP" | "CO" | "BTN" | "SB" | "BB" | null;
   band: number | null;
   table: "heads_up" | "few" | "short" | "full";
-  /** "Gegen Open im Big Blind". */
+  /** "Gegen eine Erhöhung im Big Blind". */
   title: string;
   /** "10–20 BB · 7–10 Spieler". */
   detail: string;

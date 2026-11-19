@@ -548,7 +548,7 @@
           {/each}
         </div>
         <i class="break" aria-hidden="true"></i>
-        <span class="steps" title="Schritt {step} von {events.length}: {lastSaid}">{lastSaid}</span>
+        <span class="steps" title="Schritt {step} von {events.length}: {lastSaid}">{#if step > 0}<span class="was">Zuletzt:&nbsp;</span>{/if}{lastSaid}</span>
         <div class="extras">
         <SegmentedControl
           size="sm"
@@ -712,6 +712,9 @@
     font-size: var(--fs-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .was {
+    color: var(--text-3);
   }
 
   .bounties {
@@ -964,7 +967,7 @@
     border-top: 0;
   }
   /* Narrow logs below the table keep two streets side by side. */
-  @container log (max-width: 560px) {
+  @container log (max-width: 680px) {
     .log {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }

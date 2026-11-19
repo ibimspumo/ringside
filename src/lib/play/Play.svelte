@@ -16,7 +16,8 @@
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { playApi } from "./api";
   import InfoPanel from "./InfoPanel.svelte";
-  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, etaText, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
+  import { remaining } from "../ui/format";
+  import { GRADE, GRADES, UNRATED_SHORT, choiceColors, choiceLabel, configLine, freeLine, madeOf, num, resultLine, signedBB, solvingLine } from "./labels";
   import { openSolverTab } from "./nav.svelte";
   import PoolChip from "./PoolChip.svelte";
   import { act, askHint, cancelLive, listen, nextHand, prepare, repeatHand, resume, saveConfig, session, stats, type SessionHand } from "./session.svelte";
@@ -131,7 +132,7 @@
   const liveRun = $derived(session.live?.status === "running" ? session.live : null);
   const solvingDetail = $derived.by(() => {
     if (!solving) return "";
-    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${etaText(liveRun.secs_left)}` : "";
+    const state = session.live?.status === "paused_client" ? " · pausiert, solange PokerStars läuft" : liveRun?.secs_left ? ` · ${remaining(liveRun.secs_left)}` : "";
     return `Schnell gerechnet, Genauigkeit ${num(solving.target_pct)} % des Pots${state}. Danach geht die Hand weiter.`;
   });
   const STREET_ORDER: Street[] = ["preflop", "flop", "turn", "river"];
@@ -405,10 +406,10 @@
               <span class="lead">
                 {#if sit.board}<CardText text={sit.board} />.&nbsp;{/if}{sit.lead}{#if sit.raise}&nbsp;(<Term id="three_bet">{sit.raise}</Term>){/if}{sit.lead && sit.folds ? ", " : ""}{sit.folds}.
               </span>
-              <span><CardText text={sit.you} /></span>
+              <span class="you"><CardText text={sit.you} /></span>
               {#if lastWord}<span class="last" style:--g={lastWord.color}>{lastWord.text}</span>{/if}
               {#if sit.need !== null}
-                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Equity.</span>
+                <span class="odds"><Term id="pot_odds">Pot Odds</Term>: Ein {decision.choices.some((c) => c.kind === "limp") ? "Limp" : "Call"} braucht rund <b class="num">{Math.round(sit.need * 100)} %</b> Gewinnchance (<Term id="equity">Equity</Term>).</span>
               {/if}
             </p>
             <div class="actions" role="group" aria-label="Deine Entscheidung" bind:this={actionsEl}>
@@ -549,7 +550,7 @@
       <aside class="side r" aria-label="Info">
         {#if rightOpen}
           <div class="side-head"><b>Info</b><IconButton size="sm" label="Info einklappen" onclick={() => (rightOpen = false)}><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg></IconButton></div>
-          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
+          <InfoPanel {view} lesson={infoLesson} past={!!decision && !session.hint} tip={!!decision?.graded} hands={session.hands} reviewing={session.review?.n ?? null} onOpen={review} />
         {:else}
           <button class="rail" onclick={() => (rightOpen = true)} aria-label="Info aufklappen">
             <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z" /></svg><small>Info</small>
@@ -564,7 +565,7 @@
 <style>
   .play {
     min-width: 0;
-    padding: 18px 24px 40px;
+    padding: 18px var(--page-gutter) 40px;
   }
   .foot {
     max-width: 1360px;
@@ -771,10 +772,14 @@
     color: var(--text);
     font-weight: 600;
   }
+  .situation .you {
+    font-size: var(--fs-lg);
+    color: var(--text);
+  }
   .last {
     padding-left: 8px;
     border-left: 2px solid var(--g);
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   .lesson {
     margin: 0;
@@ -786,7 +791,7 @@
     color: var(--text);
   }
   .odds {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
   }
   .actions {
     display: flex;
@@ -913,10 +918,8 @@
     border-radius: var(--r-sm);
     background: var(--surface-2);
     box-shadow: inset 0 -2px 0 var(--g);
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
   }
   .streets i {
     font-style: normal;
@@ -946,10 +949,8 @@
   }
   .endtext .cap {
     margin-bottom: -4px;
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--text-3);
   }
   .hands {
@@ -1062,10 +1063,8 @@
   }
   .moves h3 {
     margin: 0 0 6px;
-    font-size: 12px;
+    font-size: var(--fs-sm);
     font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
     color: var(--text-3);
   }
   .moves ol {

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Button from "../ui/Button.svelte";
-  import { etaText } from "./labels";
+  import { remaining } from "../ui/format";
   import type { PoolStatus } from "./types";
 
   /** The stock of postflop spots: how many are ready, what is being prepared, and a stop. */
@@ -11,7 +11,7 @@
     if (!pool) return "";
     switch (pool.status) {
       case "running":
-        return `${pool.title} ${etaText(pool.eta_secs)}`.trim();
+        return `${pool.title} ${remaining(pool.eta_secs) ?? ""}`.trim();
       case "paused_client":
         return "Pausiert, solange PokerStars läuft";
       case "done":

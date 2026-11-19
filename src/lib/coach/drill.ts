@@ -74,6 +74,8 @@ export function scene(hand: Hand, index: number) {
     toCallBB: s.facing ? s.toCall : 0,
     /** Before the flop with only blinds in: calling the big blind is a limp, not a price to pay. */
     unopened: s.street === "preflop" && hand.actions.slice(0, index).every((a) => isPost(a) || a.kind === "fold"),
+    /** Before the flop nobody has acted yet but the blinds: the hero is the first to decide. */
+    first: s.street === "preflop" && hand.actions.slice(0, index).every(isPost),
     behindBB: s.behind,
   };
 }

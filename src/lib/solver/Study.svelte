@@ -4,7 +4,8 @@
   import { signed } from "../app/format";
   import PlayingCard from "../ui/PlayingCard.svelte";
   import ActionBar from "./ActionBar.svelte";
-  import { actionColors, bb, bytes, duration, whole } from "./actions";
+  import { actionColors, bb, bytes, whole } from "./actions";
+  import { duration } from "../ui/format";
   import DeckPopover from "./DeckPopover.svelte";
   import { cap, handAdvice, headline, often, precision, verb, why } from "./explain";
   import { loadNode } from "./nodes";
@@ -911,7 +912,7 @@
     font-size: 12.5px;
   }
   .sum th {
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 500;
     color: var(--text-3);
     text-align: right;

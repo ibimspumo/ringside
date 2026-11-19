@@ -1,7 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import ChipRing from "./ChipRing.svelte";
-  import { KIND_LABEL, PAGE_LABEL, elapsedText, etaText, isActive, statusText } from "./kinds";
+  import { KIND_LABEL, PAGE_LABEL, isActive, statusText } from "./kinds";
+  import { ago as since, duration, remaining } from "../ui/format";
   import { cancelJob, clearJobs, jobs, startJobs } from "./store.svelte";
   import type { Job, JobTarget } from "./types";
 
@@ -50,11 +51,7 @@
     onView(j.target);
   }
 
-  function ago(ms: number | null): string {
-    if (!ms) return "";
-    const min = Math.round((Date.now() - ms) / 60000);
-    return min < 1 ? "gerade eben" : min === 1 ? "vor 1 Min." : min < 60 ? `vor ${min} Min.` : `vor ${Math.round(min / 60)} Std.`;
-  }
+  const ago = (ms: number | null) => (ms ? since((Date.now() - ms) / 1000) : "");
 </script>
 
 <svelte:window onpointerdown={outside} onkeydown={key} />
@@ -107,7 +104,7 @@
       {/if}
 
       {#each active as j (j.id)}
-        {@const eta = etaText(j.eta_secs)}
+        {@const eta = remaining(j.eta_secs)}
         <article class="job">
           <div class="top">
             <span class="kind">{KIND_LABEL[j.kind] ?? j.kind}</span>
@@ -127,7 +124,7 @@
             <i style="width:{(j.progress ?? 0.3) * 100}%"></i>
           </div>
           <div class="foot">
-            <span class="time num">läuft seit {elapsedText(j.elapsed_ms)}{eta ? ` · ${eta}` : ""}</span>
+            <span class="time num">läuft seit {duration(j.elapsed_ms / 1000)}{eta ? ` · ${eta}` : ""}</span>
             <span class="acts">
               <button class="btn ghost sm" onclick={() => view(j)}>Ansehen</button>
               {#if j.cancellable}

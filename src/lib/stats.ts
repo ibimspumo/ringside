@@ -1,5 +1,5 @@
 import type { ClassicPreset, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
-import { cash, compact, moneyShort } from "./ui/format";
+import { cash, compact, moneyShort, num } from "./ui/format";
 import { WORDS, explain, type WordId } from "./ui/words";
 
 export { cash, compact, money, moneyShort } from "./ui/format";
@@ -7,20 +7,37 @@ export { cash, compact, money, moneyShort } from "./ui/format";
 /** Name and explanation of a stat from the glossary. */
 const said = (id: StatId & WordId) => ({ name: WORDS[id].word, help: explain(id) });
 
+/** Each value's name in words a casual player reads at once; the abbreviation stays beside it. */
+export const PLAIN_NAME: Record<StatId, string> = {
+  hands: "Hände",
+  vpip: "Spielt mit",
+  pfr: "Erhöht",
+  three_bet: "Erhöht nochmal",
+  fold_to_three_bet: "Gibt nach Re-Raise auf",
+  steal: "Greift Blinds an",
+  fold_to_steal: "Gibt Blinds her",
+  cbet: "Setzt am Flop nach",
+  fold_to_cbet: "Gibt am Flop auf",
+  wtsd: "Geht bis zum Showdown",
+  wsd: "Gewinnt am Showdown",
+  af: "Aggression",
+  afq: "Aggressiv nach dem Flop",
+};
+
 /** `plain` + value + `after` reads as a sentence in the "Klartext" preset. */
 export const STAT_META: Record<StatId, { short: string; name: string; plain: string; after?: string; help: string; ratio?: boolean }> = {
   hands: { short: "H", ...said("hands"), plain: "Hände" },
   vpip: { short: "VPIP", ...said("vpip"), plain: "spielt" },
   pfr: { short: "PFR", ...said("pfr"), plain: "erhöht" },
-  three_bet: { short: "3B", ...said("three_bet"), plain: "3-bettet" },
+  three_bet: { short: "3B", ...said("three_bet"), plain: "erhöht erneut" },
   fold_to_three_bet: { short: "F3B", ...said("fold_to_three_bet"), plain: "gibt auf Re-Raise auf" },
-  steal: { short: "ST", ...said("steal"), plain: "klaut Blinds" },
+  steal: { short: "ST", ...said("steal"), plain: "greift Blinds an" },
   fold_to_steal: { short: "FST", ...said("fold_to_steal"), plain: "gibt Blinds her" },
   cbet: { short: "CB", ...said("cbet"), plain: "setzt am Flop nach" },
   fold_to_cbet: { short: "FCB", ...said("fold_to_cbet"), plain: "gibt am Flop auf" },
   wtsd: { short: "WTSD", ...said("wtsd"), plain: "geht zum Showdown" },
   wsd: { short: "W$SD", ...said("wsd"), plain: "gewinnt Showdowns" },
-  af: { short: "AF", ...said("af"), plain: "setzt/erhöht", after: "so oft wie er callt", ratio: true },
+  af: { short: "AF", ...said("af"), plain: "setzt/erhöht", after: "so oft wie er mitgeht", ratio: true },
   afq: { short: "AFq", ...said("afq"), plain: "aggressiv nach dem Flop" },
 };
 
@@ -60,6 +77,12 @@ export function fmt(s: StatValue | undefined): string {
   if (s.id === "hands") return compact(s.value);
   if (STAT_META[s.id].ratio) return s.value >= 10 ? Math.round(s.value).toString() : de1(s.value);
   return Math.round(s.value).toString();
+}
+
+/** The usual range of a value in prose: "20–35 %", "1,5–3,5×". */
+export function usual(id: StatId, range: { low: number; high: number }): string {
+  const d = STAT_META[id].ratio ? 1 : 0;
+  return `${num(range.low, d)}–${num(range.high, d)}${STAT_META[id].ratio ? "×" : " %"}`;
 }
 
 /** Unit written after a value in prose: "%" for frequencies, "×" for AF. */

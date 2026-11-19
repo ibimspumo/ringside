@@ -5,9 +5,11 @@
   import { openInSolver } from "../solver/handoff.svelte";
   import type { SolverPrefill } from "../solver/types";
   import Button from "../ui/Button.svelte";
+  import MixBar from "../ui/MixBar.svelte";
   import { bb as fmtBb } from "../ui/format";
   import ProgressBar from "../ui/ProgressBar.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
+  import Term from "../ui/Term.svelte";
   import Verdict from "../ui/Verdict.svelte";
   import { EV_EXPLAIN, EV_FROM, EV_LEGEND, EV_LOSS_EXPLAIN, GRADE_OF, KIT_SOURCE, LEARN, RATING_RULE, SOURCE, SPOT, SPOT_HINT, bb, pct, reliabilityText } from "./labels";
   import { analysis } from "./store.svelte";
@@ -86,6 +88,11 @@
     }
   });
 
+  const TONE_COLOR: Record<string, string> = { fold: "var(--act-fold)", limp: "var(--act-limp)", passive: "var(--act-call)", raise: "var(--act-raise)", allin: "var(--act-allin)" };
+  /** The source's mix for the kit bar, your choice marked. */
+  const mix = $derived(d.strategy.map((c) => ({ label: c.label, share: Math.round(c.freq * 100), color: TONE_COLOR[tone(c)] })));
+  const mine = $derived(d.strategy.findIndex((c) => c.played));
+
   function tone(c: Choice): string {
     if (c.kind === "fold") return "fold";
     if (c.kind === "all_in") return "allin";
@@ -119,6 +126,7 @@
       context={d.source === "estimate" ? `${context} · geschätzt` : context}
       lead={grade === "best" || grade === "mix" ? LEAD[d.source]?.[grade] : undefined}
       reason={d.why || undefined}
+      reasonCollapsed={!quiet}
       source={quiet && kit ? kit : undefined}
     >
       {#if stillWins}<p class="still">{stillWins}</p>{/if}
@@ -141,21 +149,17 @@
 
     {#if d.source !== "estimate"}
       <div class="mix-box">
-        <span class="mix-head">So oft spielt {d.source === "solver" ? "der" : "das"} {SOURCE[d.source].label} das mit deiner Hand; umrandet: deine Wahl</span>
-        <div class="mix" role="img" aria-label="Was {SOURCE[d.source].label} mit deiner Hand spielt">
-          {#each d.strategy.filter((c) => c.freq >= 0.005 || c.played) as c (c.label)}
-            <span class="part {tone(c)}" class:mine={c.played} class:never={c.freq < 0.005} style:flex-grow={c.freq < 0.005 ? 0 : Math.max(c.freq, 0.015)} style:--ring="var(--grade-{grade})" title="{c.label}: {pct(c.freq)}"></span>
-          {/each}
-        </div>
+        <span class="mix-head">So oft spielt {d.source === "solver" ? "der" : "das"} {SOURCE[d.source].label} das mit deiner Hand; „du“ zeigt deine Wahl</span>
+        <MixBar parts={mix} mine={mine < 0 ? null : mine} mineColor="var(--grade-{grade})" label="So oft spielt {d.source === 'solver' ? 'der' : 'das'} {SOURCE[d.source].label} jede Aktion mit deiner Hand" />
       </div>
     {/if}
     <ul class="options">
-      <li class="cols" aria-hidden="true">
+      <li class="cols">
         <span></span>
         <span>{SOURCE[d.source].label}</span>
-        <span title="Wie oft die Quelle diese Aktion mit genau deiner Hand wählt">{d.source === "estimate" ? "" : "so oft"}</span>
-        <abbr title={EV_EXPLAIN}>bringt</abbr>
-        <abbr title={EV_LOSS_EXPLAIN}>kostet</abbr>
+        <span>{#if d.source !== "estimate"}<Term tip="Wie oft {d.source === 'solver' ? 'der' : 'das'} {SOURCE[d.source].label} diese Aktion mit genau deiner Hand wählt.">so oft</Term>{/if}</span>
+        <span><Term tip={EV_LEGEND[EV_FROM[d.source]]}>bringt</Term></span>
+        <span><Term tip={EV_LOSS_EXPLAIN}>kostet</Term></span>
       </li>
       {#each d.strategy as c (c.label)}
         <li class:mine={c.played}>
@@ -167,10 +171,6 @@
         </li>
       {/each}
     </ul>
-    <p class="legend">
-      {#if d.source !== "estimate"}„so oft“: wie oft die Quelle das mit deiner Hand spielt ·{/if}
-      {EV_LEGEND[EV_FROM[d.source]]} „kostet“: was es im Schnitt weniger bringt als die beste Wahl.
-    </p>
 
     {#if kit && !quiet}
       <SourceNote kind={kit} variant="block">
@@ -245,29 +245,6 @@
     color: var(--text-2);
     font-size: var(--fs-sm);
   }
-  .mix {
-    display: flex;
-    gap: 2px;
-    height: 12px;
-  }
-  /* A move the source never plays has no share, only the ring that marks your choice. */
-  .part.never {
-    flex-basis: 2px;
-    min-width: 2px;
-    margin: 0 3px;
-    background: transparent;
-  }
-  .part {
-    flex-basis: 0;
-    border-radius: 3px;
-    min-width: 4px;
-  }
-  /* Your share carries the grade's colour, so a bad call is never outlined like a good one. */
-  .part.mine {
-    box-shadow:
-      0 0 0 2px var(--surface),
-      0 0 0 4px var(--ring);
-  }
   .fold {
     background: var(--act-fold);
   }
@@ -315,8 +292,6 @@
     font-size: var(--fs-xs);
     font-style: normal;
     font-weight: var(--fw-semibold);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
     color: var(--bg);
     background: var(--text);
   }
@@ -339,17 +314,6 @@
   }
   .options li.cols > :nth-child(n + 3) {
     text-align: right;
-  }
-  abbr {
-    text-decoration: underline dotted;
-    text-underline-offset: 3px;
-    cursor: help;
-  }
-  .legend {
-    margin: 0;
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-    line-height: var(--lh-base);
   }
   .book path {
     fill: none;

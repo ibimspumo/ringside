@@ -18,7 +18,13 @@
 //
 // For writing steps, E2E_URL runs the same steps against the browser demo through any
 // WebDriver server at E2E_WEBDRIVER (e.g. chromedriver); checks that need the backend
-// are skipped there.
+// are skipped there. The demo is the build, served without a file watcher:
+//
+//   pnpm build && pnpm exec vite preview --port <p>
+//
+// A dev server reloads the page whenever SvelteKit rewrites .svelte-kit/generated (on its own
+// start, on `pnpm check` or `pnpm build`), and a step caught by the reload waits in vain, so the
+// run refuses one.
 
 import { spawn } from "node:child_process";
 import { createWriteStream, cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -138,7 +144,14 @@ if (TAURI) {
 
 const s = await startSession();
 await s.cmd("POST", "/timeouts", { script: 180_000 });
-if (!TAURI) await s.navigate(DEMO_URL);
+if (!TAURI) {
+  await s.navigate(DEMO_URL);
+  if (await s.exec(`return typeof __sveltekit_dev !== "undefined"`)) {
+    console.error(`E2E_URL ${DEMO_URL} ist ein Vite-Dev-Server; sein Neuladen bricht Schritte ab. Demo bauen und ohne Beobachter ausliefern: pnpm build && pnpm exec vite preview --port <p>`);
+    await s.quit().catch(() => {});
+    process.exit(1);
+  }
+}
 
 async function startSession() {
   const until = Date.now() + 60_000;
@@ -363,7 +376,7 @@ step("Start: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick
   await waitText("Deine letzte Session");
   await waitText(/Du hast \d+ % deiner Hände gespielt|Die Analyse läuft|keine Hand, die das Modell vergleichen kann/, 60_000);
   // Tile titles are set in capitals.
-  await waitText(/ERGEBNIS UND GLÜCK|Ergebnis und Glück/);
+  await waitText("Ergebnis und Glück");
   if (TAURI) return;
   await waitText("Gegen eine Erhöhung aus früher Position gehst du zu oft mit");
   // One example per side here; every example, with equity, on the page below.
@@ -373,7 +386,7 @@ step("Start: die letzte Session mit Preflop-Kachel, Glück und Tiefe einen Klick
   await waitText("Nicht schlau, auch wenn's gut ging");
   await waitText(/Gewinnchance gegen die gezeigten Karten/);
   await click("main button", "Zurück zum Rückblick", { exact: false });
-  await waitText("Deine teuersten Entscheidungen".toUpperCase());
+  await waitText("Deine teuersten Entscheidungen");
 });
 
 /** The first entry of „Was als Nächstes?“ on the overview; every page has to name the same. */
@@ -412,7 +425,7 @@ step("Übersicht: der nächste Schritt aus der einen Rangliste", async () => {
 // The review filters the overview's list to the session: in the demo the session played its first spot.
 step("Start: „Als Nächstes üben“ nennt denselben ersten Schritt", async () => {
   await nav("Start");
-  await waitText(/ALS NÄCHSTES ÜBEN|Als Nächstes üben/);
+  await waitText("Als Nächstes üben");
   // The fixture session need not have played the overview's first spot.
   if (TAURI) return;
   await sameFirstStep("the review", "main .sr-next [data-step]");
@@ -792,9 +805,12 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
     const card = document.querySelector("main .drill .verdict");
     if (!card || !card.textContent.includes("geschätzt")) return null;
     const row = [...card.querySelectorAll(".options li")].find((li) => li.querySelector(".label")?.textContent.trim().startsWith("Fold"));
-    return row ? { gain: row.querySelector(".gain").textContent.trim(), cost: row.querySelector(".ev").textContent.trim() } : null;`);
+    const bb = (t) => Number(t.replace(/[^0-9,+−-]/g, "").replace("−", "-").replace(",", "."));
+    const best = Math.max(...[...card.querySelectorAll(".options li .gain")].map((g) => bb(g.textContent)));
+    return row ? { gain: row.querySelector(".gain").textContent.trim(), cost: bb(row.querySelector(".ev").textContent), best } : null;`);
   if (fold && fold.gain !== "0,00 BB") throw new Error(`an estimated fold brings „${fold.gain}“`);
-  if (!TAURI && fold?.cost !== "−3,62 BB") throw new Error(`the demo fold costs „${fold?.cost}“, not −3,62 BB as before`);
+  if (fold && Math.abs(fold.cost + fold.best) > 0.006) throw new Error(`an estimated fold costs ${fold.cost} BB, not the best move's ${fold.best} BB`);
+  if (!TAURI && !fold) throw new Error("the demo drill shows no estimated fold");
   await waitText("Damals hast du");
   await click("main .drill button", "Weiter", { exact: false });
   // The round goes on with the next spot of the same kind: real or dealt anew, it says which.

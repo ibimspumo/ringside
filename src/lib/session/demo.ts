@@ -121,7 +121,7 @@ const WORST: Moment[] = [
     position: "SB",
     street: "preflop",
     spot: "vs_limp",
-    situation: "Gegen Limper",
+    situation: "Wenn einer nur mitgeht (Limp)",
     stack_bb: 42,
     played: "Call 0,5 BB",
     best: "Raise auf 4,5 BB",
@@ -141,7 +141,7 @@ const WORST: Moment[] = [
     position: "BTN",
     street: "preflop",
     spot: "shove",
-    situation: "Shove oder Fold als Erster",
+    situation: "All-in oder Fold als Erster",
     stack_bb: 10,
     played: "Fold",
     best: "All-in",
@@ -165,7 +165,7 @@ const WORST: Moment[] = [
     stack_bb: 34,
     played: "Check",
     best: "Bet 6,9 BB",
-    why: "Deine Hand gehört zum stärksten Drittel deiner Range. Auf Bet 6,9 BB gibt der Gegner in 44 % der Fälle auf. Bet 6,9 BB bringt 0,93 BB mehr als Check.",
+    why: "Deine Hand gehört zum stärksten Drittel der Hände, die du hier haben kannst. Auf Bet 6,9 BB gibt der Gegner in 44 % der Fälle auf. Bet 6,9 BB bringt 0,93 BB mehr als Check.",
     rating: "mistake",
     source: "solver",
     loss_bb: 0.926,
@@ -274,8 +274,8 @@ const START = "2026/11/18 20:04:00";
 
 /** Loss per kind of spot of the demo session, costliest first: the hands behind „Als Nächstes üben“. */
 export const SESSION_KINDS: KindLoss[] = [
-  { key: "vs_open|BB|2|9", title: "Gegen Open im Big Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_open", decisions: 14, flawed: 5, loss_bb: 6.1 },
-  { key: "river_vs_bet|-|3|6", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 4, flawed: 2, loss_bb: 3.0 },
+  { key: "vs_open|BB|2|9", title: "Gegen eine Erhöhung im Big Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_open", decisions: 14, flawed: 5, loss_bb: 6.1 },
+  { key: "river_vs_bet|-|3|6", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 4, flawed: 2, loss_bb: 3.0 },
 ];
 
 function spans(): SessionSpan[] {

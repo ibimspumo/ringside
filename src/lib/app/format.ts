@@ -32,10 +32,9 @@ export function dateTime(ts: string): string {
   return `${d}.${m}. ${time(ts)}`;
 }
 
-/** "3:25 h" between two timestamps. */
-export function duration(start: string, end: string): string {
-  const mins = Math.max(0, Math.round((parse(end).getTime() - parse(start).getTime()) / 60000));
-  return `${Math.floor(mins / 60)}:${String(mins % 60).padStart(2, "0")} h`;
+/** Seconds between two timestamps. */
+export function secondsBetween(start: string, end: string): number {
+  return Math.max(0, (parse(end).getTime() - parse(start).getTime()) / 1000);
 }
 
 export { int, signed } from "../ui/format";

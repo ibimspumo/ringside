@@ -151,7 +151,7 @@
     border-radius: 99px;
     background: var(--surface-3);
     border: 1px solid var(--line-2);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 600;
     color: var(--text-2);
   }

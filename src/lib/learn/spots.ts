@@ -47,8 +47,6 @@ export interface SpotGrid {
 export interface KeySpotView {
   spot: DrillSpot;
   topic: KeyTopic;
-  number: number;
-  total: number;
   grid: SpotGrid | null;
 }
 
@@ -118,9 +116,8 @@ export async function demoKeySpots(): Promise<KeySpots> {
 
 export async function demoKeySpot(id: string): Promise<KeySpotView> {
   const { topics, spots } = await demoPack();
-  const i = spots.findIndex((s) => s.id === id);
-  if (i < 0) throw "Diesen Lern-Spot gibt es nicht.";
-  const s = spots[i];
+  const s = spots.find((s) => s.id === id);
+  if (!s) throw "Diesen Lern-Spot gibt es nicht.";
   const topic = topics.find((t) => t.id === s.topic) ?? topics[0];
   const stack = String(s.stack_bb).replace(".", ",");
   const paid = (s.payouts ?? []).filter((p) => p > 0).length;
@@ -142,8 +139,6 @@ export async function demoKeySpot(id: string): Promise<KeySpotView> {
       pot_bb: s.decision.pot_bb,
     },
     topic,
-    number: i + 1,
-    total: spots.length,
     grid: s.grid,
   };
 }

@@ -1,6 +1,9 @@
 // How far a single value can be trusted, and what a clear value means for your play. The
 // player type itself comes with the data from the backend (crates/ringside-learn/src/hud.rs).
-import type { StatId, StatValue } from "../types";
+import type { PlayerType, StatId, StatValue } from "../types";
+
+/** The type in a word a casual player reads at once; the pro name stays in the hover and the detail. */
+export const TYPE_PLAIN: Record<PlayerType, string> = { nit: "Vorsichtig", tag: "Solide", lag: "Wild", station: "Zahlt viel" };
 
 /** Below this many chances a value is still noise; it stays visible but recedes. */
 export const SMALL_SAMPLE = 20;
@@ -15,10 +18,10 @@ export function sampleNote(s: StatValue | undefined, short = false): string {
 
 /** What a clearly low or high value means for your play: one line each, shown only off the table. */
 export const HINT: Partial<Record<StatId, { low: string; high: string }>> = {
-  vpip: { low: "Geht er mit, hat er meist etwas Starkes.", high: "Mit guten Händen auf Wert setzen, wenig bluffen." },
+  vpip: { low: "Geht er mit, hat er meist etwas Starkes.", high: "Mit starken Händen setzen, er geht oft mit; bluffen lohnt kaum." },
   pfr: { low: "Erhöht er doch, ist die Hand meist stark.", high: "Seine Raises sind oft schwach: mit starken Händen 3-betten." },
-  three_bet: { low: "Seine 3-Bets sind meist sehr stark: ohne Top-Hand folden.", high: "Gegen seine 3-Bets mit guten Händen weiterspielen." },
-  fold_to_three_bet: { low: "Gegen ihn nur mit starken Händen 3-betten, selten bluffen: er geht oft mit.", high: "Gegen seine Raises öfter 3-betten, er gibt meist auf." },
+  three_bet: { low: "Erhöht er doch noch einmal, ist seine Hand meist sehr stark: ohne Top-Hand folden.", high: "Gegen seine 3-Bets mit guten Händen weiterspielen." },
+  fold_to_three_bet: { low: "Gegen ihn nur mit starken Händen 3-betten, selten bluffen: er geht oft mit.", high: "Gegen seine Raises nicht mitgehen: entweder folden oder noch einmal erhöhen, dann gibt er meist auf." },
   steal: { low: "Klaut er doch, ist die Hand meist stark.", high: "Gegen seine Steals aus den Blinds öfter erhöhen." },
   fold_to_steal: { low: "Seine Blinds nur mit guten Händen angreifen, er wehrt sich oft.", high: "Seine Blinds öfter stehlen." },
   cbet: { low: "Setzt er am Flop nach, glaub ihm eher.", high: "Gegen seine C-Bets öfter callen oder erhöhen." },

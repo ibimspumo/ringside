@@ -77,7 +77,7 @@
   }
   .ax {
     fill: var(--text-3);
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .cursor {
     stroke: var(--line-2);

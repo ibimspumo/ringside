@@ -115,7 +115,7 @@
 
 <div class="wrap" bind:clientWidth={w}>
   <div class="frame" style="height:{h * scale}px">
-  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 'var(--fs-xs)' : 'var(--fs-sm)'}" aria-label="Pokertisch">
+  <div class="stage" style="width:{geo.w}px; height:{h}px; transform:scale({scale}); --ms:{ms}ms; --bw:{SIZES.badge.w}px; --bh:{SIZES.badge.h}px; --th:{SIZES.bet.h}px; --fs:{small ? 'var(--fs-sm)' : 'var(--fs-md)'}" aria-label="Pokertisch">
     <OvalFelt felt={geo.felt} />
 
     <div class="board" data-part="middle" style="left:{geo.center.x}px; top:{geo.center.y + MIDDLE[0].dy}px" aria-label="Board">
@@ -306,7 +306,7 @@
     z-index: 2;
   }
   .seat.out {
-    opacity: 0.6;
+    opacity: 0.75;
   }
   .hole {
     display: flex;
@@ -342,7 +342,7 @@
     box-shadow:
       inset 0 0 0 1px var(--plate-edge),
       var(--shadow-2);
-    font-size: var(--fs-md);
+    font-size: var(--fs-base);
     line-height: 1.3;
     transition: box-shadow calc(var(--ms) * 0.4) var(--ease-move);
   }
@@ -352,7 +352,7 @@
   }
   .plate span {
     color: var(--text-2);
-    font-size: 13px;
+    font-size: var(--fs-md);
   }
   .plate .made {
     color: var(--text);
@@ -446,7 +446,7 @@
     min-width: 0;
     padding: 0 6px;
     border-radius: 8px;
-    font-size: 11px;
+    font-size: var(--fs-xs);
   }
   .bet.stack .coin {
     width: 13px;
@@ -471,7 +471,7 @@
     border-radius: 50%;
     background: var(--text);
     color: var(--bg);
-    font-size: 11px;
+    font-size: var(--fs-xs);
     font-weight: 700;
     display: grid;
     place-items: center;

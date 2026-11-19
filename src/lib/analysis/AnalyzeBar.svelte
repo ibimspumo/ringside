@@ -2,7 +2,7 @@
   import { api } from "../api";
   import Button from "../ui/Button.svelte";
   import { int } from "../ui/format";
-  import { duration } from "./labels";
+  import { remaining } from "../ui/format";
   import { analysis, watchAnalysis } from "./store.svelte";
 
   /** The one-click run over the whole history, with its progress. */
@@ -16,12 +16,12 @@
   const p = $derived(s?.progress);
   const detail = $derived.by(() => {
     if (!p) return "";
-    return p.eta_secs && p.eta_secs > 1 ? `${p.detail} · noch etwa ${duration(p.eta_secs)}` : p.detail;
+    return p.eta_secs && p.eta_secs > 1 ? `${p.detail} · ${remaining(p.eta_secs)}` : p.detail;
   });
   /** Phase one rates every hand before the flop; phase two solves the flop spots in the background. */
   const preDone = $derived(!!c && c.hands > 0 && c.analyzed >= c.hands);
   const postShare = $derived(preDone && p?.share != null ? p.share : 0);
-  const eta = $derived(p?.eta_secs && p.eta_secs > 1 ? `noch etwa ${duration(p.eta_secs)}` : "");
+  const eta = $derived(p?.eta_secs && p.eta_secs > 1 ? (remaining(p.eta_secs) ?? "") : "");
   let busy = $state(false);
 
   async function act(f: () => Promise<void>) {

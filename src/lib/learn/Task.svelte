@@ -210,7 +210,7 @@
           <span class="unit-label">{unit}</span>
         </label>
       </div>
-    {:else if spec.type === "choice"}
+    {:else if spec.type === "choice" && !(prompt.type === "showdown" && feedback)}
       <div class="choices" class:decision role="group" aria-label="Antworten">
         {#each options as o, i (o.id)}
           {#if !(prompt.type === "showdown" && o.id !== "split")}
@@ -227,6 +227,9 @@
             </button>
           {/if}
         {/each}
+        {#if prompt.type === "showdown" && !feedback}
+          <span class="hint faint side">Oder tippe oben auf die Hand, die gewinnt.</span>
+        {/if}
       </div>
     {:else if spec.type === "seat" && !feedback}
       <p class="hint faint">Tippe den Sitz auf dem Tisch an.</p>
@@ -244,7 +247,7 @@
   {/if}
 
   {#if feedback}
-    <FeedbackView {feedback} {onNext} {nextLabel} estimate={spec.type === "number" ? value : null} {unit} />
+    <FeedbackView {feedback} {onNext} {nextLabel} estimate={spec.type === "number" ? value : null} {unit} shown={prompt.type === "showdown"} />
     {@render after?.(feedback)}
   {/if}
 </div>
@@ -498,7 +501,12 @@
   .hint {
     margin: 0;
     text-align: center;
-    font-size: 13px;
+    font-size: var(--fs-md);
+  }
+  .hint.side {
+    align-self: center;
+    text-align: left;
+    color: var(--text-2);
   }
   .actions {
     display: flex;

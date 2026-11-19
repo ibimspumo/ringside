@@ -9,7 +9,8 @@
   import ProgressRing from "../ui/ProgressRing.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import Stat from "../ui/Stat.svelte";
-  import { EFFORTS, coachApi, cost, duration, errorText, onProgress, preview, tokens } from "./api";
+  import { EFFORTS, coachApi, cost, errorText, onProgress, preview, tokens } from "./api";
+  import { duration, int } from "../ui/format";
   import { money, shortModel } from "./meaning";
   import type { CoachProgress, CoachReport, Effort, Estimate } from "./types";
 
@@ -155,7 +156,7 @@
         </Card>
         <Card tone="sunken">
           <div class="fact">
-            <Stat size="lg" label="Das sieht sich der Coach an" value={String(e.hands_sent)} unit="von {e.hands_total} Händen" />
+            <Stat size="lg" label="Das sieht sich der Coach an" value={int(e.hands_sent)} unit="von {int(e.hands_total)} Händen" />
             <ProgressBar value={e.hands_total ? e.hands_sent / e.hands_total : 0} size="md" label="Gesendete Hände" />
             <p class="note">
               Die <span class="num">{e.hands_without_decision}</span> Hände, die du nur gefoldet hast, bleiben hier{e.hands_dropped

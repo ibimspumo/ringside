@@ -618,7 +618,7 @@ fn rate_icm(spec: &Spec, hand: &Hand, index: usize) -> Result<(Decision, SpotGri
     let rank = HandClass::all().map(|c| if margin(c.index()) > mine { combos(&c) } else if c == class { combos(&c) / 2.0 } else { 0.0 }).sum::<f64>();
     let paid = payouts.iter().filter(|p| **p > 0.0).count();
     let place = match shover {
-        Some(_) => format!("Auf der Bubble ({n} Spieler, {paid} bezahlt) als {} gegen den Shove", spec.hero),
+        Some(_) => format!("Auf der Bubble ({n} Spieler, {paid} bezahlt) als {} gegen das All-in", spec.hero),
         None => format!("Auf der Bubble ({n} Spieler, {paid} bezahlt) als {} mit {}", spec.hero, bb(stacks[hero])),
     };
     let ranked = why::Ranked {

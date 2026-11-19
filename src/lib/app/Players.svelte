@@ -146,7 +146,7 @@
             maxHeight="calc(100vh - 290px)"
             onMore={(m) => (more = m)}
           />
-        <div class="foot"><MeterLegend meters={columns === "core"} types={advice} /></div>
+        <div class="foot"><MeterLegend ring={hud?.graphic.segments ?? []} meters={columns === "core"} types={advice} /></div>
       {:else if loaded}
         <EmptyState
           title={search ? `Kein Spieler mit „${search}“` : "Noch keine Gegner in dieser Auswahl"}

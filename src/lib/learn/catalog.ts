@@ -1,7 +1,7 @@
 import type { ConceptCount } from "../coach/types";
 import type { Grading, LearnKind, SkillProgress } from "../types";
 import type { UnitId } from "./wissen/articles";
-import { WORDS, type WordId } from "../ui/words";
+import { WORDS, inlineTerms, type WordId } from "../ui/words";
 
 /** Kinds the generator can make, in learning order. */
 export const TRAINABLE: LearnKind[] = [
@@ -176,7 +176,7 @@ export const SKILLS: Record<LearnKind, SkillMeta> = {
 };
 
 export const GRADING: Record<Grading, { label: string; text: string }> = {
-  exakt: { label: "Exakt", text: "Reine Mathematik mit eindeutiger Lösung. Nahe Schätzungen bekommen Teilpunkte." },
+  exakt: { label: "Exakt", text: "Reine Mathematik mit eindeutiger Lösung." },
   formel: { label: "Formel", text: "Faustformel. Bewertet wird, ob du die Formel richtig anwendest." },
   modell: { label: "Modell", text: "Exakt innerhalb eines Modells. Die Annahmen stehen dabei." },
   gleichgewicht: { label: "Gleichgewicht", text: "Vom Solver gelöst: Diese Strategie verliert gegen keinen Gegner. Die Annahmen stehen dabei." },
@@ -397,39 +397,10 @@ const TERMS: [RegExp, WordId][] = [
   [/^Stichprobe/, "sample"],
 ];
 
-/** Glossary words inside running text (questions, model notes). */
-const INLINE: [RegExp, WordId][] = [
-  [/Heads-up-Nash|Nash/, "nash"],
-  [/Chip-EV/, "chip_ev"],
-  [/ICM/, "icm"],
-  [/Kopfgeld/, "knockout"],
-  [/M-Zahl/, "m_ratio"],
-  [/VPIP/, "vpip"],
-  [/totes Geld|Totes Geld/, "dead_money"],
-  [/Effektiver Stack|effektive[rn]? Stack/, "effective"],
-  [/Equity/, "equity"],
-  [/Outs/, "outs"],
-];
-
-/** Splits text into plain parts and explained terms, for dotted-underline tooltips. */
-export function withTerms(text: string): { text: string; tip: string | null }[] {
-  const re = new RegExp(INLINE.map(([r]) => r.source).join("|"), "g");
-  const out: { text: string; tip: string | null }[] = [];
-  let last = 0;
-  for (const m of text.matchAll(re)) {
-    if (m.index > last) out.push({ text: text.slice(last, m.index), tip: null });
-    const id = INLINE.find(([r]) => new RegExp(`^(?:${r.source})$`).test(m[0]))?.[1];
-    out.push({ text: m[0], tip: id ? WORDS[id].short : null });
-    last = m.index + m[0].length;
-  }
-  if (last < text.length) out.push({ text: text.slice(last), tip: null });
-  return out;
-}
-
 /** The first explained term in a text, for a one-line hint under a question. */
 export function firstTerm(text: string): { term: string; tip: string } | null {
-  const hit = withTerms(text).find((p) => p.tip);
-  return hit?.tip ? { term: hit.text, tip: hit.tip } : null;
+  const hit = inlineTerms(text).find((p) => p.id);
+  return hit?.id ? { term: hit.text, tip: WORDS[hit.id].short } : null;
 }
 
 export function explain(label: string): string | null {

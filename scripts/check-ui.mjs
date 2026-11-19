@@ -25,7 +25,7 @@ const root = option("--root", join(repo, "src", "lib"));
 const baselinePath = option("--baseline", join(repo, "scripts", "ui-baseline.json"));
 
 /** Font sizes of the type scale in theme.css (--fs-*). Literals outside it count as free sizes. */
-const SCALE = [11, 12, 13, 14, 16, 18, 22, 26, 34, 44];
+const SCALE = [12, 13, 14, 15, 16, 18, 22, 26, 34, 44];
 
 const RULES = {
   "color-literal": "Feste Farbe (Hex/rgb/hsl) außerhalb von theme.css und src/lib/ui/ – nimm ein Token aus theme.css.",
@@ -37,10 +37,15 @@ const RULES = {
   "page-heading": "Eigene Seitenüberschrift (<h1> oder Intro-Block .page-head) – Titel, Zeile und Bereiche gehören in den PageHeader (usePageHead).",
   jargon: "Fachbegriff als fester Text ohne Erklärung – in <Term id=\"…\"> setzen; Wörter und Erklärungen stehen in src/lib/ui/words.ts.",
   "old-word": "Altes Wort als Anzeigetext – „Leaks“ heißt „Schwachstellen“, „EV-Verlust“ heißt „kostet im Schnitt“ (src/lib/ui/words.ts).",
+  "raw-number": "Zahl mit toFixed als Anzeigetext (Punkt statt Komma) – nimm num, bb, pct, compact aus src/lib/ui/format.ts.",
+  "time-format": "Eigene Zeitangabe (Std., Min., h, min) – nimm duration, ago oder remaining aus src/lib/ui/format.ts.",
+  "caps-label": "Großbuchstaben (text-transform: uppercase) gibt es nur in Tabellen-Spaltenköpfen (.table, SortHeader). Kartentitel nehmen SectionHead level 3 oder Panel title, kleine Beschriftungen normale Schreibung.",
 };
 
 /** Poker words a beginner does not know; in markup text they belong inside <Term>. */
 const JARGON = /\b(?:VPIP|PFR|[34]-Bet|SPR|Equity|Ranges?|ICM|EV|C-Bet|ROI|ITM|Pot Odds|GTO|OOP|WTSD)(?![\w-])/g;
+/** Units of a span of time written by hand; durations come from src/lib/ui/format.ts. */
+const TIME_UNIT = /\b(?:Std|Min)\.(?![\wäöüß])|\}\s?(?:min|h)(?![\wäöüß])|\/\s?3600\b/g;
 /** Words the glossary replaced. */
 const OLD_WORDS = /(?<![<\/.\w])(?:Leaks?|EV-Verlust)\b/g;
 
@@ -282,6 +287,17 @@ function scan(file, text, globals) {
     }
   }
 
+  // In markup every toFixed is text; in code it is text when a unit follows (SVG paths and CSS take the dot).
+  if (file.endsWith(".svelte")) {
+    const markup = clean.replace(/<script[^>]*>[\s\S]*?<\/script>|<style[^>]*>[\s\S]*?<\/style>/g, (x) => x.replace(/[^\n]/g, " "));
+    for (const m of markup.matchAll(/\.toFixed\(/g)) add("raw-number", m.index, "toFixed im Markup");
+  }
+  for (const m of clean.matchAll(/\.toFixed\([^)]*\)\}\s?(?:k|M|BB|bb|h|min|×|€|\$(?!\{))(?![\wäöüß])/g)) add("raw-number", m.index, m[0]);
+
+  if (rel !== "ui/format.ts" && !file.endsWith(".css")) {
+    for (const m of clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, (x) => x.replace(/[^\n]/g, " ")).matchAll(TIME_UNIT)) add("time-format", m.index, m[0]);
+  }
+
   const ownButtons = file.endsWith(".svelte") ? buttonClasses(clean.replace(/<style[^>]*>[\s\S]*?<\/style>/g, "")) : new Set();
   for (const { css, offset } of styleBlocks(file, clean)) {
     if (isTheme) continue;
@@ -295,6 +311,9 @@ function scan(file, text, globals) {
       }
       if (!inKit) {
         for (const d of declarations(rule.body)) if (freeMotion(d.prop, d.value)) add("motion", at, `${d.prop}: ${d.value.replace(/\s+/g, " ")}`);
+      }
+      if (rel !== "ui/SortHeader.svelte") {
+        for (const d of declarations(rule.body)) if (d.prop === "text-transform" && /uppercase/.test(d.value)) add("caps-label", at, rule.selector.replace(/\s+/g, " "));
       }
       const hits = [...rule.selector.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1]).filter((n) => globals.has(n));
       for (const name of new Set(hits)) add("global-class-override", at, `.${name} in „${rule.selector.replace(/\s+/g, " ")}“`);

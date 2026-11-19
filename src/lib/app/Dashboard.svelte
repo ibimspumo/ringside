@@ -9,6 +9,7 @@
   import { int, sign, signed } from "./format";
   import ResultsChart, { type Series } from "./ResultsChart.svelte";
   import Button from "../ui/Button.svelte";
+  import { POSITION_HELP } from "./positions";
   import EmptyState from "../ui/EmptyState.svelte";
   import Panel from "../ui/Panel.svelte";
   import Term from "../ui/Term.svelte";
@@ -26,16 +27,6 @@
     { key: "non_showdown_bb", label: WORDS.no_showdown.word, color: "var(--neg)", width: 1.5 },
   ];
 
-  const POSITION_HELP: Record<string, string> = {
-    UTG: "Under the Gun: als Erster vor dem Flop dran, nach dem Flop fast immer zuerst. Schwerste Position – hier nur starke Hände.",
-    "UTG+1": "Direkt nach UTG: früh dran, fast so schwer wie UTG.",
-    LJ: "Lojack: mittlere Position, drei Plätze vor dem Button.",
-    HJ: "Hijack: zwei Plätze vor dem Button, schon recht späte Position.",
-    CO: "Cutoff: direkt vor dem Button. Hier lohnen sich viele Hände.",
-    BTN: "Button: nach dem Flop immer als Letzter dran. Beste Position am Tisch – hier gewinnen die meisten Spieler am meisten.",
-    SB: "Small Blind: Pflichteinsatz und nach dem Flop zuerst dran. Fast alle Spieler verlieren hier auf Dauer.",
-    BB: "Big Blind: großer Pflichteinsatz. Ein Minus ist hier normal; wichtig ist, nicht mehr als nötig zu verlieren.",
-  };
   /** Below this many hands a winrate mostly shows the cards that came. */
   const FEW_HANDS = 30_000;
 

@@ -20,6 +20,7 @@
   import { usePageHead } from "../ui/page.svelte";
   import ProgressRing from "../ui/ProgressRing.svelte";
   import RangeGrid, { type RangeCell } from "../ui/RangeGrid.svelte";
+  import SectionHead from "../ui/SectionHead.svelte";
   import SourceNote from "../ui/SourceNote.svelte";
   import Term from "../ui/Term.svelte";
   import Luck from "./Luck.svelte";
@@ -198,9 +199,9 @@
 
 {#snippet nextTile()}
         <section class="sr-tile sr-next" aria-labelledby="sr-next-title">
-          <header class="sr-head"><h2 id="sr-next-title" class="sr-title">Als Nächstes üben</h2></header>
+          <SectionHead id="sr-next-title" title="Als Nächstes üben" level={3} />
           {#if steps.length}
-            <NextSteps {steps} mode="first" {onLearn} onHands={onStepHands} />
+            <NextSteps {steps} mode="first" label="" {onLearn} onHands={onStepHands} />
           {:else if pattern?.practice}
             {@const key = pattern.practice}
             <p class="sr-next-what"><b>Dein auffälligstes Muster</b></p>
@@ -271,11 +272,12 @@
       <div class="sr-grid">
         <div class="sr-col">
         <section class="sr-tile sr-pre" aria-labelledby="sr-pre-title">
-          <header class="sr-head">
-            <h2 id="sr-pre-title" class="sr-title">Vor dem Flop</h2>
-            {#if pre.verdict}<Badge tone={VERDICT_TONE[pre.verdict.level]}>{pre.verdict.title}</Badge>{/if}
-            {#if pre.sample === "rough"}<Badge dashed size="sm" title="Je mehr Hände, desto sicherer die Muster.">bei {int(pre.compared)} Händen noch grob</Badge>{/if}
-          </header>
+          <SectionHead id="sr-pre-title" title="Vor dem Flop" level={3}>
+            {#snippet actions()}
+              {#if pre.verdict}<Badge tone={VERDICT_TONE[pre.verdict.level]}>{pre.verdict.title}</Badge>{/if}
+              {#if pre.sample === "rough"}<Badge dashed size="sm" title="Je mehr Hände, desto sicherer die Muster.">bei {int(pre.compared)} Händen noch grob</Badge>{/if}
+            {/snippet}
+          </SectionHead>
 
           {#if pre.compared === 0}
             <p class="sr-lead">{analysing ? "Die Analyse läuft – in ein paar Sekunden steht hier der Vergleich mit dem Modell." : "In dieser Session gab es keine Hand, die das Modell vergleichen kann."}</p>
@@ -301,18 +303,6 @@
             {#if pre.sample === "few"}
               <p class="sr-hint">Noch zu wenige Hände für ein Urteil: {int(pre.compared)} verglichen. Ab 30 nennt Ringside, welche Hände und Situationen auffallen.</p>
             {:else}
-              <div class="sr-hands">
-                <div class="sr-mini">
-                  <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
-                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen</span>
-                </div>
-                <div class="sr-keycol">
-                  {@render classRow(pre.tight, "Hättest du auch spielen sollen", "--range-tight")}
-                  {@render classRow(pre.wide, "Hättest du folden sollen", "--range-wide")}
-                  {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
-                </div>
-              </div>
-
               {#if pre.patterns.length}
                 <ul class="sr-patterns">
                   {#each pre.patterns as p (p.text)}
@@ -321,12 +311,24 @@
                       <span class="sr-pattern-text">{p.text}</span>
                       <span class="sr-pattern-do">
                         {#if scope}<Button size="sm" variant="quiet" onclick={() => onRanges(scope, { history: p.history, position: p.position, vs: p.vs_position })}>Ansehen</Button>{/if}
-                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="quiet" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
+                        {#if p.practice}{@const key = p.practice}<Button size="sm" variant="secondary" onclick={() => onLearn({ spot: key })}>Üben</Button>{/if}
                       </span>
                     </li>
                   {/each}
                 </ul>
               {/if}
+              <div class="sr-hands">
+                <div class="sr-mini">
+                  <RangeGrid {cells} size="sm" label="Deine Hände dieser Session gegen das Modell" />
+                  <span class="sr-legend"><i class="sr-dot sr-dot-same"></i>wie das Modell · leer: nicht bekommen · s = gleiche Farbe, o = verschiedene Farben</span>
+                </div>
+                <div class="sr-keycol">
+                  {@render classRow(pre.tight, "Laut Modell öfter spielen", "--range-tight")}
+                  {@render classRow(pre.wide, "Laut Modell eher folden", "--range-wide")}
+                  {#if !pre.tight.length && !pre.wide.length}<p class="sr-say">Keine Hand weicht deutlich ab.</p>{/if}
+                </div>
+              </div>
+
             {/if}
           {/if}
 
@@ -339,12 +341,10 @@
           {/if}
         </section>
 
-        <!-- What to practise next: right under the answer it follows from. -->
-        {@render nextTile()}
         </div>
         <div class="sr-col">
         <section class="sr-tile sr-res" aria-labelledby="sr-res-title">
-          <header class="sr-head"><h2 id="sr-res-title" class="sr-title">Ergebnis und Glück</h2></header>
+          <SectionHead id="sr-res-title" title="Ergebnis und Glück" level={3} />
           <div class="sr-result">
             {#each money.sums as [c, v] (c)}
               <strong class="sr-big" class:sr-up={v > 0} class:sr-down={v < 0}>{signedCash(v, c)}</strong>
@@ -356,8 +356,14 @@
             </span>
           </div>
           <p class="sr-say">{luckLine(rep.luck)}</p>
+        </section>
 
-          {#if review.bad_luck.length || review.good_luck.length}
+        <!-- Right under the result, so the one thing to do next is in view without scrolling. -->
+        {@render nextTile()}
+
+        {#if review.bad_luck.length || review.good_luck.length}
+          <section class="sr-tile sr-luck" aria-labelledby="sr-luck-title">
+            <SectionHead id="sr-luck-title" title="Glück oder gut gespielt?" level={3} />
             <div class="sr-swings">
               {#if review.bad_luck[0]}
                 {@const s = review.bad_luck[0]}
@@ -383,11 +389,11 @@
               {/if}
             </div>
             <span class="sr-more"><Button size="sm" variant="quiet" onclick={() => (detail = true)}>Alle Beispiele ansehen ({review.bad_luck.length + review.good_luck.length})</Button></span>
-          {/if}
-        </section>
+          </section>
+        {/if}
 
         <section class="sr-tile sr-worst" aria-labelledby="sr-worst-title">
-          <header class="sr-head"><h2 id="sr-worst-title" class="sr-title">Deine teuersten Entscheidungen</h2></header>
+          <SectionHead id="sr-worst-title" title="Deine teuersten Entscheidungen" level={3} />
           {#if rep.worst.length}<p class="sr-note">Die Beträge sagen, was dich die Entscheidung im Schnitt kostet – nicht, wie die Hand ausging.</p>{/if}
           {#if rep.worst.length}
             <ol class="sr-moments">
@@ -506,20 +512,6 @@
     background: var(--surface);
     border: 1px solid var(--line);
     border-radius: var(--r-lg);
-  }
-  .sr-head {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--sp-2);
-    align-items: center;
-  }
-  .sr-title {
-    margin: 0 auto 0 0;
-    font-size: var(--fs-sm);
-    font-weight: var(--fw-semibold);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--text-2);
   }
   .sr-lead {
     margin: 0;
@@ -657,7 +649,7 @@
 
   .sr-hands {
     display: grid;
-    grid-template-columns: minmax(220px, 340px) minmax(0, 1fr);
+    grid-template-columns: minmax(220px, 460px) minmax(0, 1fr);
     gap: var(--sp-5);
     align-items: center;
     padding-top: var(--sp-3);
