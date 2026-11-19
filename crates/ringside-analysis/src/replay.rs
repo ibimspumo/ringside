@@ -10,7 +10,8 @@ use ringside_core::model::{Action, ActionKind, Hand, Street};
 use ringside_engine::preflop::postflop_rank;
 use ringside_engine::{Card, CardSet};
 
-use crate::estimate::{Opponent, Opt, Range, Signal, Spot, Tuning, estimate, narrow, strength};
+use crate::calibration::Calibration;
+use crate::estimate::{Curve, Opponent, Opt, Range, Signal, Spot, estimate, narrow_by, size_pct, strength};
 use crate::fmt::bb;
 use crate::seats::hero_combo;
 use crate::{base, fmt, pot_before, score, why};
@@ -33,7 +34,8 @@ pub fn flop_ranges(hand: &Hand, hero: &str) -> Option<FlopRanges> {
 }
 
 /// The spot of the hero's action `index`, or why there is none.
-pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>) -> Result<Spot, String> {
+/// Opponents' ranges narrow after the flop by `curves`.
+pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>, curves: &[Curve]) -> Result<Spot, String> {
     let big = hand.big_blind.max(1) as f64;
     let combo = hero_combo(hand).ok_or("Deine Karten fehlen in der Hand-History.")?;
     let action = &hand.actions[index];
@@ -72,9 +74,12 @@ pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>)
     let mut strengths = strength(&[], &mut rng);
     let mut raises = 0;
     let mut aggressor: Option<&str> = None;
+    let mut street_aggressor: Option<&str> = None;
+    let rank = |p: &str| seat(p).map_or(0, |s| postflop_rank(n, s));
     for (i, a) in hand.actions[..index].iter().enumerate() {
         if a.street != street {
             street = a.street;
+            street_aggressor = aggressor;
             street_in.clear();
             let cards: Vec<Card> = hand.board.iter().take(street_cards(street)).filter_map(|c| c.parse().ok()).collect();
             strengths = strength(&cards, &mut rng);
@@ -95,14 +100,31 @@ pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>)
             }
             continue;
         }
-        let signal = signal(hand, a, street, raises, &order, seat(&a.player), i);
+        let signal = if street == Street::Preflop {
+            preflop_signal(hand, a, raises, &order, seat(&a.player), i)
+        } else {
+            let added = a.amount as f64 / big;
+            let own = street_in.get(a.player.as_str()).copied().unwrap_or(0.0) - added;
+            let facing = street_in.iter().filter(|(p, _)| **p != a.player.as_str()).map(|(_, v)| *v).fold(0.0, f64::max);
+            let size = size_pct(pot_before(hand, i), facing, own, own + added);
+            match a.kind {
+                ActionKind::Bet => Some(Signal::Bet { size, aggressor: street_aggressor == Some(a.player.as_str()) }),
+                ActionKind::Raise => Some(Signal::Raise(size)),
+                ActionKind::Call => Some(Signal::Call(size)),
+                ActionKind::Check => {
+                    let behind = order.iter().filter(|&&p| p != a.player && !folded.contains(&p)).all(|&p| rank(p) < rank(&a.player));
+                    Some(Signal::PostCheck { behind })
+                }
+                _ => None,
+            }
+        };
         if a.kind.is_aggressive() || (a.all_in && a.kind != ActionKind::Call) {
             raises += 1;
             aggressor = Some(a.player.as_str());
         }
         if let (Some(sig), Some(r)) = (signal, ranges.get_mut(a.player.as_str())) {
             let dead = CardSet::from_cards(&hand.board.iter().take(street_cards(street)).filter_map(|c| c.parse().ok()).collect::<Vec<Card>>());
-            narrow(r, sig, &strengths, dead);
+            narrow_by(r, sig, &strengths, dead, curves);
         }
     }
     // The hero may be first to act on a new street.
@@ -119,7 +141,6 @@ pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>)
         .iter()
         .map(|&p| Opponent { range: ranges.remove(p).unwrap_or_else(Range::all), behind: behind(p), street_in: street_in.get(p).copied().unwrap_or(0.0) })
         .collect();
-    let rank = |p: &str| seat(p).map_or(0, |s| postflop_rank(n, s));
     let hero_rank = rank(hero);
     Ok(Spot {
         preflop: action.street == Street::Preflop,
@@ -135,18 +156,9 @@ pub fn spot_at(hand: &Hand, hero: &str, index: usize, flop: Option<&FlopRanges>)
     })
 }
 
-fn signal(hand: &Hand, a: &Action, street: Street, raises: usize, order: &[&str], seat: Option<usize>, index: usize) -> Option<Signal> {
+fn preflop_signal(hand: &Hand, a: &Action, raises: usize, order: &[&str], seat: Option<usize>, index: usize) -> Option<Signal> {
     let big = hand.big_blind.max(1) as f64;
     let to = a.to.unwrap_or(a.amount) as f64 / big;
-    if street != Street::Preflop {
-        return Some(match a.kind {
-            ActionKind::Bet => Signal::Bet,
-            ActionKind::Raise => Signal::Raise,
-            ActionKind::Call => Signal::Call,
-            ActionKind::Check => Signal::PostCheck,
-            _ => return None,
-        });
-    }
     let stack_bb = |name: &str| hand.seats.iter().find(|s| s.name == name).map_or(0.0, |s| s.stack as f64 / big);
     let pre_shove = hand.actions[..index].iter().any(|x| x.street == Street::Preflop && x.all_in && x.kind != ActionKind::Call && !x.kind.is_post());
     Some(match a.kind {
@@ -253,8 +265,7 @@ pub fn reliability(street: Street) -> f64 {
 /// The hero's action `index` rated by the estimate, `why_not` saying why model and
 /// solver don't cover it.
 pub fn rate(hand: &Hand, hero: &str, index: usize, spot_type: SpotType, flop: Option<&FlopRanges>, why_not: &str) -> Result<Decision, String> {
-    let t = crate::calibration::stored().tuning(hand.actions[index].street);
-    rate_with(hand, hero, index, spot_type, flop, why_not, &t)
+    rate_with(hand, hero, index, spot_type, flop, why_not, crate::calibration::stored())
 }
 
 /// [`rate`] with the estimate's numbers given.
@@ -265,13 +276,14 @@ pub fn rate_with(
     spot_type: SpotType,
     flop: Option<&FlopRanges>,
     why_not: &str,
-    tuning: &Tuning,
+    numbers: &Calibration,
 ) -> Result<Decision, String> {
-    let spot = spot_at(hand, hero, index, flop)?;
+    let spot = spot_at(hand, hero, index, flop, &numbers.moves)?;
+    let tuning = &numbers.tuning(hand.actions[index].street);
     let a = &hand.actions[index];
     let big = hand.big_blind.max(1) as f64;
     let (opts, played) = options(&spot, a, big);
-    let est = estimate(&spot, &opts, hand.id.wrapping_mul(31).wrapping_add(index as u64), tuning);
+    let est = estimate(&spot, &opts, hand.id.wrapping_mul(31).wrapping_add(index as u64), tuning, &numbers.moves);
     let pot = spot.pot;
     let freq = crate::estimate::strategy(&est, pot, tuning);
     let strategy: Vec<Choice> = opts
