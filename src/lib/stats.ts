@@ -1,5 +1,5 @@
 import type { ClassicPreset, HudConfig, Palette, StatId, StatValue, TournamentRow } from "./types";
-import { cash, compact, moneyShort } from "./ui/format";
+import { cash, compact, moneyShort, num } from "./ui/format";
 import { WORDS, explain, type WordId } from "./ui/words";
 
 export { cash, compact, money, moneyShort } from "./ui/format";
@@ -77,6 +77,12 @@ export function fmt(s: StatValue | undefined): string {
   if (s.id === "hands") return compact(s.value);
   if (STAT_META[s.id].ratio) return s.value >= 10 ? Math.round(s.value).toString() : de1(s.value);
   return Math.round(s.value).toString();
+}
+
+/** The usual range of a value in prose: "20–35 %", "1,5–3,5×". */
+export function usual(id: StatId, range: { low: number; high: number }): string {
+  const d = STAT_META[id].ratio ? 1 : 0;
+  return `${num(range.low, d)}–${num(range.high, d)}${STAT_META[id].ratio ? "×" : " %"}`;
 }
 
 /** Unit written after a value in prose: "%" for frequencies, "×" for AF. */

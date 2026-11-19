@@ -7,6 +7,7 @@ import * as learnDemo from "./learn/demo";
 import { demoNextSteps, demoWithin } from "./next/demo";
 import type { NextStep } from "./next/types";
 import type { DrillResult, DrillSpot, PlayProfile } from "./learn/profile";
+import type { KeySpots, KeySpotView } from "./learn/spots";
 import * as chartsDemo from "./charts/demo";
 import type { ChartTarget } from "./charts/handoff.svelte";
 import * as rangesDemo from "./ranges/demo";
@@ -258,6 +259,10 @@ export const api = {
       { key: spot.key, handId: spot.hand_id, actionIndex: spot.action_index, seed: spot.seed, choice },
       () => learnDemo.demoDrillCheck(spot.key, spot.hand_id, spot.action_index, spot.seed, choice),
     ),
+  learnKeySpots: () => (inTauri ? invoke<KeySpots>("learn_key_spots") : import("./learn/spots").then((m) => advice(() => m.demoKeySpots())())),
+  learnKeySpot: (id: string) => (inTauri ? invoke<KeySpotView>("learn_key_spot", { id }) : import("./learn/spots").then((m) => advice(() => m.demoKeySpot(id))())),
+  learnKeySpotCheck: (id: string, choice: number) =>
+    inTauri ? invoke<DrillResult>("learn_key_spot_check", { id, choice }) : import("./learn/spots").then((m) => advice(() => m.demoKeySpotCheck(id, choice))()),
   pushfoldGrid: () => call<PushFoldGrid>("pushfold_grid", {}, chartsDemo.demoGrid),
   pushfoldChart: (ante: PushFoldAnte, players: number, stackBb: number) =>
     call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, () => chartsDemo.demoChart(stackBb, players)),

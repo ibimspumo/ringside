@@ -18,7 +18,13 @@
 //
 // For writing steps, E2E_URL runs the same steps against the browser demo through any
 // WebDriver server at E2E_WEBDRIVER (e.g. chromedriver); checks that need the backend
-// are skipped there.
+// are skipped there. The demo is the build, served without a file watcher:
+//
+//   pnpm build && pnpm exec vite preview --port <p>
+//
+// A dev server reloads the page whenever SvelteKit rewrites .svelte-kit/generated (on its own
+// start, on `pnpm check` or `pnpm build`), and a step caught by the reload waits in vain, so the
+// run refuses one.
 
 import { spawn } from "node:child_process";
 import { createWriteStream, cpSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
@@ -138,7 +144,14 @@ if (TAURI) {
 
 const s = await startSession();
 await s.cmd("POST", "/timeouts", { script: 180_000 });
-if (!TAURI) await s.navigate(DEMO_URL);
+if (!TAURI) {
+  await s.navigate(DEMO_URL);
+  if (await s.exec(`return typeof __sveltekit_dev !== "undefined"`)) {
+    console.error(`E2E_URL ${DEMO_URL} ist ein Vite-Dev-Server; sein Neuladen bricht Schritte ab. Demo bauen und ohne Beobachter ausliefern: pnpm build && pnpm exec vite preview --port <p>`);
+    await s.quit().catch(() => {});
+    process.exit(1);
+  }
+}
 
 async function startSession() {
   const until = Date.now() + 60_000;
@@ -804,6 +817,36 @@ step("Heute: aus deinem Spiel üben, Hände der Schwachstelle ansehen", async ()
   await click("main .rows .row button", "Hände ansehen", { exact: false });
   await find("main h1", "Hände");
   await waitFor("the weakness as filter chip", `return document.querySelector("main")?.innerText.includes(arguments[0])`, [title]);
+});
+
+step("Wichtige Spots: einen Spot beantworten, Erklärung und Range sehen, Stand zählt mit", async () => {
+  await nav("Lernen");
+  await click("main [role='tab']", "Wichtige Spots");
+  await waitText("Die wichtigsten Spots für kleine Turniere");
+  await click("main button", "Runde starten", { exact: false });
+  await find("main .drill .origin", "Wichtiger Spot", { exact: false });
+  await waitText("Was spielst du?");
+  await click("main .drill .choices button");
+  await find("main .drill .verdict");
+  await find("main .drill .verdict .ui-reason", "Warum?", { exact: false });
+  await waitText("Merksatz");
+  await click("main .drill button", "Wie spielt jede Hand hier?");
+  await find("main .spot-range .legend li");
+  const marked = await s.exec(`return document.querySelectorAll("main .run .steps li.ok, main .run .steps li.miss").length`);
+  if (marked !== 1) throw new Error(`${marked} answers marked in the round, not 1`);
+  await click("main .drill button", "Nächster Spot", { exact: false });
+  await find("main .drill .origin", "Wichtiger Spot", { exact: false });
+  await click("main button", "Runde beenden");
+  await find("main .done .recap li");
+  await click("main button", "Zur Übersicht");
+  const counted = await waitFor(
+    "the answer in the overview",
+    `const k = [...document.querySelectorAll("main .stand .key li b")].map((b) => Number(b.textContent));
+     return k.length === 3 && k[0] + k[1] === 1 ? k : null;`,
+  );
+  // The browser demo carries two spots per topic, the app all of them.
+  const all = TAURI ? 100 : 20;
+  if (counted[0] + counted[1] + counted[2] !== all) throw new Error(`the overview counts ${counted.join("/")}, not ${all} spots`);
 });
 
 step("Deine Hände: die Antes stehen in einer Zeile, nicht je Spieler", async () => {

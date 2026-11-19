@@ -39,6 +39,33 @@ export function compact(n: number): string {
   return Math.round(n).toString();
 }
 
+/**
+ * A span of time given in seconds: "unter 1 Min.", "12 Min.", "2 Std. 49 Min.", "3 Std.". With
+ * `about`, an estimate: "etwa 12 Min." (the minute floor needs no "etwa").
+ */
+export function duration(seconds: number, { about = false }: { about?: boolean } = {}): string {
+  const mins = Math.round(Math.max(0, seconds) / 60);
+  if (mins < 1) return "unter 1 Min.";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const text = h === 0 ? `${m} Min.` : m ? `${h} Std. ${m} Min.` : `${h} Std.`;
+  return about ? `etwa ${text}` : text;
+}
+
+/** How long ago, from seconds since: "gerade eben", "vor 12 Min.", "vor 2 Std. 5 Min.", "gestern", "vor 3 Tagen". */
+export function ago(seconds: number): string {
+  if (seconds < 60) return "gerade eben";
+  if (seconds < 24 * 3600) return `vor ${duration(seconds)}`;
+  const days = Math.round(seconds / 86400);
+  return days === 1 ? "gestern" : `vor ${days} Tagen`;
+}
+
+/** Time left of a running task: "noch etwa 12 Min."; null without an estimate. */
+export function remaining(seconds: number | null): string | null {
+  if (seconds === null || !Number.isFinite(seconds)) return null;
+  return seconds < 60 ? "gleich fertig" : `noch ${duration(seconds, { about: true })}`;
+}
+
 const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£" };
 
 /** Money as the client writes it, symbol first: "$11,40". Tournament chips have no decimals. */

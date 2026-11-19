@@ -1,5 +1,6 @@
 import { api } from "../api";
-import { etaText, isActive } from "../jobs/kinds";
+import { isActive } from "../jobs/kinds";
+import { remaining } from "../ui/format";
 import { jobs } from "../jobs/store.svelte";
 import { adviceLocked } from "../app/client.svelte";
 import { isDue } from "../learn/catalog";
@@ -102,9 +103,9 @@ class NavLive {
     const job = jobs.list.find((j) => isActive(j) && j.target.page === page);
     if (job) {
       const pct = job.progress === null ? "" : ` ${Math.floor(job.progress * 100)} %`;
-      // Names what runs ("Analyse"), and the time left like the page below ("noch etwa 3 Std.").
+      // Names what runs ("Analyse"), and the time left in the same words as the page below.
       const what = job.kind === "analysis" ? "Analyse" : "Rechnung";
-      const eta = etaText(job.eta_secs);
+      const eta = remaining(job.eta_secs);
       const short = job.status === "paused" ? `${what} pausiert` : `${what} läuft`;
       const text = job.status === "paused" ? short : eta ? `${short} · ${eta}` : `${short}${pct ? ` · ${pct.trim()}` : ""}`;
       return { ...live(short, text), busy: true };

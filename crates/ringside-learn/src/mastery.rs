@@ -153,9 +153,9 @@ pub fn days_since(s: &SkillProgress, now: i64) -> Option<f64> {
 }
 
 /// Due for review: practised before, and either shaky or not seen for a while (sooner when
-/// the level is low). Exercises from the own hands and whole hands are never due.
+/// the level is low). Only generated exercises are due; the other kinds schedule their own.
 pub fn is_due(s: &SkillProgress, now: i64) -> bool {
-    if s.attempts == 0 || matches!(s.id, Kind::AllIn | Kind::FullHands | Kind::OwnDecision) {
+    if s.attempts == 0 || !s.id.generated() {
         return false;
     }
     let gap = [0.0, 0.5, 1.0, 3.0, 7.0][s.level.min(4) as usize];

@@ -134,8 +134,3 @@ export function pct(share: number): string {
   return `${Math.round(share * 100)} %`;
 }
 
-export function duration(secs: number): string {
-  if (secs < 90) return `${Math.max(1, Math.round(secs))} s`;
-  if (secs < 5400) return `${Math.round(secs / 60)} min`;
-  return `${(secs / 3600).toLocaleString("de-DE", { maximumFractionDigits: 1 })} h`;
-}

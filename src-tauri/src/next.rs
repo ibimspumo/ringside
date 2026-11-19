@@ -41,7 +41,7 @@ pub fn steps(state: &AppState, filter: &Filter) -> CmdResult<Vec<NextStep>> {
             exercise: c
                 .exercise
                 .and_then(Kind::parse)
-                .filter(|k| !matches!(k, Kind::AllIn | Kind::FullHands | Kind::OwnDecision))
+                .filter(|k| k.generated())
                 .map(|k| (k.id().to_string(), skill(k).map_or(1, next_level))),
             article: c.articles.first().copied(),
             mistakes: c.mistakes,

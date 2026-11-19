@@ -15,7 +15,17 @@
     reviewing,
     onOpen,
     past = false,
-  }: { view: HandView | null; lesson: Lesson | null; hands: SessionHand[]; reviewing: number | null; onOpen: (h: SessionHand) => void; past?: boolean } = $props();
+    tip = false,
+  }: {
+    view: HandView | null;
+    lesson: Lesson | null;
+    hands: SessionHand[];
+    reviewing: number | null;
+    onOpen: (h: SessionHand) => void;
+    past?: boolean;
+    /** The decision in front of you has a tip (it is graded). */
+    tip?: boolean;
+  } = $props();
 
   let tab = $state<"info" | "hands">("info");
 
@@ -90,7 +100,11 @@
 
   {#if tab === "info"}
     {#if past}
-      <p class="nowline">Die Strategie für diese Entscheidung erscheint nach deinem Zug · Tipp vorher: <b>H</b> (zählt dann halb)</p>
+      {#if tip}
+        <p class="nowline">Die Strategie für diese Entscheidung erscheint nach deinem Zug · Tipp vorher: <b>H</b> (zählt dann halb)</p>
+      {:else}
+        <p class="nowline">Für diese Stelle hat Ringside keine Lösung, also auch keinen Tipp. Du entscheidest selbst; der Zug wird nicht bewertet.</p>
+      {/if}
     {/if}
     {#if lesson && (past || cells)}
       <div class="retro" class:back={past}>

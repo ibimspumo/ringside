@@ -6,7 +6,8 @@
   import EmptyState from "../ui/EmptyState.svelte";
   import SortHeader from "../ui/SortHeader.svelte";
   import Term from "../ui/Term.svelte";
-  import { dayShort, duration, floating, int, sign, signed, time, type Anchor } from "./format";
+  import { dayShort, floating, int, secondsBetween, sign, signed, time, type Anchor } from "./format";
+  import { compact, duration } from "../ui/format";
   import { POSITION_HELP, POSITION_PLAIN } from "./positions";
 
   let { filter, refresh }: { filter: Filter; refresh: number } = $props();
@@ -89,7 +90,7 @@
     if (blank(c)) return "";
     if (mode === "played") return c.vpip === null ? "–" : `${Math.round(c.vpip)}`;
     const v = c.bb100 ?? 0;
-    return Math.abs(v) >= 1000 ? `${v > 0 ? "+" : "−"}${(Math.abs(v) / 1000).toFixed(1)}k` : signed(v, 0);
+    return Math.abs(v) >= 1000 ? `${v > 0 ? "+" : "−"}${compact(Math.abs(v))}` : signed(v, 0);
   }
 
   function show(e: MouseEvent, g: Cell) {
@@ -250,7 +251,7 @@
                   <tr>
                     <td class="ui">{dayShort(s.start)}</td>
                     <td>{time(s.start)}–{time(s.end)}</td>
-                    <td>{duration(s.start, s.end)}</td>
+                    <td>{duration(secondsBetween(s.start, s.end))}</td>
                     <td>{s.tables}</td>
                     <td>{int(s.hands)}</td>
                     <td class={sign(s.net_bb)}>{signed(s.net_bb)}</td>
