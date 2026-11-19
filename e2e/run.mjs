@@ -202,8 +202,11 @@ async function clickEl(el) {
     await s.click(el);
   } catch (e) {
     // A toast in the top corner may slide over the target; a user closes it and clicks again.
-    if (!/intercepted.*toast/s.test(String(e))) throw e;
-    await s.exec(`for (const b of document.querySelectorAll(".ui-toast button[aria-label='Schließen'], .toast button[aria-label='Meldung schließen']")) b.click();`);
+    if (!/intercepted/.test(String(e))) throw e;
+    const closed = await s.exec(`const bs = [...document.querySelectorAll(".ui-toast button[aria-label='Schließen'], .toast button[aria-label='Meldung schließen']")];
+      for (const b of bs) b.click();
+      return bs.length;`);
+    if (!closed) throw e;
     await sleep(400);
     await s.click(el);
   }
@@ -245,7 +248,7 @@ async function pageLabels() {
   const areas = await s.exec(`return document.querySelectorAll(arguments[0]).length`, TRIGGERS);
   for (let i = 0; i < areas; i++) {
     const trigger = await s.exec(`return document.querySelectorAll(arguments[0])[arguments[1]]`, TRIGGERS, i);
-    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await s.click(trigger);
+    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await clickEl(trigger);
     await waitFor("the menu", `return document.querySelector("#nav-menu")`);
     labels.push(...(await s.exec(`return [...document.querySelectorAll("#nav-menu .label")].map((e) => e.textContent.trim())`)));
   }
@@ -262,12 +265,12 @@ async function nav(label) {
   const areas = button ? 0 : await s.exec(`return document.querySelectorAll(arguments[0]).length`, TRIGGERS);
   for (let i = 0; i < areas && !button; i++) {
     const trigger = await s.exec(`return document.querySelectorAll(arguments[0])[arguments[1]]`, TRIGGERS, i);
-    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await s.click(trigger);
+    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await clickEl(trigger);
     await waitFor("the menu", `return document.querySelector("#nav-menu")`);
     button = await s.exec(ENTRY, "#nav-menu button .label", label);
   }
   if (!button) throw new Error(`no menu entry „${label}“`);
-  await s.click(button);
+  await clickEl(button);
   await find("main h1", label);
 }
 
