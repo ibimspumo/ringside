@@ -203,6 +203,10 @@ fn pokerstars_head(header: &str) -> Result<Head, ParseError> {
     let tournament = TOURNAMENT_ID.captures(header);
     let tournament_id: Option<u64> = tournament.as_ref().and_then(|c| c[1].parse().ok());
     let game = if tournament_id.is_some() { GameKind::Tournament } else { GameKind::Cash };
+    // 6+ Hold'em (short deck) plays by other rules than any model Ringside has.
+    if header.contains("6+ Hold'em") {
+        return Err(ParseError::Unsupported(header.to_string()));
+    }
     let variant_match = VARIANT.captures(header).ok_or_else(|| ParseError::Unsupported(header.to_string()))?;
     let variant = format!("{} {}", &variant_match[1], &variant_match[2]);
     // "Tournament #123, $10+$10+$2 USD Hold'em No Limit": the buy-in sits between id and game.

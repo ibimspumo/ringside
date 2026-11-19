@@ -197,6 +197,9 @@ fn header_variants() {
     let plo = format!("PokerStars Hand #2:  Omaha Pot Limit ($0.25/$0.50 USD) - 2024/01/15 20:30:00 ET\n{body}");
     assert_eq!(parse_hand(&plo).unwrap().variant, "Omaha Pot Limit");
 
+    let short_deck = format!("PokerStars Hand #4:  6+ Hold'em No Limit (Button Blind $2 - Ante $2 USD) - 2019/04/13 18:36:55 CET\n{body}");
+    assert!(matches!(parse_hand(&short_deck), Err(ringside_core::parser::ParseError::Unsupported(_))));
+
     let stud = format!("PokerStars Hand #3:  7 Card Stud Limit ($0.04/$0.08 USD) - 2024/01/15 20:30:00 ET\n{body}");
     assert!(matches!(parse_hand(&stud), Err(ringside_core::parser::ParseError::Unsupported(_))));
 }
