@@ -200,7 +200,7 @@
         <section class="sr-tile sr-next" aria-labelledby="sr-next-title">
           <header class="sr-head"><h2 id="sr-next-title" class="sr-title">Als Nächstes üben</h2></header>
           {#if steps.length}
-            <NextSteps {steps} mode="first" {onLearn} onHands={onStepHands} />
+            <NextSteps {steps} mode="first" label="" {onLearn} onHands={onStepHands} />
           {:else if pattern?.practice}
             {@const key = pattern.practice}
             <p class="sr-next-what"><b>Dein auffälligstes Muster</b></p>
