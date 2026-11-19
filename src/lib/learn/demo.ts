@@ -18,7 +18,7 @@ import { DEMO_DECISIONS } from "../analysis/demo-hands";
 import { demoHandById } from "../demo";
 import { parseRange } from "./catalog";
 import type { DrillResult, DrillSpot, PlayProfile, SpotGroup } from "./profile";
-import { combosOf, deckWithout, matrixHand, score, categoryOf, CATEGORY } from "./wissen/poker";
+import { bestFive, combosOf, deckWithout, matrixHand, score, categoryOf, CATEGORY } from "./wissen/poker";
 
 const NAMES: Record<LearnKind, string> = {
   outs: "Outs zählen",
@@ -275,13 +275,19 @@ function genTask(kind: LearnKind, level: number, r: Rng): Task {
     }
     case "showdown": {
       const n = level === 1 ? 2 : r.pick([2, 3]);
-      const used = new Set<string>();
-      const board = r.deal(used, 5);
-      const players = Array.from({ length: n }, () => r.deal(used, 2));
+      let used = new Set<string>();
+      let board = r.deal(used, 5);
+      let players = Array.from({ length: n }, () => r.deal(used, 2));
+      // Like the app: at level 1 the two hands are of different kinds, so the answer never hangs on a kicker.
+      while (level === 1 && categoryOf([...players[0], ...board]) === categoryOf([...players[1], ...board])) {
+        used = new Set<string>();
+        board = r.deal(used, 5);
+        players = Array.from({ length: n }, () => r.deal(used, 2));
+      }
       return {
         question: "Wer gewinnt den Pot?",
         prompt: { type: "showdown", board, players },
-        answer: { type: "choice", options: [...players.map((_, i) => ({ id: `p${i}`, label: `Spieler ${i + 1}` })), { id: "split", label: "Split" }] },
+        answer: { type: "choice", options: [...players.map((_, i) => ({ id: `p${i}`, label: `Spieler ${i + 1}` })), { id: "split", label: "Pot teilen" }] },
         grading: "exakt",
         model_note: null,
       };
@@ -525,9 +531,9 @@ function grade(ex: Exercise, a: LearnAnswer): Feedback {
       const best = Math.max(...scores);
       const winners = scores.flatMap((s, i) => (s === best ? [i] : []));
       const truth = winners.length > 1 ? "split" : `p${winners[0]}`;
-      const facts = p.players.map((h, i) => fact(`Spieler ${i + 1}`, CATEGORY[categoryOf([...h, ...p.board])]));
+      const facts = p.players.map((h, i) => fact(`Spieler ${i + 1}`, `${CATEGORY[categoryOf([...h, ...p.board])]} (${bestFive([...h, ...p.board]).join(" ")})`));
       const ok = "choice" in a && a.choice === truth;
-      return base(ok, ok ? 1 : 0, { choice: truth }, truth === "split" ? "Split" : `Spieler ${winners[0] + 1}`, facts, ex);
+      return base(ok, ok ? 1 : 0, { choice: truth }, truth === "split" ? `Pot geteilt zwischen ${winners.map((w) => `Spieler ${w + 1}`).join(" und ")}` : `Spieler ${winners[0] + 1}`, facts, ex);
     }
     case "equity_hand": {
       const eq = mcEquity(p.hero, () => p.villain, p.board, ex.seed, 2500);
@@ -834,7 +840,9 @@ function checkDrill(d: Drill, answer: LearnAnswer): Feedback {
 }
 
 export async function demoExercise(kind: LearnKind, level: number, seed?: number | null): Promise<Exercise> {
-  const s = seed ?? Math.floor(Math.random() * 2 ** 52);
+  // Pictures of a round show the same hands before and after the answer.
+  const pictured = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("session");
+  const s = seed ?? (pictured ? 1000 + kind.length * 97 + level : Math.floor(Math.random() * 2 ** 52));
   if (DRILLS.has(kind)) return { ...(await drill(kind, level, s)).exercise, seed: s };
   return exerciseNow(kind, level, s);
 }
@@ -913,18 +921,18 @@ const g = (x: DemoGroup): SpotGroup => {
 
 const DEMO_GROUPS: SpotGroup[] = [
   g({
-    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River gegen Bet", detail: "ab 40 BB · 6 Spieler",
+    key: "river_vs_bet|-|3|6", lage: "river_vs_bet", seat: null, band: 3, table: "short", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler",
     decisions: 23, flawed: 9, loss_bb: 14.6, open: 2, sources: [["estimate", 15], ["solver", 8]], computed: 8, estimate_loss: 9.9,
     estimate_reliability: 0.73, rank: 1, last_played_at: "2026/11/17 22:41:05", change: null,
   }),
   g({
-    key: "vs_limp|SB|3|6", lage: "vs_limp", seat: "SB", band: 3, table: "short", title: "Gegen Limper im Small Blind", detail: "ab 40 BB · 6 Spieler",
+    key: "vs_limp|SB|3|6", lage: "vs_limp", seat: "SB", band: 3, table: "short", title: "Wenn einer nur mitgeht (Limp) im Small Blind", detail: "ab 40 BB · 6 Spieler",
     decisions: 31, flawed: 9, loss_bb: 11.2, open: 0, sources: [["model", 31]], computed: 31, estimate_loss: 0,
     estimate_reliability: null, rank: 2, last_played_at: "2026/11/17 21:12:44",
     change: { before: 21, before_error_pct: 38, after: 10, after_error_pct: 20 },
   }),
   g({
-    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "Shove oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler",
+    key: "push_fold|BTN|1|6", lage: "push_fold", seat: "BTN", band: 1, table: "short", title: "All-in oder Fold als Erster am Button", detail: "10–20 BB · 6 Spieler",
     decisions: 44, flawed: 6, loss_bb: 8.4, open: 0, sources: [["equilibrium", 44]], computed: 44, estimate_loss: 0,
     estimate_reliability: null, rank: 3, last_played_at: "2026/11/16 23:02:10", change: null,
   }),

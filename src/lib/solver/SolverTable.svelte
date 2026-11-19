@@ -217,7 +217,7 @@
           {#if s && acting === s}<span class="turn">am Zug</span>{/if}
           <div class="who">
             <span class="posname">{pos}</span>
-            {#if s}<span class="role" title={explain(s)}>{s === "oop" ? "OOP" : "IP"}</span>{/if}
+            {#if s}<span class="role" title={explain(s)}>{s === "oop" ? "zuerst" : "zuletzt"}</span>{/if}
           </div>
           {#if s}
             <div class="num stack"><b>{bb(stacks[idx(s)], 2)}</b> <span>BB</span></div>
@@ -321,7 +321,7 @@
   }
   .seat.out {
     transform: translate(-50%, -50%) scale(calc(var(--k) * 0.9));
-    opacity: 0.7;
+    opacity: 0.85;
   }
   .seat.out.pickable:has(.seatbtn:hover) {
     opacity: 0.9;
@@ -402,9 +402,9 @@
     color: var(--text-2);
   }
   .role {
-    font-size: var(--fs-xs);
+    font-size: var(--fs-sm);
     font-weight: 600;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .stack {
     margin-top: 1px;
@@ -418,7 +418,7 @@
     color: var(--text);
   }
   .fold {
-    font-size: var(--fs-sm);
+    font-size: var(--fs-md);
     color: var(--text-2);
   }
   .tag {

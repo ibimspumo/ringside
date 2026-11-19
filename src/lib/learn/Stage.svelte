@@ -5,7 +5,7 @@
   import DrillStage, { isDrill } from "./DrillStage.svelte";
   import SeatRing from "./SeatRing.svelte";
   import Matrix from "./wissen/blocks/Matrix.svelte";
-  import { score } from "./wissen/poker";
+  import { CATEGORY, categoryOf, score } from "./wissen/poker";
   import Badge from "../ui/Badge.svelte";
   import BestHand from "../ui/BestHand.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
@@ -168,7 +168,7 @@
             <li class="result" class:won>
               <div class="result-head">
                 <b>Spieler {i + 1}</b>
-                {#if won}<Badge tone="good">{split ? "Split – teilt den Pot" : "Gewinnt den Pot"}</Badge>{/if}
+                {#if won}<Badge tone="good">{split ? "Teilt den Pot" : "Gewinnt den Pot"}</Badge>{/if}
                 {#if mine}
                   <span class="mine" class:right>
                     <GradeIcon grade={right ? "best" : "mistake"} size={16} />Deine Wahl – {right ? "richtig" : "falsch"}
@@ -179,8 +179,20 @@
             </li>
           {/each}
         </ol>
+        {@const kinds = prompt.players.map((h) => categoryOf([...h, ...prompt.board]))}
+        {@const w = scores.indexOf(top)}
+        {@const rival = Math.max(...kinds.filter((_, i) => scores[i] !== top), -1)}
+        <p class="why">
+          {#if split}
+            Die besten fünf Karten sind gleich stark – der Pot wird geteilt.
+          {:else if kinds[w] > rival}
+            „{CATEGORY[kinds[w]]}“ ist stärker als „{CATEGORY[rival]}“ – deshalb gewinnt Spieler {w + 1}.
+          {:else}
+            Beide haben „{CATEGORY[kinds[w]]}“ – die höheren Karten entscheiden, deshalb gewinnt Spieler {w + 1}.
+          {/if}
+        </p>
         {#if choice === "split" && !split}
-          <p class="split-miss"><GradeIcon grade="mistake" size={16} />Deine Wahl „Split“ ist falsch – eine Hand ist klar besser.</p>
+          <p class="split-miss"><GradeIcon grade="mistake" size={16} />Deine Wahl „Pot teilen“ ist falsch – eine Hand ist klar besser.</p>
         {/if}
       {/if}
     </div>
@@ -438,15 +450,16 @@
   .player {
     display: grid;
     justify-items: center;
-    gap: 6px;
-    padding: 10px 12px;
+    gap: 8px;
+    padding: 12px 18px 14px;
     border-radius: var(--r);
     border: 1.5px solid var(--line-2);
-    background: rgba(0, 0, 0, 0.25);
+    background: var(--surface-2);
+    box-shadow: var(--shadow-1);
     cursor: pointer;
     transition:
-      border-color 0.12s,
-      transform 0.12s;
+      border-color var(--dur-fast) var(--ease-standard),
+      transform var(--dur-fast) var(--ease-standard);
   }
   .player:disabled {
     cursor: default;
@@ -458,6 +471,14 @@
   .player.on {
     border-color: var(--text);
     background: rgba(236, 235, 231, 0.08);
+  }
+  .why {
+    justify-self: stretch;
+    margin: var(--sp-3) 0 0;
+    text-align: left;
+    font-size: var(--fs-lg);
+    font-weight: 600;
+    color: var(--text);
   }
   .results {
     display: flex;

@@ -24,6 +24,9 @@
   import ShareMark from "./ShareMark.svelte";
   import type { LibraryMode, LibraryOverview, LibraryScenario, WorkerStatus } from "./types";
 
+  /** Where the app keeps its data on Windows; pasted into the Explorer it opens the folder. */
+  const DATA_DIR = "%APPDATA%\\app.ringside.hud";
+
   /** Switches to the solver page once a spot is loaded there. */
   let { onOpen }: { onOpen: () => void } = $props();
 
@@ -445,9 +448,15 @@
       <EmptyState
         tone="error"
         title="Die Bibliothek ließ sich nicht laden"
-        text="{error} Meist sperrt ein Virenscanner oder ein fehlendes Schreibrecht den Datenordner von Ringside. Gib ihn frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
+        text="{error} Meist sperrt ein Virenscanner den Datenordner von Ringside. Gib diesen Ordner im Virenscanner frei und versuch es noch einmal; hilft das nicht, starte Ringside neu."
       >
-        {#snippet action()}<Button variant="primary" onclick={load}>Noch einmal versuchen</Button>{/snippet}
+        {#snippet action()}
+          <div class="fix">
+            <code class="path">{DATA_DIR}</code>
+            <Button variant="quiet" size="sm" onclick={() => navigator.clipboard?.writeText(DATA_DIR)}>Pfad kopieren</Button>
+          </div>
+          <Button variant="primary" onclick={load}>Noch einmal versuchen</Button>
+        {/snippet}
       </EmptyState>
       </div>
     {:else}
@@ -820,5 +829,20 @@
     .howto {
       display: none;
     }
+  }
+  .fix {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+  }
+  .path {
+    padding: 4px 10px;
+    border-radius: var(--r-sm);
+    background: var(--surface-2);
+    font-family: var(--font-num);
+    font-size: var(--fs-md);
+    color: var(--text);
   }
 </style>

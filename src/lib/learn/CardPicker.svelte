@@ -118,14 +118,14 @@
     border-radius: 5px;
     background: none;
     cursor: pointer;
-    opacity: 0.55;
+    opacity: 0.85;
     transition:
-      transform 0.14s,
-      opacity 0.14s,
-      box-shadow 0.14s;
+      transform var(--dur-fast) var(--ease-standard),
+      opacity var(--dur-fast) var(--ease-standard),
+      box-shadow var(--dur-fast) var(--ease-standard);
   }
   .slot:hover:not(:disabled) {
-    opacity: 0.9;
+    opacity: 1;
     transform: translateY(-2px);
   }
   .slot.sel {

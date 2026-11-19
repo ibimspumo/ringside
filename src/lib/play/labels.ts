@@ -33,8 +33,8 @@ export const THRESHOLD_TEXT: Record<Grade, string> = {
 
 export const MODE_LABEL: Record<PlayMode, string> = {
   full: "Ganze Hände",
-  push_fold: "Kurze Stacks",
-  postflop: "Nur Postflop",
+  push_fold: "Wenige Chips",
+  postflop: "Ab dem Flop",
 };
 export const ANTE_LABEL: Record<PlayAnte, string> = { none: "Ohne Ante", classic: "Ante für alle", big_blind: "BB-Ante" };
 

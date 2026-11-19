@@ -617,6 +617,7 @@
         </section>
 
         <section class="panel chart-panel" aria-busy={loading}>
+          <div class="chart-in">
           <header class="answer" class:faded={loading && !!answer}>
             <div class="answer-top">
               <SourceNote kind={engine === "pushfold" ? "equilibrium" : "model"} />
@@ -682,6 +683,12 @@
               </div>
             {/if}
             {#if barActions.length}<ActionBar actions={barActions} selected={onlyBar} onSelect={(k) => (only = k === null ? null : barActions[k].i)} />{/if}
+            {#if answer}
+              <p class="legend">
+                Auf der Diagonale stehen die Paare (AA bis 22). Rechts oben: beide Karten gleiche Farbe (<b>s</b>), links unten: verschiedene
+                Farben (<b>o</b>). Eine kleine Zahl im Feld sagt, wie oft du die Hand so spielst.
+              </p>
+            {/if}
           </header>
           <div class="chart-wrap">
             <div class:stale={loading}>
@@ -696,6 +703,7 @@
             {#if !error && onGrid && (loading || (!pfNode && !(spot && node && node.id === spot.id) && !!item))}
               <div class="over quiet" role="status"><span class="spin" aria-hidden="true"></span><p>Wird geladen …</p></div>
             {/if}
+          </div>
           </div>
         </section>
 
@@ -837,10 +845,11 @@
   .body {
     display: grid;
     grid-template-columns: minmax(0, 1000px) minmax(360px, 1fr);
+    /* The answer first: the grid is what the page is for; the stack curve explains it below. */
     grid-template-areas:
-      "axis setup"
       "chart setup"
-      "chart side";
+      "chart side"
+      "axis side";
     grid-template-rows: auto auto 1fr;
     gap: 16px;
     align-items: start;
@@ -948,6 +957,24 @@
     grid-area: chart;
     container-type: inline-size;
   }
+  /* Wide: the answer beside the grid, so all 13 rows fit on a Full HD screen. */
+  @container (min-width: 900px) {
+    .chart-in {
+      display: grid;
+      grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+      align-items: start;
+    }
+    .answer {
+      padding: 20px 0 20px 20px;
+    }
+    .answer-top {
+      flex-wrap: wrap;
+    }
+    .share {
+      flex-basis: 100%;
+      margin: 6px 0 0;
+    }
+  }
   .answer {
     padding: 16px 20px 0;
   }
@@ -997,6 +1024,15 @@
     margin: 4px 0 0;
     color: var(--text-2);
     font-size: var(--fs-md);
+  }
+  .answer .legend {
+    margin-top: var(--sp-3);
+    font-size: var(--fs-md);
+    line-height: 1.5;
+    color: var(--text-2);
+  }
+  .answer .legend b {
+    color: var(--text);
   }
   .answer :global(.action-bar) {
     margin-top: 14px;

@@ -349,7 +349,9 @@
               inline
               tone="error"
               title="Kein Ordner gefunden"
-              text="Schalte in PokerStars unter Einstellungen → Spielhistorie das Speichern der Hände ein. Liegt der Ordner woanders, wähl ihn selbst."
+              text="Schalte in PokerStars unter Einstellungen → Spielhistorie das Speichern der Hände ein. Liegt der Ordner woanders, wähl ihn selbst.{status?.total_hands
+                ? ` Bis dahin zeigt das HUD die Werte aus deinen ${int(status.total_hands)} gespeicherten Händen; neue Hände kommen erst mit dem Ordner dazu.`
+                : ''}"
             >
               {#snippet action()}<Button variant="primary" size="sm" onclick={addDir}>Ordner wählen</Button>{/snippet}
             </EmptyState>
@@ -384,7 +386,7 @@
                   {:else}
                     {@render tableLabel(t, i)}
                   {/if}
-                  <span class="tstate" class:wait={!w.has_hands}>{w.has_hands ? "HUD zeigt Werte" : "HUD füllt sich nach der ersten Hand"}</span>
+                  <span class="tstate" class:wait={!w.has_hands}>{w.has_hands ? "HUD zeigt Werte" : dirs.length ? "HUD füllt sich nach der ersten Hand" : "Wartet auf den Hand-Ordner"}</span>
                 </li>
               {:else}
                 <li class="none">Kein Tisch offen – PokerStars zeigt gerade nur Lobby-Fenster.</li>

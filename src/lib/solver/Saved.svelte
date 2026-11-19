@@ -166,8 +166,6 @@
               <dd class="num" title="Abweichung vom perfekten Spiel: {num(s.exploitability_pct, 2)} % des Pots">{cap(precision(s.exploitability_pct))}</dd>
             </div>
           </dl>
-          <p class="line"><span>Größen</span>{s.sizes.replace(/ %/g, "\u00a0%")}</p>
-          <p class="line"><span>Ranges</span>{s.ranges || "eigene"}</p>
           {#if s.shared}
             <p class="cloud" title={markText(s.shared, data.share)}>
               <ShareMark mark={markOf(s.shared)} />{MARK_NAME[markOf(s.shared)]}
@@ -175,10 +173,15 @@
           {:else}
             <p class="cloud">{notShared(s, data.share)}</p>
           {/if}
-          <p class="meta">
-            {when(s.created_at)} · {ORIGIN[s.origin]}, {SOURCE[s.source]} · {size(s.bytes)}
-            {#if !s.complete}· <span title="Tiefer rechnet Ringside bei Bedarf neu.">{street(s.board)} vollständig, danach nur der Einstieg</span>{/if}
-          </p>
+          <details class="more">
+            <summary>{when(s.created_at)} · {ORIGIN[s.origin]} · Details</summary>
+            <p class="line"><span>Größen</span>{s.sizes.replace(/ %/g, "\u00a0%")}</p>
+            <p class="line"><span>Ranges</span>{s.ranges || "eigene"}</p>
+            <p class="meta">
+              {cap(SOURCE[s.source])} · {size(s.bytes)}
+              {#if !s.complete}· <span title="Tiefer rechnet Ringside bei Bedarf neu.">{street(s.board)} vollständig, danach nur der Einstieg</span>{/if}
+            </p>
+          </details>
           <div class="acts">
             <span class="grow">
               <Button variant="primary" full disabled={opening !== null} loading={opening === s.id} onclick={() => open(s.id)}>
@@ -368,10 +371,10 @@
   }
   .street {
     margin-left: auto;
-    font-size: 11.5px;
+    font-size: var(--fs-sm);
     font-weight: 600;
     letter-spacing: 0.02em;
-    color: var(--text-3);
+    color: var(--text-2);
   }
   .card.pinned .street::before {
     content: "angeheftet · ";
@@ -386,8 +389,8 @@
     display: flex;
     gap: 14px;
     margin: 2px 0 0;
-    font-size: 12.5px;
-    color: var(--text-3);
+    font-size: var(--fs-md);
+    color: var(--text-2);
   }
   .seats :global(.term) {
     color: var(--text);
@@ -455,5 +458,18 @@
   }
   .pin.on path {
     fill: currentColor;
+  }
+  .more {
+    display: grid;
+    gap: 6px;
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+  }
+  .more summary {
+    cursor: pointer;
+    width: fit-content;
+  }
+  .more[open] summary {
+    margin-bottom: 4px;
   }
 </style>

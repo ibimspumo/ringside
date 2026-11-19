@@ -12,15 +12,15 @@ export const STAT_META: Record<StatId, { short: string; name: string; plain: str
   hands: { short: "H", ...said("hands"), plain: "Hände" },
   vpip: { short: "VPIP", ...said("vpip"), plain: "spielt" },
   pfr: { short: "PFR", ...said("pfr"), plain: "erhöht" },
-  three_bet: { short: "3B", ...said("three_bet"), plain: "3-bettet" },
+  three_bet: { short: "3B", ...said("three_bet"), plain: "erhöht erneut" },
   fold_to_three_bet: { short: "F3B", ...said("fold_to_three_bet"), plain: "gibt auf Re-Raise auf" },
-  steal: { short: "ST", ...said("steal"), plain: "klaut Blinds" },
+  steal: { short: "ST", ...said("steal"), plain: "greift Blinds an" },
   fold_to_steal: { short: "FST", ...said("fold_to_steal"), plain: "gibt Blinds her" },
   cbet: { short: "CB", ...said("cbet"), plain: "setzt am Flop nach" },
   fold_to_cbet: { short: "FCB", ...said("fold_to_cbet"), plain: "gibt am Flop auf" },
   wtsd: { short: "WTSD", ...said("wtsd"), plain: "geht zum Showdown" },
   wsd: { short: "W$SD", ...said("wsd"), plain: "gewinnt Showdowns" },
-  af: { short: "AF", ...said("af"), plain: "setzt/erhöht", after: "so oft wie er callt", ratio: true },
+  af: { short: "AF", ...said("af"), plain: "setzt/erhöht", after: "so oft wie er mitgeht", ratio: true },
   afq: { short: "AFq", ...said("afq"), plain: "aggressiv nach dem Flop" },
 };
 
