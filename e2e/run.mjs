@@ -564,7 +564,8 @@ step("Hände: GGPoker-Hand mit Marke, Replayer öffnet sie, Filter Client", asyn
   await clickEl(await find(`${rows}:has(.ui-site.ggpoker)`));
   await find(".replayer");
   await find("main .hand-head .ui-site.ggpoker");
-  await waitText(/#TM\d+/);
+  // Narrow windows keep the hand number in the title's tooltip only.
+  await waitFor("the GGPoker hand number", `return /#TM\\d+/.test(document.querySelector("main .hand-head h2")?.title ?? "")`);
   await click("main button[aria-expanded]", "Filter", { exact: false });
   const seg = "main [role='radiogroup'][aria-label='Client'] [role='radio']";
   await click(seg, "GGPoker");
