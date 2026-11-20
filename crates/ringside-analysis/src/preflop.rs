@@ -86,7 +86,7 @@ pub(crate) fn analyze_in(hand: &Hand, hero: &str, family: Family) -> Preflop {
         Ok(t) => t,
         Err(reason) => return fail(&reason),
     };
-    if let Some(own) = pushfold::spot(hand) {
+    if let Some(own) = pushfold::spot(hand).filter(|own| !pushfold::caller_behind(hand, own)) {
         let (first, target) = pushfold::evaluate(hand, &own);
         let decisions = indices
             .iter()
@@ -185,27 +185,30 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         return unrated_all(hand, indices, "Diese Modell-Konfiguration ist nicht vorgerechnet.");
     };
 
-    let mut config = vec![format!("Preflop-Modell (kein Gleichgewicht des echten Spiels): {players} Spieler, alle mit {}, {}", bb(stack), ante_name(t.ante))];
-    match players - n {
-        0 => {}
-        1 => config.push(format!("am Tisch {n} Spieler, der erste Platz des Modells gilt als gefoldet")),
-        k => config.push(format!("am Tisch {n} Spieler, die ersten {k} Plätze des Modells gelten als gefoldet")),
-    }
-    if (stack - effective).abs() >= 0.5 {
-        config.push(format!("nächste vorgerechnete Tiefe: {} statt {}", bb(stack), bb(effective)));
-    }
-    let (table_ante, real_ante) = match t.ante {
-        Ante::Classic => (CLASSIC_ANTE_BB, t.ante_bb),
-        Ante::BigBlind => (BB_ANTE_BB, t.bb_ante_bb),
-        Ante::None => (0.0, 0.0),
+    let configured = |stack: f64, effective: f64| {
+        let mut config = vec![format!("Preflop-Modell (kein Gleichgewicht des echten Spiels): {players} Spieler, alle mit {}, {}", bb(stack), ante_name(t.ante))];
+        match players - n {
+            0 => {}
+            1 => config.push(format!("am Tisch {n} Spieler, der erste Platz des Modells gilt als gefoldet")),
+            k => config.push(format!("am Tisch {n} Spieler, die ersten {k} Plätze des Modells gelten als gefoldet")),
+        }
+        if (stack - effective).abs() >= 0.5 {
+            config.push(format!("nächste vorgerechnete Tiefe: {} statt {}", bb(stack), bb(effective)));
+        }
+        let (table_ante, real_ante) = match t.ante {
+            Ante::Classic => (CLASSIC_ANTE_BB, t.ante_bb),
+            Ante::BigBlind => (BB_ANTE_BB, t.bb_ante_bb),
+            Ante::None => (0.0, 0.0),
+        };
+        if (real_ante - table_ante).abs() > 0.1 * table_ante.max(0.01) {
+            config.push(format!("Ante gerechnet mit {} statt {}", bb(table_ante), bb(real_ante)));
+        }
+        if (t.small_blind_bb - 0.5).abs() > 0.01 {
+            config.push(format!("Small Blind gerechnet mit 0,5 BB statt {}", bb(t.small_blind_bb)));
+        }
+        config.join("; ")
     };
-    if (real_ante - table_ante).abs() > 0.1 * table_ante.max(0.01) {
-        config.push(format!("Ante gerechnet mit {} statt {}", bb(table_ante), bb(real_ante)));
-    }
-    if (t.small_blind_bb - 0.5).abs() > 0.01 {
-        config.push(format!("Small Blind gerechnet mit 0,5 BB statt {}", bb(t.small_blind_bb)));
-    }
-    let config = config.join("; ");
+    let config = configured(stack, effective);
 
     let positions = position_labels(hand);
     let position = |name: &str| positions.iter().find(|(p, _)| p == name).map_or("?", |(_, l)| *l);
@@ -287,7 +290,25 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
             {
                 decisions.push(d);
                 targets.extend(target);
+            } else if spot == SpotType::CallShove && short_shove(t, players, &line, depth_at(hand, t, index)) {
+                let reason = "Gegen ein kurzes All-in mit weiteren Spielern im Pot rechnet das Preflop-Modell mit zu tiefen Stacks.";
+                decisions.push(unrated(hand, index, spot, reason));
+            } else if let Some(here) = Some(depth_at(hand, t, index))
+                .filter(|&here| nearest(&STACKS, here) != stack && at_depth(hand, t, family, players, nearest(&STACKS, here), index, seat, class).is_none())
+            {
+                let reason = format!("Bei der Tiefe im Spiel ({}) kommt diese Linie im Preflop-Modell nicht vor.", bb(here));
+                decisions.push(unrated(hand, index, spot, reason));
             } else {
+                // The depth in play: the hero against the deepest opponent still in the hand.
+                let here = depth_at(hand, t, index);
+                let deeper = nearest(&STACKS, here);
+                let alt = (deeper != stack).then(|| at_depth(hand, t, family, players, deeper, index, seat, class)).flatten();
+                let effective = here;
+                let (own, m, stack, line, config) = match &alt {
+                    Some((node, ai)) => (own_moves(node, players), node.actions[*ai], deeper, node.line.clone(), configured(deeper, here)),
+                    None => (own, m, stack, line.clone(), configured(stack, here)),
+                };
+                let line = &line;
                 let strategy = choices(&own, class, Some(m));
                 let mut note = config.clone();
                 for s in size_notes.iter().chain(&size_note) {
@@ -301,7 +322,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
                     .contains(&players)
                     .then(|| cached(Family::Plain, t.ante, players, stack))
                     .flatten()
-                    .and_then(|plain| plain.node(seat, &line))
+                    .and_then(|plain| plain.node(seat, line))
                 {
                     targets.push(ChartTarget {
                         action_index: index,
@@ -429,6 +450,39 @@ fn replay(hand: &Hand, t: &Table, sol: &Solution, players: usize, index: usize) 
         }
     }
     Some((weights, line))
+}
+
+/// The stack in play at the hero's action `index`: the hero's against the deepest
+/// opponent who has not folded before it; a player sitting out folds anyway.
+fn depth_at(hand: &Hand, t: &Table, index: usize) -> f64 {
+    let away = |name: &str| hand.seats.iter().any(|s| s.name == name && s.sitting_out);
+    let folded = |name: &str| away(name) || hand.actions[..index].iter().any(|a| a.player == name && a.kind == ActionKind::Fold);
+    let deepest = (0..t.players()).filter(|&i| i != t.hero && !folded(&t.order[i].name)).map(|i| t.stack_bb(i)).fold(0.0, f64::max);
+    t.stack_bb(t.hero).min(deepest)
+}
+
+/// The hero's node at action `index` in the model at `stack`, and the hero's move there:
+/// the line replayed at that depth. `None` when the line leaves that model or the hand
+/// never gets there.
+#[allow(clippy::too_many_arguments)]
+fn at_depth(hand: &Hand, t: &Table, family: Family, players: usize, stack: f64, index: usize, seat: usize, class: usize) -> Option<(Node, usize)> {
+    let sol = cached(family, t.ante, players, stack)?;
+    let (weights, line) = replay(hand, t, &sol, players, index)?;
+    let node = sol.nodes[sol.node(seat, &line)?].clone();
+    let real = t.seat_of(&hand.actions[index].player)?;
+    let (ai, _) = map_action(&hand.actions[index], &node.actions, t.big_blind, t.stack_bb(real))?;
+    let reach: f64 = own_moves(&node, players).freq.iter().map(|f| f[class]).sum();
+    (weights[seat][class] > 0.0 && reach > 0.0 && node.actions[ai].kind != Kind::Limp).then_some((node, ai))
+}
+
+/// The last all-in of `line` is far shorter than the stack in play `depth`.
+fn short_shove(t: &Table, players: usize, line: &[Step], depth: f64) -> bool {
+    let n = t.players();
+    line.iter()
+        .rev()
+        .find(|s| s.action.kind == Kind::AllIn)
+        .and_then(|s| s.seat.checked_sub(players - n))
+        .is_some_and(|real| t.stack_bb(real) < SHORT_SHARE * depth)
 }
 
 /// Below this share of the model's depth an all-in is rated at its own depth.
