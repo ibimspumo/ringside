@@ -59,6 +59,7 @@ pub fn spawn(app: tauri::AppHandle) {
                 if state.client_running.swap(running, Ordering::Relaxed) != running || renamed {
                     let _ = app.emit("poker-client", running);
                 }
+                state.client_scanned.store(true, Ordering::Relaxed);
             }
             std::thread::sleep(std::time::Duration::from_secs(2));
         }
@@ -237,6 +238,7 @@ mod win {
                     if state.client_running.swap(running, Ordering::Relaxed) != running || renamed {
                         let _ = app.emit("poker-client", running);
                     }
+                    state.client_scanned.store(true, Ordering::Relaxed);
                 }
                 tick = tick.wrapping_add(1);
                 let tables: Vec<Table> = table_hwnds.iter().filter_map(|&h| describe(hwnd(h))).collect();

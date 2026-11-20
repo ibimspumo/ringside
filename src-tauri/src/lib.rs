@@ -55,6 +55,8 @@ pub struct AppState {
     pub client_running: AtomicBool,
     /// Which one, for the lock notice.
     pub running_client: Mutex<Option<ringside_core::model::Site>>,
+    /// The first scan for poker clients has run; until then `client_running` is assumed.
+    pub client_scanned: AtomicBool,
     pub notes: Mutex<NotesState>,
 }
 
@@ -731,6 +733,7 @@ pub fn run() {
                 // Until the first scan says otherwise, so nothing calculates in the moment before it.
                 client_running: AtomicBool::new(true),
                 running_client: Mutex::new(None),
+                client_scanned: AtomicBool::new(false),
                 notes: Mutex::new(NotesState::default()),
             });
             app.manage(coach::CoachState::default());

@@ -29,6 +29,7 @@ fn state_on(path: &Path) -> AppState {
         overlays: Default::default(),
         client_running: Default::default(),
         running_client: Default::default(),
+        client_scanned: Default::default(),
         notes: Default::default(),
     }
 }

@@ -261,8 +261,6 @@ pub struct AnalysisState {
     /// The entry in the task center while the analysis runs.
     job: Mutex<Option<jobs::Job>>,
     auto: Mutex<Auto>,
-    /// Hands the import had read in at the last look, to tell when new ones came.
-    imported: Mutex<usize>,
     /// Without a mark: hands and mistakes rated before the run, so its report counts only its own.
     unmarked_base: Mutex<(i64, i64)>,
 }
@@ -345,8 +343,10 @@ pub fn spawn(app: AppHandle) {
                 let s = state.status.lock().unwrap();
                 (s.state, s.enabled)
             };
-            let client = client_running(&app);
-            let auto = auto_step(&app, client);
+            // Before the first scan the lock holds, but it is no observation of PokerStars.
+            let scanned = app.state::<AppState>().client_scanned.load(Ordering::Relaxed);
+            let client = client_running(&app) || !scanned;
+            let auto = if scanned { auto_step(&app, client) } else { None };
             if client {
                 // The overlays need the database while PokerStars runs, so only the change is sent.
                 if was != "locked" {
@@ -399,16 +399,12 @@ fn store(app: &AppHandle, key: &str, value: &str) {
 fn auto_step(app: &AppHandle, client: bool) -> Option<u64> {
     let on = app.state::<AppState>().settings.lock().unwrap().analysis.auto;
     let analysis = app.state::<AnalysisState>();
-    let came_in = {
-        let now = app.state::<AppState>().import.lock().unwrap().hands_imported;
-        let mut seen = analysis.imported.lock().unwrap();
-        std::mem::replace(&mut *seen, now) < now
-    };
+    let came_in = app.state::<AppState>().import.lock().unwrap().first_new.take();
     let (edges, unmarked) = {
         let mut auto = analysis.auto.lock().unwrap();
         let mut edges = auto.observe(client, on);
-        if came_in {
-            edges.extend(auto.imported(on));
+        if let Some(first) = came_in {
+            edges.extend(auto.imported(on, first));
         }
         (edges, auto.unmarked())
     };

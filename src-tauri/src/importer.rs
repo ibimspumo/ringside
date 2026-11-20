@@ -50,12 +50,21 @@ pub struct ImportStatus {
     pub files_read: usize,
     /// Hands added since the app started.
     pub hands_imported: usize,
+    /// The lowest id of the hands added since the automatic analysis last looked.
+    #[serde(skip)]
+    pub first_new: Option<u64>,
     /// All hands in the database.
     pub total_hands: i64,
     pub malformed: usize,
     pub last_error: Option<String>,
     /// Hands recomputed so far while the database is upgraded after an update.
     pub upgrade: Option<RebuildProgress>,
+}
+
+fn note_new(status: &mut ImportStatus, ids: impl Iterator<Item = u64>) {
+    if let Some(low) = ids.min() {
+        status.first_new = Some(status.first_new.map_or(low, |f| f.min(low)));
+    }
 }
 
 fn refresh_counts(state: &AppState, status: &mut ImportStatus) {
@@ -78,6 +87,7 @@ pub fn import_files(app: &AppHandle, paths: &[PathBuf]) -> Result<ImportReport, 
     let mut status = state.import.lock().unwrap().clone();
     status.files_read += report.files;
     status.hands_imported += report.new_hands;
+    note_new(&mut status, report.hands.iter().map(|h| h.id));
     status.malformed += report.malformed;
     refresh_counts(&state, &mut status);
     *state.import.lock().unwrap() = status.clone();
@@ -187,6 +197,7 @@ pub fn spawn(app: AppHandle) {
                 match result {
                     Ok(r) => {
                         status.hands_imported += r.new_hands.len();
+                        note_new(&mut status, r.new_hands.iter().map(|h| h.id));
                         status.malformed += r.malformed;
                         app.state::<crate::cloud::CloudState>().add_malformed(r.malformed_hands);
                         tables.extend(r.new_hands.iter().map(|h| h.table_key()));
@@ -215,6 +226,7 @@ pub fn spawn(app: AppHandle) {
                 match result {
                     Ok(r) => {
                         status.hands_imported += r.new_hands;
+                        note_new(&mut status, r.hands.iter().map(|h| h.id));
                         status.malformed += r.malformed;
                         tournaments += r.tournaments;
                         app.state::<crate::cloud::CloudState>().add_malformed(r.malformed_hands);
