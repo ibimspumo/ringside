@@ -1013,11 +1013,13 @@
   .navside .stack {
     gap: 2px;
   }
-  .navrail {
+  /* The rail of the side bar: as wide as in the app, the same inner margin. */
+  .navside > .navrail {
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-2);
   }
   .two {
     display: grid;
