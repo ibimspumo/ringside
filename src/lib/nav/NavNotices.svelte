@@ -1,9 +1,14 @@
 <script lang="ts" module>
   import type { ImportStatus } from "../types";
 
-  /** No hand-history folder: the one warning above every page. */
+  /** No PokerStars hand-history folder: the one warning above every page. Someone who only
+   * imports GGPoker hands may have no PokerStars at all. */
   export const historyMissing = (status: ImportStatus | null, settingsOpen: boolean) =>
-    !!status && !status.upgrade && status.dirs.length === 0 && !settingsOpen;
+    !!status &&
+    !status.upgrade &&
+    status.dirs.length === 0 &&
+    !settingsOpen &&
+    (!!status.sites.pokerstars || (!status.sites.ggpoker && status.gg_dirs.length === 0));
 </script>
 
 <script lang="ts">

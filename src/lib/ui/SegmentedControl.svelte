@@ -52,8 +52,11 @@
 </div>
 
 <style>
+  /* In a column narrower than all choices they wrap instead of running out of it. */
   .ui-seg {
     display: inline-flex;
+    flex-wrap: wrap;
+    max-width: 100%;
     padding: 2px;
     gap: 2px;
     border-radius: var(--r-md);
