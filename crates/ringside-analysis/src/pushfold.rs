@@ -7,7 +7,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use ringside_core::model::Hand;
+use ringside_core::model::{ActionKind, Hand, Street};
 use ringside_core::db::{Choice, Decision, Source, SpotType};
 use ringside_engine::multiway::Solution;
 use ringside_engine::pushfold_table::{self, Ante, CLASSIC_ANTE_BB, BB_ANTE_BB};
@@ -40,6 +40,14 @@ pub(crate) fn table(ante: Ante, players: usize, stack: f64) -> Option<Arc<Soluti
 /// The hero's push/fold decision of `hand`, if it has one.
 pub fn spot(hand: &Hand) -> Option<OwnSpot> {
     detect_spots(hand, Some(Kind::PushFoldOpen)).pop().or_else(|| detect_spots(hand, Some(Kind::PushFoldCall)).pop())
+}
+
+/// A caller of the shove kept chips behind: the hero's call is no all-in for the whole
+/// effective stack, as the equilibrium assumes, but a side pot that can still be bet into.
+pub fn caller_behind(hand: &Hand, own: &OwnSpot) -> bool {
+    let Prompt::PushFoldTable { shover: Some(_), .. } = &own.exercise.prompt else { return false };
+    let before = hand.actions[..own.stop_before_action.min(hand.actions.len())].iter().filter(|a| a.street == Street::Preflop);
+    before.skip_while(|a| !(a.all_in && a.kind.is_aggressive())).any(|a| a.kind == ActionKind::Call && !a.all_in)
 }
 
 /// The decision, and the chart spot it was rated against when there is one.
