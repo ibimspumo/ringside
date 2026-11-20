@@ -52,13 +52,16 @@ test("sessions: one list for the start page and the statistics, made of the tour
   const spans = m.session.demoSession(null).sessions;
   const stats = m.demo.demoReports(ALL).sessions;
   const { rows } = m.demo.demoTournaments();
+  // The start page lists the newest few (LISTED_SESSIONS), the statistics all of them.
+  assert.ok(spans.length >= 2 && spans.length <= stats.length);
   assert.deepEqual(
     spans.map((s) => [s.start, s.end, s.hands]),
-    stats.map((s) => [s.start, s.end, s.hands]),
+    stats.slice(0, spans.length).map((s) => [s.start, s.end, s.hands]),
   );
-  for (let i = 0; i < spans.length; i++) {
-    const s = spans[i];
-    if (i > 0) assert.ok(spans[i - 1].start > s.end, `sessions overlap: ${s.start}`);
+  for (let i = 0; i < stats.length; i++) {
+    // The statistics row with its tournaments and cash hands from the calendar.
+    const s = { ...m.world.WORLD_SESSIONS[i], ...stats[i] };
+    if (i > 0) assert.ok(stats[i - 1].start > s.end, `sessions overlap: ${s.start}`);
     assert.ok(s.end <= m.world.NOW, `${s.start} ends after now`);
     const ts = s.tournaments.map((id) => rows.find((r) => r.id === id));
     assert.ok(ts.every(Boolean), `${s.start}: unknown tournament`);

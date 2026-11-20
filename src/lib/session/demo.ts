@@ -278,8 +278,11 @@ export const SESSION_KINDS: KindLoss[] = [
   { key: "river_vs_bet|-|3|6", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 4, flawed: 2, loss_bb: 3.0 },
 ];
 
+/** As `LISTED_SESSIONS` in ringside-core: the start page lists the newest few. */
+const LISTED_SESSIONS = 6;
+
 function spans(): SessionSpan[] {
-  return WORLD_SESSIONS.map((x, i) => ({
+  return WORLD_SESSIONS.slice(0, LISTED_SESSIONS).map((x, i) => ({
     start: x.start,
     end: x.end,
     hands: i === 0 && preview === "few" ? 22 : x.hands,

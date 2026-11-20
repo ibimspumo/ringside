@@ -1359,8 +1359,9 @@ if (!TAURI)
     await s.navigate(url.href);
     await find("[role=banner] nav button", "Start", { timeout: 60_000 });
     await s.exec(HOOK);
-    // Recommendations, model comparisons and the grade labels (ui/poker.ts GRADE).
-    const ADVICE = /Besser:|Fehler|Was du tun kannst|Modell|Beste Wahl|Auch richtig|Ungenau|\bGrob\b/;
+    // Recommendations, model comparisons and the grade labels (ui/poker.ts GRADE). „Pech, kein
+    // Fehler“ explains bad luck and rates nothing.
+    const ADVICE = /Besser:|(?<!kein )Fehler|Was du tun kannst|Modell|Beste Wahl|Auch richtig|Ungenau|\bGrob\b/;
     // Settings name the coach's language model, which rates nothing.
     const ALLOWED = { Einstellungen: /Modell/g };
     const pages = await pageLabels();
