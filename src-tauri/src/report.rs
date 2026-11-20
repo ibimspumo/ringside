@@ -112,10 +112,10 @@ mod tests {
             best: Some("Fold".into()),
             strategy: vec![
                 Choice { label: "Fold".into(), freq: 1.0, ev_bb: Some(0.0), played: false, kind: "fold".into() },
-                Choice { label: "Call".into(), freq: 0.0, ev_bb: Some(-3.0), played: true, kind: "call".into() },
+                Choice { label: "Call".into(), freq: 0.0, ev_bb: Some(-2.0), played: true, kind: "call".into() },
             ],
             played_freq: Some(0.0),
-            ev_loss_bb: Some(3.0),
+            ev_loss_bb: Some(2.0),
             rating: Some(Rating::Blunder),
             source: Some(Source::Equilibrium),
             why: "Fold wäre besser gewesen".into(),
