@@ -50,9 +50,10 @@ static GG_HAND_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^Poker Hand #
 static GG_VARIANT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"(?:(?:5 Card |6 Card )?Omaha(?: Hi/Lo)?|Hold'em) (?:No Limit|Pot Limit|Limit)|PLO-[56]|PLO").unwrap()
 });
-/// Cash stakes may name a straddle as third blind: "($200/$400/$800)".
+/// Cash stakes may name a straddle as third blind: "($200/$400/$800)"; tournament levels may
+/// name the ante: "Level6(150/300(35))".
 static GG_STAKES: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"\(([^\d()/]*)([\d.,]+)/[^\d()/]*([\d.,]+)(?:/[^\d()/]*[\d.,]+)?\)").unwrap()
+    Regex::new(r"\(([^\d()/]*)([\d.,]+)/[^\d()/]*([\d.,]+)(?:/[^\d()/]*[\d.,]+)?(?:\([\d.,]+\))?\)").unwrap()
 });
 static GG_CASHOUT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(Receives Cashout|Pays Cashout Risk|pay premium of all-in insurance) \(([^)]+)\)").unwrap()

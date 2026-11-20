@@ -60,6 +60,16 @@ fn tournament_header_from_the_right() {
     assert_eq!(earlier.net("Hero"), 116500);
 }
 
+/// The GGPoker client's own export names the ante in the level: "Level5(150/300(40))".
+#[test]
+fn level_with_ante() {
+    let text = MTT.replacen("Level5(150/300)", "Level5(150/300(40))", 1);
+    let h = hand(&text, "TM5100200301");
+    assert_eq!((h.small_blind, h.big_blind), (15000, 30000));
+    let text = MTT.replacen("Level5(150/300)", "Level18(5,000/10,000(1,250))", 1);
+    assert_eq!(hand(&text, "TM5100200301").big_blind, 1_000_000);
+}
+
 #[test]
 fn ids_never_meet_pokerstars_ids() {
     let gg = hand(MTT, "TM5100200301");
