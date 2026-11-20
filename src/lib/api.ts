@@ -3,6 +3,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import * as analysisDemo from "./analysis/demo";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision } from "./analysis/types";
 import * as demo from "./demo";
+import { GG_HANDS, TOTAL_HANDS } from "./demo-world";
 import * as learnDemo from "./learn/demo";
 import { demoNextSteps, demoWithin } from "./next/demo";
 import type { NextStep } from "./next/types";
@@ -67,7 +68,7 @@ import type {
 /** False when the UI runs in a normal browser (design work, screenshots). */
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
-export function call<T>(cmd: string, args: Record<string, unknown>, fallback: () => T): Promise<T> {
+export function call<T>(cmd: string, args: Record<string, unknown>, fallback: () => T | Promise<T>): Promise<T> {
   // A fallback that throws rejects, as the command would.
   return inTauri ? invoke<T>(cmd, args) : new Promise<T>((resolve) => resolve(fallback()));
 }
@@ -146,12 +147,12 @@ export const api = {
         : ["C:\\Users\\du\\AppData\\Local\\PokerStars.EU\\HandHistory"],
       files_read: 12,
       hands_imported: 12,
-      total_hands: previewData === "empty" ? 0 : 6431,
+      total_hands: previewData === "empty" ? 0 : TOTAL_HANDS,
       malformed: 0,
       last_error: null,
       upgrade: null,
       gg_dirs: demoStore.gg_dirs,
-      sites: previewData === "empty" ? {} : { pokerstars: 6383, ggpoker: 48 },
+      sites: previewData === "empty" ? {} : { pokerstars: TOTAL_HANDS - GG_HANDS, ggpoker: GG_HANDS },
     })),
   /** Hand histories, summaries or ZIP archives picked or dropped by the user. */
   importHandFiles: (paths: string[]) =>
@@ -294,7 +295,7 @@ export const api = {
     inTauri ? invoke<DrillResult>("learn_key_spot_check", { id, choice }) : import("./learn/spots").then((m) => advice(() => m.demoKeySpotCheck(id, choice))()),
   pushfoldGrid: () => call<PushFoldGrid>("pushfold_grid", {}, chartsDemo.demoGrid),
   pushfoldChart: (ante: PushFoldAnte, players: number, stackBb: number) =>
-    call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, () => chartsDemo.demoChart(stackBb, players)),
+    call<PushFoldChart>("pushfold_chart", { ante, players, stackBb }, () => chartsDemo.demoChart(stackBb, players, ante)),
   // The preview sample is large, so the browser loads it only when asked.
   preflopGrid: () =>
     inTauri ? invoke<PreflopGrid>("preflop_grid") : import("./charts/preflop-demo").then((d) => d.demoGrid()),

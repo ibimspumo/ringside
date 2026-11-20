@@ -3,12 +3,13 @@ import { demoChange } from "../skill/demo";
 import type { HandQuery, HandSummary } from "../types";
 import { DEMO_DECISIONS } from "./demo-hands";
 import { RATINGS } from "./labels";
+import { TOTAL_HANDS, handTime } from "../demo-world";
 import type { AnalysisStatus, AnalysisSummary, AutoDone, Decision, DecisionBrief, JobProgress } from "./types";
 
 const fresh = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("analysis") === "0";
 const pokerStars = typeof window !== "undefined" && ["1", "gg"].includes(new URLSearchParams(window.location.search).get("locked") ?? "");
 let enabled = !fresh;
-let analyzed = fresh ? 0 : 6431;
+let analyzed = fresh ? 0 : TOTAL_HANDS;
 const done = new Set<number>();
 let solvingHand: number | null = null;
 const listeners = new Set<(s: AnalysisStatus) => void>();
@@ -93,9 +94,9 @@ function progress(s: Omit<AnalysisStatus, "progress">): JobProgress {
 
 export function demoStatus(): AnalysisStatus {
   const s: Omit<AnalysisStatus, "progress"> = {
-    counts: { hands: 6431, analyzed, decisions: analyzed * 2, rated: Math.round(analyzed * 1.4), pending: enabled ? 412 : 0, queued: enabled ? 211 : 0 },
+    counts: { hands: TOTAL_HANDS, analyzed, decisions: analyzed * 2, rated: Math.round(analyzed * 1.4), pending: enabled ? 412 : 0, queued: enabled ? 211 : 0 },
     enabled,
-    state: pokerStars ? "locked" : enabled ? (analyzed < 6431 ? "preflop" : "postflop") : "idle",
+    state: pokerStars ? "locked" : enabled ? (analyzed < TOTAL_HANDS ? "preflop" : "postflop") : "idle",
     solving:
       solvingHand !== null
         ? { hand_id: solvingHand, iteration: 120, max_iterations: 300, exploitability_pct: 1.6, elapsed_ms: 21000 }
@@ -123,9 +124,9 @@ export function demoRun(on: boolean) {
   if (on) cancelled = false;
   if (on && analyzed === 0) {
     const tick = setInterval(() => {
-      analyzed = Math.min(6431, analyzed + 900);
+      analyzed = Math.min(TOTAL_HANDS, analyzed + 900);
       emit();
-      if (analyzed >= 6431) clearInterval(tick);
+      if (analyzed >= TOTAL_HANDS) clearInterval(tick);
     }, 400);
   }
   emit();
@@ -211,11 +212,11 @@ export function withWorst(list: HandSummary[], q: HandQuery): HandSummary[] {
 export function demoSummary(): AnalysisSummary {
   if (typeof window !== "undefined" && new URLSearchParams(window.location.search).get("data") === "empty")
     return { hands: 0, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: RATINGS.map(() => 0), by_source: [], by_spot: [], costliest: [] };
-  if (!analyzed) return { hands: 6431, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: RATINGS.map(() => 0), by_source: [], by_spot: [], costliest: [] };
+  if (!analyzed) return { hands: TOTAL_HANDS, analyzed: 0, decisions: 0, rated: 0, loss_bb: 0, ratings: RATINGS.map(() => 0), by_source: [], by_spot: [], costliest: [] };
   const full = fullSummary();
-  if (analyzed >= 6431) return full;
+  if (analyzed >= TOTAL_HANDS) return full;
   // While the demo run is under way, the snapshot grows with it.
-  const f = analyzed / 6431;
+  const f = analyzed / TOTAL_HANDS;
   const part = (n: number) => Math.round(n * f);
   return {
     ...full,
@@ -229,7 +230,7 @@ export function demoSummary(): AnalysisSummary {
 
 function fullSummary(): AnalysisSummary {
   return {
-    hands: 6431,
+    hands: TOTAL_HANDS,
     analyzed,
     decisions: 9120,
     rated: 9120,
@@ -250,9 +251,10 @@ function fullSummary(): AnalysisSummary {
       { spot: "river", decisions: 230, rated: 98, flawed: 17, loss_bb: 21.5 },
     ],
     costliest: [
-      { hand_id: 250000000002, played_at: "2026/11/16 22:59:10", hero_cards: "9s 9d", position: "SB", ...WORST[0]! },
-      { hand_id: 249999999996, played_at: "2026/11/16 21:12:10", hero_cards: "As 5s", position: "HJ", ...WORST[6]! },
-      { hand_id: 250000000001, played_at: "2026/11/16 22:20:10", hero_cards: "Ah 7c", position: "BTN", ...WORST[1]! },
+      // Cards and seats as the hand list shows these ids (`demoHands`).
+      { hand_id: 250000000002, played_at: handTime(250000000002), hero_cards: "9s 9d", position: "SB", ...WORST[0]! },
+      { hand_id: 249999999996, played_at: handTime(249999999996), hero_cards: "8h 6h", position: "LJ", ...WORST[6]! },
+      { hand_id: 250000000001, played_at: handTime(250000000001), hero_cards: "Ah 7c", position: "BTN", ...WORST[1]! },
     ],
   };
 }
