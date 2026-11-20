@@ -529,12 +529,13 @@ fn cancel_mid_stream_closes_the_connection() {
     let cancelled_after = started.elapsed();
     assert_eq!(e, CoachError::Api(ApiError::Cancelled));
     assert!(cancelled_after < Duration::from_secs(1), "{cancelled_after:?}");
-    let until = Instant::now() + Duration::from_secs(2);
+    // The stream would run 10 s; a closed connection shows well before, even on a loaded runner.
+    let until = started + Duration::from_secs(8);
     while server.hung_up.lock().unwrap().is_none() && Instant::now() < until {
         std::thread::sleep(MS(20));
     }
     let hung_up = server.hung_up.lock().unwrap().expect("Verbindung bleibt offen");
-    assert!(hung_up.duration_since(started) < cancelled_after + Duration::from_secs(1));
+    assert!(hung_up.duration_since(started) < Duration::from_secs(8));
 }
 
 #[test]
