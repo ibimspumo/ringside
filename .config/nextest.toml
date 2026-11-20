@@ -1,0 +1,52 @@
+# CI's quick run leaves out the solver tests that take ten seconds or more on its runner
+# (convergence, push/fold against the solver, whole hands played out, the GPU solver); what
+# guards privacy and the lock stays in, however slow. The full suite, `cargo test --workspace`,
+# runs where those can break: the CI job for the solver crates and every release.
+
+[profile.quick]
+default-filter = """
+not (
+  binary_id(ringside-engine::multiway)
+  | binary_id(ringside-gpu::gpu)
+  | (binary_id(ringside-analysis) & test(=preflop::tests::the_models_moves_keep_limps_below_raises))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::node_count_matches_the_engine))
+  | (binary_id(ringside-learn::solver) & test(=tables_off_the_bundled_grid_go_through_the_installed_solver))
+  | (binary_id(postflop-solver) & test(=hand::tests::test_all_hands))
+  | (binary_id(ringside-solver::library) & test(=stored_spot_round_trips_and_views))
+  | (binary_id(ringside-analysis) & test(=drill::tests::variations_stay_in_their_kind_of_spot))
+  | (binary_id(ringside-analysis) & test(=spots::tests::known_push_fold_answers))
+  | (binary_id(ringside-analysis::analysis) & test(=postflop_spot_is_queued_and_rated))
+  | (binary_id(ringside-analysis::estimate) & test(=a_deep_shove_needs_a_premium_hand))
+  | (binary_id(ringside-analysis::estimate) & test(=a_mix_of_the_solver_is_never_a_mistake))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::compact_json_round_trips_and_fits_a_request))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::engine_solutions_pass_with_the_reference_nashconv))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::malformed_solutions_and_inputs_fail))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::manipulated_solutions_fail))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::stored_rows_are_checked_against_their_key))
+  | (binary_id(ringside-coach) & test(=select::tests::short_stack_open_fold_is_a_push_fold_spot))
+  | (binary_id(ringside-coach) & test(=tools::tests::push_fold_matches_the_solver_at_a_full_table))
+  | (binary_id(ringside-engine) & test(=preflop_table::tests::entry_round_trip_only_loses_quantisation))
+  | (binary_id(ringside-engine) & test(=pushfold_table::tests::entry_round_trip_only_loses_quantisation))
+  | (binary_id(ringside-engine) & test(=pushfold_table::tests::small_tables_match_fresh_solves))
+  | (binary_id(ringside-engine::preflop) & test(=ante_widens_opening_ranges))
+  | (binary_id(ringside-learn::demo) & test(=demo_drills_are_current))
+  | (binary_id(ringside-learn::exercises) & test(=every_kind_is_deterministic_and_its_truth_scores_full))
+  | (binary_id(ringside-learn::exercises) & test(=table_push_fold_follows_the_level_and_the_solver))
+  | (binary_id(ringside-learn::own) & test(=call_against_a_shove))
+  | (binary_id(ringside-learn::own) & test(=overcall_after_a_caller))
+  | (binary_id(ringside-learn::own) & test(=small_blind_shove_after_folds))
+  | (binary_id(ringside-learn::own) & test(=utg_shove))
+  | (binary_id(ringside-learn::words) & test(=every_generated_sentence_reads_as_german))
+  | (binary_id(ringside-play::invariants) & test(=a_flop_without_a_prepared_spot_is_solved_live))
+  | (binary_id(ringside-play::invariants) & test(=a_stored_spot_is_solved_again_where_it_ends))
+  | (binary_id(ringside-play::invariants) & test(=every_hand_ends_in_a_fold_or_a_showdown))
+  | (binary_id(ringside-play::invariants) & test(=every_table_size_plays_to_the_end))
+  | (binary_id(ringside-play::invariants) & test(=heads_up_the_button_acts_first_before_and_last_after_the_flop))
+  | (binary_id(ringside-play::invariants) & test(=leaving_the_prepared_line_goes_on))
+  | (binary_id(ringside-play::live) & test(=a_live_spot_is_solved_held_and_freed))
+  | (binary_id(ringside-play::live) & test(=a_spot_solved_ahead_serves_the_hand_and_a_new_move_drops_it))
+  | (binary_id(ringside-solver::library) & test(=unconverged_flop_strategies_fail_the_check))
+  | (binary_id(ringside-solver::saved) & test(=a_renamed_snapshot_keeps_every_strategy))
+  | (binary_id(ringside-store::practice_seed) & test(=a_practice_seed_is_solved_and_found_by_the_stock))
+)
+"""
