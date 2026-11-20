@@ -14,7 +14,11 @@
 //! - **stake** `s_i ∈ [0, 1]`: how much of the tournament was in play, from the pot at the
 //!   decision as a share of the own stack: 0 up to [`TRIVIAL_POT`] (a fold of a weak hand
 //!   deep-stacked decides nothing), rising to 1 at [`FULL_POT`] (an all-in, a big pot).
-//!   The stake follows from the spot alone, never from what the hero did.
+//!   A spot whose recommendation before the flop is a clear fold (pure, and every other
+//!   action clearly worse) has stake 0 at any stack depth: short-stacked, the blinds alone
+//!   are a big share of the stack, yet folding rags is no decision. The stake follows from
+//!   the spot alone, never from what the hero did, so playing such a hand still costs in
+//!   full.
 //! - **trust** `w_i`: equilibrium, model and solver count fully; the estimate with
 //!   [`ESTIMATE_TRUST`] × its measured reliability (`estimate_calibration.json`); forced
 //!   moves, unrated and pending decisions not at all.
@@ -44,8 +48,9 @@
 //!    uncertainty against what it was before it, so it falls with experience, and it grows
 //!    again over a long pause, up to [`START_SIGMA`].
 //! 5. The order of the decisions within a tournament does not matter.
-//! 6. Any number of trivial correct decisions (stake 0, cost 0) changes nothing, so a mass
-//!    of easy folds never lifts the number above what the real decisions give.
+//! 6. Any number of trivial correct decisions (small pot or clear fold, cost 0) changes
+//!    nothing, so a mass of easy folds never lifts the number above what the real
+//!    decisions give.
 //! 7. Unrated, pending and forced decisions change nothing.
 //! 8. The rating stays within [`FLOOR`]–[`CEILING`].
 //!
@@ -57,17 +62,18 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::db::{Rating, Source, SpotType, Status};
+use crate::db::{Choice, Rating, Source, SpotType, Status};
 use crate::next::day_number;
 
 /// Where a newcomer starts: a casual player who loses about three times as much per real
 /// decision as the reference.
 pub const START: f64 = 1200.0;
 pub const START_SIGMA: f64 = 300.0;
-/// The rating of [`REF_RATE`]: Pluribus and the professionals of its 10 000 hands measured
-/// by Ringside's engine.
+/// The rating of [`REF_RATE`]: Pluribus over its 10 000 hands, measured by Ringside's
+/// engine with the `spielwertung` tool. The engine's ratings move the scale, so it is
+/// measured again when they change.
 pub const REF_RATING: f64 = 2000.0;
-pub const REF_RATE: f64 = 0.0038;
+pub const REF_RATE: f64 = 0.0035;
 pub const POINTS_PER_HALVING: f64 = 500.0;
 pub const FLOOR: f64 = 100.0;
 pub const CEILING: f64 = 2400.0;
@@ -78,6 +84,10 @@ pub const DRIFT_PER_DAY: f64 = 6.0;
 pub const MAX_STEP: f64 = 150.0;
 /// Real decisions a tournament needs to count.
 pub const MIN_REAL: f64 = 1.0;
+/// A recommended fold before the flop is clear from this frequency on, when every other
+/// action loses at least this share of the pot against it.
+pub const CLEAR_FOLD: f64 = 0.99;
+pub const CLEAR_GAP: f64 = 0.1;
 /// Pot shares of the own stack where the stake starts and where it is full.
 pub const TRIVIAL_POT: f64 = 0.02;
 pub const FULL_POT: f64 = 0.15;
@@ -124,6 +134,8 @@ pub struct Move {
     pub hero_cards: String,
     pub played: String,
     pub best: Option<String>,
+    /// Before the flop, and the recommendation is a [`clear_fold`].
+    pub clear_fold: bool,
 }
 
 /// Rated decisions by grade.
@@ -248,6 +260,16 @@ pub fn tier(rating: f64) -> &'static str {
     TIERS.iter().rev().find(|(from, _)| rating >= *from).map_or(TIERS[0].1, |t| t.1)
 }
 
+/// Whether a recommendation folds with at least [`CLEAR_FOLD`] and every other action is
+/// worse by at least [`CLEAR_GAP`] of the pot: a close fold is a real decision.
+pub fn clear_fold(strategy: &[Choice], pot_bb: Option<f64>) -> bool {
+    let (Some(fold), Some(pot)) = (strategy.iter().find(|c| c.kind == "fold" && c.freq >= CLEAR_FOLD), pot_bb) else {
+        return false;
+    };
+    let Some(fold_ev) = fold.ev_bb else { return false };
+    strategy.iter().filter(|c| c.kind != "fold").all(|c| c.ev_bb.is_some_and(|ev| fold_ev - ev >= CLEAR_GAP * pot))
+}
+
 /// What a rated decision counts: trust, cost and stake (module docs).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Weight {
@@ -269,7 +291,8 @@ pub fn weigh(m: &Move) -> Option<Weight> {
     let loss = m.ev_loss_bb.filter(|l| l.is_finite())?.max(0.0);
     let pot = m.pot_bb.filter(|p| p.is_finite())?.max(0.0);
     m.rating?;
-    Some(Weight { trust, cost: (loss / chips).min(1.0), stake: ((pot / chips - TRIVIAL_POT) / (FULL_POT - TRIVIAL_POT)).clamp(0.0, 1.0) })
+    let stake = if m.clear_fold { 0.0 } else { ((pot / chips - TRIVIAL_POT) / (FULL_POT - TRIVIAL_POT)).clamp(0.0, 1.0) };
+    Some(Weight { trust, cost: (loss / chips).min(1.0), stake })
 }
 
 /// The performance of a burn `burn` over `real` real decisions.
@@ -681,6 +704,7 @@ mod tests {
             hero_cards: "AhKd".into(),
             played: "Call".into(),
             best: Some("Fold".into()),
+            clear_fold: false,
         }
     }
 
@@ -852,15 +876,34 @@ mod tests {
     }
 
     #[test]
+    fn only_a_fold_far_ahead_of_every_other_action_is_clear() {
+        let choice = |kind: &str, freq: f64, ev: Option<f64>| Choice { label: kind.into(), freq, ev_bb: ev, played: false, kind: kind.into() };
+        let fold = choice("fold", 1.0, Some(-0.1));
+        assert!(clear_fold(&[fold.clone(), choice("all_in", 0.0, Some(-0.9))], Some(2.5)));
+        assert!(!clear_fold(&[fold.clone(), choice("all_in", 0.0, Some(-0.2))], Some(2.5)), "close");
+        assert!(!clear_fold(&[fold.clone(), choice("call", 0.0, None)], Some(2.5)), "unknown EV");
+        assert!(!clear_fold(&[choice("fold", 0.9, Some(-0.1)), choice("call", 0.1, Some(-0.9))], Some(2.5)), "mixed");
+        assert!(!clear_fold(&[fold, choice("call", 0.0, Some(-0.9))], None));
+    }
+
+    #[test]
     fn trivial_correct_decisions_change_nothing() {
         cases(100, |rng| {
             let a = history(rng, 6);
             let mut b = a.clone();
             for k in 0..(rng.next() % 2000) {
                 let t = a[(rng.next() % a.len() as u64) as usize].clone();
-                let chips = 60.0 + rng.f() * 100.0;
-                // Pot below the trivial share of the stack, nothing lost.
-                let mut m = mv(100_000 + k, t.tournament_id.unwrap(), 0, rng.pick(&SOURCES), 0.0, chips * TRIVIAL_POT * rng.f(), chips);
+                let mut m = if k % 2 == 0 {
+                    // Pot below the trivial share of the stack, nothing lost.
+                    let chips = 60.0 + rng.f() * 100.0;
+                    mv(100_000 + k, t.tournament_id.unwrap(), 0, rng.pick(&SOURCES), 0.0, chips * TRIVIAL_POT * rng.f(), chips)
+                } else {
+                    // Short-stacked, the blinds are a big share, but the fold is clear.
+                    let chips = 8.0 + rng.f() * 20.0;
+                    let mut m = mv(100_000 + k, t.tournament_id.unwrap(), 0, rng.pick(&SOURCES), 0.0, 2.5, chips);
+                    m.clear_fold = true;
+                    m
+                };
                 m.played_at = t.played_at.clone();
                 b.push(m);
             }

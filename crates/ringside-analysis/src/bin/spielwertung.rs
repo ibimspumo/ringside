@@ -13,7 +13,8 @@ use std::path::{Path, PathBuf};
 
 use ringside_analysis::{Status, analyze_hand, estimate_rest};
 use ringside_core::db::{effective_stack_bb, own_stack_bb};
-use ringside_core::skill::{Move, profile, rate_at};
+use ringside_core::model::Street;
+use ringside_core::skill::{Move, clear_fold, profile, rate_at};
 use ringside_core::stats::position_labels;
 use ringside_core::{parse_hand, split_hands};
 
@@ -75,6 +76,7 @@ fn main() {
                     position: position.clone(),
                     hero_net_bb: Some(hand.net(&hero) as f64 / bb),
                     hero_cards: hand.hero_cards.join(""),
+                    clear_fold: d.street == Street::Preflop && clear_fold(&d.strategy, d.pot_bb),
                     played: d.played,
                     best: d.best,
                 });

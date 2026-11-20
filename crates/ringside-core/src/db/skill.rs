@@ -2,9 +2,11 @@
 //! tournament and time. The rating itself is computed in [`crate::skill`], from scratch
 //! each time, so it always matches the stored analysis.
 
+use super::analysis::parse_street;
 use super::{Db, Error};
-use crate::db::{Rating, Source, SpotType, Status};
-use crate::skill::Move;
+use crate::db::{Choice, Rating, Source, SpotType, Status};
+use crate::model::Street;
+use crate::skill::{Move, clear_fold};
 
 impl Db {
     /// Whether the hero played cash hands on a day from `start` to `end`: a cash day is one
@@ -30,7 +32,7 @@ impl Db {
         let mut stmt = self.conn.prepare_cached(
             "SELECT d.hand_id, d.action_index, h.tournament_id, h.played_at, d.spot, d.status, d.rating, d.source,
                     d.reliability, d.ev_loss_bb, d.pot_bb, h.hero_chips_bb, h.hero_stack_bb, h.hero_position,
-                    CAST(h.hero_net AS REAL) / MAX(h.big_blind, 1), h.hero_cards, d.played, d.best
+                    CAST(h.hero_net AS REAL) / MAX(h.big_blind, 1), h.hero_cards, d.played, d.best, d.street, d.strategy
              FROM hero_decisions d JOIN hands h ON h.id = d.hand_id
              WHERE d.status = 'rated' AND h.hero IS NOT NULL
              ORDER BY d.hand_id, d.action_index",
@@ -55,6 +57,8 @@ impl Db {
                 hero_cards: r.get(15)?,
                 played: r.get(16)?,
                 best: r.get(17)?,
+                clear_fold: parse_street(&r.get::<_, String>(18)?) == Street::Preflop
+                    && clear_fold(&serde_json::from_str::<Vec<Choice>>(&r.get::<_, String>(19)?).unwrap_or_default(), r.get(10)?),
             })
         })?;
         for m in rows {
@@ -83,7 +87,10 @@ mod tests {
             status,
             played: "Call".into(),
             best: Some("Fold".into()),
-            strategy: vec![Choice { label: "Fold".into(), freq: 1.0, ev_bb: Some(0.0), played: false, kind: "fold".into() }],
+            strategy: vec![
+                Choice { label: "Fold".into(), freq: 1.0, ev_bb: Some(0.0), played: false, kind: "fold".into() },
+                Choice { label: "Call".into(), freq: 0.0, ev_bb: Some(-1.0), played: true, kind: "call".into() },
+            ],
             played_freq: Some(0.0),
             ev_loss_bb: loss,
             rating: loss.map(|_| Rating::Blunder),
