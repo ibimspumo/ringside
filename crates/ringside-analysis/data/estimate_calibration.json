@@ -1,22 +1,22 @@
 {
   "preflop_tuning": {
-    "shrink": 0.25,
+    "shrink": 0.45,
     "strength": 0.0,
-    "defend": 5.5,
-    "tie_pct": 0.5,
-    "line_margin": 0.15,
-    "line_pct": 10.0,
-    "line_top": 0.9,
-    "behind": 0.5
+    "defend": 3.0,
+    "tie_pct": 0.0,
+    "line_margin": 0.0,
+    "line_pct": 4.0,
+    "line_top": 0.8,
+    "behind": 0.2
   },
   "street_tunings": [
     {
       "shrink": 0.35,
       "strength": 1.0,
       "defend": 2.2,
-      "tie_pct": 0.5,
+      "tie_pct": 0.0,
       "line_margin": -0.05,
-      "line_pct": 1.5,
+      "line_pct": 0.25,
       "line_top": 1.01,
       "behind": 1.0
     },
@@ -24,69 +24,69 @@
       "shrink": 0.25,
       "strength": 1.0,
       "defend": 2.2,
-      "tie_pct": 0.5,
+      "tie_pct": 0.0,
       "line_margin": -0.05,
-      "line_pct": 1.5,
+      "line_pct": 0.25,
       "line_top": 1.01,
       "behind": 1.0
     },
     {
       "shrink": 0.18,
       "strength": 0.0,
-      "defend": 1.3,
-      "tie_pct": 0.5,
-      "line_margin": 0.0,
-      "line_pct": 1.5,
-      "line_top": 0.9,
+      "defend": 1.0,
+      "tie_pct": 0.0,
+      "line_margin": -0.1,
+      "line_pct": 4.0,
+      "line_top": 0.8,
       "behind": 1.0
     }
   ],
   "preflop": {
     "samples": 1019,
-    "same": 0.416,
-    "within_one": 0.806,
-    "balanced": 0.705,
+    "same": 0.561,
+    "within_one": 0.771,
+    "balanced": 0.693,
     "spots": 362,
     "off_best": 638
   },
   "postflop": {
     "samples": 37300,
-    "same": 0.495,
-    "within_one": 0.838,
-    "balanced": 0.734,
+    "same": 0.469,
+    "within_one": 0.836,
+    "balanced": 0.747,
     "spots": 89,
     "off_best": 15722
   },
   "real": {
     "samples": 121,
-    "same": 0.579,
-    "within_one": 0.901,
-    "balanced": 0.582,
+    "same": 0.562,
+    "within_one": 0.893,
+    "balanced": 0.58,
     "spots": 59,
     "off_best": 30
   },
   "postflop_streets": [
     {
       "samples": 16706,
-      "same": 0.502,
-      "within_one": 0.859,
-      "balanced": 0.766,
+      "same": 0.49,
+      "within_one": 0.866,
+      "balanced": 0.778,
       "spots": 89,
       "off_best": 7491
     },
     {
       "samples": 11507,
-      "same": 0.489,
-      "within_one": 0.84,
-      "balanced": 0.736,
+      "same": 0.477,
+      "within_one": 0.844,
+      "balanced": 0.742,
       "spots": 89,
       "off_best": 4648
     },
     {
       "samples": 9087,
-      "same": 0.488,
-      "within_one": 0.799,
-      "balanced": 0.677,
+      "same": 0.422,
+      "within_one": 0.769,
+      "balanced": 0.705,
       "spots": 89,
       "off_best": 3583
     }
@@ -94,7 +94,7 @@
   "real_streets": [
     {
       "samples": 75,
-      "same": 0.627,
+      "same": 0.613,
       "within_one": 0.907,
       "balanced": 0.627,
       "spots": 59,
@@ -110,9 +110,9 @@
     },
     {
       "samples": 17,
-      "same": 0.588,
-      "within_one": 0.882,
-      "balanced": 0.5,
+      "same": 0.529,
+      "within_one": 0.824,
+      "balanced": 0.479,
       "spots": 59,
       "off_best": 5
     }

@@ -686,22 +686,22 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "action_index": 8,
       "best": "Bet 3 BB",
       "engine": "demo",
-      "ev_loss_bb": 0.045,
+      "ev_loss_bb": 0.008,
       "hand_id": 250000000002,
-      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop) wird nicht bewertet. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 77 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (75 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler). Gemessen ist das heads-up; mit mehreren Gegnern ist sie ungeprüft.",
+      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 78 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (75 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler). Gemessen ist das heads-up; mit mehreren Gegnern ist sie ungeprüft.",
       "played": "Check",
       "played_freq": 0.0,
       "pot_bb": 3.0,
       "rating": "good",
       "reason": null,
-      "reliability": 0.766,
+      "reliability": 0.778,
       "solver": null,
       "source": "estimate",
       "spot": "flop",
       "status": "rated",
       "strategy": [
         {
-          "ev_bb": 6.903,
+          "ev_bb": 6.94,
           "freq": 0.0,
           "kind": "check",
           "label": "Check",
@@ -730,7 +730,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "flop",
-      "why": "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 93 % der Fälle. Auf einen Einsatz geben alle Gegner geschätzt so gut wie nie auf. Stack zu Pot 33: Viel Spielraum, die nächsten Straßen entscheiden mit. Setzen bringt geschätzt 0,04 BB mehr als Checken. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
+      "why": "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 93 % der Fälle. Auf einen Einsatz geben alle Gegner geschätzt so gut wie nie auf. Stack zu Pot 33: Viel Spielraum, die nächsten Straßen entscheiden mit. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
     },
     {
       "action_index": 11,
@@ -738,13 +738,13 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "engine": "demo",
       "ev_loss_bb": 0.0,
       "hand_id": 250000000002,
-      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop) wird nicht bewertet. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 77 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (75 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler). Gemessen ist das heads-up; mit mehreren Gegnern ist sie ungeprüft.",
+      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 78 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (75 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler). Gemessen ist das heads-up; mit mehreren Gegnern ist sie ungeprüft.",
       "played": "Raise auf 8 BB",
       "played_freq": 0.5,
       "pot_bb": 7.0,
       "rating": "best",
       "reason": null,
-      "reliability": 0.766,
+      "reliability": 0.778,
       "solver": null,
       "source": "estimate",
       "spot": "flop",
@@ -758,21 +758,21 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
           "played": false
         },
         {
-          "ev_bb": 8.0,
+          "ev_bb": 6.852,
           "freq": 0.0,
           "kind": "call",
           "label": "Call",
           "played": false
         },
         {
-          "ev_bb": 8.105,
+          "ev_bb": 6.869,
           "freq": 0.5,
           "kind": "raise",
           "label": "Raise auf 10,5 BB",
           "played": false
         },
         {
-          "ev_bb": 8.105,
+          "ev_bb": 6.869,
           "freq": 0.5,
           "kind": "raise",
           "label": "Raise auf 8 BB",
@@ -780,7 +780,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "flop",
-      "why": "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 93 % der Fälle. Ein Call braucht nur 22 %, das reicht klar. Auf einen Einsatz geben alle Gegner geschätzt in 4 % der Fälle auf. Erhöhen bringt geschätzt 0,11 BB mehr als Callen. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
+      "why": "Gegen die Hände, die 2 Gegner wahrscheinlich haben, gewinnt deine Hand geschätzt in 93 % der Fälle. Ein Call braucht nur 22 %, das reicht klar. Auf einen Einsatz geben alle Gegner geschätzt in 4 % der Fälle auf. Mit mehreren Gegnern ist die Schätzung unsicherer als heads-up."
     },
     {
       "action_index": 14,
@@ -788,20 +788,20 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "engine": "demo",
       "ev_loss_bb": 0.0,
       "hand_id": 250000000002,
-      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop) wird nicht bewertet. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 74 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (29 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
+      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 74 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (29 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
       "played": "Bet 15 BB",
       "played_freq": 0.333,
       "pot_bb": 21.0,
       "rating": "mix",
       "reason": null,
-      "reliability": 0.736,
+      "reliability": 0.742,
       "solver": null,
       "source": "estimate",
       "spot": "turn",
       "status": "rated",
       "strategy": [
         {
-          "ev_bb": 54.072,
+          "ev_bb": 54.335,
           "freq": 0.0,
           "kind": "check",
           "label": "Check",
@@ -830,7 +830,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "turn",
-      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 98 % der Fälle. Auf einen Einsatz gibt der Gegner geschätzt in 5 % der Fälle auf. Stack zu Pot 4,3: Platz für Einsätze auf ein, zwei Straßen. Setzen bringt geschätzt 0,31 BB mehr als Checken."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 98 % der Fälle. Auf einen Einsatz gibt der Gegner geschätzt in 5 % der Fälle auf. Stack zu Pot 4,3: Platz für Einsätze auf ein, zwei Straßen."
     },
     {
       "action_index": 16,
@@ -838,48 +838,48 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "engine": "demo",
       "ev_loss_bb": 0.0,
       "hand_id": 250000000002,
-      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop) wird nicht bewertet. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 68 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (17 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
+      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 71 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (17 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
       "played": "Bet 30 BB",
       "played_freq": 0.25,
       "pot_bb": 51.0,
       "rating": "best",
       "reason": null,
-      "reliability": 0.677,
+      "reliability": 0.705,
       "solver": null,
       "source": "estimate",
       "spot": "river",
       "status": "rated",
       "strategy": [
         {
-          "ev_bb": 75.032,
+          "ev_bb": 69.711,
           "freq": 0.0,
           "kind": "check",
           "label": "Check",
           "played": false
         },
         {
-          "ev_bb": 77.959,
+          "ev_bb": 71.47,
           "freq": 0.25,
           "kind": "bet",
           "label": "Bet 16,8 BB",
           "played": false
         },
         {
-          "ev_bb": 77.959,
+          "ev_bb": 71.47,
           "freq": 0.25,
           "kind": "bet",
           "label": "Bet 33,7 BB",
           "played": false
         },
         {
-          "ev_bb": 77.959,
+          "ev_bb": 71.47,
           "freq": 0.25,
           "kind": "bet",
           "label": "Bet 51 BB",
           "played": false
         },
         {
-          "ev_bb": 77.959,
+          "ev_bb": 71.47,
           "freq": 0.25,
           "kind": "bet",
           "label": "Bet 30 BB",
@@ -887,21 +887,21 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "river",
-      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 96 % der Fälle. Auf einen Einsatz gibt der Gegner geschätzt in 35 % der Fälle auf. Stack zu Pot 1,5: Ein weiterer Einsatz bringt fast alles hinein. Setzen bringt geschätzt 2,9 BB mehr als Checken."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 96 % der Fälle. Auf einen Einsatz gibt der Gegner geschätzt in 50 % der Fälle auf. Stack zu Pot 1,5: Ein weiterer Einsatz bringt fast alles hinein. Setzen bringt geschätzt 1,8 BB mehr als Checken."
     },
     {
       "action_index": 18,
-      "best": "All-in",
+      "best": "Call",
       "engine": "demo",
-      "ev_loss_bb": 1.313,
+      "ev_loss_bb": 0.0,
       "hand_id": 250000000002,
-      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop) wird nicht bewertet. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 68 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (17 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
+      "note": "Einschätzung (keine Lösung): Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern. Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 71 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (17 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
       "played": "Call 46 BB",
-      "played_freq": 0.0,
+      "played_freq": 1.0,
       "pot_bb": 157.0,
-      "rating": "good",
+      "rating": "best",
       "reason": null,
-      "reliability": 0.677,
+      "reliability": 0.705,
       "solver": null,
       "source": "estimate",
       "spot": "river",
@@ -916,21 +916,14 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         },
         {
           "ev_bb": 21.281,
-          "freq": 0.0,
+          "freq": 1.0,
           "kind": "call",
           "label": "Call",
           "played": true
-        },
-        {
-          "ev_bb": 22.594,
-          "freq": 1.0,
-          "kind": "all_in",
-          "label": "All-in",
-          "played": false
         }
       ],
       "street": "river",
-      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 81 % der Fälle. Ein Call braucht nur 23 %, das reicht klar. All-in bringt geschätzt 1,3 BB mehr als Callen."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 81 % der Fälle. Ein Call braucht nur 23 %, das reicht klar. Callen bringt geschätzt 21,3 BB mehr als Folden."
     }
   ],
   "250000000001": [
@@ -1093,13 +1086,13 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
       "engine": "demo",
       "ev_loss_bb": 0.0,
       "hand_id": 250000000000,
-      "note": "Einschätzung (keine Lösung):  Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 68 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (17 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
+      "note": "Einschätzung (keine Lösung):  Ranges aus der Vorgeschichte (am Flop aus dem Preflop-Modell), Equity gegen alle Gegner zugleich, Fold Equity aus den Pot Odds der Gegner; liegt ein Zug nahe an der Indifferenz, zählt er als Mix. In mindestens 71 % der Prüf-Spots lag sie höchstens eine Stufe neben dem Solver, bei guten Zügen wie bei Fehlern. Zu wenige Fälle, um mitzuzählen: echte Entscheidungen (17 Vergleiche), echte Entscheidungen aller Straßen beim Finden von Fehlern (nur 30 Fehler).",
       "played": "Call 6 BB",
       "played_freq": 1.0,
       "pot_bb": 15.1,
       "rating": "best",
       "reason": null,
-      "reliability": 0.677,
+      "reliability": 0.705,
       "solver": null,
       "source": "estimate",
       "spot": "river",
@@ -1120,7 +1113,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
           "played": true
         },
         {
-          "ev_bb": 1.566,
+          "ev_bb": 1.188,
           "freq": 0.0,
           "kind": "raise",
           "label": "Raise auf 28,6 BB",
@@ -1128,7 +1121,7 @@ export const DEMO_DECISIONS: Record<number, Decision[]> = {
         }
       ],
       "street": "river",
-      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 76 % der Fälle. Ein Call braucht nur 28 %, das reicht klar. Callen bringt geschätzt 0,23 BB mehr als Erhöhen."
+      "why": "Gegen die Hände, die der Gegner wahrscheinlich hat, gewinnt deine Hand geschätzt in 76 % der Fälle. Ein Call braucht nur 28 %, das reicht klar. Callen bringt geschätzt 0,6 BB mehr als Erhöhen."
     }
   ],
   "249999999999": [

@@ -5,8 +5,12 @@
 //!
 //! ```text
 //! cargo run --release -p ringside-analysis --bin analysis-calibrate -- \
-//!     [--hands DIR] [--real N] [--minutes M] [--threads T] [--parallel P] [--cases FILE] [--csv FILE] [--postflop-tuning JSON] [--fixture FILE EVERY] [--write]
+//!     [--hands DIR] [--real N] [--minutes M] [--threads T] [--parallel P] [--cases FILE] [--csv FILE] [--postflop-tuning JSON] [--fit STREETS] [--fixture FILE EVERY] [--write]
 //! ```
+//!
+//! `--fit preflop,flop,turn,river` (the default) names the streets whose numbers are
+//! fitted; the others keep the stored ones, so one street is refitted in a fraction of
+//! the time.
 //!
 //! - Postflop: heads-up flops of the preflop model's tables (every family, ante, table
 //!   size and stack, random lines and boards) solved to 1 % of the pot for `--minutes`
@@ -296,14 +300,47 @@ fn tally_of(cases: &[&Case], preps: &[Prepared], t: &Tuning) -> Tally {
         .reduce(Tally::default, Tally::merge)
 }
 
-const SHRINKS: [f64; 8] = [0.6, 0.45, 0.35, 0.25, 0.18, 0.12, 0.08, 0.05];
-const TIES: [f64; 5] = [0.5, 1.0, 2.0, 3.0, 5.0];
-const LINE_MARGIN: [f64; 7] = [-1.0, -0.05, 0.0, 0.03, 0.06, 0.1, 0.15];
-const LINE_PCT: [f64; 5] = [0.25, 1.5, 4.0, 10.0, 1000.0];
-const LINE_TOP: [f64; 4] = [0.9, 0.95, 0.98, 1.01];
-const STRENGTHS: [f64; 3] = [0.0, 0.5, 1.0];
-const DEFENDS: [f64; 10] = [0.6, 0.8, 1.0, 1.3, 1.6, 2.2, 3.0, 4.0, 5.5, 7.5];
+const SHRINKS: [f64; 11] = [1.0, 0.8, 0.6, 0.45, 0.35, 0.25, 0.18, 0.12, 0.08, 0.05, 0.03];
+const TIES: [f64; 8] = [0.0, 0.25, 0.5, 1.0, 2.0, 3.0, 5.0, 8.0];
+const LINE_MARGIN: [f64; 11] = [-1.0, -0.1, -0.05, 0.0, 0.03, 0.06, 0.1, 0.15, 0.2, 0.25, 0.3];
+const LINE_PCT: [f64; 7] = [0.0, 0.25, 1.5, 4.0, 10.0, 25.0, 1000.0];
+const LINE_TOP: [f64; 8] = [0.6, 0.7, 0.8, 0.85, 0.9, 0.95, 0.98, 1.01];
+const STRENGTHS: [f64; 5] = [0.0, 0.5, 1.0, 1.5, 2.0];
+const DEFENDS: [f64; 12] = [0.4, 0.6, 0.8, 1.0, 1.3, 1.6, 2.2, 3.0, 4.0, 5.5, 7.5, 10.0];
 const BEHINDS: [f64; 8] = [1.0, 0.5, 0.3, 0.2, 0.12, 0.07, 0.03, 0.0];
+
+/// Every free number of `t` with its search grid and which of the grid's ends (low, high)
+/// are limits of the number itself rather than of the search: no shrink, no tie, the line
+/// cap off, all or none of a range, realization not falling with equity. A fit may end
+/// there; anywhere else at an end the grid is too narrow. The line numbers count only
+/// while the cap acts.
+fn grids(t: &Tuning) -> Vec<(&'static str, f64, &'static [f64], [bool; 2])> {
+    let mut g: Vec<(&'static str, f64, &'static [f64], [bool; 2])> = vec![
+        ("shrink", t.shrink, &SHRINKS, [false, true]),
+        ("strength", t.strength, &STRENGTHS, [true, false]),
+        ("defend", t.defend, &DEFENDS, [false, false]),
+        ("tie_pct", t.tie_pct, &TIES, [true, false]),
+        ("behind", t.behind, &BEHINDS, [true, true]),
+    ];
+    if t.line_margin > -1.0 && t.line_pct < 1000.0 {
+        g.push(("line_margin", t.line_margin, &LINE_MARGIN, [true, false]));
+        g.push(("line_pct", t.line_pct, &LINE_PCT, [true, true]));
+        g.push(("line_top", t.line_top, &LINE_TOP, [false, true]));
+    }
+    g
+}
+
+/// The numbers of `t` at an end of their grid that is no limit of the number.
+fn at_edge(t: &Tuning) -> Vec<String> {
+    grids(t)
+        .into_iter()
+        .filter_map(|(name, v, grid, limit)| {
+            let low = grid.iter().copied().fold(f64::INFINITY, f64::min);
+            let high = grid.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            ((v <= low && !limit[0]) || (v >= high && !limit[1])).then(|| format!("{name} = {v}"))
+        })
+        .collect()
+}
 
 /// How much more a mix of the reference called a mistake weighs than agreement: telling
 /// a player that a move the solver plays as well is a mistake costs more trust than a
@@ -370,14 +407,9 @@ fn fit(cases: &[&Case], shared: Shared, base: &Tuning) -> Tuning {
         eprintln!("  Anpassung: Stärke {strength} fertig, bisher {:?} mit {:.1} %", best.0, best.1 * 50.0);
     }
     let t = best.0;
-    let edge = |name: &str, v: f64, grid: &[f64]| {
-        if v == grid[0] || v == grid[grid.len() - 1] {
-            eprintln!("  Achtung: {name} = {v} liegt am Rand des Suchgitters");
-        }
-    };
-    edge("shrink", t.shrink, &SHRINKS);
-    edge("defend", t.defend, &DEFENDS);
-    edge("line_margin", t.line_margin, &LINE_MARGIN);
+    for e in at_edge(&t) {
+        eprintln!("  Achtung: {e} liegt am Rand des Suchgitters");
+    }
     t
 }
 
@@ -1223,6 +1255,7 @@ fn main() {
     let mut csv: Option<String> = None;
     let mut given: Option<Tuning> = None;
     let mut fixture: Option<(String, usize)> = None;
+    let mut fitted = vec!["preflop".to_string(), "flop".into(), "turn".into(), "river".into()];
     let mut args = std::env::args().skip(1);
     while let Some(a) = args.next() {
         match a.as_str() {
@@ -1235,6 +1268,7 @@ fn main() {
             "--cases" => cases_path = args.next().expect("--cases FILE"),
             "--csv" => csv = args.next(),
             "--fixture" => fixture = args.next().zip(args.next().and_then(|n| n.parse().ok())),
+            "--fit" => fitted = args.next().expect("--fit STREETS").split(',').map(str::to_string).collect(),
             "--postflop-tuning" => given = args.next().map(|j| serde_json::from_str(&j).expect("tuning JSON")),
             _ => panic!("unknown argument {a}"),
         }
@@ -1284,7 +1318,7 @@ fn main() {
         let mine: Vec<&Case> = post.iter().filter(|c| c.spot.board.len() == n).collect();
         match given {
             Some(t) => t,
-            None if mine.is_empty() => stored.street_tunings[k],
+            None if mine.is_empty() || !fitted.iter().any(|f| *f == ["flop", "turn", "river"][k]) => stored.street_tunings[k],
             None => {
                 eprintln!("Anpassung mit {n} Karten:");
                 fit(&mine, shared, &stored.street_tunings[k])
@@ -1292,12 +1326,21 @@ fn main() {
         }
     });
     let pre_refs: Vec<&Case> = pre.iter().collect();
-    let preflop_tuning = if pre.is_empty() {
+    let preflop_tuning = if pre.is_empty() || !fitted.iter().any(|f| f == "preflop") {
         stored.preflop_tuning
     } else {
         eprintln!("Anpassung vor dem Flop:");
-        let base = fit_behind(&pre_refs, shared, &stored.preflop_tuning);
-        fit_behind(&pre_refs, shared, &fit(&pre_refs, shared, &base))
+        // Searched coordinate by coordinate, where the fit ends depends on where it starts:
+        // it starts again from there until nothing moves.
+        let mut t = fit_behind(&pre_refs, shared, &stored.preflop_tuning);
+        for _ in 0..5 {
+            let next = fit_behind(&pre_refs, shared, &fit(&pre_refs, shared, &t));
+            if next == t {
+                break;
+            }
+            t = next;
+        }
+        t
     };
     let tuning_of = |c: &Case| if c.spot.board.is_empty() { preflop_tuning } else { street_tunings[c.spot.board.len() - 3] };
     if let Some(path) = &csv {
@@ -1380,5 +1423,19 @@ fn main() {
         let path = concat!(env!("CARGO_MANIFEST_DIR"), "/data/estimate_calibration.json");
         std::fs::write(path, serde_json::to_string_pretty(&c).unwrap() + "\n").expect("write calibration");
         println!("geschrieben: {path}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A fitted number at an end of its grid may have its best value beyond it.
+    #[test]
+    fn no_fitted_number_ends_at_the_edge_of_its_grid() {
+        let c = ringside_analysis::calibration::stored();
+        for (street, t) in ["Preflop", "Flop", "Turn", "River"].iter().zip(std::iter::once(&c.preflop_tuning).chain(&c.street_tunings)) {
+            assert!(at_edge(t).is_empty(), "{street}: {:?} am Rand des Suchgitters", at_edge(t));
+        }
     }
 }
