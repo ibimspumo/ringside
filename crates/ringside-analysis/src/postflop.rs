@@ -194,7 +194,8 @@ pub(crate) fn prepare(hand: &Hand, hero: &str, flop: Result<&Flop, &str>) -> (Ve
                             list.push(snapped);
                         }
                         if (snapped / pct).ln().abs() > 0.1 {
-                            notes.push(format!("{what} von {} % Pot als {} % gerechnet", pct.round(), num(snapped)));
+                            let on = ["am Flop", "am Turn", "am River"][street_no];
+                            notes.push(format!("{what} {on} von {} % Pot als {} % gerechnet", pct.round(), num(snapped)));
                         }
                     }
                     bets[s] = to;

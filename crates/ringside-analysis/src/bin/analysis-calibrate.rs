@@ -303,6 +303,7 @@ const LINE_PCT: [f64; 5] = [0.25, 1.5, 4.0, 10.0, 1000.0];
 const LINE_TOP: [f64; 4] = [0.9, 0.95, 0.98, 1.01];
 const STRENGTHS: [f64; 3] = [0.0, 0.5, 1.0];
 const DEFENDS: [f64; 10] = [0.6, 0.8, 1.0, 1.3, 1.6, 2.2, 3.0, 4.0, 5.5, 7.5];
+const BEHINDS: [f64; 8] = [1.0, 0.5, 0.3, 0.2, 0.12, 0.07, 0.03, 0.0];
 
 /// How much more a mix of the reference called a mistake weighs than agreement: telling
 /// a player that a move the solver plays as well is a mistake costs more trust than a
@@ -378,6 +379,23 @@ fn fit(cases: &[&Case], shared: Shared, base: &Tuning) -> Tuning {
     edge("defend", t.defend, &DEFENDS);
     edge("line_margin", t.line_margin, &LINE_MARGIN);
     t
+}
+
+/// [`Tuning::behind`] with the best [`score`] on the fitting half, the rest as `base`. Only
+/// before the flop: the solved spots after it are heads-up, nobody is behind there.
+fn fit_behind(cases: &[&Case], shared: Shared, base: &Tuning) -> Tuning {
+    let fitting: Vec<&Case> = cases.iter().copied().filter(|c| !c.test).collect();
+    let mut best = (*base, f64::NEG_INFINITY);
+    for behind in BEHINDS {
+        let t = Tuning { behind, ..*base };
+        let preps: Vec<Prepared> = fitting.par_iter().map(|c| prepared(c, &t, shared)).collect();
+        let sc = score(&tally_of(&fitting, &preps, &t));
+        eprintln!("  Anpassung: wer noch antworten muss, geht mit {behind} seiner Range weiter: {:.1} %", sc * 50.0);
+        if sc > best.1 {
+            best = (t, sc);
+        }
+    }
+    best.0
 }
 
 fn hands_in(dir: &str) -> Vec<Hand> {
@@ -1274,7 +1292,13 @@ fn main() {
         }
     });
     let pre_refs: Vec<&Case> = pre.iter().collect();
-    let preflop_tuning = if pre.is_empty() { stored.preflop_tuning } else { fit(&pre_refs, shared, &stored.preflop_tuning) };
+    let preflop_tuning = if pre.is_empty() {
+        stored.preflop_tuning
+    } else {
+        eprintln!("Anpassung vor dem Flop:");
+        let base = fit_behind(&pre_refs, shared, &stored.preflop_tuning);
+        fit_behind(&pre_refs, shared, &fit(&pre_refs, shared, &base))
+    };
     let tuning_of = |c: &Case| if c.spot.board.is_empty() { preflop_tuning } else { street_tunings[c.spot.board.len() - 3] };
     if let Some(path) = &csv {
         write_csv(path, &post, &tuning_of, shared, &store);

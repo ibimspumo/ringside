@@ -185,8 +185,10 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
     };
 
     let mut config = vec![format!("Preflop-Modell (kein Gleichgewicht des echten Spiels): {players} Spieler, alle mit {}, {}", bb(stack), ante_name(t.ante))];
-    if n != players {
-        config.push(format!("am Tisch {n} Spieler, die ersten {} Plätze des Modells gelten als gefoldet", players - n));
+    match players - n {
+        0 => {}
+        1 => config.push(format!("am Tisch {n} Spieler, der erste Platz des Modells gilt als gefoldet")),
+        k => config.push(format!("am Tisch {n} Spieler, die ersten {k} Plätze des Modells gelten als gefoldet")),
     }
     if (stack - effective).abs() >= 0.5 {
         config.push(format!("nächste vorgerechnete Tiefe: {} statt {}", bb(stack), bb(effective)));
@@ -308,7 +310,16 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
                     });
                 }
                 let pot = pot_before(hand, index);
-                let facts = ranked(&own, class, &t.class().to_string(), format!("Als {pos} mit {}", bb(stack)));
+                // The hero's own stack, as in the hand; the model's depth only beside it.
+                let mut place = if (t.stack_bb(t.hero) - effective).abs() >= 0.5 {
+                    format!("Als {pos} mit {} effektiv", bb(effective))
+                } else {
+                    format!("Als {pos} mit {}", bb(effective))
+                };
+                if (stack - effective).abs() >= 0.5 {
+                    place.push_str(&format!(" (gerechnet mit {})", bb(stack)));
+                }
+                let facts = ranked(&own, class, &t.class().to_string(), place);
                 decisions.push(score(base_at(hand, index, spot), Source::Model, strategy, pot, note, |d| {
                     why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0))
                 }));
@@ -339,7 +350,7 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         None => {
             let left: Vec<usize> = (0..n).filter(|&i| !folded[i]).collect();
             if left.len() != 2 {
-                Err(format!("Multiway-Pot ({} Spieler am Flop) wird nicht bewertet.", left.len()))
+                Err(format!("Multiway-Pot ({} Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern.", left.len()))
             } else if line.iter().any(|s| s.action.kind == Kind::AllIn) {
                 Err("Schon vor dem Flop all-in.".into())
             } else {

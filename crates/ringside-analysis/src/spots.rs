@@ -336,7 +336,7 @@ pub fn history(spec: &Spec, id: u64) -> Result<String, String> {
     let max = if n > 6 { 9 } else if n == 6 { 6 } else { n };
     let mut out = String::new();
     let tid = 3_900_000_000u64 + id;
-    writeln!(out, "PokerStars Hand #{id}: Tournament #{tid}, $1+$0.10 USD Hold'em No Limit - Level X (200/400) - 2026/11/19 20:00:00 ET").unwrap();
+    writeln!(out, "PokerStars Hand #{id}: Tournament #{tid}, $1+$0.10 USD Hold'em No Limit - Level X (200/400) - 2026/11/19 20:00:00 CET [2026/11/19 14:00:00 ET]").unwrap();
     writeln!(out, "Table '{tid} 1' {max}-max Seat #1 is the button").unwrap();
     let mut by_seat: Vec<&Player> = ps.iter().collect();
     by_seat.sort_by_key(|p| p.seat);

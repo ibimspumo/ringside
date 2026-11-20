@@ -197,6 +197,9 @@ fn header_variants() {
     let plo = format!("PokerStars Hand #2:  Omaha Pot Limit ($0.25/$0.50 USD) - 2024/01/15 20:30:00 ET\n{body}");
     assert_eq!(parse_hand(&plo).unwrap().variant, "Omaha Pot Limit");
 
+    let short_deck = format!("PokerStars Hand #4:  6+ Hold'em No Limit (Button Blind $2 - Ante $2 USD) - 2019/04/13 18:36:55 CET\n{body}");
+    assert!(matches!(parse_hand(&short_deck), Err(ringside_core::parser::ParseError::Unsupported(_))));
+
     let stud = format!("PokerStars Hand #3:  7 Card Stud Limit ($0.04/$0.08 USD) - 2024/01/15 20:30:00 ET\n{body}");
     assert!(matches!(parse_hand(&stud), Err(ringside_core::parser::ParseError::Unsupported(_))));
 }
@@ -542,4 +545,106 @@ fn leak_cells_and_spot_filter() {
     assert!(ids(spot(Some(true), &["SB"], None)).is_empty());
     assert!(ids(spot(Some(true), &["BB"], Some(2))).is_empty());
     assert_eq!(db.hands(&HandQuery { limit: 10, ..Default::default() }).unwrap().len(), 2);
+}
+
+/// A hand the client cancelled before it was dealt gives the posted blind back: no hand
+/// was played, so none is stored and nobody lost the blind.
+#[test]
+fn a_cancelled_hand_is_no_hand() {
+    let text = "PokerStars Hand #7:  Omaha Pot Limit ($5/$10 USD) - 2024/01/16 13:17:20 CET [2024/01/16 7:17:20 ET]\n\
+                Table 'Pool' 6-max Seat #6 is the button\n\
+                Seat 6: Hero ($1467.77 in chips) \n\
+                Hero: posts small blind $5\n\
+                P2: is sitting out \n\
+                Hand cancelled\n\
+                *** SUMMARY ***\n\
+                Seat 6: Hero (button) collected ($0)\n\n\n";
+    assert!(matches!(parse_hand(split_hands(text)[0]), Err(ringside_core::parser::ParseError::Unsupported(_))));
+}
+
+/// Until 2014 the client wrote "PokerStars Game #" where it now writes "Hand #".
+#[test]
+fn older_hand_histories_are_read() {
+    let text = CASH.replacen("PokerStars Hand #", "PokerStars Game #", 1);
+    let new = hands(CASH);
+    let old: Vec<Hand> = split_hands(&text).into_iter().filter_map(|h| parse_hand(h).ok()).collect();
+    assert_eq!(old.len(), new.len());
+    assert_eq!(old[0].id, new[0].id);
+}
+
+/// Until 2007 the client wrote no "Uncalled bet" line when an all-in was called for less;
+/// the part nobody matched still went back.
+#[test]
+fn an_unmatched_bet_goes_back_without_its_line() {
+    let text = "PokerStars Game #12: Tournament #5, $5.00+$0.50 Hold'em No Limit - Level II (15/30) - 2007/10/15 - 05:35:27 (ET)\n\
+                Table '5 18' 9-max Seat #3 is the button\n\
+                Seat 1: P1 (2460 in chips)\n\
+                Seat 2: Hero (1075 in chips)\n\
+                Seat 3: P3 (2090 in chips)\n\
+                Seat 4: P4 (2990 in chips)\n\
+                Seat 5: P5 (1450 in chips)\n\
+                P4: posts small blind 15\n\
+                P5: posts big blind 30\n\
+                *** HOLE CARDS ***\n\
+                Dealt to Hero [3c Qs]\n\
+                P1: raises 2430 to 2460 and is all-in\n\
+                Hero: folds\n\
+                P3: calls 2090 and is all-in\n\
+                P4: folds\n\
+                P5: folds\n\
+                *** FLOP *** [Ah Ac 7h]\n\
+                *** TURN *** [Ah Ac 7h] [Qc]\n\
+                *** RIVER *** [Ah Ac 7h Qc] [5c]\n\
+                *** SHOW DOWN ***\n\
+                P1: shows [Th Td] (two pair, Aces and Tens)\n\
+                P3: shows [7s Qh] (two pair, Aces and Queens)\n\
+                P3 collected 4225 from pot\n\
+                *** SUMMARY ***\n\
+                Total pot 4225 | Rake 0\n\n\n";
+    let hand = parse_hand(split_hands(text)[0]).unwrap();
+    assert_eq!(hand.net("P1"), -2090 * 100, "amounts are kept in hundredths");
+    let net: i64 = hand.seats.iter().map(|s| hand.net(&s.name)).sum();
+    assert_eq!(net, 0);
+}
+
+/// The client stopped in the middle of a hand and went on with the next one in the same
+/// line: the broken hand is left out, the next one is read whole.
+#[test]
+fn a_hand_cut_off_by_the_next_one() {
+    let first = CASH.split("*** FLOP ***").next().unwrap();
+    let text = format!("{first}*** FLOP *** [4d Kh J{TOURNAMENT}");
+    let parts = split_hands(&text);
+    assert_eq!(parts.len(), hands(TOURNAMENT).len(), "{parts:#?}");
+    assert_eq!(hands(&text)[0], hands(TOURNAMENT)[0]);
+}
+
+/// PokerStars' all-in cash out: the player takes the offered amount instead of the pot.
+#[test]
+fn a_cashed_out_hand_pays_what_was_offered() {
+    let text = "PokerStars Hand #8:  Hold'em No Limit ($0.50/$1.00 USD) - 2020/04/20 13:55:03 ET\n\
+                Table 'Pool' 6-max Seat #1 is the button\n\
+                Seat 1: P1 ($123.12 in chips)\n\
+                Seat 3: P3 ($55.29 in chips)\n\
+                Seat 6: Hero ($147.11 in chips)\n\
+                P3: posts small blind $0.50\n\
+                Hero: posts big blind $1\n\
+                *** HOLE CARDS ***\n\
+                Dealt to Hero [Js As]\n\
+                P1: folds\n\
+                P3: raises $54.79 to $55.29 and is all-in\n\
+                Hero: calls $54.29\n\
+                *** FLOP *** [Jd 7c 2h]\n\
+                *** TURN *** [Jd 7c 2h] [7h]\n\
+                *** RIVER *** [Jd 7c 2h 7h] [3d]\n\
+                *** SHOW DOWN ***\n\
+                P3: shows [Th 9d] (a pair of Sevens)\n\
+                Hero: shows [Js As] (two pair, Jacks and Sevens)\n\
+                Hero cashed out the hand for $56.99 | Cash Out Fee $0.58\n\
+                *** SUMMARY ***\n\
+                Total pot $110.58 | Rake $2.50\n\
+                Board [Jd 7c 2h 7h 3d]\n\
+                Seat 3: P3 (small blind) showed [Th 9d] and lost with a pair of Sevens\n\
+                Seat 6: Hero (big blind) showed [Js As] and won ($108.08) with two pair, Jacks and Sevens (pot not awarded as player cashed out)\n\n\n";
+    let hand = parse_hand(split_hands(text)[0]).unwrap();
+    assert_eq!(hand.net("Hero"), 5699 - 5529);
 }

@@ -77,6 +77,7 @@ fn model_comparison_names_the_nearest_configuration() {
     assert_eq!(d.best.as_deref(), Some("Fold"));
     assert!(d.rating >= Some(Rating::Inaccuracy), "{d:?}");
     assert!(d.note.contains("nächste vorgerechnete Tiefe: 40 BB statt 37 BB"), "{}", d.note);
+    assert!(d.why.starts_with("Als UTG+1 mit 37 BB (gerechnet mit 40 BB):"), "the hero's own stack first: {}", d.why);
     assert!(d.played_freq.unwrap() < 0.05);
 }
 
@@ -215,6 +216,126 @@ fn calling_the_last_chips_is_no_decision() {
     let a = analyze_hand(&parsed(&raw));
     let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
     assert_eq!((d.status, d.source), (Status::Forced, Some(Source::Forced)), "{d:?}");
+}
+
+/// The hero's open meets two all-ins and nobody is left behind: going all in is only a
+/// call, the rest comes back. 76s against both shoves is a fold, and no raise is offered.
+#[test]
+fn against_players_all_in_a_raise_is_only_a_call() {
+    let seats: Vec<(&str, i64)> =
+        vec![("P1", 7370), ("P2", 4721), ("Hero", 5000), ("P4", 1454), ("P5", 3540), ("P6", 3652), ("P7", 10040), ("P8", 4539)];
+    let raw = hand(
+        8,
+        &seats,
+        4,
+        60,
+        8,
+        "6h 7h",
+        "P7: folds\nP8: folds\nP1: folds\nP2: folds\nHero: raises 132 to 192\nP4: raises 1254 to 1446 and is all-in\nP5: raises 2086 to 3532 and is all-in\nP6: folds\nHero: folds\nUncalled bet (2086) returned to P5\n*** FLOP *** [3c 4c 8d]\n*** TURN *** [3c 4c 8d] [4d]\n*** RIVER *** [3c 4c 8d 4d] [7s]\n*** SHOW DOWN ***\nP5 collected 3208 from pot\n*** SUMMARY ***\nTotal pot 3208 | Rake 0\n",
+    );
+    let hand = parsed(&raw);
+    let a = analyze_hand(&hand);
+    let d = a.decisions.iter().find(|d| hand.actions[d.action_index].kind == ringside_core::model::ActionKind::Fold).expect("the fold");
+    let kinds: Vec<&str> = d.strategy.iter().map(|c| c.kind.as_str()).collect();
+    assert_eq!(kinds, ["fold", "call"], "{d:?}");
+    assert_eq!(d.best.as_deref(), Some("Fold"), "{d:?}");
+    assert_eq!(d.ev_loss_bb, Some(0.0), "{d:?}");
+}
+
+/// A player all in with the ante has no decision left: a call of a shove with 5 BB is
+/// still a push/fold spot, rated by the equilibrium; tens call.
+#[test]
+fn a_player_all_in_with_the_ante_leaves_a_push_fold_spot() {
+    let seats: Vec<(&str, i64)> = vec![
+        ("P1", 126),
+        ("P2", 36439),
+        ("P3", 51400),
+        ("P4", 328031),
+        ("P5", 36300),
+        ("P6", 46027),
+        ("P7", 24445),
+        ("Hero", 14844),
+    ];
+    let raw = hand(9, &seats, 4, 3000, 375, "Td Ts", "P7: raises 21070 to 24070 and is all-in\nHero: calls 14469 and is all-in\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nP6: folds\nUncalled bet (9601) returned to P7\n*** FLOP *** [Kh 4c 5h]\n*** TURN *** [Kh 4c 5h] [Tc]\n*** RIVER *** [Kh 4c 5h Tc] [2s]\n*** SHOW DOWN ***\nHero collected 35181 from side pot\nHero collected 1008 from main pot\n*** SUMMARY ***\nTotal pot 36189 | Rake 0\n")
+    .replace("P1: posts the ante 375", "P1: posts the ante 126 and is all-in");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!((d.source, d.spot), (Some(Source::Equilibrium), SpotType::CallShove), "{d:?}");
+    assert_eq!(d.best.as_deref(), Some("Call"), "{d:?}");
+    assert!(d.why.starts_with("Als UTG+1 gegen das All-in"), "the position the hand shows: {}", d.why);
+}
+
+/// The small blind shoves over the button's open: whoever else folds, the shove stays in.
+/// Ace-five in the big blind with 60 BB has no fold equity against it; folding is no mistake.
+#[test]
+fn a_shove_in_front_stays_in_when_the_others_fold() {
+    let seats: Vec<(&str, i64)> =
+        vec![("P1", 2628), ("Hero", 8681), ("P3", 3504), ("P4", 14550), ("P5", 8525), ("P7", 6766), ("P8", 5108)];
+    let raw = hand(10, &seats, 7, 140, 18, "Ah 5c", "P3: folds\nP4: folds\nP5: folds\nP7: folds\nP8: raises 280 to 420\nP1: raises 2190 to 2610 and is all-in\nHero: folds\nP8: calls 2190\n*** FLOP *** [8d 8s 4c]\n*** TURN *** [8d 8s 4c] [9s]\n*** RIVER *** [8d 8s 4c 9s] [2s]\n*** SHOW DOWN ***\nP8 collected 5504 from pot\n*** SUMMARY ***\nTotal pot 5504 | Rake 0\n");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert_eq!(d.played, "Fold");
+    assert!(d.rating <= Some(Rating::Inaccuracy) && d.ev_loss_bb < Some(1.0), "{d:?}");
+    assert!(!d.why.contains("geben alle Gegner"), "{}", d.why);
+}
+
+/// Calling all in with 10 BB against a shove of 38 BB wins at most 10 BB from the shover:
+/// the rest of the shove is no part of the price. Six-four needs about 38 %, not 17 %.
+#[test]
+fn a_call_for_less_counts_only_the_pot_it_can_win() {
+    let seats: Vec<(&str, i64)> =
+        vec![("P1", 11538), ("Hero", 4982), ("P3", 6353), ("P4", 7916), ("P5", 13801), ("P6", 5405), ("P7", 24155), ("P8", 19162)];
+    let raw = hand(11, &seats, 8, 500, 65, "6d 4c", "P3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: raises 500 to 1000\nP8: raises 18097 to 19097 and is all-in\nP1: folds\nHero: folds\nP7: folds\nUncalled bet (18097) returned to P8\nP8 collected 3270 from pot\n*** SUMMARY ***\nTotal pot 3270 | Rake 0\n");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert!(d.rating <= Some(Rating::Inaccuracy) && d.ev_loss_bb < Some(0.5), "{d:?}");
+    assert!(!d.why.contains("braucht nur 1"), "{}", d.why);
+}
+
+/// Seven at the table against the model's eight: one seat of the model counts as folded,
+/// in the singular.
+#[test]
+fn one_missing_seat_reads_in_the_singular() {
+    let seats: Vec<(&str, i64)> = vec![("Hero", 8000), ("P2", 8000), ("P3", 8000), ("P4", 8000), ("P5", 8000), ("P6", 8000), ("P7", 8000)];
+    let raw = hand(13, &seats, 5, 200, 25, "As Kd", "Hero: raises 300 to 500\nP2: folds\nP3: folds\nP4: folds\nP5: folds\nP6: folds\nP7: folds\nUncalled bet (300) returned to Hero\nHero collected 675 from pot\n*** SUMMARY ***\nTotal pot 675 | Rake 0\n");
+    let a = analyze_hand(&parsed(&raw));
+    let [d] = a.decisions.as_slice() else { panic!("{:?}", a.decisions) };
+    assert!(d.note.contains("am Tisch 7 Spieler, der erste Platz des Modells gilt als gefoldet"), "{}", d.note);
+}
+
+/// Three players see the flop: the estimate rates the decision and says why the solver
+/// doesn't, not that nothing is rated.
+#[test]
+fn a_multiway_flop_says_why_the_solver_is_not_used() {
+    let deep: Vec<(&str, i64)> = SIX.iter().map(|(n, _)| (*n, 8000)).collect();
+    let raw = hand(14, &deep, 4, 200, 25, "Ah Kh", "P1: raises 300 to 500\nP2: folds\nP3: folds\nP4: folds\nHero: calls 400\nP6: calls 300\n*** FLOP *** [Kd 7s 2c]\nHero: bets 900\nP6: folds\nP1: folds\nUncalled bet (900) returned to Hero\nHero collected 1650 from pot\n*** SUMMARY ***\nTotal pot 1650 | Rake 0\nBoard [Kd 7s 2c]\n");
+    let a = analyze_hand(&parsed(&raw));
+    let flop = a.decisions.iter().find(|d| d.street == Street::Flop).unwrap();
+    assert_eq!(flop.status, Status::Rated, "{flop:?}");
+    assert!(flop.note.contains("Multiway-Pot (3 Spieler am Flop): Der Solver rechnet nur Pots mit zwei Spielern."), "{}", flop.note);
+}
+
+/// Two bets of the same odd size on flop and turn: each note names its street.
+#[test]
+fn a_snapped_bet_names_its_street() {
+    let seats: Vec<(&str, i64)> = vec![("P1", 3000), ("P2", 3000), ("P3", 3000), ("Hero", 3000), ("P5", 3000), ("P6", 3000)];
+    let raw = hand(15, &seats, 4, 200, 25, "Ah Kh", "P1: folds\nP2: folds\nP3: folds\nHero: raises 200 to 400\nP5: folds\nP6: calls 200\n*** FLOP *** [Kd 7s 2c]\nP6: checks\nHero: bets 450\nP6: calls 450\n*** TURN *** [Kd 7s 2c] [3h]\nP6: checks\nHero: bets 840\nP6: folds\nUncalled bet (840) returned to Hero\nHero collected 1950 from pot\n*** SUMMARY ***\nTotal pot 1950 | Rake 0\nBoard [Kd 7s 2c 3h]\n");
+    let (_, json) = analyze_hand(&parsed(&raw)).job.expect("a heads-up flop");
+    let job: PostflopJob = serde_json::from_str(&json).unwrap();
+    assert!(job.note.contains("Bet am Flop von 43 % Pot") && job.note.contains("Bet am Turn von 43 % Pot"), "{}", job.note);
+}
+
+/// A three-bet and a cold call against the hero's open with 100 BB: shoving nine-eight
+/// suited is called by one of them about as often as by one player, who then adds one
+/// stack to the pot, not more. Folding is right.
+#[test]
+fn a_deep_shove_called_by_one_player_wins_one_call() {
+    let seats: Vec<(&str, i64)> = vec![("P1", 5620), ("P2", 5111), ("P3", 8305), ("P4", 5091), ("P5", 4116), ("P6", 5049), ("Hero", 4964)];
+    let raw = hand(16, &seats, 4, 50, 6, "8c 9c", "Hero: raises 60 to 110\nP1: folds\nP2: folds\nP3: raises 270 to 380\nP4: folds\nP5: folds\nP6: calls 330\nHero: folds\n*** FLOP *** [5d 6d Tc]\nP6: checks\nP3: checks\n*** TURN *** [5d 6d Tc] [Jh]\nP6: checks\nP3: checks\n*** RIVER *** [5d 6d Tc Jh] [2s]\nP6: checks\nP3: checks\n*** SHOW DOWN ***\nP6 collected 977 from pot\n*** SUMMARY ***\nTotal pot 977 | Rake 0\n");
+    let hand = parsed(&raw);
+    let a = analyze_hand(&hand);
+    let d = a.decisions.iter().find(|d| d.played == "Fold").expect("the fold");
+    assert!(d.best.as_deref() != Some("All-in") && d.rating <= Some(Rating::Inaccuracy), "{d:?}");
 }
 
 /// Button opens, big blind calls, the button c-bets and the big blind folds.

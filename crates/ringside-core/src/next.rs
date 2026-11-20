@@ -265,6 +265,12 @@ fn times(n: usize, what: &str) -> String {
     if n == 1 { format!("einmal {what}") } else { format!("{n}-mal {what}") }
 }
 
+/// "3 von 40 deiner Entscheidungen hier waren ungenau oder schlechter (…)."
+fn flawed_line(flawed: usize, decisions: usize, detail: &str) -> String {
+    let verb = if flawed == 1 { "war" } else { "waren" };
+    format!("{flawed} von {decisions} deiner Entscheidungen hier {verb} ungenau oder schlechter ({detail}).")
+}
+
 fn cost_line(mean_bb: f64, n: usize, what: &str) -> String {
     if mean_bb < 0.005 {
         format!("kostet dich so gut wie nichts, {}", times(n, what))
@@ -350,10 +356,7 @@ fn spot(g: &Group, now: Option<i64>) -> NextStep {
         id: format!("spot:{}", g.key),
         kind: StepKind::Spot,
         title: g.title.clone(),
-        why: format!(
-            "{} von {} deiner Entscheidungen hier waren ungenau oder schlechter ({}).",
-            g.flawed, g.decisions, g.detail
-        ),
+        why: flawed_line(g.flawed, g.decisions, &g.detail),
         number: cost_line(g.mean_loss_bb, g.decisions, "gespielt"),
         term: lage_term(g.lage),
         per_time_bb: Some(g.mean_loss_bb),
@@ -594,7 +597,7 @@ fn rare_kind(k: &KindLoss, part: &str) -> Option<NextStep> {
         id: format!("spot:{}", k.key),
         kind: StepKind::Spot,
         title: k.title.clone(),
-        why: format!("{} von {} deiner Entscheidungen hier waren ungenau oder schlechter ({}).", k.flawed, k.decisions, k.detail),
+        why: flawed_line(k.flawed, k.decisions, &k.detail),
         number: cost_line(mean, k.decisions, part),
         term: lage_term(kind.lage),
         per_time_bb: Some(mean),
@@ -616,6 +619,12 @@ fn rare_kind(k: &KindLoss, part: &str) -> Option<NextStep> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_flawed_decision_is_singular() {
+        assert_eq!(flawed_line(1, 16, "ab 40 BB"), "1 von 16 deiner Entscheidungen hier war ungenau oder schlechter (ab 40 BB).");
+        assert!(flawed_line(3, 16, "ab 40 BB").contains(" hier waren "));
+    }
     use crate::db::{DecisionBrief, Rating};
     use crate::leaks::{Cost, SOURCES};
     use crate::model::Street;

@@ -1,12 +1,13 @@
 {
   "preflop_tuning": {
-    "shrink": 0.45,
+    "shrink": 0.25,
     "strength": 0.0,
-    "defend": 4.0,
+    "defend": 5.5,
     "tie_pct": 0.5,
-    "line_margin": 0.1,
-    "line_pct": 4.0,
-    "line_top": 0.9
+    "line_margin": 0.15,
+    "line_pct": 10.0,
+    "line_top": 0.9,
+    "behind": 0.5
   },
   "street_tunings": [
     {
@@ -16,7 +17,8 @@
       "tie_pct": 0.5,
       "line_margin": -0.05,
       "line_pct": 1.5,
-      "line_top": 1.01
+      "line_top": 1.01,
+      "behind": 1.0
     },
     {
       "shrink": 0.25,
@@ -25,7 +27,8 @@
       "tie_pct": 0.5,
       "line_margin": -0.05,
       "line_pct": 1.5,
-      "line_top": 1.01
+      "line_top": 1.01,
+      "behind": 1.0
     },
     {
       "shrink": 0.18,
@@ -34,16 +37,17 @@
       "tie_pct": 0.5,
       "line_margin": 0.0,
       "line_pct": 1.5,
-      "line_top": 0.9
+      "line_top": 0.9,
+      "behind": 1.0
     }
   ],
   "preflop": {
-    "samples": 1183,
-    "same": 0.538,
-    "within_one": 0.761,
-    "balanced": 0.761,
-    "spots": 358,
-    "off_best": 807
+    "samples": 1019,
+    "same": 0.416,
+    "within_one": 0.806,
+    "balanced": 0.705,
+    "spots": 362,
+    "off_best": 638
   },
   "postflop": {
     "samples": 37300,
@@ -55,9 +59,9 @@
   },
   "real": {
     "samples": 121,
-    "same": 0.57,
-    "within_one": 0.868,
-    "balanced": 0.552,
+    "same": 0.579,
+    "within_one": 0.901,
+    "balanced": 0.582,
     "spots": 59,
     "off_best": 30
   },
@@ -90,25 +94,25 @@
   "real_streets": [
     {
       "samples": 75,
-      "same": 0.6,
-      "within_one": 0.88,
-      "balanced": 0.573,
+      "same": 0.627,
+      "within_one": 0.907,
+      "balanced": 0.627,
       "spots": 59,
       "off_best": 16
     },
     {
       "samples": 29,
-      "same": 0.483,
-      "within_one": 0.862,
-      "balanced": 0.49,
+      "same": 0.448,
+      "within_one": 0.897,
+      "balanced": 0.6,
       "spots": 59,
       "off_best": 9
     },
     {
       "samples": 17,
       "same": 0.588,
-      "within_one": 0.824,
-      "balanced": 0.479,
+      "within_one": 0.882,
+      "balanced": 0.5,
       "spots": 59,
       "off_best": 5
     }
