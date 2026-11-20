@@ -10,7 +10,8 @@ use ringside_core::stats::position_labels;
 use ringside_engine::preflop::{Kind, Node, Solution, Step, limps_by_choice, taken};
 use ringside_engine::preflop_table::{self, Ante, Family, LIMP_PLAYERS, ModelLine, STACKS};
 use ringside_engine::pushfold_table::{BB_ANTE_BB, CLASSIC_ANTE_BB};
-use ringside_engine::range::{HandClass, NUM_CLASSES};
+use ringside_engine::PreflopMatrix;
+use ringside_engine::range::{HandClass, NUM_CLASSES, class_pair_count};
 
 use crate::fmt::bb;
 use crate::replay::FlopRanges;
@@ -280,6 +281,12 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
                     t.class()
                 );
                 decisions.push(unrated(hand, index, spot, reason));
+            } else if let Some((d, target)) = (spot == SpotType::CallShove)
+                .then(|| short_call(hand, t, family, (players, stack), &line, &weights, index, position(&a.player)))
+                .flatten()
+            {
+                decisions.push(d);
+                targets.extend(target);
             } else {
                 let strategy = choices(&own, class, Some(m));
                 let mut note = config.clone();
@@ -377,6 +384,172 @@ fn walk(hand: &Hand, t: &Table, indices: &[usize], family: Family) -> Preflop {
         }
     };
     Preflop { decisions, flop, ranges, targets }
+}
+
+/// Equity of `class` against the classes weighted by `range`, with card removal; `None`
+/// without a hand in the range.
+fn equity_vs(class: HandClass, range: &[f64]) -> Option<f64> {
+    let m = PreflopMatrix::embedded();
+    let (mut sum, mut weight) = (0.0, 0.0);
+    for c in HandClass::all() {
+        let w = class_pair_count(class, c) as f64 * range[c.index()];
+        sum += w * m.equity(class, c);
+        weight += w;
+    }
+    (weight > 0.0).then(|| sum / weight)
+}
+
+/// The model's ranges after the preflop actions before `index`, replayed in `sol`: the
+/// weights per model seat and the line, or `None` when the line leaves the model.
+fn replay(hand: &Hand, t: &Table, sol: &Solution, players: usize, index: usize) -> Option<(Vec<Vec<f64>>, Vec<Step>)> {
+    let mut line: Vec<Step> = Vec::new();
+    let mut weights = vec![vec![1.0; NUM_CLASSES]; players];
+    for a in hand.actions[..index].iter().filter(|a| a.street == Street::Preflop && !a.kind.is_post()) {
+        let Some(real) = t.seat_of(&a.player) else {
+            if a.kind == ActionKind::Fold {
+                continue;
+            }
+            return None;
+        };
+        let seat = model_seat(t, players, real);
+        let Some(v) = sol.node(seat, &line) else {
+            if a.kind == ActionKind::Fold {
+                continue;
+            }
+            return None;
+        };
+        let node = &sol.nodes[v];
+        let (ai, _) = map_action(a, &node.actions, t.big_blind, t.stack_bb(real))?;
+        for c in 0..NUM_CLASSES {
+            let f = node.freq[ai][c];
+            weights[seat][c] *= if taken(f) { f } else { 0.0 };
+        }
+        if node.actions[ai].kind != Kind::Fold {
+            line.push(Step { seat, action: node.actions[ai] });
+        }
+    }
+    Some((weights, line))
+}
+
+/// Below this share of the model's depth an all-in is rated at its own depth.
+const SHORT_SHARE: f64 = 0.8;
+
+/// A heads-up call against an all-in far shorter than the model's depth. The model's
+/// all-in is one of its own depth, so calling it would risk far more than the real call:
+/// the call is rated by its equity against the shover's range, from the model at the
+/// depth of the all-in when the line exists there, with the real pot and call.
+#[allow(clippy::too_many_arguments)]
+fn short_call(
+    hand: &Hand,
+    t: &Table,
+    family: Family,
+    (players, stack): (usize, f64),
+    line: &[Step],
+    weights: &[Vec<f64>],
+    index: usize,
+    pos: &str,
+) -> Option<(Decision, Option<ChartTarget>)> {
+    let n = t.players();
+    let shove = line.iter().rev().find(|s| s.action.kind == Kind::AllIn)?;
+    let shover = shove.seat.checked_sub(players - n)?;
+    let hero_name = &t.order[t.hero].name;
+    let shover_name = &t.order[shover].name;
+    let depth = t.stack_bb(t.hero).min(t.stack_bb(shover));
+    if depth >= SHORT_SHARE * stack {
+        return None;
+    }
+    let short = nearest(&STACKS, depth);
+    // Heads-up: everybody else has folded already.
+    let pre = || hand.actions[..index].iter().filter(|a| a.street == Street::Preflop);
+    let out = |name: &str| pre().any(|a| a.player == name && a.kind == ActionKind::Fold);
+    if t.order.iter().any(|s| s.name != *hero_name && s.name != *shover_name && !out(&s.name)) {
+        return None;
+    }
+    let big = t.big_blind;
+    let put = |name: &str, street_only: bool| -> f64 {
+        hand.actions[..index]
+            .iter()
+            .filter(|a| a.player == name && (a.street == Street::Preflop || !street_only))
+            .filter(|a| !street_only || a.kind != ActionKind::PostAnte)
+            .map(|a| a.amount as f64)
+            .sum::<f64>()
+            / big
+    };
+    let invested = put(hero_name, false);
+    let behind = t.stack_bb(t.hero) - invested;
+    let to_call = (put(shover_name, true) - put(hero_name, true)).max(0.0);
+    let call = to_call.min(behind);
+    let pot = pot_before(hand, index);
+    let pot_final = pot + call - (to_call - call);
+
+    let plain = preflop_table::PLAYERS.contains(&players).then(|| cached(Family::Plain, t.ante, players, short)).flatten();
+    let at_short = cached(family, t.ante, players, short).and_then(|sol| replay(hand, t, &sol, players, index));
+    let (ranges, short_line, used) = match &at_short {
+        Some((w, l)) if w[shove.seat].iter().any(|&x| x > 0.0) => (w.as_slice(), Some(l), short),
+        _ => (weights, None, stack),
+    };
+    let range = &ranges[shove.seat];
+    let class = t.class();
+    let eq = equity_vs(class, range)?;
+    let fold_ev = -invested;
+    let call_ev = fold_ev - call + eq * pot_final;
+    let call_better = call_ev > fold_ev;
+    let called = hand.actions[index].kind != ActionKind::Fold;
+    let strategy = vec![
+        Choice { label: "Fold".into(), freq: if call_better { 0.0 } else { 1.0 }, ev_bb: Some(fold_ev), played: !called, kind: "fold".into() },
+        Choice { label: "Call".into(), freq: if call_better { 1.0 } else { 0.0 }, ev_bb: Some(call_ev), played: called, kind: "call".into() },
+    ];
+
+    let shover_pos = position_labels(hand).into_iter().find(|(p, _)| p == shover_name).map_or("?".into(), |(_, l)| l.to_string());
+    let note = format!(
+        "Call gegen das All-in von {shover_pos} mit {} effektiv: Gewinnchance {:.0} % gegen seine Range aus dem Preflop-Modell bei {} ({players} Spieler, {}),          Pot mit allen Antes und Blinds {}, Call {}. Ab dem Flop ist nichts mehr zu entscheiden.",
+        bb(depth),
+        eq * 100.0,
+        bb(used),
+        ante_name(t.ante),
+        bb(pot_final),
+        bb(call),
+    );
+
+    // The hero's range here and where the hand stands in it, by the margin of the call.
+    let hero_range = &ranges[model_seat(t, players, t.hero)];
+    let margin = |c: HandClass| equity_vs(c, range).map(|e| e * pot_final - call);
+    let mine = eq * pot_final - call;
+    let (mut total, mut calls, mut above) = (0.0, 0.0, 0.0);
+    for c in HandClass::all() {
+        let w = c.combo_count() as f64 * hero_range[c.index()];
+        let Some(m) = margin(c).filter(|_| w > 0.0) else { continue };
+        total += w;
+        calls += if m > 0.0 { w } else { 0.0 };
+        above += if c == class { w / 2.0 } else if m > mine { w } else { 0.0 };
+    }
+    let facts = why::Ranked {
+        chart: why::Chart::Model,
+        place: format!("Als {pos} gegen das All-in bei {} effektiv", bb(depth)),
+        act: Some(why::Move::Call),
+        share: calls / total.max(1e-9),
+        all_hands: false,
+        class: class.to_string(),
+        rank: above / total.max(1e-9),
+    };
+    let d = score(base_at(hand, index, SpotType::CallShove), Source::Model, strategy, pot, note, |d| why::ranked(&facts, &d.strategy, d.pot_bb.unwrap_or(1.0)));
+
+    let target = short_line.zip(plain).and_then(|(l, sol)| {
+        let hero_seat = model_seat(t, players, t.hero);
+        sol.node(hero_seat, l).map(|node| ChartTarget {
+            action_index: index,
+            kind: ChartKind::Preflop,
+            ante: t.ante,
+            players,
+            stack_bb: short,
+            seat: hero_seat,
+            shover: None,
+            callers: Vec::new(),
+            node: Some(node),
+            hand: class.to_string(),
+        })
+    });
+    Some((d, target))
 }
 
 /// The moves of the model at `node`: without the other players' limps first in, whose EVs
