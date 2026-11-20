@@ -303,24 +303,28 @@ fn multiway(
 /// then replaced by the good one, as the API allows for withdrawn rows.
 fn postflop(client: &Client, base: &str, db: &Db, api_key: &str, keys: &mut Vec<(&'static str, String)>) -> Result<(), String> {
     let c = catalog();
-    let scenario = c.scenario("3bp-btn-bb-40").ok_or("smoke scenario missing from the catalog")?;
+    let first = c.scenario("3bp-btn-bb-40").ok_or("smoke scenario missing from the catalog")?;
+    // Mitrechnen fills the cloud: when the small 3-bet pot is done, any other scenario will do.
+    let scenarios = std::iter::once(first).chain((0..c.scenarios.len()).filter(|&i| i != first));
     let offset = (now() % c.flops.len() as i64) as usize;
     let mut chosen = None;
-    for k in 0..c.flops.len() {
-        let flop = (offset + k) % c.flops.len();
-        let input = PostflopInput::new(&c.scenarios[scenario].id, &c.flops[flop]);
-        let key = Postflop::key(&input).map_err(|e| e.to_string())?;
-        let rows = db.execute(&[("SELECT count(*) AS n FROM solutions WHERE key = ?", vec![key.as_str().into()])])?;
-        if rows[0].col(0, "n").as_i64() == Some(0) {
-            chosen = Some((SpotId { scenario, flop }, input, key));
-            break;
+    'search: for scenario in scenarios {
+        for k in 0..c.flops.len() {
+            let flop = (offset + k) % c.flops.len();
+            let input = PostflopInput::new(&c.scenarios[scenario].id, &c.flops[flop]);
+            let key = Postflop::key(&input).map_err(|e| e.to_string())?;
+            let rows = db.execute(&[("SELECT count(*) AS n FROM solutions WHERE key = ?", vec![key.as_str().into()])])?;
+            if rows[0].col(0, "n").as_i64() == Some(0) {
+                chosen = Some((SpotId { scenario, flop }, input, key));
+                break 'search;
+            }
         }
     }
-    let (id, input, key) = chosen.ok_or("every smoke spot is taken")?;
+    let (id, input, key) = chosen.ok_or("every catalog spot is taken")?;
     keys.push((Postflop::NAME, key.clone()));
     let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
     let memory = 8u64 << 30;
-    let s = &c.scenarios[scenario];
+    let s = &c.scenarios[id.scenario];
     let flop = &c.flops[id.flop];
 
     // One iteration: a well-formed spot whose flop strategy is far from solved, claiming
