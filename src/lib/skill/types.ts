@@ -67,6 +67,10 @@ export interface SkillProfile {
   grades: SkillGrades;
   areas: AreaScore[];
   moments: Moment[];
+  /** Hands rated by an earlier analysis are rated again; no rating until then (app only). */
+  recalculating?: boolean;
+  /** The rating before the last recalculation, until the next tournament counts. */
+  recalculated_from?: number | null;
 }
 
 /** How far a run or a session moved the rating. */

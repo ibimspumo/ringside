@@ -540,6 +540,22 @@ impl Db {
         rows.collect()
     }
 
+    /// Hands after `after_id` analysed before, but with another `engine` than this one, by id:
+    /// what an update of the analysis rates again.
+    pub fn outdated_candidates(&self, engine: &str, after_id: u64, limit: usize) -> Result<Vec<(u64, String)>, Error> {
+        let mut stmt = self.conn.prepare_cached(
+            "SELECT h.id, h.raw FROM hands h JOIN hand_analysis a ON a.hand_id = h.id
+             WHERE h.id > ?1 AND a.engine <> ?2 ORDER BY h.id LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(params![after_id as i64, engine, limit as i64], |r| Ok((r.get::<_, i64>(0)? as u64, r.get(1)?)))?;
+        rows.collect()
+    }
+
+    /// How many hands are analysed with another `engine` than this one.
+    pub fn outdated_count(&self, engine: &str) -> Result<i64, Error> {
+        self.conn.query_row("SELECT COUNT(*) FROM hand_analysis WHERE engine <> ?1", [engine], |r| r.get(0))
+    }
+
     pub fn analysis_counts(&self, engine: &str) -> Result<AnalysisCounts, Error> {
         // Reads only the small analysis rows; filtering `hands` by a column would read every raw hand.
         let hands = self.hand_count()?;

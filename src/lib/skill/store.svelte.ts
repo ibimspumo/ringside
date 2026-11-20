@@ -18,6 +18,8 @@ export function loadSkill(): Promise<void> {
     .then((p) => {
       skill.profile = p;
       skill.state = "ready";
+      // A recalculation takes seconds to a minute; then the rating is back.
+      if (p.recalculating) setTimeout(() => void loadSkill(), 3000);
     })
     .catch((e) => {
       skill.profile = null;

@@ -173,6 +173,51 @@ pub fn analyze_raw(rows: &[(u64, String)]) -> Vec<HandAnalysis> {
         .collect()
 }
 
+/// A hand analysed again after an update of the analysis, keeping what does not need the
+/// solver again: a postflop decision the solver rated keeps its rating while its spot is
+/// the same, and one the estimate rated after a failed solve is estimated again. What is
+/// left waits for the solver as in a first analysis.
+pub fn keep_rated(hand: &Hand, fresh: &mut HandAnalysis, before: &[Decision]) {
+    let job: Option<PostflopJob> = fresh.job.as_ref().and_then(|(_, j)| serde_json::from_str(j).ok());
+    for d in fresh.decisions.iter_mut().filter(|d| d.status == Status::Pending) {
+        let Some(old) = before.iter().find(|o| o.action_index == d.action_index && o.status == Status::Rated && o.played == d.played) else {
+            continue;
+        };
+        match old.source {
+            Some(Source::Solver) if job.as_ref().zip(old.solver.as_deref()).is_some_and(|(j, link)| postflop::same_spot(j, link)) => {
+                *d = Decision { engine: d.engine.clone(), ..old.clone() };
+            }
+            Some(Source::Estimate) => {
+                let why = old.reason.clone().unwrap_or_default();
+                if let Some(e) = estimate_rest(hand, vec![d.clone()], &why).pop() {
+                    *d = Decision { engine: d.engine.clone(), ..e };
+                }
+            }
+            _ => {}
+        }
+    }
+    if !fresh.decisions.iter().any(|d| d.status == Status::Pending) {
+        fresh.job = None;
+    }
+}
+
+/// [`analyze_raw`] for hands that may have been analysed before (`before`, by hand id):
+/// see [`keep_rated`].
+pub fn analyze_again(rows: &[(u64, String)], before: &std::collections::HashMap<u64, Vec<Decision>>) -> Vec<HandAnalysis> {
+    rows.par_iter()
+        .map(|(id, raw)| match parse_hand(raw) {
+            Ok(hand) => {
+                let mut fresh = analyze_hand(&hand);
+                if let Some(old) = before.get(id).filter(|o| !o.is_empty()) {
+                    keep_rated(&hand, &mut fresh, old);
+                }
+                fresh
+            }
+            Err(_) => HandAnalysis { hand_id: *id, engine: ENGINE.into(), decisions: Vec::new(), job: None },
+        })
+        .collect()
+}
+
 /// The hero's voluntary actions with their index in `Hand.actions`.
 pub(crate) fn hero_actions<'a>(hand: &'a Hand, hero: &'a str) -> impl Iterator<Item = (usize, &'a ringside_core::model::Action)> {
     hand.actions.iter().enumerate().filter(move |(_, a)| a.player == hero && !a.kind.is_post())
