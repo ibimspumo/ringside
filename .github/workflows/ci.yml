@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   secrets:
@@ -15,6 +16,47 @@ jobs:
       - run: |
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz gitleaks
           ./gitleaks detect --source . --redact --no-banner
+
+  # What a change touches: the app's face needs the click-through, the solver crates their slow
+  # tests. A manual run does everything.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      app: ${{ steps.filter.outputs.app }}
+      solver: ${{ steps.filter.outputs.solver }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            app:
+              - "src/**"
+              - "src-tauri/**"
+              - "static/**"
+              - "e2e/**"
+              - "package.json"
+              - "pnpm-lock.yaml"
+              - "svelte.config.js"
+              - "vite.config.js"
+              - "tsconfig.json"
+              - ".github/workflows/ci.yml"
+            solver:
+              - "crates/postflop-solver/**"
+              - "crates/ringside-analysis/**"
+              - "crates/ringside-cloud/**"
+              - "crates/ringside-coach/**"
+              - "crates/ringside-engine/**"
+              - "crates/ringside-gpu/**"
+              - "crates/ringside-learn/**"
+              - "crates/ringside-play/**"
+              - "crates/ringside-solver/**"
+              - "crates/ringside-store/**"
+              - "Cargo.toml"
+              - "Cargo.lock"
+              - "rust-toolchain.toml"
+              - ".config/nextest.toml"
+              - ".github/workflows/ci.yml"
 
   check:
     runs-on: windows-latest
@@ -33,10 +75,38 @@ jobs:
       - run: pnpm check
       - run: pnpm build
       - run: cargo clippy --workspace --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - run: cargo nextest run --workspace --profile quick
+      - run: cargo test --workspace --doc
 
-  # Clicks through the real app (debug build, own data folder, fixture hand histories).
+  # The whole suite, with the tests the quick run leaves out (.config/nextest.toml).
+  tests-full:
+    needs: changes
+    if: needs.changes.outputs.solver == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - run: pnpm install --frozen-lockfile
+      # The app crate embeds the built frontend.
+      - run: pnpm build
+      - run: cargo nextest run --workspace
+
+  # Opens every page of the real app (debug build, own data folder, fixture hand histories).
   e2e:
+    needs: changes
+    if: needs.changes.outputs.app == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:

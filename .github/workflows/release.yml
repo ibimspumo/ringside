@@ -10,8 +10,9 @@ permissions:
   actions: read
 
 # The installer is built as a draft while CI checks the same commit; it is only published
-# (and offered to the updater) once both have passed. The release does not run the checks a
-# second time: the tagged commit is on main, so the CI run of its push is the check.
+# (and offered to the updater) once both have passed. The tagged commit is on main, so the CI
+# run of its push is the check; only the full test suite runs here again, since CI leaves the
+# slow tests out unless the solver crates changed.
 jobs:
   checks:
     runs-on: ubuntu-latest
@@ -31,6 +32,24 @@ jobs:
             sleep 30
           done
           echo "CI did not finish within an hour"; exit 1
+
+  tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: cargo nextest run --workspace
 
   build:
     runs-on: windows-latest
@@ -60,7 +79,7 @@ jobs:
           includeUpdaterJson: true
 
   publish:
-    needs: [checks, build]
+    needs: [checks, tests, build]
     runs-on: ubuntu-latest
     steps:
       - run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest
