@@ -320,12 +320,12 @@ tauriOnly("Ohne Poker-Client, Cloud aus, Hand-Histories eingelesen", async () =>
   const settings = await invoke("get_settings");
   settings.hand_history_dirs = [historyDir];
   await invoke("save_settings", { settings });
-  const n = await waitFor(
-    "stored hands > 0",
-    `const n = Number(document.querySelector(".stored .num")?.textContent.replace(/\\D/g, "") || 0); return n > 0 && n;`,
-    [],
-    60_000,
-  );
+  // From the backend: the narrow side bar shows no count.
+  let n = 0;
+  for (const until = Date.now() + 60_000; !(n > 0); await sleep(500)) {
+    if (Date.now() > until) throw new Error("timed out waiting for stored hands > 0");
+    n = (await invoke("import_status")).total_hands;
+  }
   log(`stored hands: ${n}`);
 });
 
