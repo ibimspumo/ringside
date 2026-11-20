@@ -675,7 +675,7 @@
     color: var(--text);
   }
 
-  @media (max-width: 1279px) {
+  @container page (max-width: 1279px) {
     .sk-hero {
       grid-template-columns: 1fr;
       gap: var(--sp-4);

@@ -487,29 +487,27 @@
       <section id="navigation">
         <SectionHead
           title="Navigation"
-          sub="Einträge der oberen Leiste: Reiter mit Marke, die Zeile darunter, eine Wertung mit Trend rechts und Kacheln im Menü mit Satz und Live-Wert. Die offene Seite ist unterstrichen."
+          sub="Einträge der Seitenleiste: Zeile mit Symbol, Name und Marke rechts; die offene Seite ist gefüllt und links markiert. Schmal nur das Symbol mit Marke, der Name im Tooltip. Die Wertung steht als breite Karte am Kopf der Leiste."
         />
-        <div class="stack">
-          <div class="navbar">
-            <NavItem size="top" label="Start" icon={NAV_ICON.live} />
-            <NavItem size="top" label="Mein Spiel" icon={NAV_ICON.stats} chevron="down" current status="4 Schwachstellen" tone="warn" aria-expanded={false} />
-            <NavItem size="top" label="Üben" icon={NAV_ICON.learn} chevron="down" locked aria-expanded={true} />
-            <NavItem size="top" label="Gegner" icon={NAV_ICON.live} chevron="down" status="3" tone="good" aria-expanded={false} />
+        <div class="navside">
+          <div class="stack">
+            <NavItem label="Start" icon={NAV_ICON.live} />
+            <NavItem label="Hände" icon={NAV_ICON.play} status="Analyse läuft" />
+            <NavItem label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
+            <NavItem label="Live-Tische" icon={NAV_ICON.live} status="3" tone="good" />
+            <NavItem label="Nachrechnen" icon={NAV_ICON.stats} locked />
           </div>
-          <div class="navbar">
-            <NavItem size="sub" label="Hände" icon={NAV_ICON.play} status="rechnet 96 %" />
-            <NavItem size="sub" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
-            <NavItem size="sub" label="Nachrechnen" icon={NAV_ICON.stats} locked />
+          <div class="stack">
+            <ScoreChip wide value="1287" trend={14} sub="+14 · Spielwertung" subTone="good" title="Wertung 1287, +14" onclick={() => {}} />
+            <ScoreChip wide value="1273" trend={-6} sub="−6 · Spielwertung" subTone="bad" active title="Wertung 1273, −6, Seite offen" onclick={() => {}} />
+            <ScoreChip wide locked value="Wertung" sub="gesperrt" title="Wertung gesperrt" onclick={() => {}} />
           </div>
-          <div class="navbar">
-            <ScoreChip value="1287" trend={14} sub="+14 · Solide" subTone="good" title="Wertung 1287, +14" onclick={() => {}} />
-            <ScoreChip value="1273" trend={-6} sub="−6 · Solide" subTone="bad" active title="Wertung 1273, −6, Seite offen" onclick={() => {}} />
-            <ScoreChip value="1287" trend={14} compact title="Wertung 1287, schmal" onclick={() => {}} />
-            <ScoreChip locked value="Wertung" sub="gesperrt" title="Wertung gesperrt" onclick={() => {}} />
-          </div>
-          <div class="navtiles">
-            <NavItem size="tile" label="Schwachstellen" icon={NAV_ICON.leak} text="Wo du immer wieder Chips verlierst und was dagegen hilft." status="4 gefunden" tone="warn" active />
-            <NavItem size="tile" label="Nachrechnen" icon={NAV_ICON.stats} text="Eine Situation genau durchrechnen lassen." status="gesperrt" locked />
+          <div class="navrail">
+            <ScoreChip wide compact value="1287" trend={14} title="Wertung 1287, schmal" onclick={() => {}} />
+            <NavItem size="rail" label="Hände" icon={NAV_ICON.play} status="Analyse läuft" />
+            <NavItem size="rail" label="Schwachstellen" icon={NAV_ICON.leak} status="4" tone="warn" active />
+            <NavItem size="rail" label="Live-Tische" icon={NAV_ICON.live} status="3" tone="good" />
+            <NavItem size="rail" label="Nachrechnen" icon={NAV_ICON.stats} locked />
           </div>
         </div>
       </section>
@@ -1001,21 +999,25 @@
     padding: 0 var(--sp-4);
     text-align: right;
   }
-  .navbar {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 10px var(--sp-3);
+  .navside {
+    display: grid;
+    grid-template-columns: var(--side-w) var(--side-w) var(--side-rail-w);
+    gap: var(--sp-6);
+    align-items: start;
+  }
+  .navside > div {
+    padding: var(--sp-3);
     border-radius: var(--r);
     background: var(--surface-sunken);
   }
-  .navtiles {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .navside .stack {
+    gap: 2px;
+  }
+  .navrail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
     gap: var(--sp-2);
-    padding: var(--sp-2);
-    border-radius: var(--r);
-    background: var(--surface);
   }
   .two {
     display: grid;

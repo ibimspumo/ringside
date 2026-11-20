@@ -2,40 +2,39 @@
   import type { HTMLButtonAttributes } from "svelte/elements";
 
   /**
-   * One entry of the app's navigation. `top` is a tab of the top bar (with `chevron` it opens a
-   * menu), `sub` a tab of the row below it, `tile` a menu entry with a sentence. `status` is a
-   * short live value ("4 Schwachstellen"), `locked` marks what is closed while PokerStars runs.
-   * `icon` is an SVG path on a 24 × 24 grid; without it the entry is text only. Nothing in an entry
-   * wraps; whoever places it makes room or shortens the value.
+   * One entry of the side bar. `side` is a row with icon, name and a short live value at the
+   * right ("4", "Analyse läuft"); `rail` is the icon alone for the narrow bar, its value a small
+   * mark on the icon and its name in the tooltip. `locked` marks what is closed while a poker client
+   * runs. `icon` is an SVG path on a 24 × 24 grid.
    */
   let {
     label,
     icon,
-    size,
+    size = "side",
     active = false,
-    current,
     status,
     tone = "neutral",
-    text,
     locked = false,
-    chevron,
+    title,
     el = $bindable(),
     ...rest
   }: {
     label: string;
-    icon?: string;
-    size: "top" | "sub" | "tile";
+    icon: string;
+    size?: "side" | "rail";
     /** The page on screen. */
     active?: boolean;
-    /** The area of the page on screen, for an entry that opens a menu. */
-    current?: boolean;
     status?: string;
     tone?: "neutral" | "good" | "warn" | "bad";
-    text?: string;
     locked?: boolean;
-    chevron?: "down";
+    /** The tooltip; the rail always names the entry in it. */
+    title?: string;
     el?: HTMLButtonElement;
-  } & Omit<HTMLButtonAttributes, "children"> = $props();
+  } & Omit<HTMLButtonAttributes, "children" | "title"> = $props();
+
+  const tip = $derived(size === "rail" ? [label, locked ? "gesperrt" : status, title].filter(Boolean).join(" · ") : title);
+  /** A rail mark shows a short count; longer values only colour the dot. */
+  const mark = $derived(status && status.length <= 3 ? status : "");
 </script>
 
 <button
@@ -43,47 +42,44 @@
   type="button"
   class="ui-nav {size}"
   class:on={active}
-  class:cur={current && !active}
-  aria-current={active ? "page" : current ? "true" : undefined}
+  aria-current={active ? "page" : undefined}
+  aria-label={size === "rail" ? tip : undefined}
+  title={tip}
   {...rest}
 >
-  {#if icon}
-    <span class="ico">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>
-    </span>
-  {/if}
-  <span class="body">
-    <span class="label">{label}</span>
-    {#if size === "tile"}
-      {#if text}<span class="text">{text}</span>{/if}
-      {#if status || locked}<span class="status {tone}">{@render lock()}{status ?? ""}</span>{/if}
+  <span class="ico">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d={icon} /></svg>
+    {#if size === "rail" && locked}
+      <span class="mark neutral"
+        ><svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" /><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" /></svg></span
+      >
+    {:else if size === "rail" && status}
+      <span class="mark {tone}" class:dot={!mark}>{mark}</span>
     {/if}
   </span>
-  {#if size !== "tile" && (status || locked)}<span class="value {tone}">{@render lock()}{status ?? ""}</span>{/if}
-  {#if chevron}
-    <svg class="chev" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 6.5 8 9.5l3-3" /></svg>
+  {#if size === "side"}
+    <span class="label">{label}</span>
+    {#if status || locked}
+      <span class="value {tone}">
+        {#if locked}<svg class="lock" viewBox="0 0 16 16" aria-label="gesperrt, solange ein Poker-Client läuft" role="img"
+            ><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" /><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" /></svg
+          >{/if}{status ?? ""}
+      </span>
+    {/if}
   {/if}
 </button>
-
-{#snippet lock()}
-  {#if locked}<svg class="lock" viewBox="0 0 16 16" aria-label="gesperrt, solange ein Poker-Client läuft" role="img"
-      ><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" /><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" /></svg
-    >{/if}
-{/snippet}
 
 <style>
   .ui-nav {
     position: relative;
     display: flex;
     align-items: center;
-    flex-shrink: 0;
     min-width: 0;
     border: 0;
     border-radius: var(--r-sm);
     background: transparent;
     color: var(--text-2);
     font: inherit;
-    font-size: var(--fs-base);
     text-align: left;
     white-space: nowrap;
     cursor: pointer;
@@ -99,23 +95,25 @@
     outline: 2px solid var(--focus);
     outline-offset: -2px;
   }
+  /* The page on screen: filled, and a bar at its left edge, so it reads without colour. */
   .on,
-  .cur {
+  .on:hover {
     color: var(--text);
+    background: var(--surface-2);
   }
-  /* The page or area on screen is underlined, so it reads without colour. */
-  .on::before,
-  .cur::before {
+  .on::before {
     content: "";
     position: absolute;
-    left: var(--sp-3);
-    right: var(--sp-3);
-    height: 2px;
+    left: 0;
+    top: 7px;
+    bottom: 7px;
+    width: 3px;
     border-radius: var(--r-pill);
     background: var(--text);
   }
 
   .ico {
+    position: relative;
     display: grid;
     place-items: center;
     flex-shrink: 0;
@@ -131,22 +129,27 @@
     width: 18px;
     height: 18px;
   }
-  .body {
-    display: grid;
-    min-width: 0;
-    line-height: var(--lh-tight);
+
+  .side {
+    width: 100%;
+    height: 32px;
+    gap: var(--sp-3);
+    padding: 0 10px 0 var(--sp-3);
+    font-size: var(--fs-base);
   }
-  .value,
-  .status {
+  .label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .value {
     display: inline-flex;
     align-items: center;
     gap: var(--sp-1);
+    flex-shrink: 0;
     font-family: var(--font-num);
     font-size: var(--fs-md);
-    white-space: nowrap;
-  }
-  .value {
-    flex-shrink: 0;
     color: var(--text-2);
   }
   .lock {
@@ -165,110 +168,63 @@
     color: var(--danger-text);
   }
 
-  /* Tab of the top bar; an open menu keeps the hover surface, the mark sits on the bar's edge. */
-  .top {
-    height: 36px;
-    padding: 0 10px 0 var(--sp-3);
-    gap: var(--sp-2);
-    font-weight: var(--fw-medium);
+  .rail {
+    justify-content: center;
+    width: 44px;
+    height: 40px;
   }
-  .top[aria-expanded="true"] {
-    color: var(--text);
-    background: var(--surface-2);
+  .rail .ico svg {
+    width: 20px;
+    height: 20px;
   }
-  .top::before {
-    bottom: -10px;
+  .rail.on::before {
+    top: 10px;
+    bottom: 10px;
   }
-
-  /* Tab of the row under the top bar: quieter; the page on screen is a filled pill, so this level
-     reads apart from the bar above and the page's own sections below. */
-  .sub {
-    height: 32px;
-    padding: 0 10px;
-    gap: var(--sp-2);
-    font-size: var(--fs-md);
-  }
-  .sub .ico svg {
-    width: 16px;
+  .mark {
+    position: absolute;
+    top: -7px;
+    left: 12px;
+    min-width: 16px;
     height: 16px;
-  }
-  .sub.on {
-    background: var(--surface-2);
-  }
-  .sub.on::before {
-    content: none;
-  }
-
-  /* Menu entry: name, a sentence and the live value below. */
-  .tile {
-    align-items: flex-start;
-    gap: var(--sp-3);
-    width: 100%;
-    padding: 10px var(--sp-3) 10px 10px;
-    border-radius: var(--r-md);
-    white-space: normal;
-  }
-  .tile .ico {
-    width: 32px;
-    height: 32px;
-    border-radius: var(--r-md);
-    background: var(--surface-2);
-    color: var(--text);
-    transition: background-color var(--dur-fast) var(--ease-standard);
-  }
-  .tile:hover .ico {
+    padding: 0 4px;
+    border: 2px solid var(--surface-sunken);
+    border-radius: var(--r-pill);
     background: var(--surface-3);
+    font-family: var(--font-num);
+    font-size: var(--fs-xs);
+    line-height: 12px;
+    text-align: center;
+    color: var(--text);
   }
-  .tile.on {
-    background: var(--surface-2);
+  .mark .lock {
+    display: block;
+    width: 10px;
+    height: 12px;
+    margin: 0 -2px;
   }
-  .tile.on .ico {
-    background: var(--text);
+  .mark.dot {
+    top: -3px;
+    left: 14px;
+    min-width: 0;
+    width: 10px;
+    height: 10px;
+    padding: 0;
+  }
+  .mark.good {
+    background: var(--pos);
     color: var(--bg);
   }
-  .tile.on::before {
-    left: 0;
-    right: auto;
-    top: 14px;
-    width: 3px;
-    height: 24px;
+  .mark.warn {
+    background: var(--amber);
+    color: var(--bg);
   }
-  .tile .label {
-    font-weight: var(--fw-semibold);
+  .mark.bad {
+    background: var(--neg);
     color: var(--text);
   }
-  .tile .text {
-    margin-top: 3px;
-    font-size: var(--fs-base);
-    line-height: var(--lh-base);
-    color: var(--text-2);
-    display: -webkit-box;
-    overflow: hidden;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-  }
-  .tile .status {
-    margin-top: 5px;
-  }
-  .tile .status.neutral {
-    color: var(--text-2);
-  }
-
-  .chev {
-    width: 14px;
-    height: 14px;
-    flex-shrink: 0;
-    color: var(--text-3);
-    transition: transform var(--dur) var(--ease-standard);
-  }
-  [aria-expanded="true"] > .chev {
-    transform: rotate(180deg);
-  }
   @media (prefers-reduced-motion: reduce) {
-    .ui-nav,
-    .ico,
-    .chev {
+    .ui-nav {
       transition: none;
     }
   }

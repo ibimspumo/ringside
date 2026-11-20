@@ -6,12 +6,11 @@
   import { cancelJob, clearJobs, jobs, startJobs } from "./store.svelte";
   import type { Job, JobTarget } from "./types";
 
-  /** `top`: the dock sits in a top bar, so the panel opens below it at the right. */
+  /** The tasks at the foot of the side bar; their panel opens beside it. */
   let {
     onView,
-    placement = "side",
     compact = false,
-  }: { onView: (target: JobTarget) => void; placement?: "side" | "top"; /** The ring alone; its tooltip names the state. */ compact?: boolean } = $props();
+  }: { onView: (target: JobTarget) => void; /** The ring alone; its tooltip names the state. */ compact?: boolean } = $props();
 
   onMount(startJobs);
 
@@ -59,7 +58,9 @@
 <button
   class="dock"
   class:busy={active.length > 0}
-  class:compact
+  style:justify-content={compact ? "center" : null}
+  style:margin={compact ? "0" : null}
+  style:padding={compact ? "4px 0" : null}
   aria-label={compact ? `Aufgaben: ${summary}` : undefined}
   title={compact ? `Aufgaben: ${summary}` : undefined}
   bind:this={button}
@@ -77,7 +78,7 @@
 </button>
 
 {#if jobs.open}
-  <div class="sheet" class:top={placement === "top"} id="jobs-panel" role="dialog" aria-label="Aufgaben" bind:this={panel}>
+  <div class="sheet" id="jobs-panel" role="dialog" aria-label="Aufgaben" bind:this={panel}>
     <header>
       <div>
         <h2>Aufgaben</h2>
@@ -209,26 +210,21 @@
     text-overflow: ellipsis;
   }
 
+  /* Opens beside the side bar (`--side-now`, its width at the moment), at the bottom like its button. */
   .sheet {
     position: fixed;
-    left: 206px;
+    left: calc(var(--side-now, var(--side-w)) + 8px);
     bottom: 12px;
     z-index: 60;
     display: flex;
     flex-direction: column;
-    width: min(420px, calc(100vw - 230px));
+    width: min(420px, calc(100vw - var(--side-now, var(--side-w)) - 24px));
     max-height: min(640px, calc(100vh - 24px));
     border: 1px solid var(--line-2);
     border-radius: var(--r);
     background: var(--surface);
     box-shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
     animation: rise 0.16s ease-out;
-  }
-  .sheet.top {
-    left: auto;
-    right: 12px;
-    top: 64px;
-    bottom: auto;
   }
   @keyframes rise {
     from {

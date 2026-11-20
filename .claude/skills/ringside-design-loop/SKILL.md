@@ -17,7 +17,7 @@ Alles auf Deutsch (Antworten, sichtbares Denken, Tool-Beschreibungen, Bericht). 
   - Dunkles Theme mit den Tokens aus `src/lib/theme.css`; neue Farben nur als Token dort.
   - HUD (`src/lib/hud/`): grafisch = Ring mit vier Segmenten plus Platte über dem PokerStars-Namensschild; klassisch = Textbox mit Presets. PokerStars-Regeln: höchstens drei Farben je Wert, keine Spieler-Etiketten, keine situationsabhängigen Werte.
   - Ehrlichkeit bleibt sichtbar: „Modell“, „Gleichgewicht“, „Solver“, „Einschätzung“, Annahmen-Hinweise und „gesperrt, solange PokerStars läuft“ werden nie für die Optik entfernt.
-  - Navigation über das Menü der Kopfleiste; eine Seitenbreite (`--page-max`, 1440 px). Mindestbreite der App 980 px.
+  - Navigation über die Seitenleiste mit Kategorien (unter 1240 px nur Symbole); eine Seitenbreite (`--page-max`, 1440 px), mittig neben der Leiste. Mindestbreite der App 980 px.
   - Logo (Vier-Phasen-Ring mit Pik) und Name „Ringside“ unverändert.
 - **Rechner schonen:** Dev-Server nur für die Bilderrunde, freie Ports, nur Einzelbilder, nie Video.
 

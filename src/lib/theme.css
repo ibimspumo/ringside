@@ -465,6 +465,9 @@ input[type="range"] {
    */
   --page-max: 1440px;
   --page-gutter: 30px;
+  /* The side bar: full with names, and the rail of icons below 1240 px. */
+  --side-w: 244px;
+  --side-rail-w: 64px;
   --frame-auto: calc(max(0px, (100% - var(--page-max)) / 2) + var(--page-gutter));
 
   /* Type scale; check-ui.mjs knows the same steps. */

@@ -1,11 +1,11 @@
 // Layout check of the app frame against the browser demo: every page at every window width the
-// app supports, plus the open menus, a window full of notes at once and a deliberately broken
-// case that must be caught. Checked, per view:
+// app supports, the narrow rail, a window full of notes at once and a deliberately broken case
+// that must be caught. Checked, per view:
 //   - nothing scrolls sideways (document and content area)
-//   - the page frame is no wider than --page-max
-//   - top bar, page header and page content start at the same left edge
-//   - nothing in the top bar or the row below overlaps or leaves the bar
-//   - no tab, mark or note in them wraps or is cut off with "…"
+//   - the page frame is no wider than --page-max and stands centred beside the side bar
+//   - page header and page content start at the same left edge
+//   - no entry of the side bar overlaps another or leaves the bar
+//   - no name, mark or note in it wraps or is cut off with "…"
 //   - the page header keeps title and filters on one row
 //
 // Runs as a step of e2e/run.mjs (demo only) or alone:
@@ -35,7 +35,6 @@ export const PAGES = [
   "library",
   "settings",
 ];
-const AREAS = ["spiel", "ueben", "gegner", "werkzeuge"];
 
 /** In the page: what breaks the frame rules, as readable lines (empty when all is well). */
 const CHECK = `
@@ -56,21 +55,24 @@ const CHECK = `
     if (w > max + 0.5) out.push("breiter als --page-max: " + (el.className || el.tagName) + " " + Math.round(w) + " px");
   }
 
-  const row = document.querySelector("[role=banner] .bar .row");
-  if (!row) return ["obere Leiste fehlt"];
-  const rs = getComputedStyle(row);
-  const barLeft = rect(row).left + px(rs.paddingLeft);
-  const barRight = rect(row).right - px(rs.paddingRight);
+  const side = document.querySelector("aside.side");
+  if (!side) return ["Seitenleiste fehlt"];
   const h1 = document.querySelector("main h1");
-  if (h1 && Math.abs(rect(h1).left - barLeft) > 1) out.push("Seitenkopf beginnt bei " + Math.round(rect(h1).left) + ", Leiste bei " + Math.round(barLeft));
   const page = document.querySelector("main .content .page");
   if (page) {
     const left = rect(page).left + px(getComputedStyle(page).paddingLeft);
-    if (Math.abs(left - barLeft) > 1) out.push("Seite beginnt bei " + Math.round(left) + ", Leiste bei " + Math.round(barLeft));
-    // The bar follows the page; a page with its own margin moves the logo when you switch pages.
+    if (h1 && Math.abs(rect(h1).left - left) > 1) out.push("Seitenkopf beginnt bei " + Math.round(rect(h1).left) + ", Seite bei " + Math.round(left));
+    // The header follows the page; a page with its own margin moves the title when you switch pages.
     const gutter = px(root.getPropertyValue("--page-gutter"));
     const own = px(getComputedStyle(page).paddingLeft);
     if (Math.abs(own - gutter) > 0.5) out.push("Seite hat eigenen Rand " + own + " px statt --page-gutter " + gutter + " px");
+  }
+  const frame = document.querySelector("main .content > .frame");
+  if (content && frame) {
+    // Centred in the room beside the side bar; the scrollbar may take a few pixels on the right.
+    const c = rect(content), f = rect(frame);
+    const gap = f.left - c.left - (c.left + content.clientWidth - f.right);
+    if (Math.abs(gap) > 1) out.push("Seite steht nicht mittig: links " + Math.round(f.left - c.left) + " px, rechts " + Math.round(c.left + content.clientWidth - f.right) + " px");
   }
 
   const visible = (el) => { const r = rect(el); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden"; };
@@ -81,12 +83,6 @@ const CHECK = `
         if (a.right > b.left + 0.5 && b.right > a.left + 0.5 && a.bottom > b.top + 0.5 && b.bottom > a.top + 0.5)
           out.push(name + ": „" + items[i].textContent.trim().slice(0, 30) + "“ überlappt „" + items[j].textContent.trim().slice(0, 30) + "“");
       }
-  };
-  const inside = (name, items, left, right) => {
-    for (const el of items) {
-      const r = rect(el);
-      if (r.left < left - 12.5 || r.right > right + 12.5) out.push(name + ": „" + el.textContent.trim().slice(0, 30) + "“ ragt aus der Leiste (" + Math.round(r.left) + "–" + Math.round(r.right) + ")");
-    }
   };
   // Text that wraps has more than one line box; text cut with "…" is wider than its box.
   const unbroken = (name, scope) => {
@@ -107,29 +103,28 @@ const CHECK = `
     }
   };
 
-  const barItems = [row.querySelector(".brand"), ...row.querySelectorAll("nav > button"), ...row.querySelectorAll(".right > .item")].filter((el) => el && visible(el));
-  overlaps("Leiste", barItems);
-  inside("Leiste", barItems, barLeft, barRight);
-  unbroken("Leiste", row);
-
-  const sub = document.querySelector("[role=banner] .sub .row");
-  if (sub) {
-    const items = [...sub.querySelectorAll(":scope > button")].filter(visible);
-    overlaps("Unterzeile", items);
-    inside("Unterzeile", items, barLeft, barRight);
-    unbroken("Unterzeile", sub);
+  const s = rect(side);
+  // Entries scrolled out of the list are reached by scrolling; the ones in view count.
+  const list = rect(side.querySelector("nav"));
+  const inView = (el) => { const r = rect(el); return r.top >= list.top - 0.5 && r.bottom <= list.bottom + 0.5; };
+  const items = [
+    side.querySelector(".brand"),
+    side.querySelector("[data-skill-chip]"),
+    ...[...side.querySelectorAll("nav [data-nav]")].filter(inView),
+    ...side.querySelectorAll(".foot > :not(.tools), .foot .tools > *"),
+  ].filter((el) => el && visible(el));
+  overlaps("Seitenleiste", items);
+  for (const el of items) {
+    const r = rect(el);
+    if (r.left < s.left - 0.5 || r.right > s.right + 0.5) out.push("Seitenleiste: „" + el.textContent.trim().slice(0, 30) + "“ ragt heraus");
+    // A mark may not leave its entry, nor squeeze the name out of it.
+    for (const part of el.querySelectorAll(":scope > *")) if (rect(part).right > r.right + 0.5) out.push("Seitenleiste: „" + part.textContent.trim().slice(0, 30) + "“ ragt aus „" + el.textContent.trim().slice(0, 20) + "“");
+    const name = el.querySelector(".label");
+    if (name && rect(name).width < Math.min(name.scrollWidth, 40)) out.push("Seitenleiste: Name „" + name.textContent.trim() + "“ ist verdrängt");
   }
-  for (const note of document.querySelectorAll("main .notice .line, [role=banner] ~ .strip")) unbroken("Hinweis", note);
-  for (const note of document.querySelectorAll("main .notice, [role=banner] ~ .strip")) overlaps("Hinweis", [...note.children].filter(visible));
-
-  const menu = document.querySelector("#nav-menu");
-  if (menu) {
-    const m = rect(menu);
-    if (m.right > W + 0.5 || m.left < -0.5) out.push("Menü ragt aus dem Fenster");
-    const tiles = [...menu.querySelectorAll(".tiles > button")].filter(visible);
-    overlaps("Menü", tiles);
-    for (const t of tiles) if (t.scrollWidth > t.clientWidth + 1) out.push("Menü: „" + t.textContent.trim().slice(0, 30) + "“ läuft über");
-  }
+  unbroken("Seitenleiste", side);
+  for (const note of document.querySelectorAll("main .notice .line, main .strip")) unbroken("Hinweis", note);
+  for (const note of document.querySelectorAll("main .notice, main .strip")) overlaps("Hinweis", [...note.children].filter(visible));
 
   const head = document.querySelector("main .ui-page-header .bar");
   if (head) {
@@ -138,12 +133,12 @@ const CHECK = `
   }
   return out;`;
 
-/** Waits for the page to settle: the title is there, fonts are loaded, the bar has folded. */
+/** Waits for the page to settle: the title and the side bar are there, fonts are loaded. */
 const SETTLED = `
   const done = arguments[arguments.length - 1];
   const until = Date.now() + 15000;
   const poll = () => {
-    if ((document.querySelector("main h1") && document.querySelector("[role=banner] .bar .row")) || Date.now() > until)
+    if ((document.querySelector("main h1") && document.querySelector("aside.side")) || Date.now() > until)
       document.fonts.ready.then(() => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => done(true))), 250));
     else setTimeout(poll, 100);
   };
@@ -170,9 +165,9 @@ export async function view(s, base, query, width) {
       problems = await s.exec(CHECK);
     } catch (e) {
       if (attempt === 1 || !/script timeout|navigat|context/i.test(e.message)) throw e;
-      problems = ["obere Leiste fehlt"];
+      problems = ["Seitenleiste fehlt"];
     }
-    if (!problems.includes("obere Leiste fehlt")) break;
+    if (!problems.includes("Seitenleiste fehlt")) break;
   }
   return problems.map((p) => `${width} px ${query}: ${p}`);
 }
@@ -186,17 +181,16 @@ export async function checkLayout(s, base, log = () => {}) {
   for (const width of WIDTHS) {
     await size(s, width);
     for (const page of PAGES) problems.push(...(await view(s, base, `?tab=${page}`, width)));
-    for (const area of AREAS) problems.push(...(await view(s, base, `?tab=leaks&navopen=${area}`, width)));
-    // Many notes at once: PokerStars runs, no hand history yet, a very long mark.
-    const long = encodeURIComponent("4 Schwachstellen und noch eine sehr lange Marke");
-    problems.push(...(await view(s, base, `?tab=leaks&locked=1&nohistory=1&navmark=${long}`, width)));
-    problems.push(...(await view(s, base, `?tab=training&locked=1&nohistory=1&navopen=werkzeuge`, width)));
+    // The rail at every width, and many notes at once: a poker client runs, no hand history yet,
+    // a long mark.
+    problems.push(...(await view(s, base, `?tab=leaks&rail=1`, width)));
+    problems.push(...(await view(s, base, `?tab=leaks&locked=1&nohistory=1&navmark=${encodeURIComponent("Analyse läuft")}`, width)));
     log(`${width} px geprüft`);
   }
-  // Counter-check: folding off and an absurdly long mark at the narrowest width must be caught.
-  await size(s, WIDTHS[0]);
-  const broken = await view(s, base, `?tab=leaks&navfit=0&locked=1&navmark=${encodeURIComponent("4 Schwachstellen ".repeat(6).trim())}`, WIDTHS[0]);
-  if (!broken.length) throw new Error("Gegenprobe: eine zu lange Marke ohne Einklappen wurde nicht erkannt");
+  // Counter-check: an absurdly long mark beside a name must be caught.
+  await size(s, 1440);
+  const broken = await view(s, base, `?tab=leaks&navmark=${encodeURIComponent("4 Schwachstellen ".repeat(4).trim())}`, 1440);
+  if (!broken.length) throw new Error("Gegenprobe: eine zu lange Marke wurde nicht erkannt");
   log(`Gegenprobe erkannt: ${broken[0]}`);
   await s.cmd("POST", "/goog/cdp/execute", { cmd: "Emulation.clearDeviceMetricsOverride", params: {} });
   return problems;

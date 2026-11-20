@@ -229,45 +229,26 @@ async function clickEl(el) {
 
 const mainText = () => s.exec(`return document.querySelector("main")?.innerText ?? ""`);
 
-/**
- * Opens a page like a user: Start and the pages of the open area are one click away in the top bar
- * and the row below it; any other page sits in the menu of its area.
- */
-/** A visible menu entry by its name alone: entries carry a live value beside the name. */
-const ENTRY = `
-  const [sel, text] = arguments;
-  const hit = [...document.querySelectorAll(sel)].find((e) => e.getClientRects().length && e.textContent.trim() === text);
-  return hit?.closest("button") ?? null;`;
+/** The side bar's entries by name: the label, or in the narrow rail the first part of the tooltip. */
+const ENTRIES = `
+  return [...document.querySelectorAll("aside [data-nav]")].map((b) => [
+    b,
+    (b.querySelector(".label")?.textContent ?? (b.getAttribute("aria-label") ?? "").split(" · ")[0]).trim(),
+  ]);`;
 
-/** The names of all pages: the bar, the row under it and every area's menu, and the gear. */
+/** The names of all pages: every entry of the side bar, and the rating at its head. */
 async function pageLabels() {
-  const TRIGGERS = "[role=banner] nav button[aria-haspopup]";
-  const labels = await s.exec(`return [...document.querySelectorAll("[role=banner] nav button:not([aria-haspopup]) .label")].map((e) => e.textContent.trim())`);
-  const areas = await s.exec(`return document.querySelectorAll(arguments[0]).length`, TRIGGERS);
-  for (let i = 0; i < areas; i++) {
-    const trigger = await s.exec(`return document.querySelectorAll(arguments[0])[arguments[1]]`, TRIGGERS, i);
-    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await clickEl(trigger);
-    await waitFor("the menu", `return document.querySelector("#nav-menu")`);
-    labels.push(...(await s.exec(`return [...document.querySelectorAll("#nav-menu .label")].map((e) => e.textContent.trim())`)));
-  }
-  await s.exec(`window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))`);
-  return [...new Set([...labels, "Einstellungen"])];
+  const entries = await s.exec(ENTRIES);
+  return [...new Set([...entries.map(([, name]) => name), "Meine Wertung"])];
 }
 
+/** Opens a page like a user: one click on its entry, on the rating for „Meine Wertung“. */
 async function nav(label) {
-  const TRIGGERS = "[role=banner] nav button[aria-haspopup]";
-  // Einstellungen is the gear at the end of the bar, named by its label.
-  let button =
-    (await s.exec(ENTRY, "[role=banner] nav button .label", label)) ??
-    (await s.exec(`return document.querySelector(\`[role=banner] button[aria-label="\${arguments[0]}"]\`)`, label));
-  const areas = button ? 0 : await s.exec(`return document.querySelectorAll(arguments[0]).length`, TRIGGERS);
-  for (let i = 0; i < areas && !button; i++) {
-    const trigger = await s.exec(`return document.querySelectorAll(arguments[0])[arguments[1]]`, TRIGGERS, i);
-    if ((await s.exec(`return arguments[0].getAttribute("aria-expanded")`, trigger)) !== "true") await clickEl(trigger);
-    await waitFor("the menu", `return document.querySelector("#nav-menu")`);
-    button = await s.exec(ENTRY, "#nav-menu button .label", label);
-  }
-  if (!button) throw new Error(`no menu entry „${label}“`);
+  const button =
+    label === "Meine Wertung"
+      ? await s.exec(`return document.querySelector("aside [data-skill-chip]")`)
+      : (await s.exec(ENTRIES)).find(([, name]) => name === label)?.[0];
+  if (!button) throw new Error(`no side bar entry „${label}“`);
   await clickEl(button);
   await find("main h1", label);
 }
@@ -317,7 +298,7 @@ const steps = [];
 const step = (name, fn) => steps.push({ name, fn });
 const tauriOnly = (name, fn) => TAURI && step(name, fn);
 step("App startet", async () => {
-  await find("[role=banner] nav button", "Start", { timeout: 60_000 });
+  await find("aside [data-nav] .label", "Start", { timeout: 60_000 });
   await s.exec(HOOK);
   if (TAURI && !(await s.exec(`return "__TAURI_INTERNALS__" in window`))) throw new Error("not running in Tauri");
   // Proves the console check below every step can see errors at all.

@@ -37,8 +37,7 @@
 </div>
 
 <style>
-  /* Top right, below the page head: the main actions of a page sit at the bottom. */
-  /* Bottom right: the notes under the top bar and the page header stay readable. */
+  /* Bottom right: the notes above the page header stay readable. */
   .toasts {
     position: fixed;
     right: 20px;

@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
-   * A score in the top bar that opens its page: the number with a trend mark, a quiet second
-   * line, and a lock instead of the number where the value may not be shown. `compact` drops the
-   * second line; the label (`title`) always says everything.
+   * A score that opens its page: the number with a trend mark, a quiet second line, and a lock
+   * instead of the number where the value may not be shown. `wide` fills its column, `compact`
+   * drops the second line; the label (`title`) always says everything.
    */
   let {
     value,
@@ -12,6 +12,7 @@
     locked = false,
     active = false,
     compact = false,
+    wide = false,
     title,
     onclick,
     ...rest
@@ -26,23 +27,27 @@
     locked?: boolean;
     active?: boolean;
     compact?: boolean;
+    wide?: boolean;
     title: string;
     onclick: () => void;
     [key: `data-${string}`]: unknown;
   } = $props();
 
   const [lead, ...restSub] = $derived((sub ?? "").split(" · "));
+  /** The narrow bar has room for a number, not a word: without one only the icon shows. */
+  const rail = $derived(wide && compact);
+  const iconOnly = $derived(rail && (locked || !/\d/.test(value)));
 </script>
 
-<button type="button" class="ui-score-chip" class:active class:compact class:locked aria-current={active ? "page" : undefined} {title} aria-label={title} {onclick} {...rest}>
-  <svg class="ic" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+<button type="button" class="ui-score-chip" class:active class:compact class:wide class:locked aria-current={active ? "page" : undefined} {title} aria-label={title} {onclick} {...rest}>
+  {#if !rail || iconOnly}<svg class="ic" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
     {#if locked}
       <rect x="5" y="10.5" width="14" height="9.5" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" />
     {:else}
       <path d="M4 19.5h16M5 15l4.5-4.5 3 3L19 7" />
     {/if}
-  </svg>
-  <span class="txt">
+  </svg>{/if}
+  {#if !iconOnly}<span class="txt">
     <b class="num">
       {value}
       {#if trend !== null && !locked}
@@ -52,7 +57,7 @@
       {/if}
     </b>
     {#if sub && !compact}<small><span class:up={subTone === "good"} class:down={subTone === "bad"}>{lead}</span>{#if restSub.length}{` · ${restSub.join(" · ")}`}{/if}</small>{/if}
-  </span>
+  </span>{/if}
 </button>
 
 <style>
@@ -85,6 +90,24 @@
   }
   .ui-score-chip.compact {
     padding: 0 var(--sp-2);
+  }
+  .ui-score-chip.wide {
+    width: 100%;
+    height: 44px;
+    padding: 0 var(--sp-3);
+    gap: var(--sp-3);
+  }
+  .wide b {
+    font-size: var(--fs-xl);
+  }
+  /* The narrow bar: the number alone, centred; the trend mark stays. */
+  .wide.compact {
+    justify-content: center;
+    height: 40px;
+    padding: 0;
+  }
+  .wide.compact b {
+    font-size: var(--fs-md);
   }
   .ic {
     flex: none;

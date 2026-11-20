@@ -21,7 +21,7 @@
 
   /**
    * Database upgrade and the missing hand history: the two notes the whole app needs to see, as a
-   * strip under the top bar that shares the page's edges.
+   * strip above the page header that shares the page's edges.
    */
   let {
     status,

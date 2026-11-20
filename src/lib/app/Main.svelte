@@ -47,13 +47,13 @@
   import PageHeader from "../ui/PageHeader.svelte";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
   import { followPage, pageFrame, pageHead } from "../ui/page.svelte";
-  import TopBar from "../nav/TopBar.svelte";
+  import Sidebar from "../nav/Sidebar.svelte";
   import { handleGo } from "../nav/go";
-  import { historyMissing } from "../nav/NavNotices.svelte";
+  import NavNotices, { historyMissing } from "../nav/NavNotices.svelte";
   import { ALL_PAGES, LOCKED_PAGES, PAGES, type Page } from "../nav/pages";
 
   type Tab = Page;
-  /** Tabs that read hand data get the period filter in the top bar, most also the game filter. */
+  /** Tabs that read hand data get the period filter in the page header, most also the game filter. */
   const DATA_TABS: Tab[] = ["overview", "reports", "leaks", "ranges", "tournaments", "players", "hands"];
   const NOTES: Partial<Record<Tab, string>> = {
     overview: "Alle Hände im gewählten Zeitraum: Ergebnis, Spielstil und wo du Chips verlierst.",
@@ -321,20 +321,11 @@
   style:--frame-left={pageFrame.current ? `${pageFrame.current.left}px` : null}
   style:--frame-right={pageFrame.current ? `${pageFrame.current.right}px` : null}
 >
-  <TopBar
-    {tab}
-    {filter}
-    tournaments={tournamentList}
-    {tables}
-    {status}
-    {hud}
-    {refresh}
-    onSelect={go}
-    onView={viewTarget}
-    onChooseFolder={chooseFolder}
-  />
+  <Sidebar {tab} {filter} tournaments={tournamentList} {tables} {status} {hud} {refresh} onSelect={go} onView={viewTarget} />
 
   <main>
+    <!-- Start without any hand already leads with the same setup in its empty state. -->
+    <NavNotices {status} settingsOpen={tab === "settings" || (tab === "dashboard" && !status?.total_hands)} onChooseFolder={chooseFolder} />
     {#if !clientRunning}<CloudNotice quiet={historyMissing(status, tab === "settings")} onSettings={() => (tab = "settings")} />{/if}
     <PageHeader title={PAGES[tab].label} sub={(clientRunning && LOCKED_NOTES[tab]) || NOTES[tab]} sections={pageHead.current} locked={clientRunning && LOCKED_PAGES.includes(tab)}>
       {#snippet actions()}
@@ -574,10 +565,11 @@
 <style>
   .shell {
     display: flex;
-    flex-direction: column;
     height: 100vh;
   }
+  /* Widths below are the room beside the side bar, not the window's. */
   main {
+    container: main / inline-size;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -602,7 +594,7 @@
   .narrow-period {
     display: none;
   }
-  @media (max-width: 1279px) {
+  @container main (max-width: 1279px) {
     .wide-game {
       display: none;
     }
@@ -610,7 +602,7 @@
       display: contents;
     }
   }
-  @media (max-width: 1439px) {
+  @container main (max-width: 1439px) {
     .wide-period {
       display: none;
     }
@@ -622,7 +614,7 @@
     flex: 1;
     min-height: 0;
     overflow: auto;
-    container-type: inline-size;
+    container: page / inline-size;
   }
   .content.fill {
     overflow: hidden;

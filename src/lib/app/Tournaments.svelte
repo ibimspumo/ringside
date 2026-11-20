@@ -670,8 +670,8 @@
   td.place {
     line-height: 1.2;
   }
-  /* Narrow windows: the field size moves into the place column so every column fits without scrolling. */
-  @container (max-width: 1000px) {
+  /* Narrow room: the field size moves into the place column so every column fits without scrolling. */
+  @container (max-width: 1100px) {
     .gcell {
       flex-direction: column;
       align-items: flex-start;

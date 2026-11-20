@@ -541,7 +541,7 @@
     gap: var(--sp-4);
     min-width: 0;
   }
-  @media (max-width: 1180px) {
+  @container page (max-width: 1180px) {
     .sr-grid {
       grid-template-columns: minmax(0, 1fr);
     }

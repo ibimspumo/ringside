@@ -1204,12 +1204,12 @@
   .msg.bad {
     color: #ff9d93;
   }
-  @media (min-width: 1900px) {
+  @container page (min-width: 1660px) {
     .layout {
       grid-template-columns: minmax(0, 1fr) 460px;
     }
   }
-  @media (max-width: 1240px) {
+  @container page (max-width: 1240px) {
     .layout {
       grid-template-columns: 1fr;
     }

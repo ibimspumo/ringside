@@ -2,7 +2,7 @@ import { WORDS } from "../ui/words";
 
 /**
  * The pages of the app, sorted by what the player wants to do rather than by tool: the one list
- * for the top bar, its menus, page titles and the layout check.
+ * for the side bar, its categories, page titles and the layout check.
  */
 
 export type Page =
@@ -29,10 +29,8 @@ export type AreaId = "start" | "spiel" | "ueben" | "gegner" | "werkzeuge";
 
 export interface PageInfo {
   label: string;
-  /** One sentence for menus and the start page: what you get there. */
+  /** One sentence for the side bar's tooltip and the start page: what you get there. */
   text: string;
-  /** A few words for a status line when there is no live value. */
-  short?: string;
   icon: string;
 }
 
@@ -84,13 +82,11 @@ export const PAGES: Record<Page, PageInfo> = {
   training: {
     label: "Lernen",
     text: "Kurze Runden aus deinen eigenen Fehlern, ein Lernpfad und Wissen zum Nachlesen.",
-    short: "Kurze Runden, eigene Fehler",
     icon: "M12 5 3.5 9l8.5 4 8.5-4zM7 10.7v4.3c0 1.3 2.2 2.8 5 2.8s5-1.5 5-2.8v-4.3M20.5 9v5",
   },
   play: {
     label: "Hände spielen",
     text: "Spiel Hände gegen Bots. Jede Entscheidung wird sofort bewertet.",
-    short: "Gegen Bots, sofort bewertet",
     icon: "M12 5.5c4.4 0 8 2.9 8 6.5s-3.6 6.5-8 6.5-8-2.9-8-6.5 3.6-6.5 8-6.5zM9 10h2.6v4H9zM12.4 10H15v4h-2.6z",
   },
   coach: {
@@ -135,42 +131,23 @@ export const PAGES: Record<Page, PageInfo> = {
   },
 };
 
+/** A category of the side bar; its heading names what the player wants there. */
 export interface Area {
   id: AreaId;
   label: string;
-  /** The question the area answers, in the player's words. */
-  text: string;
-  /** What is inside, in a few words, for a status line. */
-  short: string;
-  icon: string;
   pages: Page[];
 }
 
 export const AREAS: Area[] = [
-  { id: "start", label: "Start", text: "Wie lief deine letzte Session?", short: "Deine letzte Session", icon: PAGES.dashboard.icon, pages: ["dashboard"] },
-  {
-    id: "spiel",
-    label: "Mein Spiel",
-    text: "Wie läuft es, und wo verlierst du?",
-    short: "Ergebnisse und Schwachstellen",
-    icon: "M4 19.5h16M5 15l4.5-4.5 3 3L19 7",
-    pages: ["skill", "overview", "tournaments", "hands", "leaks", "reports", "ranges"],
-  },
-  { id: "ueben", label: "Üben", text: "Besser werden in kurzen Runden.", short: "Kurze Runden, eigene Hände", icon: PAGES.training.icon, pages: ["training", "play", "coach"] },
-  { id: "gegner", label: "Gegner", text: "Wer sitzt am Tisch, und wie spielst du gegen ihn?", short: "Wer mit dir am Tisch sitzt", icon: PAGES.players.icon, pages: ["players", "live", "hud"] },
-  {
-    id: "werkzeuge",
-    label: "Werkzeuge",
-    text: "Zum Tüfteln: Tabellen, Nachrechnen, Nachschlagen.",
-    short: "Zum Tüfteln",
-    icon: "M14.5 5.5a4 4 0 0 0-4.9 5.2L4.5 15.8V19.5h3.7l5.1-5.1a4 4 0 0 0 5.2-4.9l-2.6 2.6-2.3-.6-.6-2.3z",
-    pages: ["charts", "solver", "library"],
-  },
+  { id: "start", label: "Start", pages: ["dashboard"] },
+  // "skill" opens from the rating at the head of the side bar.
+  { id: "spiel", label: "Mein Spiel", pages: ["overview", "tournaments", "hands", "leaks", "reports", "ranges"] },
+  { id: "ueben", label: "Üben", pages: ["training", "play", "coach"] },
+  { id: "gegner", label: "Gegner", pages: ["players", "live", "hud"] },
+  { id: "werkzeuge", label: "Werkzeuge", pages: ["charts", "solver", "library"] },
 ];
 
 export const ALL_PAGES = Object.keys(PAGES) as Page[];
-
-export const areaOf = (page: Page): Area | undefined => AREAS.find((a) => a.pages.includes(page));
 
 /** Pages PokerStars' rules lock while the client runs. */
 export const LOCKED_PAGES: Page[] = ["skill", "leaks", "training", "play", "charts", "solver", "library"];
