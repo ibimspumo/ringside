@@ -3,10 +3,11 @@
 // preliminary report, `?data=empty` one without rated decisions.
 import { demoTournaments } from "../demo";
 import { demoWithin } from "../next/demo";
+import { REVIEWED_TOURNAMENT, addMinutes, worldTournament } from "../demo-world";
 import type { AskAbout, AskAnswer, AskEstimate, KindLoss, Moment, StackPoint, TournamentReport } from "./types";
 
 /** The demo tournament with a stored coach review. */
-export const DEMO_REVIEWED = 4046787838;
+export const DEMO_REVIEWED = REVIEWED_TOURNAMENT;
 
 const preview = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
 
@@ -137,18 +138,18 @@ const BEST: Moment[] = [
 ];
 
 /** A stack walk over the hands with the costliest mistakes on their hands. */
-function timeline(hands: number, busted: boolean): StackPoint[] {
+function timeline(hands: number, busted: boolean, worst: Moment[]): StackPoint[] {
   let s = 11;
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
   let stack = 1_500_00;
-  const marks = new Map(WORST.map((m, i) => [m.n, i + 1]));
+  const marks = new Map(worst.map((m, i) => [m.n, i + 1]));
   return Array.from({ length: hands }, (_, i) => {
     const n = i + 1;
     const bb = n < 60 ? 2000 : n < 120 ? 6000 : 12000;
     const swing = rnd() < 0.08 ? (rnd() - 0.42) * stack * 0.9 : (rnd() - 0.55) * bb * 3;
     const last = n === hands && busted;
     const net = last ? -stack : Math.round(Math.max(-stack + bb, swing) / 100) * 100;
-    const point: StackPoint = { n, hand_id: 250000000000 + n, stack, big_blind: bb, net, loss_bb: marks.has(n) ? WORST[marks.get(n)! - 1].loss_bb : 0, mistake: marks.get(n) ?? null };
+    const point: StackPoint = { n, hand_id: 250000000000 + n, stack, big_blind: bb, net, loss_bb: marks.has(n) ? worst[marks.get(n)! - 1].loss_bb : 0, mistake: marks.get(n) ?? null };
     stack += net;
     return point;
   });
@@ -157,12 +158,23 @@ function timeline(hands: number, busted: boolean): StackPoint[] {
 export function demoReport(id: number): TournamentReport {
   const all = demoTournaments().rows;
   const tournament = all.find((t) => t.id === id) ?? all[2];
-  const hands = Math.max(tournament.hands, 170);
+  const hands = tournament.hands;
   const empty = preview === "empty";
   const pending = preview === "pending";
-  const ratings = empty ? [0, 0, 0, 0, 0, 0] : [148, 21, 34, 14, 9, 4];
+  // The sample is a 170-hand tournament; a shorter one has fewer decisions, its moments earlier.
+  const f = Math.min(1, hands / 170);
+  const ratings = empty ? [0, 0, 0, 0, 0, 0] : [148, 21, 34, 14, 9, 4].map((r) => Math.round(r * f));
   const decisions = ratings.reduce((a, b) => a + b, 0);
-  const loss = empty ? 0 : 18.6;
+  const good = ratings[0] + ratings[1] + ratings[2];
+  const loss = empty ? 0 : Math.round(18.6 * f * 10) / 10;
+  const placed = (m: Moment): Moment => {
+    const n = Math.max(1, Math.min(hands, Math.round(m.n * f)));
+    return { ...m, n, played_at: addMinutes(tournament.started_at, n - 1) };
+  };
+  const worst = WORST.map(placed);
+  const best = BEST.map(placed);
+  const netBb = worldTournament(tournament.id)?.net_bb ?? -38.2;
+  const luckBb = Math.round(-47.8 * f * 10) / 10;
   const group = (key: string, title: string, d: number, flawed: number, l: number, unsure = false, spots: string[] = []) => ({
     key,
     title,
@@ -180,16 +192,16 @@ export function demoReport(id: number): TournamentReport {
     unanalyzed: pending ? 12 : 0,
     pending: pending ? 23 : 0,
     unrated: 0,
-    luck: { net: -1_500_00, ev: 640_00, luck: -2_140_00, net_bb: -38.2, ev_bb: 9.6, luck_bb: -47.8, all_ins: 6 },
+    luck: { net: tournament.chips, ev: Math.round(tournament.chips * ((netBb - luckBb) / (netBb || 1))), luck: Math.round(tournament.chips * (luckBb / (netBb || 1))), net_bb: netBb, ev_bb: netBb - luckBb, luck_bb: luckBb, all_ins: Math.max(1, Math.round(6 * f)) },
     score: {
       decisions,
-      good: empty ? 0 : 203,
-      inaccuracies: empty ? 0 : 14,
-      mistakes: empty ? 0 : 13,
+      good,
+      inaccuracies: ratings[3],
+      mistakes: ratings[4] + ratings[5],
       ratings,
       loss_bb: loss,
       per100: empty ? null : (loss / decisions) * 100,
-      good_pct: empty ? null : (203 / decisions) * 100,
+      good_pct: empty ? null : (good / decisions) * 100,
       estimate_loss_pct: 31,
     },
     breakdowns: empty
@@ -240,8 +252,8 @@ export function demoReport(id: number): TournamentReport {
             ],
           },
         ],
-    worst: empty ? [] : WORST,
-    best: empty ? [] : BEST,
+    worst: empty ? [] : worst,
+    best: empty ? [] : best,
     starting: empty
       ? []
       : [
@@ -258,7 +270,7 @@ export function demoReport(id: number): TournamentReport {
           { class: "55", hands: 3, net_bb: 9.0, loss_bb: 0.4, flawed: 1, hand_ids: [250000000002] },
           { class: "QJo", hands: 4, net_bb: -4.5, loss_bb: 0.9, flawed: 1, hand_ids: [250000000000] },
         ],
-    timeline: timeline(hands, tournament.prize === 0),
+    timeline: timeline(hands, tournament.prize !== null && tournament.place !== 1, worst),
     kinds: empty ? [] : KINDS,
     next: empty ? [] : demoWithin(KINDS, "in diesem Turnier"),
     history: empty
@@ -274,16 +286,17 @@ export function demoReport(id: number): TournamentReport {
             per100: [6.1, 9.4, 7.2, 11.8, 5.6][i],
             good_pct: [91.5, 87.0, 90.2, 84.1, 92.3][i],
           })),
-    average: empty ? null : { tournaments: 27, decisions: 5480, per100: 7.4, good_pct: 89.6 },
+    average: empty ? null : { tournaments: all.filter((t) => t.profit !== null).length, decisions: 5480, per100: 7.4, good_pct: 89.6 },
     coach_review: id === DEMO_REVIEWED,
   };
 }
 
 export async function demoAskPrepare(about: AskAbout, question: string): Promise<AskEstimate> {
   await new Promise((r) => setTimeout(r, 300));
-  const sent =
-    about.kind === "tournament"
-      ? "Ergebnis: Platz 212 von 640, ohne Preisgeld.\nBewertete Entscheidungen: 230, davon gut 203 (88,3 %) …"
+  const r = about.kind === "tournament" ? demoReport(about.tournament_id) : null;
+  const place = r?.tournament.place ? `Platz ${r.tournament.place} von ${r.tournament.entrants ?? "?"}` : "Platz unbekannt";
+  const sent = r
+    ? `Ergebnis: ${place}, ${r.tournament.prize ? "mit Preisgeld" : "ohne Preisgeld"}.\nBewertete Entscheidungen: ${r.score.decisions}, davon gut ${r.score.good} (${(r.score.good_pct ?? 0).toFixed(1).replace(".", ",")} %) …`
       : "Hand · Blinds 100/200, Ante 25 …\nBewertung von Ringside:\n- vor dem Flop: gespielt Call 0,5 BB; Empfehlung Raise auf 4,5 BB …";
   return {
     token: "demo",
@@ -300,9 +313,10 @@ export async function demoAskPrepare(about: AskAbout, question: string): Promise
 
 export async function demoAsk(about: AskAbout): Promise<AskAnswer> {
   await new Promise((r) => setTimeout(r, 900));
+  const good = about.kind === "tournament" ? (demoReport(about.tournament_id).score.good_pct ?? 0).toFixed(1).replace(".", ",") : "";
   const text =
     about.kind === "tournament"
-      ? "Dein Score ist ordentlich: 88,3 % deiner Entscheidungen waren gut. Teuer wurde es vor allem am River gegen eine Bet.\n\nDort hast du mit starken Händen nur gecallt. Ein Raise holt mehr Chips aus Gegnern, die schwächere Hände bezahlen. Das nennt man Value: Du setzt, weil schlechtere Hände mitgehen.\n\nÜbe als Nächstes „River: Gegner setzt“ – dort hast du 5,4 BB verloren."
+      ? `Dein Score ist ordentlich: ${good} % deiner Entscheidungen waren gut. Teuer wurde es vor allem am River gegen eine Bet.\n\nDort hast du mit starken Händen nur gecallt. Ein Raise holt mehr Chips aus Gegnern, die schwächere Hände bezahlen. Das nennt man Value: Du setzt, weil schlechtere Hände mitgehen.\n\nÜbe als Nächstes „River: Gegner setzt“ – dort hast du 5,4 BB verloren.`
       : "Ein Raise ist hier besser, weil du mit 99 eine starke Hand hast und der Limper meist schwächer ist.\n\nMit dem Call lässt du ihn billig mitspielen und spielst später ohne Position. Ringside rechnet den Unterschied mit 1,52 BB.";
   return { text, unchecked: [], cost_usd: 0.0041, model: "openai/gpt-6.1-sol" };
 }

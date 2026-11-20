@@ -41,12 +41,12 @@ const sum = (gs: SkillGrades[]): SkillGrades =>
     blunder: 0,
   });
 
-/** `count` tournaments, oldest first; the demo's numbers move like the real rating (noisy measure, Glicko-like gain). */
-export function demoSkill(count = 24): SkillProfile {
-  const rows = demoTournaments()
+/** Every finished tournament (or the last `count`), oldest first; the demo's numbers move like the real rating (noisy measure, Glicko-like gain). */
+export function demoSkill(count?: number): SkillProfile {
+  const finished = demoTournaments()
     .rows.filter((t) => t.profit !== null)
-    .sort((a, b) => a.started_at.localeCompare(b.started_at))
-    .slice(-count);
+    .sort((a, b) => a.started_at.localeCompare(b.started_at));
+  const rows = count === undefined ? finished : finished.slice(Math.max(0, finished.length - count));
   let s = 11;
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
   let rating = 1200;

@@ -13,14 +13,18 @@ import type {
   ReportListItem,
 } from "./types";
 import { demoTournaments } from "../demo";
+import { REVIEWED_TOURNAMENT, addMinutes, epochOf, worldTournament } from "../demo-world";
 import { CONCEPT_NAMES } from "./concepts";
 
 const param = (name: string) =>
   typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get(name);
 
 const ROWS = new Map(demoTournaments().rows.map((t) => [t.id, t]));
-/** The first two finished Hold'em tournaments of the demo data. */
-const [T1, T2] = [...ROWS.values()].filter((t) => t.prize !== null && t.game.includes("Hold")).map((t) => t.id);
+/** The newest finished Hold'em tournament and the one the tournament report shows as reviewed. */
+const T1 = [...ROWS.values()].find((t) => t.prize !== null && t.game.includes("Hold"))!.id;
+const T2 = REVIEWED_TOURNAMENT;
+/** A review is written after the tournament, a while after its last hand. */
+const reviewedAt = (tournament: number, minutes: number) => epochOf(addMinutes(worldTournament(tournament)!.ended_at, minutes));
 const handsOf = (tournament: number) => ROWS.get(tournament)?.hands ?? 126;
 const hand = (tournament: number, n: number) => tournament * 1000 + 999 - n;
 
@@ -51,6 +55,9 @@ function spot(over: Partial<CoachSpot> & Pick<CoachSpot, "hand_id" | "verdict" |
 }
 
 function report(tournament: number, created: number): CoachReport {
+  const t = worldTournament(tournament);
+  // The spots were played towards the end of the tournament, a hand a minute.
+  const at = (n: number) => (t ? addMinutes(t.ended_at, -(t.row.hands - Math.min(t.row.hands - 1, 20 + n * 2))) : "2026/11/16 21:14:08");
   return {
     tournament_id: tournament,
     summary:
@@ -63,6 +70,7 @@ function report(tournament: number, created: number): CoachReport {
     spots: [
       spot({
         hand_id: hand(tournament, 3),
+        played_at: at(3),
         hero_cards: ["Kh", "6d"],
         position: "SB",
         stack_bb: 8.2,
@@ -79,6 +87,7 @@ function report(tournament: number, created: number): CoachReport {
       }),
       spot({
         hand_id: hand(tournament, 5),
+        played_at: at(5),
         hero_cards: ["Qs", "Jh"],
         board: ["Ks", "8d", "4c", "2h", "9s"],
         position: "BB",
@@ -96,6 +105,7 @@ function report(tournament: number, created: number): CoachReport {
       }),
       spot({
         hand_id: hand(tournament, 9),
+        played_at: at(9),
         hero_cards: ["9s", "9d"],
         position: "HJ",
         stack_bb: 14,
@@ -110,6 +120,7 @@ function report(tournament: number, created: number): CoachReport {
       }),
       spot({
         hand_id: hand(tournament, 14),
+        played_at: at(14),
         hero_cards: ["Jd", "Td"],
         board: ["9d", "8c", "2d"],
         position: "CO",
@@ -126,6 +137,7 @@ function report(tournament: number, created: number): CoachReport {
       }),
       spot({
         hand_id: hand(tournament, 21),
+        played_at: at(21),
         hero_cards: ["As", "Qd"],
         board: ["Qc", "7h", "3s", "Td", "Ad"],
         position: "BTN",
@@ -162,10 +174,10 @@ const reports = new Map<number, CoachReport>(
   param("coach") === "empty"
     ? []
     : MANY
-      ? FINISHED.map((id, i) => [id, { ...report(id, 1794930251 - i * 86400), spots: report(id, 0).spots.slice(0, 5 - (i % 4)) }])
+      ? FINISHED.map((id, i) => [id, { ...report(id, reviewedAt(id, 40)), spots: report(id, 0).spots.slice(0, 5 - (i % 4)) }])
       : [
-          [T1, report(T1, 1794930251)],
-          [T2, { ...report(T2, 1794843851), spots: report(T2, 0).spots.slice(1, 4) }],
+          [T1, report(T1, reviewedAt(T1, 50))],
+          [T2, { ...report(T2, reviewedAt(T2, 16 * 60)), spots: report(T2, 0).spots.slice(1, 4) }],
         ],
 );
 

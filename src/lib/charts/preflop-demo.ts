@@ -1,9 +1,11 @@
 // Browser-only sample: the preflop model for 6 players at 40 BB, one per ante structure,
 // cut to the open spots and the most frequent answers. Every grid request gets this sample,
-// seated at the requested table; a stack off the grid plays a short made-up live solve with
-// progress and cancel.
-import type { PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./preflop-types";
+// seated at the requested table, its first-in spots playing the real share of that table and
+// depth (sizes-demo.json); a stack off the grid plays a short made-up live solve with progress
+// and cancel.
+import type { PreflopAction, PreflopAnte, PreflopGrid, PreflopNode, PreflopProgress, PreflopSpots, TableOpens } from "./preflop-types";
 import { tablePositions } from "./words";
+import { realShare, reshape, shareOf, tableOpens } from "./demo-share";
 
 const STACKS = [15, 20, 25, 30, 40, 50, 75, 100];
 
@@ -26,10 +28,59 @@ export function demoGrid(): PreflopGrid {
 const listeners = new Set<(p: PreflopProgress) => void>();
 let cancelled = false;
 
-/** The real comparison across table sizes, written by `demo_table_opens_are_current` in src-tauri/src/charts.rs. */
-export async function demoTableOpens(ante: PreflopAnte, stackBb: number, pushfold: boolean): Promise<TableOpens[]> {
-  const all: Record<string, TableOpens[]> = (await import("./sizes-demo.json")).default;
-  return all[`${ante}|${stackBb}|${pushfold ? "pushfold" : "model"}`] ?? [];
+export const demoTableOpens = (ante: PreflopAnte, stackBb: number, pushfold: boolean): Promise<TableOpens[]> => tableOpens(ante, stackBb, pushfold);
+
+/** The sample's grid of a first-in spot with `target` percent played, the mix of each hand kept. */
+function reshapedNode(raw: PreflopNode, actions: PreflopAction[], target: number): PreflopNode {
+  const fold = actions.findIndex((a) => a.kind === "fold");
+  if (fold < 0 || Math.abs(100 - shareOf(raw.freq[fold]) - target) < 0.05) return raw;
+  const others = actions.map((_, k) => k).filter((k) => k !== fold);
+  const ev = (k: number, i: number) => raw.ev[k]?.[i] ?? 0;
+  const best = (i: number) => others.reduce((b, k) => (ev(k, i) > ev(b, i) ? k : b), others[0]);
+  const played = raw.freq[fold].map((f) => 1 - f / 255);
+  const p = reshape(played, played.map((_, i) => ev(best(i), i)), target);
+  const freq = raw.freq.map((row) => row.slice());
+  for (let i = 0; i < freq[fold].length; i++) {
+    const was = 255 - raw.freq[fold][i];
+    let left = 255;
+    for (const k of others) {
+      const part = was > 0 ? raw.freq[k][i] / was : k === best(i) ? 1 : 0;
+      freq[k][i] = Math.min(left, Math.round(p[i] * 255 * part));
+      left -= freq[k][i];
+    }
+    freq[fold][i] = left;
+  }
+  return { ...raw, freq };
+}
+
+const seatedCache = new Map<string, Promise<{ spots: PreflopSpots; nodes: Map<number, PreflopNode> }>>();
+
+/** The sample at this table and depth, every first-in spot reshaped to what is played there. */
+function seated(ante: PreflopAnte, players: number, stackBb: number) {
+  const key = `${ante}|${players}|${stackBb}`;
+  const hit = seatedCache.get(key);
+  if (hit) return hit;
+  const made = (async () => {
+    const onGrid = STACKS.includes(stackBb);
+    const sample = atTable(DATA[ante].spots, players);
+    const spots = onGrid ? atDepth(sample, stackBb) : sample;
+    const nodes = new Map<number, PreflopNode>();
+    const list = await Promise.all(
+      spots.nodes.map(async (n) => {
+        const raw = DATA[ante].nodes[n.id >= EARLY ? 0 : n.id];
+        if (n.line.length || !raw) return n;
+        const target =
+          (onGrid ? await realShare(ante, players, stackBb, n.position, false) : null) ??
+          n.actions.filter((a) => a.kind !== "fold").reduce((t, a) => t + a.pct, 0);
+        const node = reshapedNode(raw, n.actions, target);
+        nodes.set(n.id, node);
+        return { ...n, actions: n.actions.map((a, k) => ({ ...a, pct: shareOf(node.freq[k]) })) };
+      }),
+    );
+    return { spots: { ...spots, nodes: list }, nodes };
+  })();
+  seatedCache.set(key, made);
+  return made;
 }
 
 export function onProgress(handler: (p: PreflopProgress) => void): () => void {
@@ -71,8 +122,8 @@ function atTable(sample: PreflopSpots, players: number): PreflopSpots {
 }
 
 export async function demoSpots(ante: PreflopAnte, players: number, stackBb: number): Promise<PreflopSpots> {
-  const sample = atTable(DATA[ante].spots, players);
-  if (STACKS.includes(stackBb)) return atDepth(sample, stackBb);
+  const sample = (await seated(ante, players, stackBb)).spots;
+  if (STACKS.includes(stackBb)) return sample;
   cancelled = false;
   let expl = 0.4;
   for (let it = 10; expl > 0.001; it += 10) {
@@ -85,8 +136,8 @@ export async function demoSpots(ante: PreflopAnte, players: number, stackBb: num
   return { ...sample, stack_bb: stackBb, precomputed: false };
 }
 
-export function demoNode(ante: PreflopAnte, _players: number, _stackBb: number, node: number): PreflopNode {
-  const hit = DATA[ante].nodes[node >= EARLY ? 0 : node];
+export async function demoNode(ante: PreflopAnte, players: number, stackBb: number, node: number): Promise<PreflopNode> {
+  const hit = (await seated(ante, players, stackBb)).nodes.get(node) ?? DATA[ante].nodes[node >= EARLY ? 0 : node];
   if (!hit) throw new Error("Diesen Spot gibt es in der Vorschau nicht.");
   return { ...hit, id: node };
 }
