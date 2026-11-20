@@ -5,7 +5,9 @@
 //!
 //! A stopped solve gives `Ok(None)` and nothing is submitted, so a stop never leaves half
 //! a result behind; the lease is given back when the server allows it, else it runs out.
+//! A spot that cannot be solved here is reported as failed instead and not taken again.
 
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use ringside_engine::solve_push_fold;
@@ -200,6 +202,8 @@ pub trait Queue {
     fn submit(&mut self, solved: &Solved) -> Result<SubmitStatus, Error>;
     /// Gives a lease back early.
     fn release(&mut self, key: &str) -> Result<(), Error>;
+    /// Reports the held spot as unsolvable here; false when the server does not know how.
+    fn fail(&mut self, key: &str, note: &str) -> Result<bool, Error>;
 }
 
 impl Queue for Client {
@@ -213,6 +217,10 @@ impl Queue for Client {
 
     fn release(&mut self, key: &str) -> Result<(), Error> {
         self.release_work(key)
+    }
+
+    fn fail(&mut self, key: &str, note: &str) -> Result<bool, Error> {
+        self.fail_work(key, note)
     }
 }
 
@@ -267,6 +275,9 @@ pub enum End {
     Error(String),
 }
 
+/// Why a spot handed out again in the same run is not solved a second time.
+const SOLVED_IN_VAIN: &str = "in diesem Lauf schon gescheitert";
+
 /// How long a solved spot may wait to go up: past one rate-limit hour of the server.
 const SUBMIT_PATIENCE: Duration = Duration::from_secs(70 * 60);
 
@@ -281,6 +292,8 @@ pub enum Event<'a> {
 /// so.
 pub fn run(queue: &mut impl Queue, opts: &RunOptions, stop: &dyn Fn() -> bool, mut report: impl FnMut(Event)) -> End {
     let mut taken = 0u32;
+    // Solves are deterministic: a spot that failed here fails again.
+    let mut failed: HashSet<String> = HashSet::new();
     loop {
         if stop() {
             return End::Stopped;
@@ -303,7 +316,12 @@ pub fn run(queue: &mut impl Queue, opts: &RunOptions, stop: &dyn Fn() -> bool, m
         let task = Task::parse(&work);
         let name = task.as_ref().map_or_else(|_| work.key.chars().take(12).collect(), Task::short_name);
         report(Event::Started { key: &work.key, kind: &work.kind, name: &name });
-        let solved = task.and_then(|t| solve(&t, opts.power, |_| {}, stop));
+        let solved = if failed.contains(&work.key) {
+            Err(SOLVED_IN_VAIN.to_string())
+        } else {
+            task.and_then(|t| solve(&t, opts.power, |_| {}, stop))
+        };
+        let unsolvable = solved.is_err();
         let seconds = started.elapsed().as_secs_f64();
         let exploitability = solved.as_ref().ok().and_then(Option::as_ref).map(Solved::exploitability);
         let outcome = match solved {
@@ -321,7 +339,11 @@ pub fn run(queue: &mut impl Queue, opts: &RunOptions, stop: &dyn Fn() -> bool, m
                 Err(Retry::Failed(e)) => Outcome::Failed(e.to_string()),
             },
         };
-        if !matches!(outcome, Outcome::Accepted | Outcome::Submitted | Outcome::AlreadyVerified) {
+        if let (true, Outcome::Failed(note)) = (unsolvable, &outcome) {
+            failed.insert(work.key.clone());
+            // Not given back: a server without the failure report would hand it straight back.
+            let _ = queue.fail(&work.key, note);
+        } else if !matches!(outcome, Outcome::Accepted | Outcome::Submitted | Outcome::AlreadyVerified) {
             // Best effort: a lease that is not given back runs out.
             let _ = queue.release(&work.key);
         }
@@ -410,6 +432,12 @@ mod tests {
         slow: Duration,
         submitted: Vec<Value>,
         released: Vec<String>,
+        /// Given-back spots are first in line again, as on the server.
+        requeue: bool,
+        handed: Vec<Work>,
+        failed: Vec<(String, String)>,
+        /// A server from before failure reports.
+        no_fail: bool,
     }
 
     impl Queue for Fake {
@@ -419,7 +447,9 @@ mod tests {
                 return Err(Error::Network("down".into()));
             }
             std::thread::sleep(self.slow);
-            Ok(self.open.pop_front())
+            let work = self.open.pop_front();
+            self.handed.extend(work.clone());
+            Ok(work)
         }
 
         fn submit(&mut self, solved: &Solved) -> Result<SubmitStatus, Error> {
@@ -429,8 +459,28 @@ mod tests {
 
         fn release(&mut self, key: &str) -> Result<(), Error> {
             self.released.push(key.into());
+            if self.requeue {
+                let work = self.handed.iter().find(|w| w.key == key).cloned();
+                self.open.push_front(work.expect("only handed-out spots are given back"));
+            }
             Ok(())
         }
+
+        fn fail(&mut self, key: &str, note: &str) -> Result<bool, Error> {
+            if self.no_fail {
+                return Ok(false);
+            }
+            self.failed.push((key.into(), note.into()));
+            Ok(true)
+        }
+    }
+
+    /// A spot no computer can solve here: its scenario is unknown.
+    fn unsolvable() -> Work {
+        let input = PostflopInput::new("3bp-btn-bb-40", "Ks9h4d");
+        let mut value = serde_json::to_value(&input).unwrap();
+        value["scenario"] = "gibt-es-nicht".into();
+        Work { key: "f".repeat(64), kind: Postflop::NAME.into(), engine_version: Postflop::ENGINE_VERSION, input: value, lease_until: 0 }
     }
 
     fn opts() -> RunOptions {
@@ -493,6 +543,25 @@ mod tests {
         let (reported, unit) = done[0].exploitability.unwrap();
         assert_eq!(unit, "% pool");
         assert!((reported - exploitability).abs() <= PushFoldMw::TOLERANCE, "{reported} vs {exploitability}");
+    }
+
+    #[test]
+    fn a_spot_that_fails_is_not_taken_again_in_the_session() {
+        let mut q = Fake { open: [unsolvable(), hu(10_000)].into(), requeue: true, ..Fake::default() };
+        let (end, done) = collect(&mut q, &RunOptions { max: Some(10), ..opts() }, &|| false);
+        let tries = done.iter().filter(|d| d.key == unsolvable().key).count();
+        assert_eq!(tries, 1, "{:?}", done.iter().map(|d| (&d.key[..8], &d.outcome)).collect::<Vec<_>>());
+        assert_eq!((end, q.submitted.len()), (End::Empty, 1), "the next spot is solved instead");
+        assert_eq!(q.failed, [(unsolvable().key, "unbekannter Spot".to_string())]);
+        assert!(q.released.is_empty(), "a failed spot is reported, not given back");
+
+        // An old server hands it out again once its lease ran out; it is not solved again.
+        let mut q = Fake { open: [unsolvable(), hu(10_000), unsolvable()].into(), no_fail: true, ..Fake::default() };
+        let (_, done) = collect(&mut q, &opts(), &|| false);
+        let outcomes: Vec<_> = done.iter().map(|d| &d.outcome).collect();
+        let vain = Outcome::Failed(SOLVED_IN_VAIN.into());
+        assert_eq!(outcomes, [&Outcome::Failed("unbekannter Spot".into()), &Outcome::Accepted, &vain]);
+        assert!(q.released.is_empty());
     }
 
     #[test]

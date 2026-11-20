@@ -10,6 +10,8 @@ use crate::kinds::{self, Kind, SpotInput, SpotKind};
 
 /// Public URL of the `ringside-api` Edge Script.
 pub const DEFAULT_BASE_URL: &str = "https://ringside-api.bunny.run";
+/// The server keeps this much of a failure's reason.
+const MAX_FAIL_NOTE: usize = 300;
 
 #[derive(Debug)]
 pub enum Error {
@@ -316,6 +318,16 @@ impl Client {
         self.send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), false)?
             .ok_or_else(|| Error::Protocol("404 on release".into()))?;
         Ok(())
+    }
+
+    /// Reports that this computer cannot solve the spot it holds on `key` (`note` says why):
+    /// the server does not hand it out here again for a while and parks it after a few such
+    /// reports. False from a server without the endpoint (API before 1.6).
+    pub fn fail_work(&self, key: &str, note: &str) -> Result<bool, Error> {
+        let note: String = note.chars().take(MAX_FAIL_NOTE).collect();
+        let body = serde_json::json!({ "key": key, "note": note }).to_string();
+        let url = format!("{}/v1/work/fail", self.base);
+        Ok(self.send(self.agent.post(&url).set("Content-Type", "application/json"), Some(&body), false)?.is_some())
     }
 
     /// Asks the community to solve `input`, which the cloud does not have; only with the

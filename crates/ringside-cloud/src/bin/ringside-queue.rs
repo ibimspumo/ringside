@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use ringside_cloud::operator::{
-    Db, Seed, catalog_seeds, load_env, practice_flops, practice_lines, practice_seeds, preflop_seeds, queue_counts,
-    seed_work, shipped_scenarios, unseed_shipped,
+    Db, Seed, catalog_seeds, load_env, parked_work, practice_flops, practice_lines, practice_seeds, preflop_seeds,
+    queue_counts, seed_work, shipped_scenarios, unseed_shipped,
 };
 use ringside_solver::library::catalog::FLOPS;
 
@@ -15,7 +15,8 @@ const HELP: &str = "\
 Usage: ringside-queue [--seed catalog|preflop|all|practice] [--dry-run] [--env-file PATH]
        ringside-queue --seed practice [--players 6] [--stacks 40] [--lines 5] [--flops N]
 
-Shows the open spots of Ringside Cloud's community queue by kind and source. With
+Shows the open spots of Ringside Cloud's community queue by kind and source, and the
+spots it parked because several computers reported them as unsolvable. With
 --seed, first adds the library catalog's spots, the push/fold ICM gaps, or both; spots
 already queued or served are left alone (a withdrawn one goes back in), and catalog
 scenarios a signed library pack ships are taken out. Reads BUNNY_DATABASE_URL and
@@ -96,8 +97,12 @@ fn run() -> Result<(), String> {
     if !seeds.is_empty() {
         println!("added {} of {} seeds", seed_work(&db, &seeds)?, seeds.len());
     }
-    for (kind, source, n, leased) in queue_counts(&db)? {
-        println!("{kind:<12} {source:<8} {n:>6} open, {leased} leased");
+    for c in queue_counts(&db)? {
+        println!("{:<12} {:<8} {:>6} open, {} leased, {} parked", c.kind, c.source, c.entries - c.parked, c.leased, c.parked);
+    }
+    for p in parked_work(&db)? {
+        let input: String = p.input.chars().take(160).collect();
+        println!("parked {} {} after {} failures ({}): {input}", p.kind, p.key, p.failures, p.note);
     }
     Ok(())
 }

@@ -32,6 +32,7 @@ export const RULES = {
     { name: "work-global", scope: "global", windowS: 3600, max: 3000 },
   ],
   release: [{ name: "release-hour", scope: "client", windowS: 3600, max: 600 }],
+  fail: [{ name: "fail-hour", scope: "client", windowS: 3600, max: 120 }],
   request: [
     { name: "request-hour", scope: "client", windowS: 3600, max: 30 },
     { name: "request-global", scope: "global", windowS: 3600, max: 1500 },

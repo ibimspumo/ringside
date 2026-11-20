@@ -699,6 +699,8 @@ pub struct Pruned {
     pub submissions: u64,
     /// Queue entries whose solution is served.
     pub work: u64,
+    /// Failure reports of queue entries that are gone.
+    pub work_failures: u64,
 }
 
 /// Deletes rate-limit counters nobody looks at any more, and parser reports and
@@ -710,8 +712,15 @@ pub fn prune(db: &impl Sql) -> Result<Pruned, String> {
         ("DELETE FROM reports WHERE received_at < ?", vec![(t - KEEP_LOGS_S).into()]),
         ("DELETE FROM submissions WHERE received_at < ?", vec![(t - KEEP_LOGS_S).into()]),
         ("DELETE FROM work WHERE key IN (SELECT key FROM solutions WHERE status IN ('accepted', 'verified'))", vec![]),
+        ("DELETE FROM work_failures WHERE key NOT IN (SELECT key FROM work)", vec![]),
     ])?;
-    Ok(Pruned { rate_limits: r[0].affected, reports: r[1].affected, submissions: r[2].affected, work: r[3].affected })
+    Ok(Pruned {
+        rate_limits: r[0].affected,
+        reports: r[1].affected,
+        submissions: r[2].affected,
+        work: r[3].affected,
+        work_failures: r[4].affected,
+    })
 }
 
 // The community queue ("Mitrechnen").
@@ -924,21 +933,60 @@ pub fn seed_work(db: &impl Sql, seeds: &[Seed]) -> Result<u64, String> {
     Ok(added)
 }
 
-/// Open entries of the queue by kind and source: (kind, source, rows, leased now).
-pub fn queue_counts(db: &Db) -> Result<Vec<(String, String, i64, i64)>, String> {
-    let [rows] = <[Rows; 1]>::try_from(db.execute(&[(
-        "SELECT kind, source, COUNT(*) AS n, SUM(lease_until > ?) AS leased FROM work GROUP BY kind, source ORDER BY kind, source",
+/// Entries of the queue for one kind and source.
+pub struct QueueCount {
+    pub kind: String,
+    pub source: String,
+    pub entries: i64,
+    pub leased: i64,
+    /// Not handed out any more: computers reported them as unsolvable.
+    pub parked: i64,
+}
+
+pub fn queue_counts(db: &impl Sql) -> Result<Vec<QueueCount>, String> {
+    let rows = one(db.execute(&[(
+        "SELECT kind, source, COUNT(*) AS n, SUM(lease_until > ?) AS leased, SUM(parked_at IS NOT NULL) AS parked \
+         FROM work GROUP BY kind, source ORDER BY kind, source",
         vec![now().into()],
-    )])?)
-    .map_err(|_| "one result expected")?;
+    )])?)?;
     Ok((0..rows.rows.len())
-        .map(|i| {
-            (
-                rows.col(i, "kind").as_str().unwrap_or_default().to_string(),
-                rows.col(i, "source").as_str().unwrap_or_default().to_string(),
-                rows.col(i, "n").as_i64().unwrap_or(0),
-                rows.col(i, "leased").as_i64().unwrap_or(0),
-            )
+        .map(|i| QueueCount {
+            kind: rows.col(i, "kind").as_str().unwrap_or_default().to_string(),
+            source: rows.col(i, "source").as_str().unwrap_or_default().to_string(),
+            entries: rows.col(i, "n").as_i64().unwrap_or(0),
+            leased: rows.col(i, "leased").as_i64().unwrap_or(0),
+            parked: rows.col(i, "parked").as_i64().unwrap_or(0),
+        })
+        .collect())
+}
+
+/// A queue entry the server parked after computers reported it as unsolvable.
+pub struct Parked {
+    pub key: String,
+    pub kind: String,
+    /// Canonical JSON.
+    pub input: String,
+    pub failures: i64,
+    /// The last computer's reason.
+    pub note: String,
+    pub parked_at: i64,
+}
+
+pub fn parked_work(db: &impl Sql) -> Result<Vec<Parked>, String> {
+    let rows = one(db.execute(&[(
+        "SELECT key, kind, input, failures, fail_note, parked_at FROM work WHERE parked_at IS NOT NULL \
+         ORDER BY parked_at, key",
+        vec![],
+    )])?)?;
+    let text = |i: usize, c: &str| rows.col(i, c).as_str().unwrap_or_default().to_string();
+    Ok((0..rows.rows.len())
+        .map(|i| Parked {
+            key: text(i, "key"),
+            kind: text(i, "kind"),
+            input: text(i, "input"),
+            failures: rows.col(i, "failures").as_i64().unwrap_or(0),
+            note: text(i, "fail_note"),
+            parked_at: rows.col(i, "parked_at").as_i64().unwrap_or(0),
         })
         .collect())
 }
@@ -964,6 +1012,7 @@ mod tests {
                 include_str!("../../../server/db/migrations/0001_init.sql"),
                 include_str!("../../../server/db/migrations/0002_work.sql"),
                 include_str!("../../../server/db/migrations/0003_accept.sql"),
+                include_str!("../../../server/db/migrations/0004_work_failures.sql"),
             ] {
                 c.execute_batch(sql).unwrap();
             }

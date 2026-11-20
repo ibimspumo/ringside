@@ -212,8 +212,9 @@ fn run() -> Result<(), String> {
         purge(&withdrawn)?;
         let p = prune(&db)?;
         println!(
-            "deleted {} rate-limit counters, {} reports, {} submission log entries and {} solved queue entries",
-            p.rate_limits, p.reports, p.submissions, p.work
+            "deleted {} rate-limit counters, {} reports, {} submission log entries, {} solved queue entries and {} \
+             failure reports",
+            p.rate_limits, p.reports, p.submissions, p.work, p.work_failures
         );
     }
     Ok(())

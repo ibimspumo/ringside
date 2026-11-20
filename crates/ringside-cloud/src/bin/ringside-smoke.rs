@@ -1,8 +1,9 @@
 //! End-to-end check against the deployed API: health, submit, served at once, the app
 //! refusing a manipulated download, a sample check verifying the good solution and
 //! withdrawing the manipulated one (for every kind, postflop included), a banned client,
-//! shared spots (9-max with limps, plain heads-up) through the community queue, rate
-//! limit, report. Deletes its test rows afterwards, also when a step fails.
+//! shared spots (9-max with limps, plain heads-up) through the community queue, a spot
+//! reported as unsolvable, rate limit, report; lists the spots the queue parked. Deletes
+//! its test rows afterwards, also when a step fails.
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -15,8 +16,8 @@ use ringside_cloud::kinds::{
     PushFoldMw, PushFoldMwInput, PushFoldMwSolution, SpotInput, SpotKind, SpotSolution, Verdict,
 };
 use ringside_cloud::operator::{
-    ACCEPTED_MAX_AGE_S, Attempt, Db, Penalty, SqlValue, ban_client, check_here, check_keys, load_env, need, now, purge,
-    purge_confirmed, unban_client,
+    ACCEPTED_MAX_AGE_S, Attempt, Db, Penalty, SqlValue, ban_client, check_here, check_keys, load_env, need, now,
+    parked_work, purge, purge_confirmed, unban_client,
 };
 use ringside_cloud::{Client, Error, KeyStatus, Report, SubmitStatus};
 use ringside_engine::preflop_table::{self, Ante, Family};
@@ -151,6 +152,10 @@ fn run(base: &str, db: &Db, api_key: &str, keys: &mut Vec<(&'static str, String)
     let status = health.status();
     let body = health.into_string().map_err(|e| e.to_string())?;
     step("health", status == 200 && body.contains("\"status\":\"ok\""), format!("{status} {body}"))?;
+    // Not a failure of the API: the operator looks at them (ringside-queue lists them too).
+    for p in parked_work(db)? {
+        println!("note parked by the queue: {} {} after {} failures ({})", p.kind, p.key, p.failures, p.note);
+    }
 
     // A stack nobody else asks for, so this run's keys are its own.
     let stack_mbb = 5_000 + (now() % 20_000) as u32;
@@ -420,6 +425,13 @@ fn shared_spot(
         client.release_work(&key).map_err(|e| e.to_string())?;
         let again = client.next_work(&kinds).map_err(|e| e.to_string())?;
         step("queue: a given-back lease is handed out again at once", again.as_ref().is_some_and(|w| w.key == key), "same key")?;
+        let failed = client.fail_work(&key, "smoke test").map_err(|e| e.to_string())?;
+        let rows = db.execute(&[("SELECT failures, parked_at FROM work WHERE key = ?", vec![key.as_str().into()])])?;
+        let counted = rows[0].col(0, "failures").as_i64() == Some(1) && rows[0].col(0, "parked_at").as_i64().is_none();
+        step("queue: a spot this computer cannot solve is reported, once, not parked yet", failed && counted, "1 failure")?;
+        let after = client.next_work(&kinds).map_err(|e| e.to_string())?;
+        handed.extend(after.iter().map(|w| w.key.clone()));
+        step("queue: a failed spot does not go back to the same computer", after.as_ref().is_none_or(|w| w.key != key), "other or none")?;
 
         let catalog_of = input.catalog(Some(&local))?;
         let threads = std::thread::available_parallelism().map_or(4, |n| n.get());
@@ -455,6 +467,7 @@ fn shared_spot(
 fn clean(db: &Db, keys: &[String], started: i64) -> Result<(), String> {
     let mut stmts: Vec<(&str, Vec<SqlValue>)> = Vec::new();
     for k in keys {
+        stmts.push(("DELETE FROM work_failures WHERE key = ?", vec![k.as_str().into()]));
         stmts.push(("DELETE FROM solutions WHERE key = ?", vec![k.as_str().into()]));
         stmts.push(("DELETE FROM submissions WHERE key = ?", vec![k.as_str().into()]));
         // Only the queue entry this run requested; a catalog spot it used stays queued.

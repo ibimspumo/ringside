@@ -42,8 +42,10 @@
 //! average profile is checked with an exact best response on the same tree and
 //! model; the solve stops once the summed gains of all players' best responses
 //! (NashConv) are below `target_exploitability`. With three or more players CFR has
-//! no convergence guarantee, so [`Solution::converged`] reports what was reached and
-//! the best checked profile is returned.
+//! no convergence guarantee: in some ICM spots regret matching+ cycles, so a solve
+//! still above the target after `STALLED_AFTER` iterations goes on with predictive
+//! regret matching+ and checks its current profile as well. [`Solution::converged`]
+//! reports what was reached and the best checked profile is returned.
 
 use std::collections::{HashMap, HashSet};
 use std::hash::{BuildHasherDefault, Hasher};
@@ -65,6 +67,23 @@ const C: usize = NUM_CLASSES;
 const CHECK_EVERY: u32 = 8;
 /// Frequencies this close to 0 or 1 in the average profile are reported as pure.
 const SNAP: f64 = 1e-3;
+/// Iterations of plain regret matching+, which reaches the target well before this in
+/// all but a few ICM spots (a bubble), where it cycles and its average stalls; those go
+/// on with predictive regret matching+. The bundled tables (at most 520 iterations) and
+/// the cloud's solutions are reproduced exactly.
+const STALLED_AFTER: u32 = 1024;
+
+/// `x` with frequencies within [`SNAP`] of 0 or 1 made pure.
+fn snap(x: f64) -> f64 {
+    if x < SNAP {
+        0.0
+    } else if x > 1.0 - SNAP {
+        1.0
+    } else {
+        x
+    }
+}
+
 /// Warm start: classes at least this strong against a random hand shove or call.
 const START_SHOVE_EQUITY: f64 = 0.58;
 const START_CALL_EQUITY: f64 = 0.64;
@@ -1644,24 +1663,7 @@ impl<'p> Solver<'p> {
 
     /// Linear average with frequencies near 0 or 1 snapped to pure.
     fn average(&self, learners: &[Learner], weight: f64) -> Vec<Vec<f64>> {
-        learners
-            .iter()
-            .map(|l| {
-                l.sum
-                    .iter()
-                    .map(|s| {
-                        let x = s / weight;
-                        if x < SNAP {
-                            0.0
-                        } else if x > 1.0 - SNAP {
-                            1.0
-                        } else {
-                            x
-                        }
-                    })
-                    .collect()
-            })
-            .collect()
+        learners.iter().map(|l| l.sum.iter().map(|s| snap(s / weight)).collect()).collect()
     }
 
     fn run(&mut self) -> Solution {
@@ -1676,6 +1678,7 @@ impl<'p> Solver<'p> {
         while iterations < self.params.max_iterations && !converged {
             iterations += 1;
             let t = iterations as f64;
+            let stalled = iterations > STALLED_AFTER;
             for p in 0..n {
                 let (_, _, out) = self.pass(p, &prof);
                 for &v in &self.tree.nodes_of[p] {
@@ -1688,10 +1691,14 @@ impl<'p> Solver<'p> {
                         let r = &mut l.regret[c];
                         r.0 = (r.0 + a - val).max(0.0);
                         r.1 = (r.1 + f - val).max(0.0);
+                        // Predictive RM+: this iteration's regret counts once more as the
+                        // guess for the next one.
+                        let (pa, pf) =
+                            if stalled { ((r.0 + a - val).max(0.0), (r.1 + f - val).max(0.0)) } else { (r.0, r.1) };
                         // With no positive regret any strategy keeps the RM+ bound;
                         // keeping the last one keeps ranges and showdown tables small.
-                        if r.0 + r.1 > 0.0 {
-                            s[c] = r.0 / (r.0 + r.1);
+                        if pa + pf > 0.0 {
+                            s[c] = pa / (pa + pf);
                         }
                         l.sum[c] += t * s[c];
                     }
@@ -1700,12 +1707,19 @@ impl<'p> Solver<'p> {
             }
             weight += t;
             if iterations % CHECK_EVERY == 0 || iterations == self.params.max_iterations {
-                let avg = self.profile(self.average(&learners, weight));
-                let checked = self.evaluate(avg);
-                let total: f64 = checked.gain.iter().sum();
-                converged = total < target;
-                if best.as_ref().is_none_or(|b| total < b.gain.iter().sum::<f64>()) {
-                    best = Some(checked);
+                // The current profile of predictive RM+ settles long before the
+                // average, which carries the cycles of the iterations before.
+                let current = stalled.then(|| prof.sigma.iter().map(|v| v.iter().map(|&x| snap(x)).collect()).collect());
+                for sigma in current.into_iter().chain([self.average(&learners, weight)]) {
+                    let checked = self.evaluate(self.profile(sigma));
+                    let total: f64 = checked.gain.iter().sum();
+                    converged = total < target;
+                    if best.as_ref().is_none_or(|b| total < b.gain.iter().sum::<f64>()) {
+                        best = Some(checked);
+                    }
+                    if converged {
+                        break;
+                    }
                 }
             }
         }
