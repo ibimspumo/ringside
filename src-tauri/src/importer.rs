@@ -89,7 +89,13 @@ pub fn effective_dirs(configured: &[String]) -> Vec<PathBuf> {
     if !configured.is_empty() {
         return configured.iter().map(PathBuf::from).collect();
     }
-    std::env::var_os("LOCALAPPDATA").map(|d| default_dirs(&PathBuf::from(d))).unwrap_or_default()
+    // Windows keeps the client data in %LOCALAPPDATA%, macOS in ~/Library/Application Support.
+    let base = if cfg!(target_os = "macos") {
+        std::env::var_os("HOME").map(|h| PathBuf::from(h).join("Library/Application Support"))
+    } else {
+        std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
+    };
+    base.map(|d| default_dirs(&d)).unwrap_or_default()
 }
 
 pub fn spawn(app: AppHandle) {

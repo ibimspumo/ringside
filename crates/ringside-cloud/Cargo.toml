@@ -10,6 +10,7 @@ base64 = "0.22"
 ctrlc = "3"
 flate2 = "1"
 ring = "0.17"
+ringside-core = { path = "../ringside-core" }
 ringside-engine = { path = "../ringside-engine" }
 ringside-play = { path = "../ringside-play" }
 ringside-solver = { path = "../ringside-solver" }

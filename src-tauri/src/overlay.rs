@@ -44,8 +44,26 @@ pub struct Overlays {
 #[cfg(windows)]
 pub use win::spawn;
 
+/// Without table overlays: only the lock, from the process list.
 #[cfg(not(windows))]
-pub fn spawn(_app: tauri::AppHandle) {}
+pub fn spawn(app: tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    use tauri::{Emitter, Manager};
+    std::thread::spawn(move || {
+        loop {
+            // A failed scan keeps the lock as it is.
+            if let Ok(client) = ringside_core::clients::running_client() {
+                let state = app.state::<crate::AppState>();
+                let running = client.is_some();
+                let renamed = std::mem::replace(&mut *state.running_client.lock().unwrap(), client) != client;
+                if state.client_running.swap(running, Ordering::Relaxed) != running || renamed {
+                    let _ = app.emit("poker-client", running);
+                }
+            }
+            std::thread::sleep(std::time::Duration::from_secs(2));
+        }
+    });
+}
 
 #[cfg(windows)]
 mod win {
@@ -70,7 +88,7 @@ mod win {
 
     use super::{ClientWindow, OverlayInfo};
     use crate::AppState;
-    use crate::clients::client_of_exe;
+    use ringside_core::clients::client_of_exe;
 
     struct Table {
         hwnd: isize,

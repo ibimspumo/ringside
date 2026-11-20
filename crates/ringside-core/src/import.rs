@@ -60,7 +60,8 @@ pub struct FileImport {
 
 pub const KEEP_MALFORMED: usize = 20;
 
-/// `HandHistory` folders below `%LOCALAPPDATA%\PokerStars*` (.com, .EU, .DE, ...).
+/// `HandHistory` folders below `PokerStars*` (.com, .EU, .DE, ...) in the folder the client
+/// keeps its data in.
 pub fn default_dirs(local_app_data: &Path) -> Vec<PathBuf> {
     let Ok(entries) = fs::read_dir(local_app_data) else {
         return Vec::new();

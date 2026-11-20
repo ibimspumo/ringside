@@ -4,6 +4,7 @@
 //! → per-player counters stored by [`db::Db`] → aggregated [`stats::StatId`] values.
 
 pub mod allin;
+pub mod clients;
 mod clock;
 pub mod db;
 pub mod import;

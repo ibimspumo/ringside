@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 use std::io::Write;
-use std::process::{Command, ExitCode};
+use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -232,62 +232,14 @@ fn summary(done: &[Done], elapsed: Duration) {
     }
 }
 
-/// Whether a PokerStars client runs here: like the app, any process whose executable
-/// name starts with "pokerstars", in any case.
+/// Whether a poker client runs here, the same check as the app's lock.
 fn poker_client_running() -> Result<bool, String> {
-    let names = process_names()?;
-    Ok(names.iter().any(|n| is_poker_client(n)))
-}
-
-fn is_poker_client(name: &str) -> bool {
-    let exe = name.trim().rsplit(['/', '\\']).next().unwrap_or_default();
-    exe.to_lowercase().starts_with("pokerstars")
-}
-
-#[cfg(windows)]
-fn process_names() -> Result<Vec<String>, String> {
-    let out = Command::new("tasklist").args(["/FO", "CSV", "/NH"]).output().map_err(|e| format!("tasklist: {e}"))?;
-    if !out.status.success() {
-        return Err(format!("tasklist failed ({})", out.status));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout)
-        .lines()
-        .filter_map(|l| l.split("\",\"").next().map(|n| n.trim_matches('"').to_string()))
-        .collect())
-}
-
-#[cfg(not(windows))]
-fn process_names() -> Result<Vec<String>, String> {
-    let out = Command::new("ps").args(["-A", "-o", "comm="]).output().map_err(|e| format!("ps: {e}"))?;
-    if !out.status.success() {
-        return Err(format!("ps failed ({})", out.status));
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).lines().map(str::to_string).collect())
+    Ok(ringside_core::clients::running_client()?.is_some())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn knows_the_client_by_its_executable() {
-        for name in [
-            "PokerStars.exe",
-            "C:\\Program Files\\PokerStars.DE\\PokerStarsDE.exe",
-            "/Applications/PokerStars.app/Contents/MacOS/PokerStars",
-            "pokerstarsupdate",
-        ] {
-            assert!(is_poker_client(name), "{name}");
-        }
-        for name in ["/Applications/PokerStars.app/Contents/MacOS/Helper", "ringside", "stars"] {
-            assert!(!is_poker_client(name), "{name}");
-        }
-    }
-
-    #[test]
-    fn reads_the_process_list() {
-        assert!(!process_names().unwrap().is_empty());
-    }
 
     #[test]
     fn kinds_are_checked() {

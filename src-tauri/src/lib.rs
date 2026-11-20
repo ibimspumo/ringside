@@ -3,7 +3,6 @@ mod auto_analysis;
 mod charts;
 // Called by the Windows window scan only.
 #[cfg_attr(not(windows), allow(dead_code))]
-mod clients;
 pub mod cloud;
 mod coach;
 mod drill;
@@ -730,7 +729,7 @@ pub fn run() {
                 import: Mutex::new(ImportStatus::default()),
                 overlays: Overlays::default(),
                 // Until the first scan says otherwise, so nothing calculates in the moment before it.
-                client_running: AtomicBool::new(cfg!(windows)),
+                client_running: AtomicBool::new(true),
                 running_client: Mutex::new(None),
                 notes: Mutex::new(NotesState::default()),
             });
@@ -938,7 +937,7 @@ mod tests {
     #[test]
     fn the_gate_refuses_while_ggpoker_runs_and_names_it() {
         let state = test_state();
-        let client = crate::clients::client_of_exe(r"C:\Program Files\GGPoker\bin\GGnet.exe");
+        let client = ringside_core::clients::client_of_exe(r"C:\Program Files\GGPoker\bin\GGnet.exe");
         state.client_running.store(client.is_some(), Ordering::Relaxed);
         *state.running_client.lock().unwrap() = client;
         assert_eq!(unlocked(&state).unwrap_err(), "gesperrt");
