@@ -17,13 +17,11 @@ jobs:
           curl -sSL https://github.com/gitleaks/gitleaks/releases/download/v8.18.4/gitleaks_8.18.4_linux_x64.tar.gz | tar xz gitleaks
           ./gitleaks detect --source . --redact --no-banner
 
-  # What a change touches: the app's face needs the click-through, the solver crates their slow
-  # tests. A manual run does everything.
+  # What a change touches: the app's face needs the click-through. A manual run does everything.
   changes:
     runs-on: ubuntu-latest
     outputs:
       app: ${{ steps.filter.outputs.app }}
-      solver: ${{ steps.filter.outputs.solver }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -41,24 +39,9 @@ jobs:
               - "vite.config.js"
               - "tsconfig.json"
               - ".github/workflows/ci.yml"
-            solver:
-              - "crates/postflop-solver/**"
-              - "crates/ringside-analysis/**"
-              - "crates/ringside-cloud/**"
-              - "crates/ringside-coach/**"
-              - "crates/ringside-engine/**"
-              - "crates/ringside-gpu/**"
-              - "crates/ringside-learn/**"
-              - "crates/ringside-play/**"
-              - "crates/ringside-solver/**"
-              - "crates/ringside-store/**"
-              - "Cargo.toml"
-              - "Cargo.lock"
-              - "rust-toolchain.toml"
-              - ".config/nextest.toml"
-              - ".github/workflows/ci.yml"
 
-  check:
+  # Windows only compiles and lints: the table overlay exists only there.
+  windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -72,20 +55,39 @@ jobs:
           components: clippy
       - uses: Swatinem/rust-cache@v2
       - run: pnpm install --frozen-lockfile
-      - run: pnpm check
+      # The app crate embeds the built frontend.
       - run: pnpm build
       - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  # Frontend checks and the quick tests on Linux, which builds Rust about twice as fast.
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - name: System libraries of the app crate
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
+      - uses: Swatinem/rust-cache@v2
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm build
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
       - run: cargo nextest run --workspace --profile quick
 
-  # The whole suite, with the tests the quick run leaves out (.config/nextest.toml). One test
-  # binary at a time: the solver tests use every core themselves, and nextest's parallel run
-  # took 25 min here instead of 17.
+  # The whole suite, with the tests the quick run leaves out (.config/nextest.toml), by hand;
+  # every release runs it too. One test binary at a time: the solver tests use every core
+  # themselves, and nextest's parallel run took 25 min instead of 17.
   tests-full:
-    needs: changes
-    if: needs.changes.outputs.solver == 'true' || github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4

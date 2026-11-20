@@ -1,7 +1,7 @@
 # CI's quick run leaves out the solver tests that take ten seconds or more on its runner
 # (convergence, push/fold against the solver, whole hands played out, the GPU solver); what
 # guards privacy and the lock stays in, however slow. The full suite, `cargo test --workspace`,
-# runs where those can break: the CI job for the solver crates and every release.
+# runs in every release and on a manual CI run.
 
 [profile.quick]
 default-filter = """
