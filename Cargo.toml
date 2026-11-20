@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/postflop-solver", "crates/ringside-analysis", "crates/ringside-cloud", "crates/ringside-coach", "crates/ringside-core", "crates/ringside-engine", "crates/ringside-gpu", "crates/ringside-learn", "crates/ringside-play", "crates/ringside-solver", "crates/ringside-store", "src-tauri"]
 
 [workspace.package]
-version = "0.18.0"
+version = "0.19.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"
 
