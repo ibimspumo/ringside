@@ -1,5 +1,6 @@
-# CI's quick run leaves out the tests that take ten seconds or more (solver convergence,
-# push/fold against the solver, whole hands played out). The full suite, `cargo nextest run`
+# CI's quick run leaves out the solver tests that take ten seconds or more on its runner
+# (convergence, push/fold against the solver, whole hands played out, the GPU solver); what
+# guards privacy and the lock stays in, however slow. The full suite, `cargo nextest run`
 # or `cargo test`, runs where those can break: the CI job for the solver crates and every
 # release.
 
@@ -7,6 +8,12 @@
 default-filter = """
 not (
   binary_id(ringside-engine::multiway)
+  | binary_id(ringside-gpu::gpu)
+  | (binary_id(ringside-analysis) & test(=preflop::tests::the_models_moves_keep_limps_below_raises))
+  | (binary_id(ringside-cloud) & test(=kinds::pushfold_mw::tests::node_count_matches_the_engine))
+  | (binary_id(ringside-learn::solver) & test(=tables_off_the_bundled_grid_go_through_the_installed_solver))
+  | (binary_id(postflop-solver) & test(=hand::tests::test_all_hands))
+  | (binary_id(ringside-solver::library) & test(=stored_spot_round_trips_and_views))
   | (binary_id(ringside-analysis) & test(=drill::tests::variations_stay_in_their_kind_of_spot))
   | (binary_id(ringside-analysis) & test(=spots::tests::known_push_fold_answers))
   | (binary_id(ringside-analysis::analysis) & test(=postflop_spot_is_queued_and_rated))
@@ -44,3 +51,8 @@ not (
   | (binary_id(ringside-store::practice_seed) & test(=a_practice_seed_is_solved_and_found_by_the_stock))
 )
 """
+
+# Timing bounds of the coach's streaming (idle limit, cancel) fail on a starved CPU.
+[[profile.default.overrides]]
+filter = "binary_id(ringside-coach::session)"
+threads-required = "num-test-threads"
