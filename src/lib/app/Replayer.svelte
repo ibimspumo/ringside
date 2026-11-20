@@ -13,7 +13,7 @@
   import Button from "../ui/Button.svelte";
   import GradeIcon from "../ui/GradeIcon.svelte";
   import IconButton from "../ui/IconButton.svelte";
-  import PokerTable, { CLEAN_FROM, tableHeight, type TableSeat } from "../ui/PokerTable.svelte";
+  import PokerTable, { CLEAN_FROM, TABLE_RATIO, tableHeight, type TableSeat } from "../ui/PokerTable.svelte";
   import type { ActionKind, Grade } from "../ui/poker";
   import SegmentedControl from "../ui/SegmentedControl.svelte";
 
@@ -343,29 +343,16 @@
   const LOG_MIN = 150;
   const besides = $derived((moveList || !!aside) && boxW >= (aside ? 860 : 1150));
   // Wide screens give the extra room to the analysis, not to an ever larger table.
-  const sideW = $derived(besides ? Math.round(aside ? Math.min(560, Math.max(320, boxW * 0.28, boxW - 980)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
-  const fit = $derived.by(() => {
-    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 960);
+  const sideW = $derived(besides ? Math.round(aside ? Math.min(560, Math.max(300, boxW * 0.28, boxW - 1000)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
+  /** The table keeps its shape: the widest one whose height fits, never narrower than it reads well. */
+  const tableW = $derived.by(() => {
+    const room = Math.min(besides ? boxW - sideW - 20 : boxW, 1100);
     const free = boxH - headH - ctrlH - 20 - (besides || !moveList ? 0 : LOG_MIN + 12);
-    return fitTable(free, room);
+    return Math.max(Math.min(room, CLEAN_FROM), Math.min(room, Math.floor(free / TABLE_RATIO)));
   });
   /** Wide and tall: the log goes under the table in four columns, the side column keeps the analysis. */
-  const logRoom = $derived(boxH - headH - ctrlH - tableHeight(fit.w) * fit.f - 48);
+  const logRoom = $derived(boxH - headH - ctrlH - tableHeight(tableW) - 48);
   const logBelow = $derived(besides && !!aside && logRoom >= 200);
-  const MIN_SCALE = 0.85;
-  /**
-   * The widest table whose height fits `free`, never laid out narrower than the width where
-   * chips, tags and the dealer button stay apart: a smaller room gets that table scaled down
-   * whole. Without the height for it, the flattest clean shape is shrunk by at most 15 % and
-   * the rest scrolls.
-   */
-  function fitTable(free: number, room: number): { w: number; f: number } {
-    if (room < CLEAN_FROM) return { w: CLEAN_FROM, f: Math.min(room, free * (CLEAN_FROM / tableHeight(CLEAN_FROM))) / CLEAN_FROM };
-    for (let w = room; w >= CLEAN_FROM; w -= 10) if (tableHeight(w) <= free) return { w, f: 1 };
-    let best = room;
-    for (let w = room; w >= CLEAN_FROM; w -= 10) if (tableHeight(w) < tableHeight(best)) best = w;
-    return { w: best, f: Math.max(MIN_SCALE, Math.min(1, free / tableHeight(best))) };
-  }
 
   const VERB: Record<ActionKind, string> = { fold: "foldet", check: "checkt", call: "callt", bet: "setzt", raise: "erhöht auf", allin: "geht all-in mit", limp: "limpt" };
   const VERB_YOU: Record<ActionKind, string> = { fold: "foldest", check: "checkst", call: "callst", bet: "setzt", raise: "erhöhst auf", allin: "gehst all-in mit", limp: "limpst" };
@@ -488,11 +475,10 @@
 {/snippet}
 
 <div class="replayer" class:besides>
-  <div class="layout" class:besides class:bare={!moveList && !aside} style:--side="{sideW}px" style:--table="{fit.w * fit.f}px" bind:clientWidth={boxW} bind:clientHeight={boxH}>
+  <div class="layout" class:besides class:bare={!moveList && !aside} style:--side="{sideW}px" style:--table="{tableW}px" bind:clientWidth={boxW} bind:clientHeight={boxH}>
     <div class="main">
       {#if children}<div bind:clientHeight={headH}>{@render children()}</div>{/if}
-      <div class="stage" style:height={fit.f < 1 ? `${tableHeight(fit.w) * fit.f}px` : undefined}>
-        <div class="scaler" style:width={fit.f < 1 ? `${fit.w}px` : undefined} style:transform={fit.f < 1 ? `scale(${fit.f})` : undefined}>
+      <div class="stage">
         <PokerTable
           {seats}
           hero={heroSeat - 1}
@@ -504,7 +490,6 @@
           {format}
           label="Tisch der Hand"
         />
-        </div>
       </div>
 
       <div class="controls" bind:clientHeight={ctrlH}>
@@ -617,9 +602,6 @@
     width: var(--table);
     max-width: 100%;
     align-self: center;
-  }
-  .scaler {
-    transform-origin: 0 0;
   }
   .layout.bare {
     grid-template-rows: auto;
