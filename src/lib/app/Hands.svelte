@@ -76,7 +76,8 @@
   // Coming from another page with a hand, a player or a leak, the newest hands fit better.
   // A hand opened from elsewhere shows in "Alle Hände"; coming back to a decision keeps the usual view.
   let picked = $state<View | null>(
-    untrack(() => (preview("hands") as View | null) ?? ((openId !== null && openAt === null) || spot || player ? "all" : null)),
+    // An area of the Spielwertung is a weakness: its mistakes come first.
+    untrack(() => (preview("hands") as View | null) ?? (spot?.area ? "mistakes" : (openId !== null && openAt === null) || spot || player ? "all" : null)),
   );
   let showdownOnly = $state(false);
   let result = $state<"won" | "lost" | null>(null);
