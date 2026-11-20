@@ -55,9 +55,9 @@ export const WORDS = {
     short: "Wie viele Big Blinds du im Schnitt je 100 Hände gewinnst (BB/100). Über 0 heißt: Du gewinnst auf Dauer, unter 0: Du verlierst.",
   },
   all_in_ev: {
-    word: "All-in-EV",
+    word: "Erwartet bei All-ins",
     short: "Dein Ergebnis, wenn jedes All-in mit offenen Karten so ausgegangen wäre, wie es im Schnitt ausgeht.",
-    long: "Ringside rechnet je Side Pot die exakte Equity × Pot nach Rake − deinen Einsatz. Bounties zählen nicht mit.",
+    long: "Profis nennen das All-in-EV. Ringside rechnet je Side Pot die exakte Equity × Pot nach Rake − deinen Einsatz. Bounties zählen nicht mit.",
   },
   luck: {
     word: "Glück",

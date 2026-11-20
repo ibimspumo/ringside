@@ -248,7 +248,7 @@
         {/if}
       </div>
       <div class="cell">
-        <span class="eyebrow"><Term tip={LUCK_HELP}>Glück gegen All-in-EV</Term></span>
+        <span class="eyebrow"><Term tip={LUCK_HELP}>Glück: Ergebnis gegen Erwartung</Term></span>
         <div class="luck" aria-hidden="true">
           {#each [["Ergebnis", report.luck.net_bb], ["Normales Glück", report.luck.ev_bb]] as [label, v] (label)}
             {@const most = Math.max(1, Math.abs(report.luck.net_bb), Math.abs(report.luck.ev_bb))}

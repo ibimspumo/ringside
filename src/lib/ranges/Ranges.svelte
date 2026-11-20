@@ -67,7 +67,7 @@
   let chart = $state<RangeChart | null>(null);
   let loading = $state(false);
   let error = $state<string | null>(null);
-  /** Narrow windows show two grids and switch the second; wide ones show all three. */
+  /** Two grids, the second switched; only very wide windows show all three. */
   let second = $state<"model" | "diff">("model");
   let outline = $state(true);
 
@@ -421,7 +421,7 @@
               </ul>
             </details>
           {/if}
-          <p class="howto">Fahr über eine Hand für Details. Klick zeigt deine Hände damit – dort kannst du jede Hand analysieren.</p>
+          <p class="howto">Kleine Zahl bei dir: so oft hattest du die Hand, dunkles Feld: nie bekommen.{#if !locked} Beim Modell: wie oft (in %) es sie so spielt.{/if} Fahr über eine Hand für Details, ein Klick zeigt deine Hände damit.</p>
         {/if}
       </section>
     </div>
@@ -802,7 +802,8 @@
     display: none;
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
-  @container (min-width: 1500px) {
+  /* Three grids only where each still has room for readable labels. */
+  @container (min-width: 2200px) {
     .wide-set {
       display: grid;
     }

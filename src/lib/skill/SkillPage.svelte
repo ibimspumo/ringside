@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { go } from "../nav/go";
   import { GRADE_OF } from "../analysis/labels";
   import type { LearnTarget } from "../app/Leaks.svelte";
   import AtTable from "../app/AtTable.svelte";
@@ -117,10 +118,12 @@
     <EmptyState
       page
       title="Noch keine Wertung"
-      text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. Ringside analysiert neue Turniere von selbst, sobald du den Poker-Client schließt – oder du lässt deine Hände gleich jetzt bewerten."
+      text="Deine Spielwertung ist eine Zahl wie im Schach, die nach jedem Turnier steigt oder fällt; jeder startet bei {points(p.start)}. {hands
+        ? 'Ringside analysiert neue Turniere von selbst, sobald du den Poker-Client schließt – oder du lässt deine Hände gleich jetzt bewerten.'
+        : 'Richte zuerst ein, dass Ringside deine Hände bekommt – danach analysiert es jedes Turnier von selbst.'}"
     >
       {#snippet icon()}<path d="M4 19.5h16M5 15l4.5-4.5 3 3L19 7" />{/snippet}
-      {#snippet action()}<Button variant="primary" onclick={onAllHands}>Zu deinen Händen</Button>{/snippet}
+      {#snippet action()}{#if hands}<Button variant="primary" onclick={onAllHands}>Zu deinen Händen</Button>{:else}<Button variant="primary" onclick={() => go("settings")}>Hände einrichten</Button>{/if}{/snippet}
     </EmptyState>
   {:else}
     <section class="sk-hero" aria-label="Deine Spielwertung">
@@ -479,7 +482,7 @@
 
   .sk-areas {
     display: grid;
-    grid-template-columns: minmax(0, 1.7fr) minmax(64px, 1fr) max-content max-content max-content;
+    grid-template-columns: minmax(250px, 2.2fr) minmax(64px, 1fr) max-content max-content max-content;
     gap: 0 var(--sp-3);
     margin: 0;
     padding: 0;

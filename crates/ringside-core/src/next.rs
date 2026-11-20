@@ -95,7 +95,7 @@ pub struct NextStep {
     pub title: String,
     /// One sentence why.
     pub why: String,
-    /// The number with its meaning: „kostet dich im Schnitt etwa 0,4 BB pro Mal, 31-mal gespielt“.
+    /// The number with its meaning: „kostet dich im Schnitt etwa 0,4 BB je Entscheidung, 31-mal gespielt“.
     pub number: String,
     /// Glossary id of the poker word in the title, for its explanation.
     pub term: Option<&'static str>,
@@ -275,7 +275,7 @@ fn cost_line(mean_bb: f64, n: usize, what: &str) -> String {
     if mean_bb < 0.005 {
         format!("kostet dich so gut wie nichts, {}", times(n, what))
     } else {
-        format!("kostet dich im Schnitt etwa {} pro Mal, {}", bb(mean_bb), times(n, what))
+        format!("kostet dich im Schnitt etwa {} je Entscheidung, {}", bb(mean_bb), times(n, what))
     }
 }
 
@@ -826,7 +826,7 @@ mod tests {
         }
         let first = &sample().rank()[0];
         assert_eq!(first.title, "Gegen eine Erhöhung im Big Blind");
-        assert_eq!(first.number, "kostet dich im Schnitt etwa 0,4 BB pro Mal, 31-mal gespielt");
+        assert_eq!(first.number, "kostet dich im Schnitt etwa 0,4 BB je Entscheidung, 31-mal gespielt");
         assert_eq!(first.practice, Some(Target::Spot { spot: "vs_open|BB|1|9".into() }));
         let steal = sample().rank().into_iter().find(|s| s.id == "leak:steal|tournament|BTN|1").unwrap();
         assert_eq!(steal.title, "Am Button: Du greifst die Blinds zu oft an");
@@ -848,7 +848,7 @@ mod tests {
         let ids: Vec<&str> = t.iter().map(|s| s.id.as_str()).collect();
         assert_eq!(ids, ["spot:vs_open|BB|1|9", "spot:river_vs_bet|-|3|6", "decision:7:4", "spot:vs_limp|SB|3|6"]);
         assert_eq!(t[0], list[0], "the same first entry as every other page");
-        assert_eq!(t[3].number, "kostet dich im Schnitt etwa 0,3 BB pro Mal, 3-mal in diesem Turnier");
+        assert_eq!(t[3].number, "kostet dich im Schnitt etwa 0,3 BB je Entscheidung, 3-mal in diesem Turnier");
         assert!(within(&list, &[], &HashSet::new(), "in diesem Turnier").is_empty());
     }
 

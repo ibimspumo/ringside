@@ -58,7 +58,7 @@
   ] as const;
 
   usePageHead(() => ({
-    sub: "Zeigt für jede Hand den besten Zug – auch für deine. Wie gut sie gespielt ist, hängt davon ab, was du mit den anderen tust.",
+    sub: "Rechnet für die eingestellte Situation und die angenommenen Starthände aus, wie man jede Hand am besten spielt – auch deine.",
     label: "Ansicht",
     value: view,
     tabs: TABS.map((t) => {
@@ -69,8 +69,8 @@
   }));
 </script>
 
+<ClientLock>
 <div class="page solver">
-  <ClientLock>
     {#if solver.status === "running" && solver.replay?.notice}
       <p class="source" role="status">{solver.replay.notice}</p>
     {:else if solver.source && view === "setup"}
@@ -88,8 +88,8 @@
     {:else}
       <Setup />
     {/if}
-  </ClientLock>
 </div>
+</ClientLock>
 
 <style>
   .solver {

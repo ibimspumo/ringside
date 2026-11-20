@@ -20,14 +20,14 @@ export interface Scenario {
 }
 
 export const ANTES: { id: PreflopAnte; label: string }[] = [
-  { id: "big_blind", label: "BB-Ante" },
-  { id: "classic", label: "Ante" },
-  { id: "none", label: "Ohne" },
+  { id: "big_blind", label: "Big Blind" },
+  { id: "classic", label: "Alle" },
+  { id: "none", label: "Keine" },
 ];
 
 export const POT_TYPES: { id: PotType; label: string; hint: string }[] = [
   { id: "srp", label: "Raise + Call", hint: "Single-Raised-Pot (SRP): einer erhöht, einer geht mit" },
-  { id: "3bet", label: "3-Bet", hint: "3-Bet-Pot: Open, 3-Bet und Call" },
+  { id: "3bet", label: "Nochmal erhöht", hint: "3-Bet-Pot: einer erhöht, einer erhöht nochmal (3-Bet), der Erste geht mit" },
   { id: "limp", label: "Limp", hint: "Limp-Pot: Small Blind limpt, Big Blind checkt" },
 ];
 
@@ -230,7 +230,7 @@ function describe(w: Want): string {
 export function originText(s: Scenario, modelStack: number): string {
   const depth = modelStack === s.stack ? `${fmt(modelStack)} BB` : `${fmt(modelStack)} BB (nächste vorgerechnete Tiefe)`;
   const ante = s.ante === "none" ? "ohne Ante" : s.ante === "classic" ? "mit Ante" : "mit BB-Ante";
-  return `aus dem Preflop-Modell, ${s.players}-max, ${depth}, ${ante}`;
+  return `aus dem Modell vor dem Flop, ${s.players} Spieler, ${depth}, ${ante}`;
 }
 
 /** Simple template ranges and standard sizes, for when the preflop model is not available. */

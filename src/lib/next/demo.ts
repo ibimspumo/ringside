@@ -30,7 +30,7 @@ function spot(key: string, spots: SpotType[], title: string, detail: string, dec
     kind: "spot",
     title,
     why: `${flawed} von ${decisions} deiner Entscheidungen hier ${flawed === 1 ? "war" : "waren"} ungenau oder schlechter (${detail}).`,
-    number: `kostet dich im Schnitt etwa ${bbText(mean)} pro Mal, ${decisions}-mal gespielt`,
+    number: `kostet dich im Schnitt etwa ${bbText(mean)} je Entscheidung, ${decisions}-mal gespielt`,
     per_time_bb: mean,
     times: decisions,
     total_bb: loss,
@@ -116,6 +116,6 @@ export function demoWithin(kinds: KindLoss[], part: string): NextStep[] {
   const kept = demoNextSteps().filter((s) => s.spot_key !== null && keys.has(s.spot_key));
   const rare = kinds
     .filter((k) => k.loss_bb > 0 && !kept.some((s) => s.spot_key === k.key))
-    .map((k): NextStep => ({ ...spot(k.key, [], k.title, k.detail, k.decisions, k.flawed, k.loss_bb, 1, "range"), number: `kostet dich im Schnitt etwa ${bbText(k.loss_bb / k.decisions)} pro Mal, ${k.decisions}-mal ${part}` }));
+    .map((k): NextStep => ({ ...spot(k.key, [], k.title, k.detail, k.decisions, k.flawed, k.loss_bb, 1, "range"), number: `kostet dich im Schnitt etwa ${bbText(k.loss_bb / k.decisions)} je Entscheidung, ${k.decisions}-mal ${part}` }));
   return [...kept, ...rare];
 }
