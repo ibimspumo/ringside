@@ -114,6 +114,13 @@
     </EmptyState>
   {:else if !p}
     <EmptyState page tone="loading" title="Wertung wird berechnet …" />
+  {:else if p.recalculating}
+    <EmptyState
+      page
+      tone="loading"
+      title="Wertung wird neu berechnet …"
+      text="Die Analyse ist besser geworden: Ringside bewertet deine Hände gerade neu. Bis das fertig ist, zeigt es keine Zahl, damit sich alte und neue Bewertungen nicht mischen."
+    />
   {:else if rating === null}
     <EmptyState
       page
@@ -137,6 +144,12 @@
           <Badge tone="info">{p.tier}</Badge>
           {#if p.provisional}<Badge dashed size="sm" title="Nach wenigen Turnieren schwankt die Zahl noch stark.">vorläufig – schwankt noch stark</Badge>{/if}
         </div>
+        {#if p.recalculated_from != null}
+          <p class="sk-recalc">
+            Neu berechnet mit der verbesserten Analyse: vorher <b class="num">{points(p.recalculated_from)}</b>, jetzt
+            <b class="num">{points(rating)}</b>. Das ist keine Änderung durch dein Spiel.
+          </p>
+        {/if}
         {#if last}
           <p class="sk-trend">
             {@render arrow(last.delta)}
@@ -575,6 +588,11 @@
     justify-content: flex-end;
   }
 
+  .sk-recalc {
+    margin: 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+  }
   .sk-note {
     margin: var(--sp-3) 0 0;
     color: var(--text-2);

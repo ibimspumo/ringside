@@ -5,7 +5,7 @@
 //! ```
 //!
 //! Imports like the importer (`import_file`, `import_summary`), analyses like the preflop
-//! batches (`analyze_raw`, `save_analysis`), solves the postflop queue like the app
+//! batches (`analyze_again`, `save_analysis`), solves the postflop queue like the app
 //! (`next_postflop_job`, `estimate_rest`, `finish_postflop`) until `--minutes` are used up,
 //! and writes what the pages read: sessions with their review, tournaments with their
 //! report, the profile, leaks, „Was als Nächstes?“ and the Spielwertung. The database is
@@ -14,7 +14,7 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use ringside_analysis::{ENGINE, PostflopJob, analyze_raw, estimate_rest, solve_job};
+use ringside_analysis::{ENGINE, PostflopJob, analyze_again, estimate_rest, solve_job};
 use ringside_core::db::{Db, Filter};
 use ringside_core::import::{import_file, import_summary};
 use ringside_core::leaks;
@@ -77,7 +77,8 @@ fn main() {
             break;
         }
         analysed += rows.len();
-        db.save_analysis(&analyze_raw(&rows)).expect("save");
+        let before = rows.iter().map(|(id, _)| (*id, db.hand_decisions(*id).expect("decisions"))).collect();
+        db.save_analysis(&analyze_again(&rows, &before)).expect("save");
     }
     println!("Analyse: {analysed} Hände in {:.1} s", t.elapsed().as_secs_f64());
 

@@ -183,9 +183,15 @@ export const api = {
   /** The latest session (or the one starting at `start`); advice is left out while PokerStars runs. */
   sessionReview: (start: string | null) =>
     sample<SessionPage>("session_review", { start }, () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start), () => sessionDemo.demoSession(start)),
-  /** The Spielwertung over every analysed tournament; locked while PokerStars runs. `?data=few` shows three tournaments. */
+  /** The Spielwertung over every analysed tournament; locked while PokerStars runs. `?data=few` shows three tournaments,
+   * `?data=recalc` a recalculation after an update, `?data=recalculated` the note after it. */
   skillProfile: () => {
-    const made = advice(() => (previewData === "few" ? skillDemo.fewSkill() : skillDemo.demoSkill()));
+    const made = advice(() => {
+      if (previewData === "few") return skillDemo.fewSkill();
+      if (previewData === "recalc") return { ...skillDemo.emptySkill(), recalculating: true };
+      const p = skillDemo.demoSkill();
+      return previewData === "recalculated" && p.rating !== null ? { ...p, recalculated_from: p.rating - 47 } : p;
+    });
     return sample<SkillProfile>("skill_profile", {}, made, advice(skillDemo.emptySkill), made);
   },
   playerNote: (player: string) => call<PlayerNote | null>("player_note", { player }, () => demo.demoNote(player)),

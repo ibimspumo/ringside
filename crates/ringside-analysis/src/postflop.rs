@@ -366,7 +366,7 @@ fn solved(node: &Node, h: &HandInfo, river: bool, path: &[Step], node_at: &mut i
 
 /// What to open in the solver: the flop spot as the solver page takes it, the path to the
 /// decision and the saved solution to open without solving.
-fn solver_link(job: &PostflopJob, path: &[Step], saved: Option<i64>) -> String {
+pub fn solver_link(job: &PostflopJob, path: &[Step], saved: Option<i64>) -> String {
     let side = |i: usize, range: &str| serde_json::json!({ "position": job.positions[i], "range": range, "note": job.range_notes[i] });
     let cards: Vec<String> = combo_of(&job.hero_combo).map(|c| {
         let (a, b) = c.cards();
@@ -387,6 +387,20 @@ fn solver_link(job: &PostflopJob, path: &[Step], saved: Option<i64>) -> String {
         "saved": saved,
     })
     .to_string()
+}
+
+/// Whether the solver link of a rated decision opens the spot of `job`: the same flop, pot,
+/// stacks, ranges, hero and bet sizes; where in the tree and which saved file do not count.
+pub fn same_spot(job: &PostflopJob, link: &str) -> bool {
+    let spot = |s: &str| {
+        let mut v: serde_json::Value = serde_json::from_str(s).ok()?;
+        let o = v.as_object_mut()?;
+        for k in ["path", "saved", "source"] {
+            o.remove(k);
+        }
+        Some(v)
+    };
+    spot(link).is_some_and(|old| Some(old) == spot(&solver_link(job, &[], None)))
 }
 
 /// The settings a queued job is solved with.

@@ -15,6 +15,8 @@
 
 {#if skill.state === "locked"}
   <ScoreChip locked value="Wertung" sub="gesperrt" {active} {compact} title="{word}: gesperrt, solange ein Poker-Client läuft" {onclick} data-skill-chip />
+{:else if p?.recalculating}
+  <ScoreChip value="Wertung" sub="wird neu berechnet …" {active} {compact} title="{word}: wird mit der verbesserten Analyse neu berechnet." {onclick} data-skill-chip />
 {:else if p?.rating != null}
   <ScoreChip
     value={points(p.rating)}

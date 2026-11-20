@@ -20,13 +20,14 @@
 //! share, time left and state), the one place an app-wide task list hooks in.
 //! `analysis_cancel` stops everything, `analysis_cancel_hand` one hand.
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 use ringside_analysis::postflop::{JobError, TARGET_PCT, rate, settings, solve_spot};
-use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_hand, analyze_raw, chart_targets, estimate_rest};
+use ringside_analysis::{ChartTarget, ENGINE, PostflopJob, analyze_again, analyze_hand, chart_targets, estimate_rest};
 use ringside_core::db::{AnalysisCounts, AnalysisSummary, Db, Decision, Filter, SolutionSource, Status};
 use ringside_core::model::Street;
 use ringside_solver::gate::Priority;
@@ -130,6 +131,8 @@ enum Scope {
     After(u64),
     /// Only the hands the user asked for.
     Marked,
+    /// The hands analysed with an earlier version of the analysis.
+    Outdated,
 }
 
 impl Scope {
@@ -137,7 +140,7 @@ impl Scope {
         match self {
             Scope::All => 0,
             Scope::After(id) => id,
-            Scope::Marked => u64::MAX,
+            Scope::Marked | Scope::Outdated => u64::MAX,
         }
     }
 }
@@ -291,6 +294,13 @@ fn client_running(app: &AppHandle) -> bool {
     app.state::<AppState>().client_running.load(Ordering::Relaxed)
 }
 
+/// Whether hands of an earlier analysis get rated again: with the automatic analysis or
+/// the run over the whole history on.
+pub(crate) fn recalculates(state: &AppState) -> bool {
+    let auto = state.settings.lock().unwrap().analysis.auto;
+    auto || state.db.lock().unwrap().setting(ENABLED_KEY).ok().flatten().is_some_and(|v| v == "1")
+}
+
 fn enabled(app: &AppHandle) -> bool {
     app.state::<AppState>().db.lock().unwrap().setting(ENABLED_KEY).ok().flatten().is_some_and(|v| v == "1")
 }
@@ -356,6 +366,10 @@ pub fn spawn(app: AppHandle) {
                     });
                 }
                 state.sleep(Duration::from_secs(2));
+                continue;
+            }
+            // After an update everything rated before is rated again, before new hands count.
+            if recalculates(&app.state::<AppState>()) && preflop_batch(&app, Scope::Outdated) {
                 continue;
             }
             if let Some(after) = auto {
@@ -498,9 +512,13 @@ fn analyze_pieces(main: &AppState, rows: &[(u64, String)], piece: usize, stop: i
             out.stopped = true;
             break;
         }
+        let before: HashMap<u64, Vec<Decision>> = {
+            let db = main.db.lock().unwrap();
+            chunk.iter().filter_map(|(id, _)| db.hand_decisions(*id).ok().map(|d| (*id, d))).collect()
+        };
         let results = match POOL.as_ref() {
-            Some(pool) => pool.install(|| analyze_raw(chunk)),
-            None => analyze_raw(chunk),
+            Some(pool) => pool.install(|| analyze_again(chunk, &before)),
+            None => analyze_again(chunk, &before),
         };
         if let Err(e) = main.db.lock().unwrap().save_analysis(&results) {
             out.error = Some(e.to_string());
@@ -519,17 +537,18 @@ fn preflop_batch(app: &AppHandle, scope: Scope) -> bool {
     let analysis = app.state::<AnalysisState>();
     let rows = {
         let db = main.db.lock().unwrap();
-        let after = if scope == Scope::All {
-            let mut cursor = analysis.cursor.lock().unwrap();
-            let total = db.hand_count().unwrap_or(0);
-            if total != cursor.1 {
-                *cursor = (0, total);
+        match scope {
+            Scope::Outdated => db.outdated_candidates(ENGINE, 0, BATCH),
+            Scope::All => {
+                let mut cursor = analysis.cursor.lock().unwrap();
+                let total = db.hand_count().unwrap_or(0);
+                if total != cursor.1 {
+                    *cursor = (0, total);
+                }
+                db.analysis_candidates(ENGINE, cursor.0, BATCH)
             }
-            cursor.0
-        } else {
-            scope.after()
-        };
-        db.analysis_candidates(ENGINE, after, BATCH)
+            _ => db.analysis_candidates(ENGINE, scope.after(), BATCH),
+        }
     };
     let rows = match rows {
         Ok(rows) => rows,
@@ -665,7 +684,7 @@ fn solve_next(app: &AppHandle, scope: Scope) -> bool {
                 match scope {
                     _ if status.marked.contains(&hand_id) => Priority::Viewed,
                     Scope::After(_) => Priority::NewHands,
-                    Scope::All | Scope::Marked => Priority::History,
+                    Scope::All | Scope::Marked | Scope::Outdated => Priority::History,
                 }
             };
             let solve = || {
