@@ -5,7 +5,7 @@
 import { demoChange } from "../skill/demo";
 import type { KindLoss, Moment } from "../report/types";
 import { demoTournaments } from "../demo";
-import { siteOfId } from "../app/format";
+import { WORLD_SESSIONS, handTime } from "../demo-world";
 import type { ClassGap, PreflopReview, SessionPage, SessionReview, SessionSpan, Swing } from "./types";
 
 const preview = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("data");
@@ -272,39 +272,34 @@ const GOOD_LUCK: Swing[] = [
   }),
 ];
 
-const START = "2026/11/18 20:04:00";
-
 /** Loss per kind of spot of the demo session, costliest first: the hands behind „Als Nächstes üben“. */
 export const SESSION_KINDS: KindLoss[] = [
   { key: "vs_open|BB|2|9", title: "Gegen eine Erhöhung im Big Blind", detail: "20–40 BB · 7–10 Spieler", lage: "vs_open", decisions: 14, flawed: 5, loss_bb: 6.1 },
   { key: "river_vs_bet|-|3|6", title: "River: auf einen Einsatz reagieren", detail: "ab 40 BB · 6 Spieler", lage: "river_vs_bet", decisions: 4, flawed: 2, loss_bb: 3.0 },
 ];
 
+/** As `LISTED_SESSIONS` in ringside-core: the start page lists the newest few. */
+const LISTED_SESSIONS = 6;
+
 function spans(): SessionSpan[] {
-  // One currency for the evening, like most players.
-  const ids = demoTournaments().rows.filter((t) => t.currency === "USD").map((t) => t.id);
-  const mk = (start: string, end: string, hands: number, t: number[], cash = 0): SessionSpan => ({
-    start,
-    end,
-    hands,
-    tournaments: t,
-    cash_hands: cash,
-    sites: t.some((id) => siteOfId(id) === "ggpoker") ? ["pokerstars", "ggpoker"] : ["pokerstars"],
-  });
-  return [
-    mk(START, "2026/11/18 22:41:30", preview === "few" ? 22 : 152, ids.slice(0, 3)),
-    mk("2026/11/17 19:12:00", "2026/11/17 21:58:00", 211, ids.slice(3, 7)),
-    mk("2026/11/15 20:30:00", "2026/11/15 21:05:00", 48, [], 48),
-    mk("2026/11/14 18:40:00", "2026/11/14 23:10:00", 380, ids.slice(7, 12)),
-    mk("2026/11/12 21:00:00", "2026/11/12 22:20:00", 96, ids.slice(12, 14)),
-  ];
+  return WORLD_SESSIONS.slice(0, LISTED_SESSIONS).map((x, i) => ({
+    start: x.start,
+    end: x.end,
+    hands: i === 0 && preview === "few" ? 22 : x.hands,
+    tournaments: x.tournaments,
+    cash_hands: x.cash_hands,
+    sites: x.sites,
+  }));
 }
 
 function review(span: SessionSpan, at: number): SessionReview {
   const pending = preview === "pending";
   const hands = span.hands;
   const p = preflop(hands);
-  const worst = at === 0 ? WORST : WORST.slice(1).map((m) => ({ ...m, played_at: span.start }));
+  const worst = at === 0 ? WORST.map((m) => ({ ...m, played_at: handTime(m.hand_id) })) : WORST.slice(1).map((m) => ({ ...m, played_at: span.start }));
+  const net = WORLD_SESSIONS.find((x) => x.start === span.start)?.net_bb ?? 0;
+  // The evening's all-ins ran 24,6 BB below their chances; the result itself is the session's.
+  const luckBb = -24.6;
   return {
     span,
     report: {
@@ -312,7 +307,7 @@ function review(span: SessionSpan, at: number): SessionReview {
       unanalyzed: pending ? Math.round(hands * 0.4) : 0,
       pending: pending ? 14 : at === 0 ? 6 : 0,
       unrated: 2,
-      luck: { net: -184000, ev: 62000, luck: -246000, net_bb: -18.4, ev_bb: 6.2, luck_bb: -24.6, all_ins: 7 },
+      luck: { net: Math.round(net * 10000), ev: Math.round((net - luckBb) * 10000), luck: Math.round(luckBb * 10000), net_bb: net, ev_bb: net - luckBb, luck_bb: luckBb, all_ins: 7 },
       score: { decisions: 241, good: 199, inaccuracies: 19, mistakes: 23, ratings: [150, 20, 29, 19, 15, 8], loss_bb: 21.7, per100: 9, good_pct: 82.6, estimate_loss_pct: 12 },
       breakdowns: [],
       worst,
@@ -377,15 +372,7 @@ export function demoSession(start: string | null): SessionPage {
   const at = Math.max(0, sessions.findIndex((s) => s.start === start));
   const span = sessions[at];
   const rows = demoTournaments().rows;
-  const tournaments = span.tournaments.map((id, i) => {
-    const t = rows.find((r) => r.id === id)!;
-    // The evening's three: one still running, one deep run, one early exit.
-    if (at !== 0) return t;
-    const place = [null, 14, 388][i];
-    const prize = [null, 1240, 0][i];
-    const profit = prize === null ? null : prize + t.bounties - (t.cost ?? 0);
-    return { ...t, place, prize, profit, entrants: [null, 412, 690][i], hands: [61, 58, 33][i], started_at: ["2026/11/18 20:04:00", "2026/11/18 20:09:00", "2026/11/18 21:20:00"][i] };
-  });
+  const tournaments = span.tournaments.map((id) => rows.find((r) => r.id === id)!);
   const r = review(span, at);
   const isLocked = typeof window !== "undefined" && ["1", "gg"].includes(new URLSearchParams(window.location.search).get("locked") ?? "");
   return { sessions, review: isLocked ? locked(r) : r, tournaments, skill: isLocked ? null : demoChange() };

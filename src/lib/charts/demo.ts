@@ -1,7 +1,8 @@
 // Browser-only sample: the equilibrium for 6 players at 10 BB with a big-blind ante,
 // open shoves and first calls only. Every request gets this chart, seated at the requested table.
-import type { PushFoldChart, PushFoldGrid } from "../types";
+import type { PushFoldAnte, PushFoldChart, PushFoldGrid } from "../types";
 import { tablePositions } from "./words";
+import { realShare, reshape, shareOf } from "./demo-share";
 
 const STACKS = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 25];
 
@@ -17,8 +18,11 @@ export function demoGrid(): PushFoldGrid {
   };
 }
 
-/** The 10 BB sample at any depth; only the share played moves with the depth, so the curve has a shape. */
-export function demoChart(stack = 10, players = 6): PushFoldChart {
+/**
+ * The 10 BB sample at any table and depth. Open shoves play the real share of that table and depth
+ * where the comparison has it, calls a share that moves with the depth; each grid matches its share.
+ */
+export async function demoChart(stack = 10, players = 6, ante: PushFoldAnte = "big_blind"): Promise<PushFoldChart> {
   const scale = Math.pow(10 / stack, 0.6);
   // Fewer players: the last seats of the sample, so names and seats stay consistent.
   const cut = Math.max(0, 6 - Math.min(6, players));
@@ -42,11 +46,19 @@ export function demoChart(stack = 10, players = 6): PushFoldChart {
   ].map((n) => ({ ...n, position: names[n.seat] ?? n.position }));
   const nodes = new URLSearchParams(window.location.search).has("empty")
     ? seated.map((n) => ({ ...n, act_pct: 0, freq: n.freq.map(() => 0) }))
-    : seated.map((n) => ({ ...n, act_pct: Math.min(100, n.act_pct * scale) }));
+    : await Promise.all(
+        seated.map(async (n) => {
+          const real = n.shover === null ? await realShare(ante, 6 - cut + more, stack, n.position, true) : null;
+          const target = real ?? Math.min(100, n.act_pct * scale);
+          if (Math.abs(shareOf(n.freq) - target) < 0.05) return { ...n, act_pct: shareOf(n.freq) };
+          const freq = reshape(n.freq.map((f) => f / 255), n.ev_act, target).map((p) => Math.round(p * 255));
+          return { ...n, freq, act_pct: shareOf(freq) };
+        }),
+      );
   return {
     players: 6 - cut + more,
     stack_bb: stack,
-    ante: "big_blind",
+    ante,
     precomputed: true,
     converged: true,
     exploitability_bb: 0.0009,

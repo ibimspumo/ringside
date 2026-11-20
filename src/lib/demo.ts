@@ -1,5 +1,7 @@
 // Sample data so the UI can be designed and previewed in a plain browser without Tauri.
 import { DEMO_HANDS } from "./analysis/demo-hands";
+import { GG_TOURNAMENT, HAND_SECONDS, RUNNING_TOURNAMENT, TOTAL_HANDS, WORLD_SESSIONS, WORLD_TOURNAMENTS, addMinutes, handTime, minutesBetween, worldTournament } from "./demo-world";
+import type { WorldSession } from "./demo-world";
 import type {
   Dashboard,
   Site,
@@ -124,7 +126,7 @@ function read(code: string, hands: number): PlayerRead {
 /** Name, hands, stats, read over all hands and over the hands of the tournament slice. */
 type Demo = [string, number, Partial<Record<StatId, number>>, string, string];
 const PLAYERS: Demo[] = [
-  ["Hero", 6124, { vpip: 21, pfr: 16, three_bet: 6, fold_to_three_bet: 58, steal: 38, fold_to_steal: 71, cbet: 64, fold_to_cbet: 44, wtsd: 26, wsd: 53, af: 2.6, afq: 47 }, "ts", "tm"],
+  ["Hero", TOTAL_HANDS, { vpip: 21, pfr: 16, three_bet: 6, fold_to_three_bet: 58, steal: 38, fold_to_steal: 71, cbet: 64, fold_to_cbet: 44, wtsd: 26, wsd: 53, af: 2.6, afq: 47 }, "ts", "tm"],
   ["Kestrel", 27, { vpip: 18, pfr: 15, three_bet: 7, fold_to_three_bet: 100, steal: 44, fold_to_steal: 71, cbet: 71, fold_to_cbet: 45, wtsd: 24, wsd: 55, af: 3.1, afq: 51 }, "tu", "tu"],
   ["marlowe_77", 33, { vpip: 41, pfr: 9, three_bet: 6, steal: 18, fold_to_steal: 48, cbet: 38, fold_to_cbet: 29, wtsd: 37, wsd: 44, af: 0.9, afq: 24 }, "sm", "sm"],
   ["Lee Ann", 412, { vpip: 33, pfr: 26, three_bet: 12, fold_to_three_bet: 40, steal: 52, fold_to_steal: 55, cbet: 80, fold_to_cbet: 30, wtsd: 22, wsd: 50, af: 4.2, afq: 58 }, "ls", "lu"],
@@ -215,63 +217,90 @@ export function demoPlayers(filter?: Filter): PlayerView[] {
   if (new URLSearchParams(window.location.search).get("many") === "1") return [...PLAYERS.slice(0, 1).map(([name, hands, v, r]) => ({ name, net: 0, stats: stats(hands, v), read: read(r, hands) })), ...manyPlayers()];
   const all = PLAYERS.map(([name, hands, v, r], i) => ({ name, net: [0, 920, -1830, 4210, -310, -2650, 330, -1200][i], stats: stats(hands, v), read: read(r, hands) }));
   if (!filter || !inTournament(filter)) return all;
+  const own = worldTournament(filter.tournament_id!)?.row.hands ?? 212;
   return PLAYERS.slice(0, 6).map(([name, , v, , r], i) => {
-    const hands = [212, 27, 33, 140, 25, 8][i];
+    // Hands with the hero: never more than the hero played there.
+    const hands = i === 0 ? own : Math.min(own, [0, 27, 33, 140, 25, 8][i]);
     return { name, net: [0, 410, -980, 1250, -60, -2650][i], stats: stats(hands, v), read: read(r, hands) };
   });
 }
 
-function series(n: number, drift: number, seed: number) {
+/** The sessions a filter covers: one tournament, one session (from–until), or everything. */
+function scope(filter?: Filter): { sessions: WorldSession[]; hands: number; net_bb: number; bounties: Record<string, number> } {
+  const t = filter?.tournament_id != null ? worldTournament(filter.tournament_id) : null;
+  if (t) {
+    const session = WORLD_SESSIONS.find((x) => x.tournaments.includes(t.row.id))!;
+    const one = { ...session, hands: t.row.hands, net_bb: t.net_bb, start: t.row.started_at, end: t.ended_at, cash_hands: 0, tournaments: [t.row.id] };
+    return { sessions: [one], hands: t.row.hands, net_bb: t.net_bb, bounties: t.row.bounties && t.row.currency ? { [t.row.currency]: t.row.bounties } : {} };
+  }
+  const { since, until } = filter ?? {};
+  const sessions = since && until ? WORLD_SESSIONS.filter((x) => x.start >= since && x.start <= until) : WORLD_SESSIONS;
+  const bounties: Record<string, number> = {};
+  for (const x of sessions) for (const [c, v] of Object.entries(x.bounties)) bounties[c] = (bounties[c] ?? 0) + v;
+  return {
+    sessions,
+    hands: sessions.reduce((n, x) => n + x.hands, 0),
+    net_bb: Math.round(sessions.reduce((n, x) => n + x.net_bb, 0) * 10) / 10,
+    bounties,
+  };
+}
+
+/** The hero's hands of `sessions` (newest first) as one curve, oldest hand first; every session ends on its own result. */
+function series(sessions: WorldSession[], seed: number) {
   let s = seed;
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647 - 0.5;
+  const n = sessions.reduce((a, x) => a + x.hands, 0);
+  const every = Math.ceil(n / 1500);
   let total = 0;
   let sd = 0;
-  let nsd = 0;
   let luck = 0;
   let allIns = 0;
+  let i = 0;
   const points = [];
-  const every = Math.ceil(n / 1500);
-  for (let i = 1; i <= n; i++) {
-    const net = rnd() * 9 + drift;
-    total += net;
-    if (rnd() > 0.3) sd += net * 1.6;
-    else nsd += net - net * 1.6 * 0.7;
-    // About one all-in with every hand shown in 40 hands; its result swings around the EV.
-    if (rnd() > 0.475) {
-      allIns++;
-      luck += rnd() * 30 + 0.4;
+  for (const x of [...sessions].reverse()) {
+    const steps = Array.from({ length: x.hands }, () => rnd() * 9);
+    const drift = (x.net_bb - steps.reduce((a, b) => a + b, 0)) / Math.max(1, x.hands);
+    const minutes = minutesBetween(x.start, x.end);
+    for (let k = 0; k < x.hands; k++) {
+      const net = steps[k] + drift;
+      total += net;
+      i++;
+      if (rnd() > 0.3) sd += net * 1.6;
+      // About one all-in with every hand shown in 40 hands; its result swings around the EV.
+      if (rnd() > 0.475) {
+        allIns++;
+        luck += rnd() * 30 + 0.4;
+      }
+      if (i % every === 0 || i === n)
+        points.push({
+          n: i,
+          played_at: addMinutes(x.start, (minutes * (k + 1)) / x.hands),
+          net_bb: total,
+          showdown_bb: sd,
+          non_showdown_bb: total - sd,
+          ev_bb: total - luck,
+        });
     }
-    if (i % every === 0 || i === n)
-      points.push({
-        n: i,
-        played_at: `2026/11/${String(1 + Math.floor((i / n) * 16)).padStart(2, "0")} 20:00:00`,
-        net_bb: total,
-        showdown_bb: sd,
-        non_showdown_bb: total - sd,
-        ev_bb: total - luck,
-      });
   }
-  void nsd;
   return { total, sd, points, luck, allIns };
 }
 
 export function demoDashboard(filter?: Filter): Dashboard {
-  const one = !!filter && inTournament(filter);
-  const hands = one ? 212 : 6124;
-  const s = series(hands, one ? 0.15 : 0.06, one ? (filter.tournament_id ?? 1) % 997 : 11);
+  const sc = scope(filter);
+  const s = series(sc.sessions, filter?.tournament_id ? filter.tournament_id % 997 : 11);
   return {
-    hand_count: 6431,
+    hand_count: TOTAL_HANDS,
     heroes: ["Hero"],
     results: {
-      hands,
+      hands: sc.hands,
       net: Math.round(s.total * 100),
-      net_bb: s.total,
+      net_bb: sc.net_bb,
       showdown_bb: s.sd,
-      non_showdown_bb: s.total - s.sd,
-      ev_bb: s.total - s.luck,
+      non_showdown_bb: sc.net_bb - s.sd,
+      ev_bb: sc.net_bb - s.luck,
       all_ins: s.allIns,
       luck_bb: s.luck,
-      bounties: { USD: one ? 250 : 3745 },
+      bounties: sc.bounties,
       points: s.points,
     },
     hero: demoPlayers(filter)[0],
@@ -300,44 +329,70 @@ export function emptyDashboard(): Dashboard {
 
 const RANKS = "AKQJT98765432";
 
+/** `parts` rounded to whole numbers that add up to `total` (largest remainder). */
+function apportion(total: number, parts: number[]): number[] {
+  const sum = parts.reduce((a, b) => a + b, 0) || 1;
+  const exact = parts.map((p) => (p / sum) * total);
+  const out = exact.map(Math.floor);
+  const order = exact.map((x, i) => [x - Math.floor(x), i]).sort((x, y) => y[0] - x[0]);
+  const missing = total - out.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < missing; k++) out[order[k % order.length][1]]++;
+  return out;
+}
+
 export function demoReports(filter?: Filter): Reports {
-  const one = !!filter && inTournament(filter);
+  const sc = scope(filter);
+  const posHands = apportion(sc.hands, [690, 512, 701, 745, 768, 790, 801, 817]);
+  // Blinds lose, the button wins most; whatever is left of the total goes to the seats that open.
+  const per100 = [-1.7, 0.8, 2.6, 4.7, 7.9, 15.2, -11.0, -18.4];
+  const base = per100.map((b, i) => (b * posHands[i]) / 100);
+  const open = posHands.slice(0, 6).reduce((a, b) => a + b, 0) || 1;
+  const rest = sc.net_bb - base.reduce((a, b) => a + b, 0);
+  const nets = base.map((b, i) => Math.round((i < 6 ? b + (rest * posHands[i]) / open : b) * 10) / 10);
+  nets[5] = Math.round((nets[5] + sc.net_bb - nets.reduce((a, b) => a + b, 0)) * 10) / 10;
   const positions: GroupView[] = ["UTG", "UTG+1", "LJ", "HJ", "CO", "BTN", "SB", "BB"].map((key, i) => {
-    const hands = Math.round([690, 512, 701, 745, 768, 790, 801, 817][i] / (one ? 28 : 1));
-    const netBb = [-12, 4, 18, 35, 61, 120, -88, -150][i];
-    return { key, net: netBb * 100, net_bb: netBb, stats: stats(hands, { vpip: [12, 14, 17, 21, 27, 38, 30, 34][i], pfr: [11, 12, 15, 18, 23, 31, 18, 9][i], steal: i >= 4 && i <= 6 ? [32, 44, 30][i - 4] : undefined }) };
+    const hands = posHands[i];
+    const netBb = nets[i];
+    return { key, net: Math.round(netBb * 100), net_bb: netBb, stats: stats(hands, { vpip: [12, 14, 17, 21, 27, 38, 30, 34][i], pfr: [11, 12, 15, 18, 23, 31, 18, 9][i], steal: i >= 4 && i <= 6 ? [32, 44, 30][i - 4] : undefined }) };
   });
-  const starting_hands: GroupView[] = [];
+  const raw: { key: string; hands: number; strength: number }[] = [];
   for (let r = 0; r < 13; r++)
     for (let c = 0; c < 13; c++) {
       const hi = RANKS[Math.min(r, c)];
       const lo = RANKS[Math.max(r, c)];
       const key = r === c ? hi + lo : r < c ? `${hi}${lo}s` : `${hi}${lo}o`;
       const strength = 26 - r - c + (r === c ? 8 : 0) + (r < c ? 2 : 0);
-      const hands = Math.max(1, Math.round(10 + ((r * 7 + c * 3) % 9) * (r === c ? 1 : r < c ? 1.5 : 4)));
-      const netBb = (strength - 9) * 0.9 * (hands / 20);
-      const played = Math.max(0, Math.min(100, strength * 5 - 25));
-      starting_hands.push({ key, net: Math.round(netBb * 100), net_bb: netBb, stats: stats(hands, { vpip: played, pfr: played * 0.8 }) });
+      raw.push({ key, strength, hands: Math.max(1, Math.round(10 + ((r * 7 + c * 3) % 9) * (r === c ? 1 : r < c ? 1.5 : 4))) });
     }
-  const sessions = Array.from({ length: 9 }, (_, i) => ({
-    start: `2026/11/${String(16 - i).padStart(2, "0")} 19:${String(10 + i * 3).padStart(2, "0")}:00`,
-    end: `2026/11/${String(16 - i).padStart(2, "0")} 22:${String(40 - i * 2).padStart(2, "0")}:00`,
-    hands: [412, 388, 501, 220, 640, 310, 290, 450, 180][i],
+  // The same hands and the same total as everywhere else: counts scaled, results shifted by hands.
+  const classHands = apportion(sc.hands, raw.map((x) => x.hands));
+  const shaped = raw.map((x, i) => (x.strength - 9) * 0.9 * (classHands[i] / 20));
+  const shift = (sc.net_bb - shaped.reduce((a, b) => a + b, 0)) / Math.max(1, sc.hands);
+  const starting_hands: GroupView[] = raw.flatMap((x, i) => {
+    const hands = classHands[i];
+    if (!hands) return [];
+    const netBb = shaped[i] + shift * hands;
+    const played = Math.max(0, Math.min(100, x.strength * 5 - 25));
+    return [{ key: x.key, net: Math.round(netBb * 100), net_bb: netBb, stats: stats(hands, { vpip: played, pfr: played * 0.8 }) }];
+  });
+  const sessions = sc.sessions.map((x) => ({
+    start: x.start,
+    end: x.end,
+    hands: x.hands,
     net: 0,
-    net_bb: [38.5, -61.2, 12.4, 88.0, -20.6, 5.1, -44.0, 71.3, -9.8][i],
-    bounties: Object.fromEntries([["USD", [375, 0, 250, 845, 125, 0, 0, 500, 0][i]]].filter(([, a]) => a)) as Record<string, number>,
-    tables: [3, 4, 2, 4, 3, 2, 1, 4, 2][i],
-    // One evening also had a GGPoker tournament open.
-    sites: i === 1 ? (["pokerstars", "ggpoker"] as Site[]) : (["pokerstars"] as Site[]),
+    net_bb: x.net_bb,
+    bounties: x.bounties,
+    tables: x.tables,
+    sites: x.sites,
   }));
-  return { positions, starting_hands, sessions: one ? sessions.slice(0, 1) : sessions };
+  return { positions, starting_hands, sessions };
 }
 
 export function demoShown(): ShownHand[] {
   return [
     { hand_id: 9, played_at: "2026/11/16 21:04:10", cards: "Kc Jc", board: "Jd 8s Js 4h 2c", position: "BTN", net: 110000, big_blind: 10000 },
     { hand_id: 8, played_at: "2026/11/16 20:51:44", cards: "7h 7d", board: "Ah Kd 7c 2s 9h", position: "BB", net: 64000, big_blind: 8000 },
-    { hand_id: 7, played_at: "2026/11/15 22:13:02", cards: "As 4s", board: "Qs 9s 3d Td 2h", position: "CO", net: -36000, big_blind: 6000 },
+    { hand_id: 7, played_at: "2026/11/14 22:13:02", cards: "As 4s", board: "Qs 9s 3d Td 2h", position: "CO", net: -36000, big_blind: 6000 },
   ];
 }
 
@@ -352,7 +407,7 @@ export const demoHand: Hand = {
   small_blind: 5,
   big_blind: 10,
   currency: "USD",
-  played_at: "2024/01/15 20:31:10",
+  played_at: handTime(250000000002),
   seats: [
     { seat: 1, name: "Alice", stack: 1000, bounty: null, sitting_out: false },
     { seat: 2, name: "Bob", stack: 1140, bounty: null, sitting_out: false },
@@ -405,7 +460,8 @@ function ggHandId(prefix: string, n: number): number {
 }
 
 /** The demo's GGPoker tournament: "Bounty Hunters $10.80" (#241300777). */
-export const GG_TOURNAMENT = 2 ** 52 + 241300777;
+export { GG_TOURNAMENT };
+const GG = worldTournament(GG_TOURNAMENT)!;
 
 /** A GGPoker tournament hand: the hero is "Hero", the others anonymous ids. */
 export const demoGgHand: Hand = {
@@ -420,7 +476,7 @@ export const demoGgHand: Hand = {
   small_blind: 15000,
   big_blind: 30000,
   currency: null,
-  played_at: "2026/11/18 21:41:12",
+  played_at: addMinutes(GG.ended_at, -1),
   seats: [
     { seat: 1, name: "3a9f0c21", stack: 1420000, bounty: null, sitting_out: false },
     { seat: 2, name: "b7e44d0", stack: 985000, bounty: null, sitting_out: false },
@@ -468,11 +524,11 @@ export const demoGgHand: Hand = {
 /** Hands listed for a chosen tournament carry its id (see `demoHands`). */
 export function demoHandById(id: number): Hand {
   const own = DEMO_HANDS.find((h) => h.id === id);
-  if (own) return own;
+  if (own) return { ...own, played_at: handTime(id) };
   if (id >= 2 ** 52) return { ...demoGgHand, id };
-  if (id < 1e12) return { ...demoHand, id };
+  if (id < 1e12) return { ...demoHand, id, played_at: handTime(id) };
   const tournament = Math.floor(id / 1000);
-  return { ...demoHand, id, game: "tournament", tournament_id: tournament, table_name: `${tournament} 10`, currency: null };
+  return { ...demoHand, id, game: "tournament", tournament_id: tournament, table_name: `${tournament} 10`, currency: null, played_at: handTime(id) };
 }
 
 export function demoHands(query?: HandQuery): HandSummary[] {
@@ -483,8 +539,8 @@ export function demoHands(query?: HandQuery): HandSummary[] {
     id: tournament === null ? 250000000002 - i : tournament * 1000 + 999 - i,
     site: "pokerstars",
     game: cashAt(i) ? "cash" : "tournament",
-    played_at: `2026/11/16 ${String(22 - Math.floor(i / 6)).padStart(2, "0")}:${String(59 - ((i * 7) % 60)).padStart(2, "0")}:10`,
-    table_name: cashAt(i) ? "Aquila II" : `${tournament ?? 4046789300} 10`,
+    played_at: handTime(tournament === null ? 250000000002 - i : tournament * 1000 + 999 - i),
+    table_name: cashAt(i) ? "Aquila II" : `${tournament ?? RUNNING_TOURNAMENT} 10`,
     small_blind: 5,
     big_blind: 10,
     currency: cashAt(i) ? "USD" : null,
@@ -506,7 +562,7 @@ function demoGgHands(n: number): HandSummary[] {
     id: ggHandId("TM", 5100200301 - i * 13),
     site: "ggpoker",
     game: "tournament",
-    played_at: `2026/11/18 21:${String(41 - i * 3).padStart(2, "0")}:12`,
+    played_at: addMinutes(GG.ended_at, -1 - (i * HAND_SECONDS) / 60),
     table_name: "12",
     small_blind: 15000,
     big_blind: 30000,
@@ -564,70 +620,7 @@ function demoTotals(rows: TournamentRow[]): TournamentTotals[] {
 }
 
 export function demoTournaments(): Tournaments {
-  const kinds = [
-    { game: "NL Hold'em", buy: [500, 0, 50], cur: "USD", name: "$5.50 Mini Early Battle [Progressive KO], $1.5K Gtd" },
-    { game: "NL Hold'em", buy: [1000, 1000, 200], cur: "USD", name: "Bounty Builder $22, $10K Gtd" },
-    { game: "NL Hold'em", buy: [300, 0, 30], cur: "USD", name: "Hot $3.30, $1.5K Gtd" },
-    { game: "PL Omaha", buy: [460, 0, 40], cur: "EUR", name: "PLO Turbo €5" },
-    { game: "NL Hold'em", buy: [200, 200, 40], cur: "USD", name: "Sunday Million - Day 1" },
-    { game: "NL Hold'em", buy: [180, 0, 20], cur: "EUR", name: "Sit & Go 9-Max Hyper" },
-  ];
-  let s = 7;
-  const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
-  const rows: TournamentRow[] = Array.from({ length: 34 }, (_, i) => {
-    const k = kinds[Math.floor(rnd() * kinds.length)];
-    const freeroll = i === 9;
-    const [prizePart, bountyPart, fee] = freeroll ? [0, 0, 0] : k.buy;
-    const entrants = Math.round(18 + rnd() * 700);
-    const known = i >= 2 && i !== 5;
-    const place = known ? (i === 12 ? 3 : Math.max(1, Math.round(rnd() * entrants))) : null;
-    const reentry = !freeroll && rnd() > 0.85 ? prizePart + bountyPart + fee : 0;
-    const paid = Math.ceil(entrants * 0.15);
-    const pool = (prizePart || 20) * entrants;
-    // The newest one is still running; the others without a place left without a prize.
-    const running = i === 0;
-    const prize = running ? null : place === null ? 0 : place <= paid ? Math.round(Math.max(pool * 0.22 * place ** -1.15, (prizePart || 20) * 1.6)) : 0;
-    const bounties = bountyPart ? Math.round(rnd() * 3) * Math.round(bountyPart / 2) : 0;
-    const cost = prizePart + bountyPart + fee + reentry;
-    const day = 16 - Math.floor(i / 2.4);
-    return {
-      id: 4046789300 - i * 731,
-      site: "pokerstars" as const,
-      game: k.game,
-      currency: k.cur,
-      buy_in: { prize: prizePart, bounty: bountyPart, fee, currency: freeroll ? null : k.cur },
-      cost,
-      entrants: known ? entrants : null,
-      place,
-      prize,
-      bounties,
-      profit: prize === null ? null : prize + bounties - cost,
-      started_at: `2026/11/${String(day).padStart(2, "0")} ${String(18 + (i % 5)).padStart(2, "0")}:${String((i * 13) % 60).padStart(2, "0")}:00`,
-      hands: Math.round(40 + rnd() * 260),
-      chips: Math.round((rnd() - 0.55) * 800000),
-      has_summary: known && i % 7 !== 3,
-      // Names come from table windows; tournaments played before Ringside ran have none.
-      name: i % 4 === 3 ? null : k.name,
-    };
-  });
-  rows.splice(1, 0, {
-    id: GG_TOURNAMENT,
-    site: "ggpoker",
-    game: "NL Hold'em",
-    currency: "USD",
-    buy_in: { prize: 500, bounty: 500, fee: 80, currency: "USD" },
-    cost: 1080,
-    entrants: 412,
-    place: 14,
-    prize: 1240,
-    bounties: 0,
-    profit: 1240 - 1080,
-    started_at: "2026/11/18 20:09:00",
-    hands: 64,
-    chips: -360000,
-    has_summary: true,
-    name: "Bounty Hunters $10.80, $5K GTD",
-  });
+  const rows = WORLD_TOURNAMENTS.map((t) => ({ ...t.row }));
   return { rows, totals: demoTotals(rows) };
 }
 
