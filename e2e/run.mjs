@@ -298,7 +298,8 @@ const steps = [];
 const step = (name, fn) => steps.push({ name, fn });
 const tauriOnly = (name, fn) => TAURI && step(name, fn);
 step("App startet", async () => {
-  await find("aside [data-nav] .label", "Start", { timeout: 60_000 });
+  // By name in either form of the side bar: a small CI screen shows only the rail.
+  await waitFor("the side bar entry „Start“", `return (() => { ${ENTRIES} })().some(([, name]) => name === "Start")`, [], 60_000);
   await s.exec(HOOK);
   if (TAURI && !(await s.exec(`return "__TAURI_INTERNALS__" in window`))) throw new Error("not running in Tauri");
   // Proves the console check below every step can see errors at all.
