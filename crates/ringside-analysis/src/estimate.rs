@@ -21,7 +21,11 @@
 //!   `R × equity × (pot + call) − call`; a bet or raise wins the pot when everyone folds
 //!   and otherwise plays against what continues. Opponents continue with the strongest
 //!   part of their range, as much as the pot odds of the bet ask them to defend (the
-//!   minimum defence frequency times a fitted factor); all-ins are played out. `R`
+//!   minimum defence frequency times a fitted factor); all-ins are played out. Before the
+//!   flop an all-in is called with what has the pot odds' equity against every hand at
+//!   least as strong as the hero's, as push/fold equilibria call; deeper than
+//!   [`DEEP_SHOVE`] a shove that loses when called counts only with what it loses to the
+//!   strong hands that call, its folds go to the raise. `R`
 //!   (equity realization) is 1 on the river and all-in; before that less out of
 //!   position, with more opponents and with a deeper stack-to-pot ratio, more for the
 //!   aggressor.
@@ -31,7 +35,9 @@
 //! - **Lines are mixed.** With enough equity to go on, how a hand goes on (check or
 //!   bet, call or raise) is what equilibrium strategies mix and what the formulas can't
 //!   rank; there no option loses more than a fitted small share of the pot. Folding a
-//!   hand that can go on, or going on with one that can't, is graded by the EVs.
+//!   hand that can go on, going on with one that can't, and an all-in before the flop
+//!   (stacking off is no way of going on that preflop strategies mix) are graded by the
+//!   EVs.
 //!
 //! The free numbers are fitted per street, and how often its grades agree with the
 //! solver's is measured on solved spots (`analysis-calibrate`) and stored with every
@@ -41,6 +47,7 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use ringside_engine::eval::Hand as Cards;
 use ringside_engine::preflop::limp_shape;
+use ringside_engine::range::class_pair_count;
 use ringside_engine::{Card, CardSet, Combo, HandClass, PreflopMatrix};
 use ringside_play::grade::{Grade, judge};
 use serde::{Deserialize, Serialize};
@@ -661,12 +668,19 @@ pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &S
                 let rr = if call >= spot.hero_behind - 1e-9 { 1.0 } else { r };
                 (rr * eq * (pot + call) - call, None)
             }
-            Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), &strength.equity, board_dead, dead, rng, t),
-            Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, &strength.equity, board_dead, dead, rng, t),
+            Opt::Bet(to) | Opt::Raise(to) => {
+                let a = aggression(spot, to.min(spot.hero_in + spot.hero_behind), &strength.equity, board_dead, dead, rng, t);
+                (a.ev, a.folds)
+            }
+            Opt::AllIn => {
+                let a = aggression(spot, spot.hero_in + spot.hero_behind, &strength.equity, board_dead, dead, rng, t);
+                let raise = options.iter().any(|o| matches!(o, Opt::Bet(_) | Opt::Raise(_)));
+                (a.bluff.filter(|_| raise).unwrap_or(a.ev), a.folds)
+            }
         }
     };
     let (evs, folds): (Vec<f64>, Vec<Option<f64>>) = options.iter().map(|&o| ev_of(o, &mut rng)).unzip();
-    Prepared { options: options.to_vec(), evs, folds, equity: eq, pot_odds, pot: spot.pot }
+    Prepared { options: options.to_vec(), evs, folds, equity: eq, pot_odds, pot: spot.pot, preflop: spot.preflop }
 }
 
 /// The hero's equity against everyone in the pot. Facing a bet, each opponent who still has
@@ -704,6 +718,7 @@ pub struct Prepared {
     equity: f64,
     pot_odds: Option<f64>,
     pot: f64,
+    preflop: bool,
 }
 
 /// The estimate's EVs from what [`prepare`] found. The gaps to the best option are
@@ -731,7 +746,8 @@ pub fn settle(p: &Prepared, t: &Tuning) -> Estimate {
         .zip(&by_kind)
         .map(|(&o, &e)| {
             let loss = t.shrink * (top - e);
-            top - if goes_on && o != Opt::Fold { loss.min(line_cap) } else { loss }
+            let line = o != Opt::Fold && !(p.preflop && o == Opt::AllIn);
+            top - if goes_on && line { loss.min(line_cap) } else { loss }
         })
         .collect();
     if let Some(fold) = p.options.iter().position(|&o| o == Opt::Fold) {
@@ -756,6 +772,15 @@ pub fn grades(est: &Estimate, options: &[Opt], pot: f64, t: &Tuning) -> Vec<Grad
     let freq = strategy(est, pot, t);
     (0..options.len()).map(|k| judge(&freq, Some(&est.evs), k, pot).grade).collect()
 }
+
+/// Before the flop, a shove that risks this many BB and loses when an opponent who covers
+/// it calls is a bluff a raise does better: what it folds out folds to the raise as well,
+/// short stacks go all in against the raise too, and only stronger hands call the shove.
+/// The formulas credit the bigger bet with far more folds than solvers do, so the folds
+/// and the short stacks' calls count for the raise, and the shove keeps what it loses to
+/// the strong hands that call. Shallower stacks are push/fold stacks, where the shove is
+/// the raise.
+pub const DEEP_SHOVE: f64 = 40.0;
 
 /// Typical bets of each size class, share of the pot.
 const CLASS_BETS: [f64; SIZES] = [0.33, 0.7, 1.2, 2.0];
@@ -789,16 +814,63 @@ fn checked(spot: &Spot, eq: f64, strength: &Strength, board_dead: CardSet, dead:
     (1.0 - q) * eq_checks * spot.pot + q * (eq_bets * (spot.pot + 2.0 * bet) - bet).max(0.0)
 }
 
-/// EV of betting or raising to `to` on the street, and how often everyone folds to it.
-fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead: CardSet, rng: &mut ChaCha8Rng, t: &Tuning) -> (f64, Option<f64>) {
+/// Before the flop an all-in ends the betting, so an opponent calls it with the hands of
+/// their range that have the pot odds' equity (`need`) against the hands that go all in:
+/// every class at least as strong as the hero's. With the share of a range the minimum
+/// defence frequency gives instead, a weak range (a limp, a wide open) would call a deep
+/// shove with its weak hands, and a medium hand all in would look ahead when called.
+fn shove_calls(hero: Combo) -> impl Fn(f64, &Range) -> Range {
+    let m = PreflopMatrix::embedded();
+    let mine = m.equity_vs_random(hero.class());
+    let shoves: Vec<HandClass> = HandClass::all().filter(|&c| m.equity_vs_random(c) >= mine).collect();
+    let against: Vec<f64> = HandClass::all()
+        .map(|c| {
+            let (mut won, mut pairs) = (0.0, 0.0);
+            for &s in &shoves {
+                let n = class_pair_count(c, s) as f64;
+                won += n * m.equity(c, s);
+                pairs += n;
+            }
+            won / pairs.max(1.0)
+        })
+        .collect();
+    move |need, range| Range(Combo::all().map(|c| if against[c.class().index()] >= need { range.0[c.index()] } else { 0.0 }).collect())
+}
+
+struct Aggression {
+    ev: f64,
+    /// How often everyone folds.
+    folds: Option<f64>,
+    /// Before the flop, for a shove that loses when an opponent who covers [`DEEP_SHOVE`]
+    /// calls: what it loses to the opponents who call.
+    bluff: Option<f64>,
+}
+
+/// What betting or raising to `to` on the street brings.
+fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead: CardSet, rng: &mut ChaCha8Rng, t: &Tuning) -> Aggression {
     let add = (to - spot.hero_in).max(0.0);
     let all_in = add >= spot.hero_behind - 1e-9;
     let facing = spot.to_call() > 0.0;
     let mut shares = Vec::new();
     let mut continuing_ranges = Vec::new();
+    // What each opponent puts in to call, and how much of the hero's bet that covers.
+    let mut calls = Vec::new();
+    let shove_callers = (all_in && spot.preflop).then(|| shove_calls(spot.hero));
     for o in &spot.opponents {
         let need = (to - o.street_in).min(o.behind).max(0.0);
         if need <= 0.0 {
+            continue;
+        }
+        let live = o.range.live(dead);
+        if live <= 0.0 {
+            continue;
+        }
+        let covered = (o.street_in + need - spot.hero_in).clamp(0.0, add);
+        calls.push((need, covered));
+        if let Some(callers) = &shove_callers {
+            let calling = callers(need / (spot.pot + covered + need), &o.range);
+            shares.push(calling.live(dead) / live);
+            continuing_ranges.push(calling);
             continue;
         }
         // Minimum defence: the share that keeps a bluff from profiting at once.
@@ -811,10 +883,6 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
             share *= 0.85;
         }
         let share = share.clamp(0.02, 0.95);
-        let live = o.range.live(dead);
-        if live <= 0.0 {
-            continue;
-        }
         shares.push(share as f64);
         continuing_ranges.push(continuing(&o.range, strength, board_dead, share));
     }
@@ -822,7 +890,8 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
         // Nobody can put in more: the bet is a call of what is there, the rest comes back.
         let call = spot.to_call();
         let eq = equity(spot.hero, &spot.opponents.iter().map(|o| &o.range).collect::<Vec<_>>(), &spot.board, rng);
-        return (realization(spot, 0.0, eq, t) * eq * (spot.winnable_pot() + call) - call, None);
+        let ev = realization(spot, 0.0, eq, t) * eq * (spot.winnable_pot() + call) - call;
+        return Aggression { ev, folds: None, bluff: None };
     }
     let all_fold: f64 = shares.iter().map(|s| 1.0 - s).product();
     let callers: f64 = shares.iter().sum::<f64>() / (1.0 - all_fold).max(1e-9);
@@ -830,27 +899,37 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
     // for what they put in, and the rest of the bet comes back.
     let stuck: Vec<&Opponent> = spot.opponents.iter().filter(|o| o.behind <= 1e-9).collect();
     let stuck_ranges: Vec<&Range> = stuck.iter().map(|o| &o.range).collect();
-    let uncontested = if stuck.is_empty() {
-        spot.pot
-    } else {
-        let matched = (stuck.iter().map(|o| o.street_in).fold(0.0, f64::max) - spot.hero_in).clamp(0.0, add);
-        equity(spot.hero, &stuck_ranges, &spot.board, rng) * (spot.pot + matched) - matched
+    let stuck_matched = (stuck.iter().map(|o| o.street_in).fold(0.0, f64::max) - spot.hero_in).clamp(0.0, add);
+    let uncontested = if stuck.is_empty() { spot.pot } else { equity(spot.hero, &stuck_ranges, &spot.board, rng) * (spot.pot + stuck_matched) - stuck_matched };
+    let raiser = Spot { aggressor: true, ..spot.clone() };
+    let played = |eq: f64, pot: f64, risked: f64| {
+        let rr = if all_in { 1.0 } else { realization(&raiser, (spot.hero_behind - risked) / pot.max(0.01), eq, t) };
+        rr * eq * pot - risked
     };
-    // Against one likely caller the strongest continuing range stands in; against more,
-    // all of them.
-    let mut against: Vec<&Range> = if callers < 1.5 {
-        let k = (0..shares.len()).max_by(|&a, &b| shares[a].total_cmp(&shares[b])).unwrap_or(0);
-        vec![&continuing_ranges[k]]
+    // Each opponent who calls, heads-up for what they can put in; the rest of the hero's
+    // bet comes back. Against one likely caller each stands in as often as they call;
+    // against more, all of them, for what they put in on average.
+    let one_caller = callers < 1.5;
+    let mut heads_up = vec![0.0; shares.len()];
+    for k in (0..shares.len()).filter(|&k| shares[k] > 0.0 && (one_caller || shove_callers.is_some())) {
+        let mut against = vec![&continuing_ranges[k]];
+        against.extend(stuck_ranges.iter().copied());
+        let (need, covered) = calls[k];
+        let risked = covered.max(stuck_matched);
+        heads_up[k] = played(equity(spot.hero, &against, &spot.board, rng), spot.pot + risked + need, risked);
+    }
+    let total = shares.iter().sum::<f64>().max(1e-12);
+    let deep_loses = (0..shares.len()).any(|k| shares[k] > 0.0 && heads_up[k] < 0.0 && spot.hero_in + calls[k].1.max(stuck_matched) >= DEEP_SHOVE);
+    let bluff = (shove_callers.is_some() && deep_loses).then(|| (1.0 - all_fold) * (0..shares.len()).map(|k| shares[k] / total * heads_up[k].min(0.0)).sum::<f64>());
+    let called = if one_caller {
+        (0..shares.len()).map(|k| shares[k] / total * heads_up[k]).sum()
     } else {
-        continuing_ranges.iter().collect()
+        let mut against: Vec<&Range> = continuing_ranges.iter().collect();
+        against.extend(stuck_ranges.iter().copied());
+        let put: f64 = shares.iter().zip(&calls).map(|(s, (need, _))| s * need).sum::<f64>() / (1.0 - all_fold).max(1e-9);
+        played(equity(spot.hero, &against, &spot.board, rng), spot.pot + add + put, add)
     };
-    against.extend(stuck_ranges);
-    let eq_called = equity(spot.hero, &against, &spot.board, rng);
-    // Played against one caller, the pot holds one call.
-    let called_pot = spot.pot + add + if callers < 1.5 { 1.0 } else { callers } * add;
-    let behind = spot.hero_behind - add;
-    let rr = if all_in { 1.0 } else { realization(&Spot { aggressor: true, ..spot.clone() }, behind / called_pot.max(0.01), eq_called, t) };
-    (all_fold * uncontested + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
+    Aggression { ev: all_fold * uncontested + (1.0 - all_fold) * called, folds: Some(all_fold), bluff }
 }
 
 #[cfg(test)]
@@ -859,7 +938,7 @@ mod tests {
 
     fn prepared(options: Vec<Opt>, evs: Vec<f64>, equity: f64, pot_odds: Option<f64>) -> Prepared {
         let folds = vec![None; options.len()];
-        Prepared { options, evs, folds, equity, pot_odds, pot: 20.0 }
+        Prepared { options, evs, folds, equity, pot_odds, pot: 20.0, preflop: false }
     }
 
     /// Shrinking the gaps leaves folding at 0 and every gap as the shrink makes it.
