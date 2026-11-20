@@ -343,7 +343,7 @@
   const LOG_MIN = 150;
   const besides = $derived((moveList || !!aside) && boxW >= (aside ? 860 : 1150));
   // Wide screens give the extra room to the analysis, not to an ever larger table.
-  const sideW = $derived(besides ? Math.round(aside ? Math.min(560, Math.max(320, boxW * 0.28, boxW - 980)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
+  const sideW = $derived(besides ? Math.round(aside ? Math.min(560, Math.max(300, boxW * 0.28, boxW - 1000)) : Math.min(360, Math.max(280, boxW * 0.24))) : 0);
   /** The table keeps its shape: the widest one whose height fits, never narrower than it reads well. */
   const tableW = $derived.by(() => {
     const room = Math.min(besides ? boxW - sideW - 20 : boxW, 1100);

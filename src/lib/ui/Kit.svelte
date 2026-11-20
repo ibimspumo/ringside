@@ -192,6 +192,7 @@
     { position: "HJ", name: "fishbowl", stack: 100, folded: true },
     { position: "CO", name: "riverrat", stack: 100, folded: true },
   ];
+  const EIGHT = NINE.filter((s) => !s.empty);
 
   // Raster
   const mixCell = (i: number): RangeCell => {
@@ -732,6 +733,7 @@
         <div class="tables">
           {#key replay}
             <Card pad="sm"><PokerTable seats={SIX} board={["Qs", "9d", "3h"]} pot={13} label="6er-Tisch" /></Card>
+            <Card pad="sm"><PokerTable seats={EIGHT} pot={44} label="8er-Tisch" /></Card>
             <Card pad="sm"><PokerTable seats={NINE} pot={44} label="9er-Tisch" /></Card>
             <div class="replay-table">
               <Card pad="sm"><PokerTable seats={REPLAY} board={["9c", "4h", "2s", "Kd", "3c"]} pot={0} note="River" label="Nachspielen, schmal" /></Card>

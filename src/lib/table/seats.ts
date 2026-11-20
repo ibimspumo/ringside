@@ -246,20 +246,22 @@ export function fit(
 /**
  * The table every view draws: a fixed stage, scaled as a whole to the room it gets, so it keeps
  * the shape of a real table (the felt about twice as wide as high) at every size. Lengths are
- * pixels of the stage. Action, win and dealer button sit on the name plate, so only the chips
- * go on the line to the middle; `scripts/table-layout.test.mjs` checks that nothing overlaps at
- * 2 to 10 seats.
+ * pixels of the stage; at the replayer's width on a Full-HD screen it is drawn at about 0.92.
+ * Action, win and dealer button sit on the name plate, so only the chips go on the line to the
+ * middle; `scripts/table-layout.test.mjs` checks that nothing overlaps at 2 to 10 seats.
  */
-export const STAGE: Box = { w: 760, h: 426 };
+export const STAGE: Box = { w: 760, h: 456 };
+/** Ten seats need a little more room: the same shape, drawn a little smaller. */
+export const stageFor = (seats: number): Box => (seats > 9 ? { w: 800, h: 480 } : STAGE);
 export const STAGE_SIZES: Sizes = {
-  seat: { w: 112, h: 96 },
-  me: { w: 118, h: 103 },
+  seat: { w: 108, h: 115 },
+  me: { w: 114, h: 124 },
   badge: { w: 0, h: 0 },
-  bet: { w: 76, h: 20 },
+  bet: { w: 80, h: 20 },
   gap: 4,
   margin: 4,
 };
-/** Pot, board and street name, stacked in the middle. */
-export const STAGE_MIDDLE: Middle = [{ box: { w: 190, h: 94 }, dy: 0 }];
+/** Pot and board in the middle. */
+export const STAGE_MIDDLE: Middle = [{ box: { w: 222, h: 86 }, dy: 0 }];
 /** Card widths on the stage. */
-export const STAGE_CARDS = { board: 34, hero: 33, shown: 28, hidden: 22 };
+export const STAGE_CARDS = { board: 41, hero: 38, shown: 32, hidden: 24 };
