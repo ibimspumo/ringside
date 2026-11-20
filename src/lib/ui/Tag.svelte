@@ -34,19 +34,23 @@
 {/if}
 
 <style>
+  /* As wide as its label, like one line; only a label wider than its column wraps instead of
+     running out of it. */
   .ui-tag {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     gap: 6px;
-    height: 28px;
-    padding: 0 var(--sp-3);
+    max-width: 100%;
+    min-height: 28px;
+    padding: 3px var(--sp-3);
     border-radius: var(--r-pill);
     border: 1px solid var(--line-2);
     background: var(--surface-2);
     color: var(--text);
     font: inherit;
     font-size: var(--fs-md);
-    white-space: nowrap;
+    text-align: left;
   }
   .removable {
     padding-right: var(--sp-1);

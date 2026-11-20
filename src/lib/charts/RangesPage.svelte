@@ -869,6 +869,7 @@
   }
   .setup {
     grid-area: setup;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 14px;
@@ -937,8 +938,9 @@
     gap: 6px;
   }
   .spot {
-    display: inline-flex;
-    align-items: center;
+    display: flex;
+    flex: 1;
+    align-items: baseline;
     gap: var(--sp-2);
     min-width: 0;
   }
