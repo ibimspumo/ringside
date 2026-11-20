@@ -144,16 +144,25 @@ export function layout(n: number, w: number, h: number, sizes: Sizes): TableLayo
     // Clear of the badge and of the seat block itself (a small badge does not cover it).
     const d2 = Math.max(d1 + apart(sizes.badge, sizes.bet, gap, u), apart(box, sizes.bet, gap, u));
     const bet = { x: p.x + u.x * d2, y: p.y + u.y * d2 };
-    // The button sits beside the badge, clear of the seat block.
+    // The button sits beside the badge, clear of the seat block and of its own badge, on the
+    // side where it needs the shorter push away from the seat.
     const button = { w: dealer, h: dealer };
-    const side = { x: -u.y, y: u.x };
-    const off = Math.max(apart(sizes.badge, button, gap, side), apart(sizes.bet, button, gap, side));
-    const dealerAt = { x: badge.x + side.x * off, y: badge.y + side.y * off };
     const seatRect = rect(p, { w: box.w + 2 * gap, h: box.h + 2 * gap });
-    for (let i = 0; i < 60 && overlaps(rect(dealerAt, button), seatRect); i++) {
-      dealerAt.x += u.x * 2;
-      dealerAt.y += u.y * 2;
-    }
+    const badgeRect = rect(badge, { w: sizes.badge.w + 2 * gap, h: sizes.badge.h + 2 * gap });
+    const beside = (sign: number) => {
+      const side = { x: -u.y * sign, y: u.x * sign };
+      const off = Math.max(apart(sizes.badge, button, gap, side), apart(sizes.bet, button, gap, side));
+      const at = { x: badge.x + side.x * off, y: badge.y + side.y * off };
+      let pushes = 0;
+      while (pushes < 60 && (overlaps(rect(at, button), seatRect) || overlaps(rect(at, button), badgeRect))) {
+        at.x += u.x * 2;
+        at.y += u.y * 2;
+        pushes++;
+      }
+      return { at, pushes };
+    };
+    const [a, b] = [beside(1), beside(-1)];
+    const dealerAt = (b.pushes < a.pushes ? b : a).at;
     return { seat: p, dir: u, badge, bet, dealer: dealerAt, box };
   });
   // The seats sit on the edge of the felt, half on the rail, as at the client.
@@ -233,3 +242,24 @@ export function fit(
   }
   return { geo: layout(n, 2400, height(2400), sizes), scale: w / 2400 };
 }
+
+/**
+ * The table every view draws: a fixed stage, scaled as a whole to the room it gets, so it keeps
+ * the shape of a real table (the felt about twice as wide as high) at every size. Lengths are
+ * pixels of the stage. Action, win and dealer button sit on the name plate, so only the chips
+ * go on the line to the middle; `scripts/table-layout.test.mjs` checks that nothing overlaps at
+ * 2 to 10 seats.
+ */
+export const STAGE: Box = { w: 760, h: 426 };
+export const STAGE_SIZES: Sizes = {
+  seat: { w: 112, h: 96 },
+  me: { w: 118, h: 103 },
+  badge: { w: 0, h: 0 },
+  bet: { w: 76, h: 20 },
+  gap: 4,
+  margin: 4,
+};
+/** Pot, board and street name, stacked in the middle. */
+export const STAGE_MIDDLE: Middle = [{ box: { w: 190, h: 94 }, dy: 0 }];
+/** Card widths on the stage. */
+export const STAGE_CARDS = { board: 34, hero: 33, shown: 28, hidden: 22 };

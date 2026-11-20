@@ -22,7 +22,7 @@
   import PageHeader from "./PageHeader.svelte";
   import Panel from "./Panel.svelte";
   import PlayingCard from "./PlayingCard.svelte";
-  import PokerTable, { COMPACT_BELOW, type TableSeat } from "./PokerTable.svelte";
+  import PokerTable, { type TableSeat } from "./PokerTable.svelte";
   import PotOdds from "./PotOdds.svelte";
   import Popover from "./Popover.svelte";
   import { ACTION_NAME, GRADE, GRADES, SOURCE, type ActionKind, type Source } from "./poker";
@@ -728,19 +728,19 @@
 
     {#if show("tisch")}
       <section id="tisch">
-        <SectionHead title="Tisch" sub="Du sitzt unten in der Mitte. Schild und Chips liegen auf der Linie Platz → Mitte, für alle gleich weit." />
+        <SectionHead title="Tisch" sub="Du sitzt unten in der Mitte. Aktion und Dealer-Button stehen im Namensschild, die Chips auf der Linie Platz → Mitte." />
         <div class="tables">
           {#key replay}
             <Card pad="sm"><PokerTable seats={SIX} board={["Qs", "9d", "3h"]} pot={13} label="6er-Tisch" /></Card>
             <Card pad="sm"><PokerTable seats={NINE} pot={44} label="9er-Tisch" /></Card>
             <div class="replay-table">
-              <Card pad="sm"><PokerTable seats={REPLAY} board={["9c", "4h", "2s", "Kd", "3c"]} pot={0} note="River" label="Nachspielen, kompakt" /></Card>
+              <Card pad="sm"><PokerTable seats={REPLAY} board={["9c", "4h", "2s", "Kd", "3c"]} pot={0} note="River" label="Nachspielen, schmal" /></Card>
             </div>
           {/key}
         </div>
         <p class="muted">
-          Unter {COMPACT_BELOW} px wird der Tisch kompakt: kleinere Schilder bei gleicher Schrift, Aktion am Schildrand. Beim Nachspielen trägt
-          deine Aktion ihre Bewertung, der Gewinner sein Plus.
+          Der Tisch hat ein festes Format und wächst und schrumpft als Ganzes. Beim Nachspielen trägt deine Aktion ihre Bewertung, der Gewinner
+          sein Plus.
         </p>
         <Card pad="sm">
           <ActionChain
