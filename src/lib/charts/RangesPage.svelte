@@ -70,6 +70,10 @@
   let fromLabel = $state<string | null>(null);
   let fromNote = $state<{ played: string; best: string | null; loss: number | null } | null>(null);
   let pendingNode = $state<number | null>(null);
+  /** The hand's model spot: shown even when it is too rare for the list. */
+  let handSpot = $state<{ ante: string; players: number; stack: number; id: number } | null>(null);
+  /** The hand's spot is not in the tables, so the page shows another one. */
+  let handMissing = $state(false);
 
   /** Shares with one decimal everywhere, so a row of them adds up visibly. */
   const one = (x: number) => x.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -106,6 +110,8 @@
     fromLabel = t.hand;
     fromNote = chartsHandoff.note;
     only = null;
+    handMissing = false;
+    handSpot = t.kind === "preflop" && t.node !== null ? { ante: t.ante, players: t.players, stack: t.stack_bb, id: t.node } : null;
     if (t.kind === "pushfold") {
       pfView = t.stack_bb >= (preGrid ? Math.min(...preGrid.stacks) : 15);
       segment = t.shover === null ? "open" : "vs_shove";
@@ -250,7 +256,9 @@
     return "later";
   }
 
-  const visible = $derived(spots?.nodes.filter((n) => n.reach >= MIN_REACH || !n.line.length) ?? []);
+  const isHandSpot = (id: number) =>
+    !!spots && !!handSpot && handSpot.id === id && spots.ante === handSpot.ante && spots.players === handSpot.players && spots.stack_bb === handSpot.stack;
+  const visible = $derived(spots?.nodes.filter((n) => n.reach >= MIN_REACH || !n.line.length || isHandSpot(n.id)) ?? []);
   const hidden = $derived((spots?.nodes.filter((n) => n.seat === seat).length ?? 0) - visible.filter((n) => n.seat === seat).length);
 
   const itemsBySeg = $derived.by(() => {
@@ -284,6 +292,7 @@
       segment = segmentOf(s);
       pick = String(s.id);
     }
+    handMissing = !s;
     pendingNode = null;
   });
 
@@ -510,7 +519,7 @@
         <span>
           {#if fromNote}
             Gespielt: <b>{fromNote.played}</b>{#if fromNote.best && fromNote.best !== fromNote.played}{" · "}besser: <b>{fromNote.best}</b>{/if}.{#if fromNote.loss && fromNote.best && fromNote.best !== fromNote.played}{` Dein ${fromNote.played.split(" ")[0]} kostet gegenüber ${fromNote.best.split(" ")[0]} etwa ${pct(fromNote.loss, 2)} BB.`}{/if}{" "}
-          {/if}Deine Hand ist im Raster markiert.
+          {/if}{handMissing ? "Für diese Lage gibt es keine Tabelle; gezeigt wird die nächstliegende." : "Deine Hand ist im Raster markiert."}
         </span>
       </div>
     {/if}
