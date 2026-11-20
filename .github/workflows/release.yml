@@ -54,13 +54,45 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Ringside ${{ github.ref_name }}
-          releaseBody: Installer für Windows unten unter „Assets“ (Ringside_…_x64-setup.exe). Bestehende Installationen finden das Update über „Nach Updates suchen“.
+          releaseBody: Installer unten unter „Assets“ – Windows Ringside_…_x64-setup.exe, Mac (Apple Silicon) Ringside_…_aarch64.dmg, beim ersten Öffnen Rechtsklick → Öffnen. Bestehende Installationen finden das Update über „Nach Updates suchen“.
           releaseDraft: true
           prerelease: false
           includeUpdaterJson: true
 
+  # After Windows, into the same draft; tauri-action adds the platform to its latest.json.
+  # The app is not notarised: macOS asks once on first open (right-click, Open).
+  build-mac:
+    needs: build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@1.100.0
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-mac
+      - run: pnpm install --frozen-lockfile
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Ringside ${{ github.ref_name }}
+          releaseDraft: true
+          prerelease: false
+          includeUpdaterJson: true
+          args: --bundles app,dmg
+
+  # Windows is the main platform: a failed Mac build does not hold its release back.
   publish:
-    needs: [checks, build]
+    needs: [checks, build, build-mac]
+    if: ${{ !cancelled() && needs.checks.result == 'success' && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - run: gh release edit "${{ github.ref_name }}" --repo "${{ github.repository }}" --draft=false --latest
