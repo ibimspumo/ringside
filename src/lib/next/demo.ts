@@ -29,7 +29,7 @@ function spot(key: string, spots: SpotType[], title: string, detail: string, dec
     id: `spot:${key}`,
     kind: "spot",
     title,
-    why: `${flawed} von ${decisions} deiner Entscheidungen hier waren ungenau oder schlechter (${detail}).`,
+    why: `${flawed} von ${decisions} deiner Entscheidungen hier ${flawed === 1 ? "war" : "waren"} ungenau oder schlechter (${detail}).`,
     number: `kostet dich im Schnitt etwa ${bbText(mean)} je Entscheidung, ${decisions}-mal gespielt`,
     per_time_bb: mean,
     times: decisions,

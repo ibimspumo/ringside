@@ -123,7 +123,13 @@ pub fn evaluate(hand: &Hand, own: &OwnSpot) -> (Decision, Option<ChartTarget>) {
     let rank = ringside_engine::HandClass::all()
         .map(|c| if margin(c.index()) > mine { combos(&c) } else if c == class { combos(&c) / 2.0 } else { 0.0 })
         .sum::<f64>();
-    let seat = ringside_engine::multiway::seat_name(players, ts.hero);
+    // The position the rest of the app shows; the chart's table may leave out players
+    // who were all in with the ante.
+    let seat = hand
+        .hero
+        .as_deref()
+        .and_then(|h| ringside_core::stats::position_labels(hand).into_iter().find(|(n, _)| n == h))
+        .map_or_else(|| ringside_engine::multiway::seat_name(players, ts.hero).to_string(), |(_, p)| p.to_string());
     let facts = why::Ranked {
         chart: why::Chart::Equilibrium,
         place: if shover.is_some() { format!("Als {seat} gegen das All-in bei {} effektiv", bb(effective)) } else { format!("Als {seat} bei {} effektiv", bb(effective)) },

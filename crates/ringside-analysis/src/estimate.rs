@@ -12,7 +12,10 @@
 //!   of anyone else (lead, probe), a raise, a call, a check with others still to act or
 //!   one behind.
 //! - **Equity** of the hero's two cards against all opponents at once, sampled with card
-//!   removal.
+//!   removal. Facing a bet, each opponent who still has to answer it goes on with the
+//!   strongest share of the range the calibration fits (`behind`), or folds; what they
+//!   would add is left out. What an opponent bet beyond the hero's stack is no part of
+//!   the pot.
 //! - **EV of each option**, in BB from now on: fold 0; check `R × equity × pot`, heads-up
 //!   out of position with what the opponent's bet after it brings; call
 //!   `R × equity × (pot + call) − call`; a bet or raise wins the pot when everyone folds
@@ -524,9 +527,35 @@ pub struct Spot {
 }
 
 impl Spot {
+    /// Every opponent is all in: nobody can bet or call any more.
+    pub fn nobody_can_bet(&self) -> bool {
+        self.opponents.iter().all(|o| o.behind <= 1e-9)
+    }
+
+    fn top(&self) -> f64 {
+        self.opponents.iter().map(|o| o.street_in).fold(self.hero_in, f64::max)
+    }
+
     pub fn to_call(&self) -> f64 {
-        let top = self.opponents.iter().map(|o| o.street_in).fold(self.hero_in, f64::max);
-        (top - self.hero_in).min(self.hero_behind).max(0.0)
+        (self.top() - self.hero_in).min(self.hero_behind).max(0.0)
+    }
+
+    /// Facing a bet, `o` still has to answer it: less in than the bet and chips behind.
+    pub fn waits(&self, o: &Opponent) -> bool {
+        self.to_call() > 0.0 && o.street_in < self.top() - 1e-9 && o.behind > 1e-9
+    }
+
+    /// Opponents a call plays against, on average: those who still have to answer the bet
+    /// go on with the share `behind`.
+    pub fn expected_opponents(&self, behind: f64) -> f64 {
+        self.opponents.iter().map(|o| if self.waits(o) { behind.clamp(0.0, 1.0) } else { 1.0 }).sum()
+    }
+
+    /// The pot the hero can win: what an opponent put in on this street beyond the hero's
+    /// whole stack goes back or into a side pot.
+    pub fn winnable_pot(&self) -> f64 {
+        let cap = self.hero_in + self.hero_behind;
+        self.pot - self.opponents.iter().map(|o| (o.street_in - cap).max(0.0)).sum::<f64>()
     }
 }
 
@@ -564,6 +593,14 @@ pub struct Tuning {
     pub line_margin: f64,
     pub line_pct: f64,
     pub line_top: f64,
+    /// Share of their range opponents still to answer a bet go on with when the hero
+    /// calls it; 1 counts all of them in with every hand.
+    #[serde(default = "every_hand")]
+    pub behind: f64,
+}
+
+fn every_hand() -> f64 {
+    1.0
 }
 
 fn default_tie() -> f64 {
@@ -580,17 +617,18 @@ impl Default for Tuning {
             line_margin: -1.0,
             line_pct: 100.0,
             line_top: 1.0,
+            behind: 1.0,
         }
     }
 }
 
 /// Equity realization on later streets.
 fn realization(s: &Spot, spr: f64, eq: f64, t: &Tuning) -> f64 {
-    if s.river {
+    if s.river || s.nobody_can_bet() {
         return 1.0;
     }
     let pos = if s.in_position { 1.0 } else { 0.86 };
-    let crowd = 1.0 - 0.07 * (s.opponents.len().saturating_sub(1)) as f64;
+    let crowd = 1.0 - 0.07 * (s.expected_opponents(t.behind) - 1.0).max(0.0);
     let depth = 1.0 - 0.04 * spr.clamp(0.0, 6.0);
     let lead = if s.aggressor { 1.04 } else { 1.0 };
     let strength = 1.0 + t.strength * (eq - 0.5);
@@ -608,20 +646,20 @@ pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &S
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
     let dead = CardSet(spot.hero.mask().0 | CardSet::from_cards(&spot.board).0);
     let board_dead = CardSet::from_cards(&spot.board);
-    let ranges: Vec<&Range> = spot.opponents.iter().map(|o| &o.range).collect();
-    let eq = equity(spot.hero, &ranges, &spot.board, &mut rng);
+    let eq = facing_equity(spot, strength, board_dead, t.behind, &mut rng);
     let call = spot.to_call();
+    let pot = spot.winnable_pot();
     let behind_after_call = spot.hero_behind - call;
-    let spr_now = behind_after_call / (spot.pot + call).max(0.01);
+    let spr_now = behind_after_call / (pot + call).max(0.01);
     let r = realization(spot, spr_now, eq, t);
-    let pot_odds = (call > 0.0).then(|| call / (spot.pot + call));
+    let pot_odds = (call > 0.0).then(|| call / (pot + call));
     let ev_of = |opt: Opt, rng: &mut ChaCha8Rng| -> (f64, Option<f64>) {
         match opt {
             Opt::Fold => (0.0, None),
             Opt::Check => (r * checked(spot, eq, strength, board_dead, dead, curves, rng), None),
             Opt::Call => {
                 let rr = if call >= spot.hero_behind - 1e-9 { 1.0 } else { r };
-                (rr * eq * (spot.pot + call) - call, None)
+                (rr * eq * (pot + call) - call, None)
             }
             Opt::Bet(to) | Opt::Raise(to) => aggression(spot, to.min(spot.hero_in + spot.hero_behind), &strength.equity, board_dead, dead, rng, t),
             Opt::AllIn => aggression(spot, spot.hero_in + spot.hero_behind, &strength.equity, board_dead, dead, rng, t),
@@ -629,6 +667,30 @@ pub fn prepare(spot: &Spot, options: &[Opt], seed: u64, t: &Tuning, strength: &S
     };
     let (evs, folds): (Vec<f64>, Vec<Option<f64>>) = options.iter().map(|&o| ev_of(o, &mut rng)).unzip();
     Prepared { options: options.to_vec(), evs, folds, equity: eq, pot_odds, pot: spot.pot }
+}
+
+/// The hero's equity against everyone in the pot. Facing a bet, each opponent who still has
+/// to answer it goes on with the strongest `behind` of the range: the equity is that against
+/// those already in when all of them fold, and against them all otherwise, weighted by how
+/// likely each is.
+fn facing_equity(spot: &Spot, strength: &Strength, board_dead: CardSet, behind: f64, rng: &mut ChaCha8Rng) -> f64 {
+    let all: Vec<&Range> = spot.opponents.iter().map(|o| &o.range).collect();
+    let waiting = spot.opponents.iter().filter(|o| spot.waits(o)).count();
+    if waiting == 0 || behind >= 1.0 {
+        return equity(spot.hero, &all, &spot.board, rng);
+    }
+    let w = behind.max(0.0);
+    let present: Vec<&Range> = spot.opponents.iter().filter(|o| !spot.waits(o)).map(|o| &o.range).collect();
+    let none_go_on = (1.0 - w).powi(waiting as i32);
+    let eq_present = if present.is_empty() { 1.0 } else { equity(spot.hero, &present, &spot.board, rng) };
+    if none_go_on >= 1.0 {
+        return eq_present;
+    }
+    let going_on: Vec<Range> =
+        spot.opponents.iter().filter(|o| spot.waits(o)).map(|o| continuing(&o.range, &strength.equity, board_dead, w as f32)).collect();
+    let mut with: Vec<&Range> = present.clone();
+    with.extend(going_on.iter());
+    none_go_on * eq_present + (1.0 - none_go_on) * equity(spot.hero, &with, &spot.board, rng)
 }
 
 /// The part of an estimate that the free numbers after [`Tuning::defend`] and
@@ -757,23 +819,38 @@ fn aggression(spot: &Spot, to: f64, strength: &[f32], board_dead: CardSet, dead:
         continuing_ranges.push(continuing(&o.range, strength, board_dead, share));
     }
     if shares.is_empty() {
+        // Nobody can put in more: the bet is a call of what is there, the rest comes back.
+        let call = spot.to_call();
         let eq = equity(spot.hero, &spot.opponents.iter().map(|o| &o.range).collect::<Vec<_>>(), &spot.board, rng);
-        return (realization(spot, 0.0, eq, t) * eq * spot.pot, None);
+        return (realization(spot, 0.0, eq, t) * eq * (spot.winnable_pot() + call) - call, None);
     }
     let all_fold: f64 = shares.iter().map(|s| 1.0 - s).product();
     let callers: f64 = shares.iter().sum::<f64>() / (1.0 - all_fold).max(1e-9);
+    // Opponents all in already can't fold: when the others do, the hero still plays them
+    // for what they put in, and the rest of the bet comes back.
+    let stuck: Vec<&Opponent> = spot.opponents.iter().filter(|o| o.behind <= 1e-9).collect();
+    let stuck_ranges: Vec<&Range> = stuck.iter().map(|o| &o.range).collect();
+    let uncontested = if stuck.is_empty() {
+        spot.pot
+    } else {
+        let matched = (stuck.iter().map(|o| o.street_in).fold(0.0, f64::max) - spot.hero_in).clamp(0.0, add);
+        equity(spot.hero, &stuck_ranges, &spot.board, rng) * (spot.pot + matched) - matched
+    };
     // Against one likely caller the strongest continuing range stands in; against more,
     // all of them.
-    let eq_called = if callers < 1.5 {
+    let mut against: Vec<&Range> = if callers < 1.5 {
         let k = (0..shares.len()).max_by(|&a, &b| shares[a].total_cmp(&shares[b])).unwrap_or(0);
-        equity(spot.hero, &[&continuing_ranges[k]], &spot.board, rng)
+        vec![&continuing_ranges[k]]
     } else {
-        equity(spot.hero, &continuing_ranges.iter().collect::<Vec<_>>(), &spot.board, rng)
+        continuing_ranges.iter().collect()
     };
-    let called_pot = spot.pot + add + callers * add;
+    against.extend(stuck_ranges);
+    let eq_called = equity(spot.hero, &against, &spot.board, rng);
+    // Played against one caller, the pot holds one call.
+    let called_pot = spot.pot + add + if callers < 1.5 { 1.0 } else { callers } * add;
     let behind = spot.hero_behind - add;
     let rr = if all_in { 1.0 } else { realization(&Spot { aggressor: true, ..spot.clone() }, behind / called_pot.max(0.01), eq_called, t) };
-    (all_fold * spot.pot + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
+    (all_fold * uncontested + (1.0 - all_fold) * (rr * eq_called * called_pot - add), Some(all_fold))
 }
 
 #[cfg(test)]

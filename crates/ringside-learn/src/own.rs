@@ -176,8 +176,8 @@ const MAX_STACK_BB: f64 = 20.0;
 /// The hero's push/fold decision at the whole table: shove or fold once everyone
 /// before folded, or call or fold against a shove (also after callers). Hands with a
 /// limp, a raise below all-in or already `max_all_in` players in the pot are no
-/// push/fold spots. Antes of players who are not dealt in become dead money, and so
-/// does any ante above the table's lowest, which also leaves that player's stack.
+/// push/fold spots. Antes of players who are not dealt in or all in with it become dead
+/// money, and so does any ante above the table's lowest, which also leaves that player's stack.
 fn push_fold(hand: &Hand) -> Option<OwnSpot> {
     if hand.game != GameKind::Tournament || hand.big_blind <= 0 {
         return None;
@@ -201,7 +201,9 @@ fn push_fold(hand: &Hand) -> Option<OwnSpot> {
     }
 
     // Seats in preflop action order: the player after the big blind first, the big blind last.
-    let active: Vec<&Seat> = hand.active_players().collect();
+    // A player all in with the ante has no decision left; the ante is dead money.
+    let ante_all_in = |name: &str| pre.iter().any(|(_, a)| a.player == name && a.kind == ActionKind::PostAnte && a.all_in);
+    let active: Vec<&Seat> = hand.active_players().filter(|s| !ante_all_in(&s.name)).collect();
     let n = active.len();
     let bb_at = active.iter().position(|s| s.name == bb_name)?;
     let order: Vec<&Seat> = (1..=n).map(|k| active[(bb_at + k) % n]).collect();

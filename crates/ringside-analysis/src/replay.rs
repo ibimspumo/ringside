@@ -239,9 +239,16 @@ pub fn options(spot: &Spot, a: &Action, big: f64) -> (Vec<Opt>, usize) {
             .min_by(|x, y| x.1.total_cmp(&y.1))
             .map(|x| x.0),
     };
-    // Calling all in for less than the bet is the same as calling.
-    if call >= spot.hero_behind - 1e-9 {
-        opts.retain(|o| *o != Opt::AllIn);
+    // Calling all in for less than the bet is the same as calling, and so is raising when
+    // every opponent is all in already.
+    if call >= spot.hero_behind - 1e-9 || spot.nobody_can_bet() {
+        let played_opt = played.map(|k| opts[k]);
+        opts.retain(|o| matches!(o, Opt::Fold | Opt::Check | Opt::Call));
+        let played = match played_opt {
+            Some(o) if opts.contains(&o) => opts.iter().position(|x| *x == o),
+            _ => opts.iter().position(|o| matches!(o, Opt::Call | Opt::Check)),
+        };
+        return (opts, played.unwrap_or(0));
     }
     let played = played.unwrap_or(0).min(opts.len() - 1);
     (opts, played)
@@ -292,14 +299,15 @@ pub fn rate_with(
         .enumerate()
         .map(|(i, &o)| Choice { label: opt_label(o), freq: freq[i], ev_bb: Some(est.evs[i]), played: i == played, kind: o.key().into() })
         .collect();
-    let opponents = spot.opponents.len();
+    let opponents = spot.expected_opponents(tuning.behind).round().max(1.0) as usize;
     let top = (0..opts.len()).max_by(|&x, &y| est.evs[x].total_cmp(&est.evs[y]));
     let behind = spot.opponents.iter().map(|o| o.behind).fold(0.0, f64::max).min(spot.hero_behind);
     let facts = why::Estimated {
         equity: est.equity,
         opponents,
         need: est.pot_odds,
-        fold: top.and_then(|k| est.folds[k]),
+        // With someone all in already, folds of the others don't win the pot.
+        fold: top.and_then(|k| est.folds[k]).filter(|_| spot.opponents.iter().all(|o| o.behind > 1e-9)),
         spr: (!spot.preflop && est.pot_odds.is_none() && spot.pot > 0.0).then(|| behind / spot.pot),
     };
     let preflop = spot.preflop;

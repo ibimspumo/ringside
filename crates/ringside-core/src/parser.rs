@@ -7,13 +7,15 @@ use std::sync::LazyLock;
 
 use regex::Regex;
 
+use crate::clock::local_time;
 use crate::model::{Action, ActionKind, Amount, Finish, GameKind, Hand, Seat, Site, Street, gg_hand_id, gg_tournament_id};
 use crate::tournament::BuyIn;
 use crate::tournament::parse_buy_in;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParseError {
-    /// A valid hand of a game Ringside does not track (stud, draw, ...).
+    /// A valid hand of a game Ringside does not track (stud, draw, ...), or one the client
+    /// cancelled before it was played.
     Unsupported(String),
     Malformed(String),
 }
@@ -29,14 +31,14 @@ impl fmt::Display for ParseError {
 
 impl std::error::Error for ParseError {}
 
-static HAND_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Hand #(\d+):").unwrap());
+/// "Hand #" since 2014, "Game #" before.
+static HAND_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?:Hand|Game) #(\d+):").unwrap());
 static TOURNAMENT_ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"Tournament #(\d+)").unwrap());
 static VARIANT: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"((?:5 Card |6 Card )?Omaha(?: Hi/Lo)?|Hold'em|Courchevel(?: Hi/Lo)?) (No Limit|Pot Limit|Limit)").unwrap()
 });
 static STAKES: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\(([^\d()/]*)([\d.,]+)/[^\d()/]*([\d.,]+)(?: ([A-Z]{3}))?\)").unwrap());
-static DATE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{4}/\d{2}/\d{2}) (\d{1,2}):(\d{2}:\d{2})").unwrap());
 static TABLE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^Table '(.+)' (\d+)-max.*?Seat #(\d+) is the button").unwrap());
 static SEAT: LazyLock<Regex> =
@@ -64,9 +66,11 @@ pub fn split_hands(text: &str) -> Vec<&str> {
     starts
         .iter()
         .enumerate()
-        .map(|(i, &start)| {
+        .filter_map(|(i, &start)| {
             let end = starts.get(i + 1).copied().unwrap_or(text.len());
-            text[start..end].trim_end()
+            // A hand the next one cut off in the middle of a line stays incomplete.
+            let cut_off = end < text.len() && !text[..end].ends_with('\n');
+            (!cut_off).then(|| text[start..end].trim_end())
         })
         .collect()
 }
@@ -106,12 +110,36 @@ fn hand_starts(text: &str) -> Vec<usize> {
     let mut offset = 0;
     for line in text.split_inclusive('\n') {
         let trimmed = line.trim_start_matches('\u{feff}');
-        if (trimmed.starts_with("PokerStars ") && trimmed.contains("Hand #")) || trimmed.starts_with("Poker Hand #") {
+        if (trimmed.starts_with("PokerStars ") && (trimmed.contains("Hand #") || trimmed.contains("Game #"))) || trimmed.starts_with("Poker Hand #") {
             starts.push(offset + (line.len() - trimmed.len()));
+        } else if let Some(at) = ["PokerStars Hand #", "PokerStars Game #", "PokerStars Zoom Hand #"].iter().filter_map(|h| line.find(h)).min() {
+            // The client stopped in the middle of a hand and went on with the next one in
+            // the same line.
+            starts.push(offset + at);
         }
         offset += line.len();
     }
     starts
+}
+
+/// Clients until 2007 wrote no "Uncalled bet" line when a bet was called for less: the part
+/// nobody matched went back all the same. When the bets exceed the pot by exactly what the
+/// biggest exceeds the second biggest, that part is returned.
+fn return_unmatched(hand: &mut Hand) {
+    let mut put: Vec<(&str, Amount)> = Vec::new();
+    for a in &hand.actions {
+        match put.iter_mut().find(|(p, _)| *p == a.player) {
+            Some((_, x)) => *x += a.amount,
+            None => put.push((&a.player, a.amount)),
+        }
+    }
+    put.sort_by_key(|(_, x)| std::cmp::Reverse(*x));
+    let ([(top, most), (_, next), ..], true) = (put.as_slice(), hand.total_pot > 0) else { return };
+    let over = put.iter().map(|(_, x)| x).sum::<Amount>() - hand.total_pot;
+    if over > 0 && over == most - next {
+        let top = top.to_string();
+        hand.returned.push((top, over));
+    }
 }
 
 pub fn parse_amount(raw: &str) -> Option<Amount> {
@@ -164,7 +192,7 @@ struct Head {
 
 /// "5:00:45" becomes "05:00:45", so timestamps sort and slice as text.
 fn played_at(header: &str) -> String {
-    DATE.captures(header).map(|c| format!("{} {:0>2}:{}", &c[1], &c[2], &c[3])).unwrap_or_default()
+    local_time(header).unwrap_or_default()
 }
 
 fn pokerstars_head(header: &str) -> Result<Head, ParseError> {
@@ -175,6 +203,10 @@ fn pokerstars_head(header: &str) -> Result<Head, ParseError> {
     let tournament = TOURNAMENT_ID.captures(header);
     let tournament_id: Option<u64> = tournament.as_ref().and_then(|c| c[1].parse().ok());
     let game = if tournament_id.is_some() { GameKind::Tournament } else { GameKind::Cash };
+    // 6+ Hold'em (short deck) plays by other rules than any model Ringside has.
+    if header.contains("6+ Hold'em") {
+        return Err(ParseError::Unsupported(header.to_string()));
+    }
     let variant_match = VARIANT.captures(header).ok_or_else(|| ParseError::Unsupported(header.to_string()))?;
     let variant = format!("{} {}", &variant_match[1], &variant_match[2]);
     // "Tournament #123, $10+$10+$2 USD Hold'em No Limit": the buy-in sits between id and game.
@@ -260,6 +292,10 @@ fn ggpoker_head(header: &str) -> Result<Head, ParseError> {
 pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
     let mut lines = text.lines().map(|l| l.trim_start_matches('\u{feff}').trim_end());
     let header = lines.next().ok_or_else(|| malformed("empty"))?;
+    // The blinds go back: nothing was played.
+    if text.lines().any(|l| l.trim_end() == "Hand cancelled") {
+        return Err(ParseError::Unsupported("hand cancelled".into()));
+    }
     let head = if header.starts_with("Poker Hand #") { ggpoker_head(header)? } else { pokerstars_head(header)? };
     let Head { id, site, game, tournament_id, tournament_name, variant, buy_in, small_blind, big_blind, currency, played_at } =
         head;
@@ -465,6 +501,14 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
             }
             continue;
         }
+        // "Hero cashed out the hand for $56.99 | Cash Out Fee $0.58": that is what the player
+        // gets instead of the pot.
+        if let Some((name, rest)) = find_player(line, " cashed out the hand for ") {
+            if let Some(amount) = rest.split_whitespace().next().and_then(parse_amount) {
+                hand.cashouts.push((name, amount));
+            }
+            continue;
+        }
         let Some((player, rest)) = find_player(line, ": ") else {
             continue;
         };
@@ -487,6 +531,9 @@ pub fn parse_hand(text: &str) -> Result<Hand, ParseError> {
         }
     }
 
+    if !gg && hand.returned.is_empty() {
+        return_unmatched(&mut hand);
+    }
     if gg {
         // GGPoker writes a showdown marker into every hand: a showdown is two players left.
         let folded = |name: &str| hand.actions.iter().any(|a| a.player == name && a.kind == ActionKind::Fold);
@@ -562,7 +609,8 @@ fn parse_action(
         let a = first_amount(r)?;
         (ActionKind::PostBigBlind, a, None, a)
     } else if let Some(r) = rest.strip_prefix("straddle ").or_else(|| rest.strip_prefix("posts third blind ")) {
-        let a = first_amount(r)?;
+        // The amount is the whole straddle: a big blind who straddles adds the difference.
+        let a = (first_amount(r)? - put_before).max(0);
         (ActionKind::PostStraddle, a, None, a)
     } else if let Some(r) = rest.strip_prefix("posts missed blind ") {
         (ActionKind::PostDead, first_amount(r)?, None, 0)

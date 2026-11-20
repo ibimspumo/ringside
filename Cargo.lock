@@ -3545,6 +3545,7 @@ dependencies = [
 name = "ringside-core"
 version = "0.18.0"
 dependencies = [
+ "chrono",
  "flate2",
  "regex",
  "ringside-engine",
