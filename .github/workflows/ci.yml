@@ -40,7 +40,8 @@ jobs:
               - "tsconfig.json"
               - ".github/workflows/ci.yml"
 
-  # Windows only compiles and lints: the table overlay exists only there.
+  # Windows lints everything (the table overlay exists only there) and tests the app crate,
+  # which needs the system webview.
   windows:
     runs-on: windows-latest
     steps:
@@ -58,8 +59,12 @@ jobs:
       # The app crate embeds the built frontend.
       - run: pnpm build
       - run: cargo clippy --workspace --all-targets -- -D warnings
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+      - run: cargo nextest run -p ringside --profile quick
 
-  # Frontend checks and the quick tests on Linux, which builds Rust about twice as fast.
+  # Frontend checks and the quick tests of every other crate on Linux, which builds Rust faster.
   check:
     runs-on: ubuntu-latest
     steps:
@@ -70,18 +75,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - uses: dtolnay/rust-toolchain@1.100.0
-      - name: System libraries of the app crate
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -yq libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev
       - uses: Swatinem/rust-cache@v2
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
-      - run: pnpm build
       - uses: taiki-e/install-action@v2
         with:
           tool: nextest
-      - run: cargo nextest run --workspace --profile quick
+      - run: cargo nextest run --workspace --exclude ringside --profile quick
 
   # The whole suite, with the tests the quick run leaves out (.config/nextest.toml), by hand;
   # every release runs it too. One test binary at a time: the solver tests use every core
