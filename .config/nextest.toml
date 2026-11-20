@@ -1,8 +1,7 @@
 # CI's quick run leaves out the solver tests that take ten seconds or more on its runner
 # (convergence, push/fold against the solver, whole hands played out, the GPU solver); what
-# guards privacy and the lock stays in, however slow. The full suite, `cargo nextest run`
-# or `cargo test`, runs where those can break: the CI job for the solver crates and every
-# release.
+# guards privacy and the lock stays in, however slow. The full suite, `cargo test --workspace`,
+# runs where those can break: the CI job for the solver crates and every release.
 
 [profile.quick]
 default-filter = """
@@ -51,8 +50,3 @@ not (
   | (binary_id(ringside-store::practice_seed) & test(=a_practice_seed_is_solved_and_found_by_the_stock))
 )
 """
-
-# Timing bounds of the coach's streaming (idle limit, cancel) fail on a starved CPU.
-[[profile.default.overrides]]
-filter = "binary_id(ringside-coach::session)"
-threads-required = "num-test-threads"

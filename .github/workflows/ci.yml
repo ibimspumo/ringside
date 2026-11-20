@@ -80,7 +80,9 @@ jobs:
           tool: nextest
       - run: cargo nextest run --workspace --profile quick
 
-  # The whole suite, with the tests the quick run leaves out (.config/nextest.toml).
+  # The whole suite, with the tests the quick run leaves out (.config/nextest.toml). One test
+  # binary at a time: the solver tests use every core themselves, and nextest's parallel run
+  # took 25 min here instead of 17.
   tests-full:
     needs: changes
     if: needs.changes.outputs.solver == 'true' || github.event_name == 'workflow_dispatch'
@@ -94,15 +96,10 @@ jobs:
           cache: pnpm
       - uses: dtolnay/rust-toolchain@1.100.0
       - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: nextest
       - run: pnpm install --frozen-lockfile
       # The app crate embeds the built frontend.
       - run: pnpm build
-      - run: cargo nextest run --workspace
-      # Only the vendored postflop solver has doctests.
-      - run: cargo test --workspace --doc
+      - run: cargo test --workspace
 
   # Opens every page of the real app (debug build, own data folder, fixture hand histories).
   e2e:
